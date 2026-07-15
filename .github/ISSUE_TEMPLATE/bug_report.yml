@@ -1,0 +1,70 @@
+name: Bug report
+description: Report an ACO regression or compatibility problem
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reproduce without ACO before reporting upstream. Remove tokens, player IPs, and unrelated personal data from logs.
+  - type: input
+    id: aco-version
+    attributes:
+      label: ACO version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Minecraft, Forge, Java, and AE2 versions
+      placeholder: Minecraft 1.20.1, Forge 47.4.18, Java 17, AE2 15.4.10
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Dedicated Forge server
+        - Arclight server
+        - Singleplayer
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include the AE2 network, request, machine, and relevant ACO settings.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: disabled-test
+    attributes:
+      label: Does it reproduce with enableOptimizer=false after restart?
+      options:
+        - "No"
+        - "Yes"
+        - "Not tested"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, crash report, config, and mod list
+      description: Drag files here or link to a paste. Do not paste thousands of lines directly into the form.
+    validations:
+      required: true

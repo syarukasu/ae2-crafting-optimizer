@@ -1,0 +1,843 @@
+package com.syaru.ae2craftingoptimizer.config;
+
+import java.util.List;
+import java.util.Locale;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.config.ModConfig;
+
+public final class ACOConfig {
+    public static final int MAX_SAFE_EFFECTIVE_COPROCESSORS = Integer.MAX_VALUE - 1;
+    public static final int DEFAULT_EFFECTIVE_COPROCESSORS_PER_CPU = 264_192;
+    private static final ForgeConfigSpec SPEC;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_OPTIMIZER;
+    private static final ForgeConfigSpec.BooleanValue TWO_STAGE_MISSING_PREVIEW;
+    private static final ForgeConfigSpec.BooleanValue CANCEL_CALCULATION_AFTER_PRELIMINARY_MISSING_PREVIEW;
+    private static final ForgeConfigSpec.BooleanValue SKIP_CALCULATION_ON_CACHED_MISSING_PREVIEW;
+    private static final ForgeConfigSpec.BooleanValue USE_MISSING_PREVIEW_CACHE;
+    private static final ForgeConfigSpec.IntValue MISSING_PREVIEW_CACHE_SIZE;
+    private static final ForgeConfigSpec.IntValue MISSING_PREVIEW_CACHE_TTL_SECONDS;
+    private static final ForgeConfigSpec.BooleanValue INVALIDATE_CACHE_ON_STORAGE_CHANGE;
+    private static final ForgeConfigSpec.BooleanValue INVALIDATE_CACHE_ON_PATTERN_CHANGE;
+    private static final ForgeConfigSpec.IntValue MINIMUM_CALCULATION_MILLIS_FOR_PREVIEW;
+    private static final ForgeConfigSpec.LongValue MINIMUM_REQUESTED_AMOUNT_FOR_PREVIEW;
+    private static final ForgeConfigSpec.IntValue PREVIEW_MAXIMUM_ENTRIES;
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> HEAVY_PROCESS_HINTS;
+    private static final ForgeConfigSpec.BooleanValue DEDUPLICATE_ACTIVE_CRAFTING_CALCULATIONS;
+    private static final ForgeConfigSpec.IntValue ACTIVE_CALCULATION_DEDUPLICATION_WINDOW_TICKS;
+    private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_CALCULATION_DEDUPLICATION;
+    private static final ForgeConfigSpec.BooleanValue CACHE_COMPLETED_CRAFTING_PLANS;
+    private static final ForgeConfigSpec.BooleanValue CACHE_SUCCESSFUL_COMPLETED_CRAFTING_PLANS;
+    private static final ForgeConfigSpec.IntValue COMPLETED_CRAFTING_PLAN_CACHE_SIZE;
+    private static final ForgeConfigSpec.IntValue COMPLETED_CRAFTING_PLAN_CACHE_TTL_TICKS;
+    private static final ForgeConfigSpec.BooleanValue FAST_FAIL_MISSING_CRAFTS;
+    private static final ForgeConfigSpec.LongValue MINIMUM_REQUESTED_AMOUNT_FOR_FAST_FAIL;
+    private static final ForgeConfigSpec.IntValue DETERMINISTIC_PREFLIGHT_MAX_DEPTH;
+    private static final ForgeConfigSpec.IntValue DETERMINISTIC_PREFLIGHT_MAX_NODES;
+    private static final ForgeConfigSpec.BooleanValue LOG_FAST_FAIL_MISSING_CRAFTS;
+    private static final ForgeConfigSpec.BooleanValue CACHE_PATTERN_LOOKUPS;
+    private static final ForgeConfigSpec.IntValue PATTERN_LOOKUP_CACHE_SIZE;
+    private static final ForgeConfigSpec.BooleanValue CACHE_CRAFTABLE_SETS;
+    private static final ForgeConfigSpec.IntValue CRAFTABLE_SET_CACHE_SIZE;
+    private static final ForgeConfigSpec.BooleanValue LOG_PATTERN_LOOKUP_CACHE;
+    private static final ForgeConfigSpec.BooleanValue THROTTLE_CRAFTING_EXECUTION;
+    private static final ForgeConfigSpec.IntValue MAX_EFFECTIVE_COPROCESSORS_PER_CPU;
+    private static final ForgeConfigSpec.BooleanValue ADAPTIVE_CRAFTING_EXECUTION_BUDGET;
+    private static final ForgeConfigSpec.IntValue TARGET_CRAFTING_EXECUTION_MILLIS;
+    private static final ForgeConfigSpec.IntValue MINIMUM_ADAPTIVE_COPROCESSORS_PER_CPU;
+    private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_EXECUTION_THROTTLING;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_GRID_TICK_BUDGET;
+    private static final ForgeConfigSpec.BooleanValue DEFER_HEAVY_GRID_TICKABLES;
+    private static final ForgeConfigSpec.IntValue GRID_TICK_BUDGET_MILLIS_PER_SERVER_TICK;
+    private static final ForgeConfigSpec.IntValue GRID_TICK_MINIMUM_INTERVAL_TICKS;
+    private static final ForgeConfigSpec.IntValue SLOW_GRID_TICKABLE_MICROS;
+    private static final ForgeConfigSpec.IntValue SLOW_GRID_TICKABLE_BACKOFF_TICKS;
+    private static final ForgeConfigSpec.BooleanValue BACKOFF_IDLE_GRID_TICKABLES;
+    private static final ForgeConfigSpec.IntValue IDLE_GRID_TICKABLE_BACKOFF_AFTER_FAILURES;
+    private static final ForgeConfigSpec.IntValue IDLE_GRID_TICKABLE_BACKOFF_TICKS;
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> HEAVY_GRID_TICKABLE_CLASS_HINTS;
+    private static final ForgeConfigSpec.BooleanValue LIMIT_IO_BUS_OPERATIONS_PER_TICK;
+    private static final ForgeConfigSpec.IntValue MAX_IO_BUS_OPERATIONS_PER_TICK;
+    private static final ForgeConfigSpec.BooleanValue THROTTLE_EXPORT_BUS_CRAFT_REQUESTS;
+    private static final ForgeConfigSpec.IntValue EXPORT_BUS_CRAFT_FAILURE_COOLDOWN_TICKS;
+    private static final ForgeConfigSpec.IntValue EXPORT_BUS_CRAFT_THROTTLE_CACHE_SIZE;
+    private static final ForgeConfigSpec.BooleanValue LOG_GRID_TICK_BUDGET;
+    private static final ForgeConfigSpec.BooleanValue THROTTLE_STORAGE_WATCHER_UPDATES;
+    private static final ForgeConfigSpec.IntValue STORAGE_WATCHER_UPDATE_INTERVAL_TICKS;
+    private static final ForgeConfigSpec.BooleanValue THROTTLE_TERMINAL_INVENTORY_SNAPSHOTS;
+    private static final ForgeConfigSpec.IntValue TERMINAL_INVENTORY_SNAPSHOT_INTERVAL_TICKS;
+    private static final ForgeConfigSpec.BooleanValue CACHE_TERMINAL_CRAFTABLES;
+    private static final ForgeConfigSpec.IntValue TERMINAL_CRAFTABLE_CACHE_TICKS;
+    private static final ForgeConfigSpec.BooleanValue FLUSH_IMMEDIATELY_ON_SCREEN_OPEN;
+    private static final ForgeConfigSpec.BooleanValue FLUSH_IMMEDIATELY_ON_CELL_CHANGE;
+    private static final ForgeConfigSpec.BooleanValue FLUSH_IMMEDIATELY_ON_NETWORK_TOPOLOGY_CHANGE;
+    private static final ForgeConfigSpec.IntValue MAXIMUM_BUFFERED_CHANGES;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_DEEP_AE2_REWRITE_FLAGS;
+    private static final ForgeConfigSpec.BooleanValue DEEP_PATTERN_SELECTION_BY_AVAILABILITY;
+    private static final ForgeConfigSpec.IntValue DEEP_PATTERN_SELECTION_MAXIMUM_CANDIDATES;
+    private static final ForgeConfigSpec.BooleanValue DEEP_NETWORK_FORCE_UPDATE_COALESCING;
+    private static final ForgeConfigSpec.IntValue DEEP_NETWORK_UPDATE_INTERVAL_TICKS;
+    private static final ForgeConfigSpec.BooleanValue DEEP_VISIBLE_TERMINAL_RANGE_SYNC;
+    private static final ForgeConfigSpec.IntValue DEEP_TERMINAL_RANGE_ENTRIES_PER_TICK;
+    private static final ForgeConfigSpec.BooleanValue DEEP_P2P_TOPOLOGY_CHANGE_ONLY_RECHECK;
+    private static final ForgeConfigSpec.IntValue DEEP_P2P_DUPLICATE_WINDOW_TICKS;
+    private static final ForgeConfigSpec.BooleanValue DEEP_BUS_SEARCH_REWRITE;
+    private static final ForgeConfigSpec.IntValue DEEP_BUS_FUZZY_CACHE_TICKS;
+    private static final ForgeConfigSpec.IntValue DEEP_BUS_FUZZY_CACHE_SIZE;
+    private static final ForgeConfigSpec.BooleanValue DEEP_FLUID_PATTERN_REWORK;
+    private static final ForgeConfigSpec.BooleanValue LOG_DEEP_AE2_REWRITE_FLAGS;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_RECIPE_INTENT_BRIDGE;
+    private static final ForgeConfigSpec.BooleanValue CAPTURE_PATTERN_PROVIDER_RECIPE_INTENTS;
+    private static final ForgeConfigSpec.IntValue RECIPE_INTENT_TTL_TICKS;
+    private static final ForgeConfigSpec.IntValue MAXIMUM_RECIPE_INTENT_ENTRIES;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_GTCEU_RECIPE_INTENT_FAST_PATH;
+    private static final ForgeConfigSpec.IntValue GTCEU_RECIPE_INTENT_MAXIMUM_CANDIDATES;
+    private static final ForgeConfigSpec.IntValue GTCEU_RECIPE_INTENT_INDEX_CACHE_SIZE;
+    private static final ForgeConfigSpec.BooleanValue LOG_GTCEU_RECIPE_INTENT_FAST_PATH;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_MEKANISM_RECIPE_INTENT_FAST_PATH;
+    private static final ForgeConfigSpec.IntValue MEKANISM_RECIPE_INTENT_MAXIMUM_CANDIDATES;
+    private static final ForgeConfigSpec.IntValue MEKANISM_RECIPE_INTENT_INDEX_CACHE_SIZE;
+    private static final ForgeConfigSpec.BooleanValue LOG_MEKANISM_RECIPE_INTENT_FAST_PATH;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_CREATE_RECIPE_INTENT_FAST_PATH;
+    private static final ForgeConfigSpec.BooleanValue LOG_CAPTURED_RECIPE_INTENTS;
+    private static final ForgeConfigSpec.BooleanValue LOG_RECIPE_INTENT_REGISTRY_EVICTIONS;
+    private static final ForgeConfigSpec.BooleanValue LOG_SLOW_CRAFT_CALCULATIONS;
+    private static final ForgeConfigSpec.IntValue SLOW_CRAFT_CALCULATION_MILLIS;
+    private static final ForgeConfigSpec.BooleanValue LOG_CACHE_STATISTICS;
+
+    static {
+        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
+
+        builder.push("general");
+        ENABLE_OPTIMIZER = builder
+                .comment("Master switch for all AE2 Crafting Optimizer mixin behavior.")
+                .define("enableOptimizer", true);
+        builder.pop();
+
+        builder.push("craftingCalculation");
+        TWO_STAGE_MISSING_PREVIEW = builder
+                .comment("Disabled by default. The preliminary missing preview mixins are not applied in the conservative build because they can interfere with AE2's Craft Confirm calculation screen.")
+                .define("twoStageMissingPreview", false);
+        CANCEL_CALCULATION_AFTER_PRELIMINARY_MISSING_PREVIEW = builder
+                .comment("Disabled by default. Kept only for config compatibility with older builds.")
+                .define("cancelCalculationAfterPreliminaryMissingPreview", false);
+        SKIP_CALCULATION_ON_CACHED_MISSING_PREVIEW = builder
+                .comment("Legacy safety switch. Immediate no-calculation cache replies are disabled by default because they can arrive before the client Craft Confirm screen is ready.")
+                .define("skipCalculationOnCachedMissingPreview", false);
+        USE_MISSING_PREVIEW_CACHE = builder
+                .comment("Disabled by default with the conservative no-Craft-Confirm-mixin build.")
+                .define("useMissingPreviewCache", false);
+        MISSING_PREVIEW_CACHE_SIZE = builder
+                .comment("Maximum number of preliminary missing craft entries kept in memory.")
+                .defineInRange("missingPreviewCacheSize", 2048, 0, 65536);
+        MISSING_PREVIEW_CACHE_TTL_SECONDS = builder
+                .comment("Time before preliminary missing craft cache entries expire.")
+                .defineInRange("missingPreviewCacheTtlSeconds", 300, 1, 86400);
+        INVALIDATE_CACHE_ON_STORAGE_CHANGE = builder
+                .comment("Clear preliminary missing preview cache when AE2 invalidates its storage cache.")
+                .define("invalidateCacheOnStorageChange", true);
+        INVALIDATE_CACHE_ON_PATTERN_CHANGE = builder
+                .comment("Clear preliminary missing preview cache when AE2 crafting providers or pattern hosts change.")
+                .define("invalidateCacheOnPatternChange", true);
+        MINIMUM_CALCULATION_MILLIS_FOR_PREVIEW = builder
+                .comment("Only send preliminary missing previews after a calculation has been open for this many milliseconds. 0 sends as soon as the first missing branch is known.")
+                .defineInRange("minimumCalculationMillisForPreview", 100, 0, 60_000);
+        MINIMUM_REQUESTED_AMOUNT_FOR_PREVIEW = builder
+                .comment("Do not apply two-stage missing preview to small craft requests. Small requests stay on AE2's normal calculation path.")
+                .defineInRange("minimumRequestedAmountForPreview", 1024L, 1L, Long.MAX_VALUE);
+        PREVIEW_MAXIMUM_ENTRIES = builder
+                .comment("Maximum number of preliminary missing entries shown. The current safe implementation supports one entry.")
+                .defineInRange("previewMaximumEntries", 1, 0, 1);
+        HEAVY_PROCESS_HINTS = builder
+                .comment("Output id or key-string fragments treated as heavy process families. Useful for Astral-style celestial/electronic process lines. These hints prioritize cached preliminary previews; they never change AE2's final crafting result.")
+                .defineListAllowEmpty("heavyProcessHints", List.of(
+                        "astral_mekanism:",
+                        "celestial",
+                        "electronic"
+                ), value -> value instanceof String);
+        DEDUPLICATE_ACTIVE_CRAFTING_CALCULATIONS = builder
+                .comment("Share an already-running AE2 crafting calculation when the exact same requester asks for the exact same output, amount, and calculation strategy again. This does not cache completed plans and does not alter AE2's final result.")
+                .define("deduplicateActiveCraftingCalculations", true);
+        ACTIVE_CALCULATION_DEDUPLICATION_WINDOW_TICKS = builder
+                .comment("Maximum age of an active calculation entry that can be reused, in server ticks. Completed, cancelled, or expired entries are ignored.")
+                .defineInRange("activeCalculationDeduplicationWindowTicks", 200, 1, 20 * 60);
+        LOG_CRAFTING_CALCULATION_DEDUPLICATION = builder
+                .comment("Log active crafting calculation single-flight hits and table clears. Disabled by default to avoid log spam.")
+                .define("logCraftingCalculationDeduplication", false);
+        CACHE_COMPLETED_CRAFTING_PLANS = builder
+                .comment("Cache short-lived completed crafting plans for identical requests. By default only missing/simulation plans are reused; successful plans require cacheSuccessfulCompletedCraftingPlans.")
+                .define("cacheCompletedCraftingPlans", true);
+        CACHE_SUCCESSFUL_COMPLETED_CRAFTING_PLANS = builder
+                .comment("Also cache completed successful crafting plans. Disabled by default because successful plans can become stale when storage changes between calculation and submission.")
+                .define("cacheSuccessfulCompletedCraftingPlans", false);
+        COMPLETED_CRAFTING_PLAN_CACHE_SIZE = builder
+                .comment("Maximum completed crafting plans cached per JVM.")
+                .defineInRange("completedCraftingPlanCacheSize", 1024, 0, 65536);
+        COMPLETED_CRAFTING_PLAN_CACHE_TTL_TICKS = builder
+                .comment("Time-to-live for completed crafting plan cache entries, in server ticks. Storage or crafting topology invalidation clears this earlier.")
+                .defineInRange("completedCraftingPlanCacheTtlTicks", 40, 1, 20 * 60);
+        FAST_FAIL_MISSING_CRAFTS = builder
+                .comment("For large REPORT_MISSING_ITEMS requests, return an immediate missing-only plan only when the optimizer can prove the craft is impossible through a strict deterministic preflight. Successful or ambiguous crafts still use AE2's normal solver.")
+                .define("fastFailMissingCrafts", false);
+        MINIMUM_REQUESTED_AMOUNT_FOR_FAST_FAIL = builder
+                .comment("Do not run deterministic missing preflight below this requested amount.")
+                .defineInRange("minimumRequestedAmountForFastFail", 4096L, 1L, Long.MAX_VALUE);
+        DETERMINISTIC_PREFLIGHT_MAX_DEPTH = builder
+                .comment("Maximum recursive depth for deterministic missing preflight.")
+                .defineInRange("deterministicPreflightMaxDepth", 64, 1, 1024);
+        DETERMINISTIC_PREFLIGHT_MAX_NODES = builder
+                .comment("Maximum recipe graph nodes visited by deterministic missing preflight before falling back to AE2.")
+                .defineInRange("deterministicPreflightMaxNodes", 4096, 1, 1_000_000);
+        LOG_FAST_FAIL_MISSING_CRAFTS = builder
+                .comment("Log when deterministic missing preflight returns a missing-only plan.")
+                .define("logFastFailMissingCrafts", false);
+        CACHE_PATTERN_LOOKUPS = builder
+                .comment("Cache AE2 CraftingService.getCraftingFor(output) lookups until crafting providers or network nodes change. This is a read-through cache only.")
+                .define("cachePatternLookups", true);
+        PATTERN_LOOKUP_CACHE_SIZE = builder
+                .comment("Maximum cached pattern lookup entries per JVM.")
+                .defineInRange("patternLookupCacheSize", 8192, 0, 1_000_000);
+        CACHE_CRAFTABLE_SETS = builder
+                .comment("Cache CraftingService.getCraftables(filter) results until crafting providers or network nodes change. This targets terminals and provider scans; it does not cache completed crafting plans.")
+                .define("cacheCraftableSets", true);
+        CRAFTABLE_SET_CACHE_SIZE = builder
+                .comment("Maximum cached craftable-set entries per JVM.")
+                .defineInRange("craftableSetCacheSize", 256, 0, 65536);
+        LOG_PATTERN_LOOKUP_CACHE = builder
+                .comment("Log pattern lookup cache hits and clears. Disabled by default to avoid log spam.")
+                .define("logPatternLookupCache", false);
+        builder.pop();
+
+        builder.push("craftingExecution");
+        THROTTLE_CRAFTING_EXECUTION = builder
+                .comment("Limit how many pattern pushes a single crafting CPU may burst through AE2's crafting execution window. This is the main TPS protection for giant CPUs: capacity and displayed co-processors stay unchanged, but per-tick pattern pushes are bounded.")
+                .define("throttleCraftingExecution", true);
+        MAX_EFFECTIVE_COPROCESSORS_PER_CPU = builder
+                .comment("Maximum effective co-processors one CPU may spend in AE2's crafting execution window. The default matches AQE's non-experimental full structure. Raise to 2147483646 only for explicit maximum-value testing.")
+                .defineInRange("maxEffectiveCoprocessorsPerCpu", DEFAULT_EFFECTIVE_COPROCESSORS_PER_CPU, 1, MAX_SAFE_EFFECTIVE_COPROCESSORS);
+        ADAPTIVE_CRAFTING_EXECUTION_BUDGET = builder
+                .comment("Adapt each active crafting CPU's effective execution budget based on observed server-side execution time. This keeps CrazyAE-class CPUs useful without letting one CPU spend the whole server tick.")
+                .define("adaptiveCraftingExecutionBudget", true);
+        TARGET_CRAFTING_EXECUTION_MILLIS = builder
+                .comment("Target maximum time in milliseconds that one crafting CPU execution burst should spend in a server tick before its adaptive budget is reduced.")
+                .defineInRange("targetCraftingExecutionMillis", 4, 1, 50);
+        MINIMUM_ADAPTIVE_COPROCESSORS_PER_CPU = builder
+                .comment("Lowest adaptive effective co-processor budget per CPU. Small CPUs below this value are not slowed further.")
+                .defineInRange("minimumAdaptiveCoprocessorsPerCpu", 1024, 1, MAX_SAFE_EFFECTIVE_COPROCESSORS);
+        LOG_CRAFTING_EXECUTION_THROTTLING = builder
+                .comment("Log when a crafting CPU's execution burst is capped. Disabled by default to avoid log spam on large systems.")
+                .define("logCraftingExecutionThrottling", false);
+        builder.pop();
+
+        builder.push("gridTickBudget");
+        ENABLE_GRID_TICK_BUDGET = builder
+                .comment("Enable server-side budget controls for selected AE2 grid tickables such as IO ports, import/export buses, and ExtendedAE circuit cutters. Disabled by default because AE2 buses are correctness-sensitive and must be opt-in tested per pack.")
+                .define("enableGridTickBudget", false);
+        DEFER_HEAVY_GRID_TICKABLES = builder
+                .comment("When enabled, selected AE2 grid tickables are deferred with TickRateModulation.SLOWER after the per-server-tick budget is spent or after a slow tick triggers backoff.")
+                .define("deferHeavyGridTickables", false);
+        GRID_TICK_BUDGET_MILLIS_PER_SERVER_TICK = builder
+                .comment("Total server tick time budget, in milliseconds, spent by selected AE2 grid tickables before later matching devices are deferred. This is not a hard JVM preemption; it only affects future tickable calls in the same tick.")
+                .defineInRange("gridTickBudgetMillisPerServerTick", 6, 1, 45);
+        GRID_TICK_MINIMUM_INTERVAL_TICKS = builder
+                .comment("Minimum spacing between executions for selected AE2 grid tickables. 1 keeps normal AE2 scheduling unless the budget or slow backoff triggers.")
+                .defineInRange("gridTickMinimumIntervalTicks", 1, 1, 200);
+        SLOW_GRID_TICKABLE_MICROS = builder
+                .comment("Diagnostic threshold for one selected AE2 grid tickable call, in microseconds.")
+                .defineInRange("slowGridTickableMicros", 2000, 1, 1_000_000);
+        SLOW_GRID_TICKABLE_BACKOFF_TICKS = builder
+                .comment("If one selected AE2 grid tickable call exceeds slowGridTickableMicros, defer that device for this many ticks. 0 disables per-device slow backoff.")
+                .defineInRange("slowGridTickableBackoffTicks", 2, 0, 200);
+        BACKOFF_IDLE_GRID_TICKABLES = builder
+                .comment("Apply a short backoff to selected AE2 grid tickables that repeatedly report no work. This targets empty import buses, full export targets, blocked IO ports, and similar failed polling loops.")
+                .define("backoffIdleGridTickables", false);
+        IDLE_GRID_TICKABLE_BACKOFF_AFTER_FAILURES = builder
+                .comment("How many consecutive IDLE/SLOWER returns a selected tickable may produce before idle backoff starts.")
+                .defineInRange("idleGridTickableBackoffAfterFailures", 4, 1, 1000);
+        IDLE_GRID_TICKABLE_BACKOFF_TICKS = builder
+                .comment("How many ticks to defer a selected repeatedly-idle tickable.")
+                .defineInRange("idleGridTickableBackoffTicks", 5, 1, 200);
+        HEAVY_GRID_TICKABLE_CLASS_HINTS = builder
+                .comment("Class-name fragments selected for AE2 grid tick budgeting. Keep this narrow; matching devices may run later under load.")
+                .defineListAllowEmpty("heavyGridTickableClassHints", List.of(
+                        "appeng.parts.automation.ImportBusPart",
+                        "appeng.parts.automation.ExportBusPart",
+                        "appeng.blockentity.storage.IOPortBlockEntity",
+                        "com.glodblock.github.extendedae.common.tileentities.TileCircuitCutter",
+                        "com.glodblock.github.extendedae.common.tileentities.TileExIOPort",
+                        "com.glodblock.github.extendedae.common.parts.PartExImportBus",
+                        "com.glodblock.github.extendedae.common.parts.PartExExportBus",
+                        "com.glodblock.github.extendedae.common.parts.PartPreciseExportBus",
+                        "com.glodblock.github.extendedae.common.parts.PartTagExportBus",
+                        "com.glodblock.github.extendedae.common.parts.PartThresholdExportBus",
+                        "com.glodblock.github.extendedae.common.parts.PartModExportBus"
+                ), value -> value instanceof String);
+        LIMIT_IO_BUS_OPERATIONS_PER_TICK = builder
+                .comment("Cap AE2 import/export bus operations per tick after other mods apply their speed-card changes. This does not change storage contents or filters; it only prevents one bus from doing an extreme burst in one tick.")
+                .define("limitIoBusOperationsPerTick", false);
+        MAX_IO_BUS_OPERATIONS_PER_TICK = builder
+                .comment("Maximum operations per tick for AE2 import/export buses when limitIoBusOperationsPerTick is enabled. Vanilla AE2 tops out at 96; this default still allows accelerated buses while avoiding integer-saturated bursts.")
+                .defineInRange("maxIoBusOperationsPerTick", 4096, 1, MAX_SAFE_EFFECTIVE_COPROCESSORS);
+        THROTTLE_EXPORT_BUS_CRAFT_REQUESTS = builder
+                .comment("Throttle repeated failed crafting requests from AE2 MultiCraftingTracker owners such as export buses with crafting cards. Successful or in-progress jobs are not throttled.")
+                .define("throttleExportBusCraftRequests", false);
+        EXPORT_BUS_CRAFT_FAILURE_COOLDOWN_TICKS = builder
+                .comment("Cooldown after a crafting request finishes without producing a crafting link, in ticks.")
+                .defineInRange("exportBusCraftFailureCooldownTicks", 40, 1, 20 * 60);
+        EXPORT_BUS_CRAFT_THROTTLE_CACHE_SIZE = builder
+                .comment("Maximum remembered failed export-bus-style crafting requests.")
+                .defineInRange("exportBusCraftThrottleCacheSize", 4096, 1, 1_000_000);
+        LOG_GRID_TICK_BUDGET = builder
+                .comment("Log slow/deferred selected AE2 grid tickables. Disabled by default to avoid log spam.")
+                .define("logGridTickBudget", false);
+        builder.pop();
+
+        builder.push("storageSync");
+        THROTTLE_STORAGE_WATCHER_UPDATES = builder
+                .comment("Throttle AE2 StorageService watcher updates. ME terminal/monitor visible storage updates may be delayed by the configured interval, but storage contents are not changed.")
+                .define("throttleStorageWatcherUpdates", true);
+        STORAGE_WATCHER_UPDATE_INTERVAL_TICKS = builder
+                .comment("Storage watcher update interval in ticks when throttling is enabled. 1 is vanilla behavior.")
+                .defineInRange("storageWatcherUpdateIntervalTicks", 4, 1, 40);
+        THROTTLE_TERMINAL_INVENTORY_SNAPSHOTS = builder
+                .comment("Throttle ME terminal server-side inventory snapshots. This reduces repeated getAvailableStacks scans while a terminal is open; visible amounts may update at the configured interval.")
+                .define("throttleTerminalInventorySnapshots", true);
+        TERMINAL_INVENTORY_SNAPSHOT_INTERVAL_TICKS = builder
+                .comment("How often an open ME terminal should rebuild its server-side available-stack snapshot.")
+                .defineInRange("terminalInventorySnapshotIntervalTicks", 4, 1, 40);
+        CACHE_TERMINAL_CRAFTABLES = builder
+                .comment("Cache the craftable set used by open ME terminals for a few ticks. This reduces repeated craftable-list scans while preserving AE2's provider invalidation caches.")
+                .define("cacheTerminalCraftables", true);
+        TERMINAL_CRAFTABLE_CACHE_TICKS = builder
+                .comment("How many ticks an open ME terminal may reuse its craftable set.")
+                .defineInRange("terminalCraftableCacheTicks", 4, 1, 40);
+        FLUSH_IMMEDIATELY_ON_SCREEN_OPEN = builder
+                .comment("Reserved safety option for future visible-sync buffering. Current implementation does not delay screen-open synchronization.")
+                .define("flushImmediatelyOnScreenOpen", true);
+        FLUSH_IMMEDIATELY_ON_CELL_CHANGE = builder
+                .comment("Reserved safety option for future visible-sync buffering. Current implementation clears preview cache on storage invalidation instead of buffering cell changes.")
+                .define("flushImmediatelyOnCellChange", true);
+        FLUSH_IMMEDIATELY_ON_NETWORK_TOPOLOGY_CHANGE = builder
+                .comment("Reserved safety option for future visible-sync buffering. Current implementation does not buffer topology changes.")
+                .define("flushImmediatelyOnNetworkTopologyChange", true);
+        MAXIMUM_BUFFERED_CHANGES = builder
+                .comment("Reserved safety ceiling for future visible-sync buffering. Current implementation does not buffer individual storage changes.")
+                .defineInRange("maximumBufferedChanges", 4096, 1, 1_000_000);
+        builder.pop();
+
+        builder.push("deepAe2Rewrite");
+        ENABLE_DEEP_AE2_REWRITE_FLAGS = builder
+                .comment("Master switch for the independently configurable UEL/GTNH-inspired deep optimizations below. Disable this to return every deep path to AE2 behavior without changing the individual settings.")
+                .define("enableDeepAe2RewriteFlags", true);
+        DEEP_PATTERN_SELECTION_BY_AVAILABILITY = builder
+                .comment("Experimental: reorder equivalent output patterns by how many direct inputs are currently available. AE2 still validates every branch and decides whether the craft succeeds.")
+                .define("patternSelectionByAvailability", false);
+        DEEP_PATTERN_SELECTION_MAXIMUM_CANDIDATES = builder
+                .comment("Maximum number of patterns for one output that the availability sorter may inspect. Larger sets retain AE2's original order to bound calculation overhead.")
+                .defineInRange("patternSelectionMaximumCandidates", 64, 2, 4096);
+        DEEP_NETWORK_FORCE_UPDATE_COALESCING = builder
+                .comment("Coalesce AE2 StorageService watcher rebuilds into a short interval. Direct inventory operations remain immediate; only cached aggregate/watcher refresh work is paced.")
+                .define("networkForceUpdateCoalescing", true);
+        DEEP_NETWORK_UPDATE_INTERVAL_TICKS = builder
+                .comment("Maximum interval between coalesced StorageService aggregate rebuilds.")
+                .defineInRange("networkUpdateIntervalTicks", 2, 1, 40);
+        DEEP_VISIBLE_TERMINAL_RANGE_SYNC = builder
+                .comment("Split terminal full/delta synchronization into bounded rolling ranges. All entries are eventually sent through AE2's original packet format; this limits one-tick packet and serialization spikes.")
+                .define("visibleTerminalRangeSync", true);
+        DEEP_TERMINAL_RANGE_ENTRIES_PER_TICK = builder
+                .comment("Maximum terminal entries serialized per menu tick while rolling range synchronization is active.")
+                .defineInRange("terminalRangeEntriesPerTick", 4096, 64, 32767);
+        DEEP_P2P_TOPOLOGY_CHANGE_ONLY_RECHECK = builder
+                .comment("AE2 15.4.10 already reevaluates P2P topology only on structural changes. This option coalesces duplicate full input-tunnel wake sweeps caused by boot/power events and never suppresses add/remove/frequency callbacks.")
+                .define("p2pTopologyChangeOnlyRecheck", true);
+        DEEP_P2P_DUPLICATE_WINDOW_TICKS = builder
+                .comment("Duplicate P2P network-change suppression window. Keep this at 1 unless testing a known topology event storm.")
+                .defineInRange("p2pDuplicateWindowTicks", 1, 1, 20);
+        DEEP_BUS_SEARCH_REWRITE = builder
+                .comment("Experimental: reuse short-lived immutable fuzzy-search results used by export buses. Non-fuzzy transfers and AE2's insertion/extraction validation remain unchanged.")
+                .define("busSearchRewrite", false);
+        DEEP_BUS_FUZZY_CACHE_TICKS = builder
+                .comment("Lifetime of export-bus fuzzy search results. Keep short because storage amounts can change every tick.")
+                .defineInRange("busFuzzySearchCacheTicks", 2, 1, 20);
+        DEEP_BUS_FUZZY_CACHE_SIZE = builder
+                .comment("Maximum cached fuzzy-search keys shared by export buses.")
+                .defineInRange("busFuzzySearchCacheSize", 4096, 16, 262144);
+        DEEP_FLUID_PATTERN_REWORK = builder
+                .comment("Use an allocation-light exact-input path for single-fluid crafting inputs. AE2 15.4.10 already stores fluids as first-class GenericStack values, so no dummy-item conversion is introduced.")
+                .define("fluidPatternRework", true);
+        LOG_DEEP_AE2_REWRITE_FLAGS = builder
+                .comment("Log active deep optimization paths and their limits on server start.")
+                .define("logDeepAe2RewriteFlags", true);
+        builder.pop();
+
+        builder.push("recipeIntentBridge");
+        ENABLE_RECIPE_INTENT_BRIDGE = builder
+                .comment("Enable the AE2 Pattern Provider recipe intent bridge inside ACO. Current implementation records short-lived intents only; machine fast paths remain separate switches below.")
+                .define("enableRecipeIntentBridge", true);
+        CAPTURE_PATTERN_PROVIDER_RECIPE_INTENTS = builder
+                .comment("Record successful AE2 Pattern Provider pushes as short-lived recipe intents. This is the intent-based crafting foundation for GTCEu, Mekanism, and future Create fast paths.")
+                .define("capturePatternProviderRecipeIntents", true);
+        RECIPE_INTENT_TTL_TICKS = builder
+                .comment("How long a captured recipe intent remains visible to machine integrations. Keep short to avoid stale machine-side hints.")
+                .defineInRange("recipeIntentTtlTicks", 20, 1, 20 * 30);
+        MAXIMUM_RECIPE_INTENT_ENTRIES = builder
+                .comment("Hard cap for captured recipe intent entries. Oldest entries are evicted when the cap is exceeded.")
+                .defineInRange("maximumRecipeIntentEntries", 4096, 16, 1_048_576);
+        ENABLE_GTCEU_RECIPE_INTENT_FAST_PATH = builder
+                .comment("Enable GTCEu recipe intent fast path. When a GTCEu machine has a fresh AE2 Pattern Provider intent for its position, ACO tries matching output-indexed GT recipes before GTCEu's normal full search. If no candidate works, GTCEu's original search still runs.")
+                .define("enableGtceuRecipeIntentFastPath", true);
+        GTCEU_RECIPE_INTENT_MAXIMUM_CANDIDATES = builder
+                .comment("Maximum GTCEu output-matched recipe candidates to prepend before falling back to GTCEu's original iterator. Lower values reduce worst-case work when many recipes share one output.")
+                .defineInRange("gtceuRecipeIntentMaximumCandidates", 16, 1, 1024);
+        GTCEU_RECIPE_INTENT_INDEX_CACHE_SIZE = builder
+                .comment("Maximum GTCEu recipe type indexes kept by ACO. Each index maps output item and fluid ids to GT recipes for that recipe type.")
+                .defineInRange("gtceuRecipeIntentIndexCacheSize", 64, 1, 1024);
+        LOG_GTCEU_RECIPE_INTENT_FAST_PATH = builder
+                .comment("Log GTCEu recipe intent hits, candidate counts, and reflection/index failures. Disabled by default to avoid log spam.")
+                .define("logGtceuRecipeIntentFastPath", false);
+        ENABLE_MEKANISM_RECIPE_INTENT_FAST_PATH = builder
+                .comment("Enable Mekanism recipe intent fast path. When a Mekanism machine has a fresh AE2 Pattern Provider intent for its position, ACO tries matching output-indexed Mekanism recipes and validates them with Mekanism's own recipe test before the normal lookup runs.")
+                .define("enableMekanismRecipeIntentFastPath", true);
+        MEKANISM_RECIPE_INTENT_MAXIMUM_CANDIDATES = builder
+                .comment("Maximum Mekanism output-matched recipe candidates to test before falling back to Mekanism's original recipe lookup.")
+                .defineInRange("mekanismRecipeIntentMaximumCandidates", 16, 1, 1024);
+        MEKANISM_RECIPE_INTENT_INDEX_CACHE_SIZE = builder
+                .comment("Maximum Mekanism recipe type indexes kept by ACO. Each index maps item, fluid, and chemical output ids to Mekanism recipes for that recipe type.")
+                .defineInRange("mekanismRecipeIntentIndexCacheSize", 128, 1, 1024);
+        LOG_MEKANISM_RECIPE_INTENT_FAST_PATH = builder
+                .comment("Log Mekanism recipe intent hits, candidate counts, and reflection/index failures. Disabled by default to avoid log spam.")
+                .define("logMekanismRecipeIntentFastPath", false);
+        ENABLE_CREATE_RECIPE_INTENT_FAST_PATH = builder
+                .comment("Reserved Create machine recipe fast path. Disabled and not active in this build; captured intents are available for diagnostics and future implementation.")
+                .define("enableCreateRecipeIntentFastPath", false);
+        LOG_CAPTURED_RECIPE_INTENTS = builder
+                .comment("Log each captured Pattern Provider recipe intent. Leave false unless debugging a specific machine line.")
+                .define("logCapturedRecipeIntents", false);
+        LOG_RECIPE_INTENT_REGISTRY_EVICTIONS = builder
+                .comment("Log recipe intent expiration, clears, and hard-cap evictions.")
+                .define("logRecipeIntentRegistryEvictions", false);
+        builder.pop();
+
+        builder.push("diagnostics");
+        LOG_SLOW_CRAFT_CALCULATIONS = builder
+                .comment("Log AE2 crafting calculations that take longer than slowCraftCalculationMillis.")
+                .define("logSlowCraftCalculations", true);
+        SLOW_CRAFT_CALCULATION_MILLIS = builder
+                .comment("Slow crafting calculation threshold in milliseconds.")
+                .defineInRange("slowCraftCalculationMillis", 500, 1, 300_000);
+        LOG_CACHE_STATISTICS = builder
+                .comment("Log preliminary missing preview cache hits, writes, and clears.")
+                .define("logCacheStatistics", false);
+        builder.pop();
+
+        SPEC = builder.build();
+    }
+
+    private ACOConfig() {
+    }
+
+    public static void register() {
+        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, SPEC);
+    }
+
+    public static boolean enableOptimizer() {
+        return ENABLE_OPTIMIZER.get();
+    }
+
+    public static boolean twoStageMissingPreview() {
+        return enableOptimizer() && TWO_STAGE_MISSING_PREVIEW.get() && getPreviewMaximumEntries() > 0;
+    }
+
+    public static boolean cancelCalculationAfterPreliminaryMissingPreview() {
+        return twoStageMissingPreview() && CANCEL_CALCULATION_AFTER_PRELIMINARY_MISSING_PREVIEW.get();
+    }
+
+    public static boolean useMissingPreviewCache() {
+        return twoStageMissingPreview() && USE_MISSING_PREVIEW_CACHE.get() && getMissingPreviewCacheSize() > 0;
+    }
+
+    public static boolean skipCalculationOnCachedMissingPreview() {
+        return useMissingPreviewCache() && SKIP_CALCULATION_ON_CACHED_MISSING_PREVIEW.get();
+    }
+
+    public static int getMissingPreviewCacheSize() {
+        return Math.min(65536, Math.max(0, MISSING_PREVIEW_CACHE_SIZE.get()));
+    }
+
+    public static int getMissingPreviewCacheTtlSeconds() {
+        return Math.min(86400, Math.max(1, MISSING_PREVIEW_CACHE_TTL_SECONDS.get()));
+    }
+
+    public static boolean invalidateCacheOnStorageChange() {
+        return enableOptimizer() && INVALIDATE_CACHE_ON_STORAGE_CHANGE.get();
+    }
+
+    public static boolean invalidateCacheOnPatternChange() {
+        return enableOptimizer() && INVALIDATE_CACHE_ON_PATTERN_CHANGE.get();
+    }
+
+    public static int getMinimumCalculationMillisForPreview() {
+        return Math.min(60_000, Math.max(0, MINIMUM_CALCULATION_MILLIS_FOR_PREVIEW.get()));
+    }
+
+    public static long getMinimumRequestedAmountForPreview() {
+        return Math.max(1L, MINIMUM_REQUESTED_AMOUNT_FOR_PREVIEW.get());
+    }
+
+    public static boolean shouldUsePreliminaryMissingPreview(Object output, long requestedAmount) {
+        return twoStageMissingPreview()
+                && requestedAmount >= getMinimumRequestedAmountForPreview()
+                && matchesHeavyProcessHint(output);
+    }
+
+    private static boolean matchesHeavyProcessHint(Object output) {
+        String key = String.valueOf(output).toLowerCase(Locale.ROOT);
+        for (String hint : getHeavyProcessHints()) {
+            if ("*".equals(hint) || key.contains(hint)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static int getPreviewMaximumEntries() {
+        return Math.min(1, Math.max(0, PREVIEW_MAXIMUM_ENTRIES.get()));
+    }
+
+    public static List<String> getHeavyProcessHints() {
+        return HEAVY_PROCESS_HINTS.get().stream()
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .map(String::toLowerCase)
+                .toList();
+    }
+
+    public static boolean deduplicateActiveCraftingCalculations() {
+        return enableOptimizer() && DEDUPLICATE_ACTIVE_CRAFTING_CALCULATIONS.get();
+    }
+
+    public static int getActiveCalculationDeduplicationWindowTicks() {
+        return Math.min(20 * 60, Math.max(1, ACTIVE_CALCULATION_DEDUPLICATION_WINDOW_TICKS.get()));
+    }
+
+    public static boolean logCraftingCalculationDeduplication() {
+        return enableOptimizer() && LOG_CRAFTING_CALCULATION_DEDUPLICATION.get();
+    }
+
+    public static boolean cacheCompletedCraftingPlans() {
+        return enableOptimizer() && CACHE_COMPLETED_CRAFTING_PLANS.get() && getCompletedCraftingPlanCacheSize() > 0;
+    }
+
+    public static boolean cacheSuccessfulCompletedCraftingPlans() {
+        return cacheCompletedCraftingPlans() && CACHE_SUCCESSFUL_COMPLETED_CRAFTING_PLANS.get();
+    }
+
+    public static int getCompletedCraftingPlanCacheSize() {
+        return Math.min(65536, Math.max(0, COMPLETED_CRAFTING_PLAN_CACHE_SIZE.get()));
+    }
+
+    public static int getCompletedCraftingPlanCacheTtlTicks() {
+        return Math.min(20 * 60, Math.max(1, COMPLETED_CRAFTING_PLAN_CACHE_TTL_TICKS.get()));
+    }
+
+    public static boolean fastFailMissingCrafts() {
+        return enableOptimizer() && FAST_FAIL_MISSING_CRAFTS.get();
+    }
+
+    public static long getMinimumRequestedAmountForFastFail() {
+        return Math.max(1L, MINIMUM_REQUESTED_AMOUNT_FOR_FAST_FAIL.get());
+    }
+
+    public static int getDeterministicPreflightMaxDepth() {
+        return Math.min(1024, Math.max(1, DETERMINISTIC_PREFLIGHT_MAX_DEPTH.get()));
+    }
+
+    public static int getDeterministicPreflightMaxNodes() {
+        return Math.min(1_000_000, Math.max(1, DETERMINISTIC_PREFLIGHT_MAX_NODES.get()));
+    }
+
+    public static boolean logFastFailMissingCrafts() {
+        return enableOptimizer() && LOG_FAST_FAIL_MISSING_CRAFTS.get();
+    }
+
+    public static boolean cachePatternLookups() {
+        return enableOptimizer() && CACHE_PATTERN_LOOKUPS.get() && getPatternLookupCacheSize() > 0;
+    }
+
+    public static int getPatternLookupCacheSize() {
+        return Math.min(1_000_000, Math.max(0, PATTERN_LOOKUP_CACHE_SIZE.get()));
+    }
+
+    public static boolean cacheCraftableSets() {
+        return enableOptimizer() && CACHE_CRAFTABLE_SETS.get() && getCraftableSetCacheSize() > 0;
+    }
+
+    public static int getCraftableSetCacheSize() {
+        return Math.min(65536, Math.max(0, CRAFTABLE_SET_CACHE_SIZE.get()));
+    }
+
+    public static boolean logPatternLookupCache() {
+        return enableOptimizer() && LOG_PATTERN_LOOKUP_CACHE.get();
+    }
+
+    public static boolean throttleCraftingExecution() {
+        return enableOptimizer() && THROTTLE_CRAFTING_EXECUTION.get();
+    }
+
+    public static int getMaxEffectiveCoprocessorsPerCpu() {
+        return Math.min(MAX_SAFE_EFFECTIVE_COPROCESSORS, Math.max(1, MAX_EFFECTIVE_COPROCESSORS_PER_CPU.get()));
+    }
+
+    public static boolean adaptiveCraftingExecutionBudget() {
+        return throttleCraftingExecution() && ADAPTIVE_CRAFTING_EXECUTION_BUDGET.get();
+    }
+
+    public static int getTargetCraftingExecutionMillis() {
+        return Math.min(50, Math.max(1, TARGET_CRAFTING_EXECUTION_MILLIS.get()));
+    }
+
+    public static int getMinimumAdaptiveCoprocessorsPerCpu() {
+        int hardCap = getMaxEffectiveCoprocessorsPerCpu();
+        return Math.min(hardCap, Math.max(1, MINIMUM_ADAPTIVE_COPROCESSORS_PER_CPU.get()));
+    }
+
+    public static boolean logCraftingExecutionThrottling() {
+        return enableOptimizer() && LOG_CRAFTING_EXECUTION_THROTTLING.get();
+    }
+
+    public static boolean enableGridTickBudget() {
+        return enableOptimizer() && ENABLE_GRID_TICK_BUDGET.get();
+    }
+
+    public static boolean deferHeavyGridTickables() {
+        return enableGridTickBudget() && DEFER_HEAVY_GRID_TICKABLES.get();
+    }
+
+    public static int getGridTickBudgetMillisPerServerTick() {
+        return Math.min(45, Math.max(1, GRID_TICK_BUDGET_MILLIS_PER_SERVER_TICK.get()));
+    }
+
+    public static int getGridTickMinimumIntervalTicks() {
+        return Math.min(200, Math.max(1, GRID_TICK_MINIMUM_INTERVAL_TICKS.get()));
+    }
+
+    public static int getSlowGridTickableMicros() {
+        return Math.min(1_000_000, Math.max(1, SLOW_GRID_TICKABLE_MICROS.get()));
+    }
+
+    public static int getSlowGridTickableBackoffTicks() {
+        return Math.min(200, Math.max(0, SLOW_GRID_TICKABLE_BACKOFF_TICKS.get()));
+    }
+
+    public static boolean backoffIdleGridTickables() {
+        return deferHeavyGridTickables() && BACKOFF_IDLE_GRID_TICKABLES.get();
+    }
+
+    public static int getIdleGridTickableBackoffAfterFailures() {
+        return Math.min(1000, Math.max(1, IDLE_GRID_TICKABLE_BACKOFF_AFTER_FAILURES.get()));
+    }
+
+    public static int getIdleGridTickableBackoffTicks() {
+        return Math.min(200, Math.max(1, IDLE_GRID_TICKABLE_BACKOFF_TICKS.get()));
+    }
+
+    public static List<String> getHeavyGridTickableClassHints() {
+        return HEAVY_GRID_TICKABLE_CLASS_HINTS.get().stream()
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .map(String::toLowerCase)
+                .toList();
+    }
+
+    public static boolean limitIoBusOperationsPerTick() {
+        return enableGridTickBudget() && LIMIT_IO_BUS_OPERATIONS_PER_TICK.get();
+    }
+
+    public static int getMaxIoBusOperationsPerTick() {
+        return Math.min(MAX_SAFE_EFFECTIVE_COPROCESSORS, Math.max(1, MAX_IO_BUS_OPERATIONS_PER_TICK.get()));
+    }
+
+    public static boolean throttleExportBusCraftRequests() {
+        return enableGridTickBudget() && THROTTLE_EXPORT_BUS_CRAFT_REQUESTS.get();
+    }
+
+    public static int getExportBusCraftFailureCooldownTicks() {
+        return Math.min(20 * 60, Math.max(1, EXPORT_BUS_CRAFT_FAILURE_COOLDOWN_TICKS.get()));
+    }
+
+    public static int getExportBusCraftThrottleCacheSize() {
+        return Math.min(1_000_000, Math.max(1, EXPORT_BUS_CRAFT_THROTTLE_CACHE_SIZE.get()));
+    }
+
+    public static boolean logGridTickBudget() {
+        return enableOptimizer() && LOG_GRID_TICK_BUDGET.get();
+    }
+
+    public static boolean throttleStorageWatcherUpdates() {
+        return enableOptimizer() && THROTTLE_STORAGE_WATCHER_UPDATES.get();
+    }
+
+    public static int getStorageWatcherUpdateIntervalTicks() {
+        return Math.min(40, Math.max(1, STORAGE_WATCHER_UPDATE_INTERVAL_TICKS.get()));
+    }
+
+    public static boolean throttleTerminalInventorySnapshots() {
+        return enableOptimizer() && THROTTLE_TERMINAL_INVENTORY_SNAPSHOTS.get();
+    }
+
+    public static int getTerminalInventorySnapshotIntervalTicks() {
+        return Math.min(40, Math.max(1, TERMINAL_INVENTORY_SNAPSHOT_INTERVAL_TICKS.get()));
+    }
+
+    public static boolean cacheTerminalCraftables() {
+        return enableOptimizer() && CACHE_TERMINAL_CRAFTABLES.get();
+    }
+
+    public static int getTerminalCraftableCacheTicks() {
+        return Math.min(40, Math.max(1, TERMINAL_CRAFTABLE_CACHE_TICKS.get()));
+    }
+
+    public static boolean flushImmediatelyOnScreenOpen() {
+        return enableOptimizer() && FLUSH_IMMEDIATELY_ON_SCREEN_OPEN.get();
+    }
+
+    public static boolean flushImmediatelyOnCellChange() {
+        return enableOptimizer() && FLUSH_IMMEDIATELY_ON_CELL_CHANGE.get();
+    }
+
+    public static boolean flushImmediatelyOnNetworkTopologyChange() {
+        return enableOptimizer() && FLUSH_IMMEDIATELY_ON_NETWORK_TOPOLOGY_CHANGE.get();
+    }
+
+    public static int getMaximumBufferedChanges() {
+        return Math.min(1_000_000, Math.max(1, MAXIMUM_BUFFERED_CHANGES.get()));
+    }
+
+    public static boolean enableDeepAe2RewriteFlags() {
+        return enableOptimizer() && ENABLE_DEEP_AE2_REWRITE_FLAGS.get();
+    }
+
+    public static boolean deepPatternSelectionByAvailability() {
+        return enableDeepAe2RewriteFlags() && DEEP_PATTERN_SELECTION_BY_AVAILABILITY.get();
+    }
+
+    public static int getDeepPatternSelectionMaximumCandidates() {
+        return Math.min(4096, Math.max(2, DEEP_PATTERN_SELECTION_MAXIMUM_CANDIDATES.get()));
+    }
+
+    public static boolean deepNetworkForceUpdateCoalescing() {
+        return enableDeepAe2RewriteFlags() && DEEP_NETWORK_FORCE_UPDATE_COALESCING.get();
+    }
+
+    public static int getDeepNetworkUpdateIntervalTicks() {
+        return Math.min(40, Math.max(1, DEEP_NETWORK_UPDATE_INTERVAL_TICKS.get()));
+    }
+
+    public static boolean deepVisibleTerminalRangeSync() {
+        return enableDeepAe2RewriteFlags() && DEEP_VISIBLE_TERMINAL_RANGE_SYNC.get();
+    }
+
+    public static int getDeepTerminalRangeEntriesPerTick() {
+        return Math.min(32767, Math.max(64, DEEP_TERMINAL_RANGE_ENTRIES_PER_TICK.get()));
+    }
+
+    public static boolean deepP2PTopologyChangeOnlyRecheck() {
+        return enableDeepAe2RewriteFlags() && DEEP_P2P_TOPOLOGY_CHANGE_ONLY_RECHECK.get();
+    }
+
+    public static int getDeepP2PDuplicateWindowTicks() {
+        return Math.min(20, Math.max(1, DEEP_P2P_DUPLICATE_WINDOW_TICKS.get()));
+    }
+
+    public static boolean deepBusSearchRewrite() {
+        return enableDeepAe2RewriteFlags() && DEEP_BUS_SEARCH_REWRITE.get();
+    }
+
+    public static int getDeepBusFuzzyCacheTicks() {
+        return Math.min(20, Math.max(1, DEEP_BUS_FUZZY_CACHE_TICKS.get()));
+    }
+
+    public static int getDeepBusFuzzyCacheSize() {
+        return Math.min(262144, Math.max(16, DEEP_BUS_FUZZY_CACHE_SIZE.get()));
+    }
+
+    public static boolean deepFluidPatternRework() {
+        return enableDeepAe2RewriteFlags() && DEEP_FLUID_PATTERN_REWORK.get();
+    }
+
+    public static boolean logDeepAe2RewriteFlags() {
+        return enableOptimizer() && LOG_DEEP_AE2_REWRITE_FLAGS.get();
+    }
+
+    public static boolean enableRecipeIntentBridge() {
+        return enableOptimizer() && ENABLE_RECIPE_INTENT_BRIDGE.get();
+    }
+
+    public static boolean capturePatternProviderRecipeIntents() {
+        return enableRecipeIntentBridge() && CAPTURE_PATTERN_PROVIDER_RECIPE_INTENTS.get();
+    }
+
+    public static int getRecipeIntentTtlTicks() {
+        return Math.min(20 * 30, Math.max(1, RECIPE_INTENT_TTL_TICKS.get()));
+    }
+
+    public static int getMaximumRecipeIntentEntries() {
+        return Math.min(1_048_576, Math.max(16, MAXIMUM_RECIPE_INTENT_ENTRIES.get()));
+    }
+
+    public static boolean enableGtceuRecipeIntentFastPath() {
+        return enableRecipeIntentBridge() && ENABLE_GTCEU_RECIPE_INTENT_FAST_PATH.get();
+    }
+
+    public static int getGtceuRecipeIntentMaximumCandidates() {
+        return Math.min(1024, Math.max(1, GTCEU_RECIPE_INTENT_MAXIMUM_CANDIDATES.get()));
+    }
+
+    public static int getGtceuRecipeIntentIndexCacheSize() {
+        return Math.min(1024, Math.max(1, GTCEU_RECIPE_INTENT_INDEX_CACHE_SIZE.get()));
+    }
+
+    public static boolean logGtceuRecipeIntentFastPath() {
+        return enableGtceuRecipeIntentFastPath() && LOG_GTCEU_RECIPE_INTENT_FAST_PATH.get();
+    }
+
+    public static boolean enableMekanismRecipeIntentFastPath() {
+        return enableRecipeIntentBridge() && ENABLE_MEKANISM_RECIPE_INTENT_FAST_PATH.get();
+    }
+
+    public static int getMekanismRecipeIntentMaximumCandidates() {
+        return Math.min(1024, Math.max(1, MEKANISM_RECIPE_INTENT_MAXIMUM_CANDIDATES.get()));
+    }
+
+    public static int getMekanismRecipeIntentIndexCacheSize() {
+        return Math.min(1024, Math.max(1, MEKANISM_RECIPE_INTENT_INDEX_CACHE_SIZE.get()));
+    }
+
+    public static boolean logMekanismRecipeIntentFastPath() {
+        return enableMekanismRecipeIntentFastPath() && LOG_MEKANISM_RECIPE_INTENT_FAST_PATH.get();
+    }
+
+    public static boolean enableCreateRecipeIntentFastPath() {
+        return enableRecipeIntentBridge() && ENABLE_CREATE_RECIPE_INTENT_FAST_PATH.get();
+    }
+
+    public static boolean logCapturedRecipeIntents() {
+        return enableRecipeIntentBridge() && LOG_CAPTURED_RECIPE_INTENTS.get();
+    }
+
+    public static boolean logRecipeIntentRegistryEvictions() {
+        return enableOptimizer() && LOG_RECIPE_INTENT_REGISTRY_EVICTIONS.get();
+    }
+
+    public static boolean logSlowCraftCalculations() {
+        return enableOptimizer() && LOG_SLOW_CRAFT_CALCULATIONS.get();
+    }
+
+    public static int getSlowCraftCalculationMillis() {
+        return Math.min(300_000, Math.max(1, SLOW_CRAFT_CALCULATION_MILLIS.get()));
+    }
+
+    public static boolean logCacheStatistics() {
+        return enableOptimizer() && LOG_CACHE_STATISTICS.get();
+    }
+}

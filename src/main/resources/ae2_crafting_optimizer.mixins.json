@@ -1,0 +1,32 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.syaru.ae2craftingoptimizer.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "CraftingCalculationDiagnosticsMixin",
+    "CraftingCpuHelperFluidFastPathMixin",
+    "CraftingCpuLogicExecutionBudgetMixin",
+    "CraftingServiceCalculationDeduplicationMixin",
+    "CraftingServiceCraftableSetCacheMixin",
+    "CraftingServiceInvalidationMixin",
+    "CraftingServicePatternLookupCacheMixin",
+    "ExportBusFuzzySearchCacheMixin",
+    "ExtendedIOBusOperationsCapMixin",
+    "GTCEuRecipeLogicIntentFastPathMixin",
+    "GridTickBudgetMixin",
+    "IOBusOperationsCapMixin",
+    "IncrementalUpdateHelperDeepRangeMixin",
+    "MEInventoryUpdatePacketBuilderRangeMixin",
+    "MEStorageMenuSyncOptimizationMixin",
+    "MekanismRecipeIntentFastPathMixin",
+    "MultiCraftingTrackerCraftRequestThrottleMixin",
+    "PatternProviderLogicIntentCaptureMixin",
+    "P2PServiceTopologyDeduplicationMixin",
+    "StorageServiceDeepCoalescingMixin",
+    "StorageServiceWatcherThrottleMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

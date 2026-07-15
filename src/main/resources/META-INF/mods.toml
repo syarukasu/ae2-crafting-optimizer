@@ -1,0 +1,36 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "LGPL-3.0-only"
+issueTrackerURL = "https://github.com/syarukasu/ae2-crafting-optimizer/issues"
+
+[[mods]]
+modId = "ae2_crafting_optimizer"
+version = "${file.jarVersion}"
+displayName = "AE2 Crafting Optimizer"
+authors = "syaru"
+displayURL = "https://github.com/syarukasu/ae2-crafting-optimizer"
+description = '''
+Configurable Applied Energistics 2 crafting, execution, machine-intent, and synchronization optimizations.
+AE2 remains authoritative for recipes, crafting eligibility, job submission, and storage mutation.
+'''
+
+[[dependencies.ae2_crafting_optimizer]]
+modId = "forge"
+mandatory = true
+versionRange = "[47.4.18,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.ae2_crafting_optimizer]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,1.20.2)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.ae2_crafting_optimizer]]
+modId = "ae2"
+mandatory = true
+versionRange = "[15.4.10,15.5.0)"
+ordering = "AFTER"
+side = "BOTH"
