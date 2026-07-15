@@ -9,6 +9,7 @@ version = "${file.jarVersion}"
 displayName = "AE2 Crafting Optimizer"
 authors = "syaru"
 displayURL = "https://github.com/syarukasu/ae2-crafting-optimizer"
+logoFile = "logo.png"
 description = '''
 Configurable Applied Energistics 2 crafting, execution, machine-intent, and synchronization optimizations.
 AE2 remains authoritative for recipes, crafting eligibility, job submission, and storage mutation.

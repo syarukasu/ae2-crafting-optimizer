@@ -1,5 +1,9 @@
 # AE2 Crafting Optimizer
 
+<p align="center">
+  <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
+</p>
+
 [![Build](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml/badge.svg)](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml)
 [![License: LGPL-3.0-only](https://img.shields.io/badge/License-LGPL--3.0--only-blue.svg)](LICENSE)
 
@@ -84,6 +88,7 @@ ForgeはForge Maven、AE2 15.4.10はModMavenから取得します。GitHub Actio
 - [実装詳細](docs/IMPLEMENTATION.md)
 - [試験手順](docs/TESTING.md)
 - [公開手順](docs/PUBLISHING.md)
+- [CurseForge投稿用説明（英語・日本語）](docs/CURSEFORGE_DESCRIPTION.md)
 - [変更履歴](CHANGELOG.md)
 
 ## ライセンスと報告先

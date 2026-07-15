@@ -18,6 +18,8 @@ All notable changes to this project are documented here.
 - Pattern Provider recipe-intent capture.
 - Optional GTCEu Modern and Mekanism output-indexed recipe-intent fast paths for item, fluid, and supported chemical processing.
 - Server diagnostics and `/aco intents` maintenance commands.
+- Original ACO icon for Forge mod listings and repository documentation.
+- Bilingual English/Japanese README and CurseForge publishing copy.
 
 ### Safety
 

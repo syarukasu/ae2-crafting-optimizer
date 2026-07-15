@@ -1,5 +1,9 @@
 # AE2 Crafting Optimizer
 
+<p align="center">
+  <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
+</p>
+
 [![Build](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml/badge.svg)](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml)
 [![License: LGPL-3.0-only](https://img.shields.io/badge/License-LGPL--3.0--only-blue.svg)](LICENSE)
 
@@ -458,6 +462,7 @@ The generated jar is written under `build/libs/`. GitHub Actions runs the same c
 - [Implementation details](docs/IMPLEMENTATION.md)
 - [Manual test matrix](docs/TESTING.md)
 - [Publishing and release procedure](docs/PUBLISHING.md)
+- [CurseForge description (English / Japanese)](docs/CURSEFORGE_DESCRIPTION.md)
 - [Version history](CHANGELOG.md)
 
 ## License
