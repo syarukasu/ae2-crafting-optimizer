@@ -64,6 +64,29 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
   - Tries output-indexed item, fluid, and chemical candidates for the target machine position.
   - Returns a candidate only after Mekanism's own recipe `test` accepts the current machine inputs.
   - Falls back to Mekanism's original recipe lookup when no safe candidate exists.
+- `AdvancedAeReactionChamberRecipeCacheMixin`
+  - Observes the return value of AdvancedAE `ReactionChamberEntity.findRecipe`.
+  - Stores that exact recipe in AdvancedAE's existing `cachedTask` field so the following `getTask` call does not search the unchanged inputs again.
+  - Does not select a different recipe or bypass AdvancedAE's own finder.
+- `Ae2OverclockRuntimeCacheMixin` and `Ae2OverclockParallelRuntimeCacheMixin`
+  - Cache AE2 Overclock's public/declared reflection metadata through `ClassValue` tables.
+  - Cache overclock and parallel card counts per machine for one server tick.
+  - Do not alter process time, parallel multiplier, energy use, input consumption, or output insertion.
+- `Ae2OverclockMachineReflectionCacheMixin`
+  - Runs at Mixin priority 900, after AE2 Overclock's default-priority machine mixins.
+  - Redirects repeated `Class.getField/getMethod` discovery inside AE2 Overclock's merged Reaction Chamber and Circuit Cutter handlers to the same metadata cache.
+  - Uses `require = 0`; an unsupported AE2 Overclock layout leaves the original reflection calls intact instead of preventing startup.
+- `ExtendedAeAssemblerMatrixCrafterCacheMixin`
+  - Reuses `usedThread()` within one server tick.
+  - Invalidates before thread execution and on jobs, inventory changes, thread-state changes, loading, and stopping.
+- `ExtendedAeAssemblerMatrixClusterCacheMixin`
+  - Runs before ExtendedAE Plus's default-priority `getBusyCrafterAmount` handler so a same-tick cache hit can return before another full scan.
+  - Reuses `getBusyCrafterAmount()` within one server tick and invalidates on crafter updates.
+  - Coalesces only an identical `updateStatus(boolean)` call on the same cluster in the same tick.
+  - Does not intercept matrix formation, destruction, pattern registration, or crafting thread execution.
+- `ExtendedAePlusAssemblerMatrixBusyCaptureMixin`
+  - Runs after ExtendedAE Plus and captures the add-on's own 8/32-thread-aware busy total.
+  - Feeds that exact result into the shared one-tick matrix cache; ACO does not reimplement or flatten ExtendedAE Plus crafter capacity.
 - `StorageServiceWatcherThrottleMixin`
   - Redirects storage watcher `onStackChange` calls through a small buffer when `throttleStorageWatcherUpdates = true`.
   - Flushes on `StorageService.onServerEndTick`, storage node changes, and cache invalidation.
@@ -71,13 +94,20 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
   - Redirects AE2's `CraftingCPUCluster.getCoProcessors()` call inside `CraftingCpuLogic.tickCraftingLogic`.
   - Caps the effective execution window before AE2 calls `executeCrafting`.
   - Wraps the `executeCrafting` call and records elapsed server-side execution time for adaptive pacing.
+  - Applies a second, shared budget keyed by `CraftingService`, which corresponds to one ME grid's crafting service.
+  - Uses an exponentially weighted nanoseconds-per-operation estimate to fit later CPU bursts into the remaining grid budget.
+  - Grants every active CPU `minimumSharedOperationsPerCpu` after the shared budget is consumed to avoid starvation.
   - Does not change the CPU's real co-processor count, display value, storage, job validation, or crafting result.
   - Enabled by default because AE2 co-processors increase pattern push throughput, not craft calculation speed.
 - `AdvancedAeCraftingCpuLogicExecutionBudgetMixin`
-  - Present in source for future testing, but not listed in the conservative mixin config.
-  - Disabled because the Advanced AE pseudo-mixin path can crash when the Quantum Computer menu initializes on some mod-loader stacks.
-- `AdvancedAeCraftingInvoker`
-  - Helper for the disabled Advanced AE pseudo-mixin path.
+  - Optionally redirects only `AdvCraftingCPU.getCoProcessors()` inside the server crafting tick.
+  - Applies ACO's hard effective co-processor cap without reflectively invoking Advanced AE methods or touching menu code.
+  - Leaves Quantum Computer storage, displayed statistics, structure formation, and job state unchanged.
+- `CraftingCpuLogicMicroBatchMixin` / `AdvancedAeCraftingCpuLogicMicroBatchMixin`
+  - Offer AE2 and Advanced AE CPU execution loops one aggregate external-processing push when the experimental switch is enabled.
+  - Return the exact number of collapsed executions, so each CPU's original operation accounting remains authoritative.
+- `AdvancedAePatternProviderIntentCaptureMixin`
+  - Captures the same short-lived input/output intent from Advanced AE Pattern Providers as from standard AE2 providers.
 - `GridTickBudgetMixin`
   - Injects around AE2's `TickManagerService.unsafeTickingRequest`.
   - Measures selected `IGridTickable` calls such as AE2 IO Ports, AE2 Import/Export Buses, ExtendedAE Ex buses, and ExtendedAE Circuit Cutters.
@@ -195,7 +225,7 @@ The optimizer caps only the effective co-processor value seen by AE2's normal cr
 
 This feature is enabled by default because it is the direct TPS protection for giant CPUs: the CPU can remain large, but it cannot spend an unbounded amount of one server tick pushing patterns.
 
-Advanced AE Quantum Computer execution is not patched by the conservative mixin config. This avoids crashes during Advanced AE menu initialization. AQE/Advanced AE hardware can still exist; ACO simply does not pace its internal Quantum Computer execution path in this build.
+Advanced AE Quantum Computer execution receives the same hard effective co-processor cap. The Advanced AE path intentionally does not use the standard CPU's reflective execution wrapper, adaptive timing sample, or per-grid shared budget. This keeps the integration at one server-side value read and avoids the previous menu-time class-loading failure.
 
 The generated default cap is `264192` effective co-processors per CPU. This keeps the optimizer safe by default while matching AQE's non-experimental full structure.
 
@@ -203,7 +233,29 @@ For explicit AQE experimental-core stress testing, set `maxEffectiveCoprocessors
 
 When `adaptiveCraftingExecutionBudget = true`, the hard cap above is treated as the maximum. Each active crafting CPU also receives a weakly keyed adaptive cap. If its execution burst takes longer than `targetCraftingExecutionMillis`, the adaptive cap is reduced proportionally and bounded by `minimumAdaptiveCoprocessorsPerCpu`. If it is below half the target and consumes its whole budget, the cap recovers gradually.
 
+When `sharedCraftingExecutionBudget = true`, ACO additionally keeps a weakly keyed budget state per `CraftingService`. Actual elapsed execution time is accumulated for the current game tick. Later CPUs on that grid are limited using the owning CPU's measured cost per operation. Once the shared target is consumed, each remaining active CPU receives only the configured minimum progress allowance for that tick.
+
+The first observed burst for a CPU has no cost estimate, so it still uses the existing per-CPU cap. Its measured cost is then available for subsequent ticks. This avoids guessing a universal operation cost across very different pattern providers and modded machines.
+
 This is the mod's CrazyAE-style safety layer: giant CPU values are allowed, but execution is paced by measured server cost instead of assuming every possible operation should happen in one tick.
+
+### Processing Pattern Micro-Batching
+
+When `enablePatternMicroBatching = true`, ACO can collapse repeated identical processing tasks into one Pattern Provider call. The executor multiplies and extracts each AE2 `GenericStack` input with checked `long` arithmetic, calculates full AE power from the aggregate, pushes through the original provider adapter, inserts all expected outputs into the original job's `waitingFor` inventory, decrements the task by the exact batch size, and marks the original CPU dirty.
+
+Eligibility is deliberately strict:
+
+- external-inventory processing patterns only,
+- standard or Advanced AE Pattern Providers only,
+- one configured target side by default,
+- GTCEu/Mekanism registry namespaces by default,
+- no `ICraftingMachine` plan target,
+- no blocking or crafting-lock mode,
+- no container remainder,
+- no directional Advanced AE pattern,
+- complete aggregate acceptance through the provider's original atomic simulation.
+
+Any failed eligibility, extraction, power, capacity, or provider check returns control to the unchanged AE2 execution method. The path never splits an accepted aggregate after accounting it as complete.
 
 AQE's non-experimental full default structure remains:
 
@@ -221,15 +273,15 @@ The grid tick budget addresses a different bottleneck from crafting calculation 
 
 AE2 IO Ports, Import Buses, Export Buses, ExtendedAE Ex buses, and the ExtendedAE Circuit Cutter are normal `IGridTickable` devices. In large packs they can become expensive because they repeatedly scan filters, adjacent inventories, cells, storage services, and export crafting state. With `ae2_overclocked` installed, several of these devices can also return `URGENT`, which keeps them scheduled aggressively.
 
-The optimizer does not rewrite those devices. Instead, it hooks the AE2 tick manager boundary:
+The optimizer hooks the AE2 tick manager boundary for measurement and opt-in pacing:
 
 ```text
 TickManagerService -> unsafeTickingRequest(TickTracker, ticksSinceLastCall)
 ```
 
-Before a selected tickable runs, the optimizer checks the selected-device budget for the current server tick. If the budget is already spent, it returns `TickRateModulation.SLOWER` for that call. After a selected tickable runs, the optimizer records elapsed time and can apply a short per-device backoff when one call exceeds `slowGridTickableMicros`.
+Before a selected non-progress-sensitive tickable runs, the optimizer checks the selected-device budget for the current server tick. If the budget is already spent, it returns `TickRateModulation.SLOWER` for that call. After it runs, ACO records elapsed time and may apply a short backoff. Import/Export Buses and Circuit Cutters are explicitly progress-sensitive: they are measured but never canceled or backed off by this layer.
 
-This keeps machine semantics intact. A deferred device is not disabled; it is simply moved later through AE2's own tick-rate modulation.
+The exemption prevents repeated `SLOWER` returns from combining with backoff and starving a bus or processing machine that appears late in grid iteration order.
 
 Import/Export buses also get an operations-per-tick cap. This cap is applied after AE2 or speed-card addons calculate the value. It prevents a single bus from doing an integer-saturated burst while preserving filters, redstone control, scheduling mode, craft-only mode, and storage validity.
 
@@ -252,6 +304,19 @@ maxIoBusOperationsPerTick = 4096
 
 If automation becomes too slow but MSPT is stable, raise `gridTickBudgetMillisPerServerTick` first. If MSPT still spikes, lower `maxIoBusOperationsPerTick` or increase `slowGridTickableBackoffTicks`.
 
+## AE2-UEL-Inspired Safe Optimization Layer
+
+The original six `[uelOptimizations]` paths remain deliberately narrower than a backport of AE2-UEL:
+
+1. `BlockApiCacheTickCacheMixin` reuses non-null capability results only for the current server tick and only while the adjacent Block Entity object is unchanged. Missing capabilities are not cached.
+2. `StorageImportSimulationCacheMixin` and `StorageExportSimulationCacheMixin` remember exact zero-result `SIMULATE` calls for one tick. `MODULATE` always invokes AE2/storage code.
+3. `CraftingTreeCandidatePruningMixin` removes only malformed/identity-duplicate candidates before child expansion. It does not inspect current stock and cannot make a valid unavailable branch disappear.
+4. `CraftingProviderRefreshCoalescingMixin` queues repeated provider refreshes on the server thread, flushes at tick end, and flushes before `beginCraftingCalculation`. Solver worker threads never perform provider refreshes.
+5. `ClientRepoUpdateCoalescingMixin` allows the first terminal view rebuild in a client tick and queues one final rebuild at tick end.
+6. `ExtendedAeCircuitCutterRecipeCacheMixin` indexes a candidate by exact item/fluid input signature. A hit calls ExtendedAE `RecipeSearchContext.testRecipe`; rejection evicts the entry and continues its original search.
+
+The expanded layer also includes crafting-job-local invariant query memoization, exact provider-content generations, a bounded IO Port cell cursor, Import/Export locality hints, Assembly Matrix crafter routing, Circuit Cutter negative results, MethodHandle invocation, and an opt-in projected terminal worker. Mutable simulated inventory amounts, real transfers, recipe validation, and matrix thread execution are not cached. Datapack reload clears provider generations and Circuit Cutter results.
+
 ## Machine Intent Boundary
 
 The requested "intent" direction for GT/Mekanism-style machine lines is now represented inside ACO at the AE2 Pattern Provider boundary.
@@ -259,7 +324,9 @@ The requested "intent" direction for GT/Mekanism-style machine lines is now repr
 Implemented in this mod:
 
 - successful Pattern Provider push capture,
+- successful Advanced AE Pattern Provider push capture,
 - short-lived recipe intent registry keyed by dimension, target position, and target side,
+- execution-count aggregation and chunk-bucketed spatial lookup,
 - `/aco intents` diagnostics,
 - GTCEu item/fluid output-indexed candidate prefixing before the normal recipe iterator,
 - Mekanism item/fluid/chemical output-indexed candidate selection before the normal machine recipe lookup,
@@ -294,7 +361,7 @@ Not implemented in this mod:
 - replacing AE2 15.4.10's existing first-class `GenericStack` fluid model,
 - forcing a captured intent directly into GTCEu, Mekanism, or Create recipe execution without each mod's own validation path,
 - replacing pattern providers with a custom machine scheduler,
-- batching machine inputs outside AE2's storage/crafting APIs,
+- batching dedicated crafting-machine plans or bypassing AE2's storage/crafting APIs,
 - changing machine inventory insertion/extraction semantics.
 
 Create remains reserved behind a config-visible fast path switch. Mekanism is implemented conservatively: ACO only returns candidates that Mekanism's own recipe `test` accepts for the current machine inputs.
@@ -309,8 +376,8 @@ Flow:
 AE2 Pattern Provider push succeeds
 ACO records target position + concrete input/output intent
 GTCEu RecipeLogic.searchRecipe runs on that target machine
-ACO finds fresh intents for the machine position
-ACO resolves intent output item/fluid ids against a cached per-GTRecipeType output index
+ACO finds exact or nearby input-bus/hatch intents through chunk buckets
+ACO resolves intent output ids and prioritizes candidates containing the concrete pushed input ids
 ACO prepends matching candidates to GTCEu's original iterator
 GTCEu handleSearchingRecipes/checkMatchedRecipeAvailable/checkRecipe/setupRecipe stay unchanged
 ```
@@ -322,7 +389,10 @@ Safety rules:
 - If a candidate no longer matches the machine inputs, GTCEu rejects it and the original iterator continues.
 - If reflection fails because GTCEu changed internals, the original iterator is returned.
 - Candidate count is capped by `gtceuRecipeIntentMaximumCandidates`.
+- Nearby matching is capped by `gtceuRecipeIntentSearchRadius` and `gtceuRecipeIntentNearbyMaximumEntries`.
 - The output index is cleared on server stop and `/aco intents clear`.
+- Output-index and resolved-candidate caches are also cleared after a server datapack recipe reload.
+- Repeated searches for the same target and fresh output-key set reuse an immutable candidate prefix; GTCEu still validates every candidate.
 
 This reduces repeated full recipe discovery when AE2 has just pushed a known processing pattern into a GTCEu machine, while preserving GTCEu as the final validator and executor.
 
@@ -351,6 +421,9 @@ Safety rules:
 - If reflection fails because Mekanism changed internals, original Mekanism lookup runs.
 - Candidate count is capped by `mekanismRecipeIntentMaximumCandidates`.
 - The output index is cleared on server stop and `/aco intents clear`.
+- Output-index and resolved-recipe caches are also cleared after a server datapack recipe reload.
+- Input-handler field discovery and recipe `test` method discovery are cached per Java class.
+- A resolved recipe is reused only while the latest intent signature matches and Mekanism's live recipe `test` still accepts current inputs.
 
 This targets machines such as enrichment/crushing/smelting factories, combiner, metallurgic infuser, purification/injection/osmium compressor, chemical crystallizer, chemical infuser, washer, oxidizer, electrolytic separator, pressurized reaction chamber, rotary condensentrator, pigment machines, and related Mekanism recipe machines.
 

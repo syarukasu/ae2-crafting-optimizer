@@ -24,6 +24,14 @@ public final class GridTickBudget {
         resetBudgetIfNeeded(currentTick);
         TickableState state = getState(tickable);
 
+        // Buses and processing machines carry persistent progress. Cancelling their scheduled
+        // call can repeatedly move them to AE2's slower queue and starve devices that happen
+        // to be visited late. Their work is bounded at the operation/recipe layer instead.
+        if (isProgressSensitive(tickable)) {
+            state.startedAtNanos = System.nanoTime();
+            return null;
+        }
+
         if (currentTick < state.deferUntilTick) {
             logDeferred(tickable, node, currentTick, state.deferReason);
             return TickRateModulation.SLOWER;
@@ -62,6 +70,13 @@ public final class GridTickBudget {
         state.lastRunTick = currentTick;
         resetBudgetIfNeeded(currentTick);
         usedBudgetNanos += elapsedNanos;
+
+        if (isProgressSensitive(tickable)) {
+            state.consecutiveIdleReturns = 0;
+            state.deferUntilTick = Long.MIN_VALUE;
+            return;
+        }
+
         updateIdleBackoff(tickable, node, currentTick, modulation, state);
 
         long slowNanos = ACOConfig.getSlowGridTickableMicros() * 1_000L;
@@ -157,6 +172,13 @@ public final class GridTickBudget {
             }
         }
         return false;
+    }
+
+    private static boolean isProgressSensitive(Object tickable) {
+        String name = className(tickable).toLowerCase();
+        return name.contains("importbus")
+                || name.contains("exportbus")
+                || name.contains("circuitcutter");
     }
 
     private static void logSlow(

@@ -34,9 +34,16 @@ public abstract class CraftingCpuLogicExecutionBudgetMixin {
             CraftingService craftingService,
             IEnergyService energyService,
             Level level) {
+        int limitedOperations = CraftingExecutionBudget.limitSharedOperations(
+                craftingService,
+                this,
+                maxOperations,
+                level.getGameTime());
         long startedAt = System.nanoTime();
-        int completedOperations = logic.executeCrafting(maxOperations, craftingService, energyService, level);
-        CraftingExecutionBudget.recordExecution(this, maxOperations, completedOperations, System.nanoTime() - startedAt);
+        int completedOperations = logic.executeCrafting(limitedOperations, craftingService, energyService, level);
+        long elapsedNanos = System.nanoTime() - startedAt;
+        CraftingExecutionBudget.recordExecution(this, limitedOperations, completedOperations, elapsedNanos);
+        CraftingExecutionBudget.recordSharedExecution(craftingService, level.getGameTime(), elapsedNanos);
         return completedOperations;
     }
 }

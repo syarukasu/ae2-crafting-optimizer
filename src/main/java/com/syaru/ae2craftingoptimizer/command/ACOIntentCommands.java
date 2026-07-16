@@ -6,6 +6,7 @@ import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntent;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
 import com.syaru.ae2craftingoptimizer.mekanism.MekanismRecipeIntentFastPath;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import java.util.List;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -18,6 +19,10 @@ public final class ACOIntentCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("aco")
                 .requires(source -> source.hasPermission(2))
+                .then(Commands.literal("stats")
+                        .executes(context -> showStats(context.getSource()))
+                        .then(Commands.literal("reset")
+                                .executes(context -> resetStats(context.getSource()))))
                 .then(Commands.literal("intents")
                         .executes(context -> showCount(context.getSource()))
                         .then(Commands.literal("list")
@@ -28,6 +33,21 @@ public final class ACOIntentCommands {
                                                 IntegerArgumentType.getInteger(context, "limit")))))
                         .then(Commands.literal("clear")
                                 .executes(context -> clear(context.getSource())))));
+    }
+
+    private static int showStats(CommandSourceStack source) {
+        List<String> lines = OptimizationMetrics.summaryLines();
+        source.sendSuccess(() -> Component.literal("ACO optimization statistics:"), false);
+        for (String line : lines) {
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
+        return lines.size();
+    }
+
+    private static int resetStats(CommandSourceStack source) {
+        OptimizationMetrics.reset();
+        source.sendSuccess(() -> Component.literal("Reset ACO optimization statistics."), true);
+        return 1;
     }
 
     private static int showCount(CommandSourceStack source) {
@@ -48,6 +68,8 @@ public final class ACOIntentCommands {
             RecipeIntent intent = intents.get(i);
             source.sendSuccess(() -> Component.literal(
                     intent.patternDefinitionId()
+                            + " x"
+                            + intent.patternExecutions()
                             + " -> "
                             + intent.dimension()
                             + " "

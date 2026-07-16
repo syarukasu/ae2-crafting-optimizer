@@ -40,7 +40,7 @@ AE2 remains authoritative for crafting plans, missing ingredients, job submissio
 
 Install the same ACO jar on the dedicated server and every client.
 
-GTCEu Modern and Mekanism are optional. Their integration paths remain inactive when the corresponding mod is not installed. ACO is designed to coexist with Advanced AE and Advanced Quantum Engineering, but the conservative release does not patch Advanced AE's Quantum Computer execution logic.
+GTCEu Modern, Mekanism, and Advanced AE integrations are optional. Their pseudo-Mixins remain inactive when the corresponding mod is not installed. Advanced AE Quantum Computers receive only ACO's effective server execution cap; capacity, structure rules, displayed values, and crafting results remain unchanged. Experimental processing-pattern micro-batching is available but disabled by default.
 
 ### Configuration
 

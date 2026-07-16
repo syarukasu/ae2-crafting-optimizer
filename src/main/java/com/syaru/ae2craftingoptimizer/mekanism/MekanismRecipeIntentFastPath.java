@@ -4,7 +4,9 @@ import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntent;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
+import com.syaru.ae2craftingoptimizer.intent.RecipeIntentSignature;
 import com.syaru.ae2craftingoptimizer.intent.StackIntent;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -32,7 +34,21 @@ import net.minecraftforge.registries.ForgeRegistries;
 public final class MekanismRecipeIntentFastPath {
     private static final Object LOCK = new Object();
     private static final Map<Object, OutputRecipeIndex> INDEXES = Collections.synchronizedMap(new IdentityHashMap<>());
+    private static final Map<TargetKey, ResolvedRecipe> RESOLVED_RECIPES = new LinkedHashMap<>();
     private static final Set<String> REFLECTION_FAILURES_LOGGED = Collections.synchronizedSet(new LinkedHashSet<>());
+    private static long lastResolvedCleanupTick = Long.MIN_VALUE;
+    private static final ClassValue<List<InputFieldAccessor>> INPUT_FIELDS = new ClassValue<>() {
+        @Override
+        protected List<InputFieldAccessor> computeValue(Class<?> type) {
+            return buildInputFieldAccessors(type);
+        }
+    };
+    private static final ClassValue<List<Method>> TEST_METHODS = new ClassValue<>() {
+        @Override
+        protected List<Method> computeValue(Class<?> type) {
+            return findTestMethods(type);
+        }
+    };
 
     private MekanismRecipeIntentFastPath() {
     }
@@ -68,10 +84,20 @@ public final class MekanismRecipeIntentFastPath {
                 return null;
             }
 
+            TargetKey targetKey = new TargetKey(level.dimension().location(), pos, cacheIndex);
+            Object cachedRecipe = findResolvedRecipe(targetKey, recipeType, intents, level.getGameTime());
+            if (cachedRecipe != null) {
+                if (recipeMatchesInputs(cachedRecipe, inputs)) {
+                    return cachedRecipe;
+                }
+                forgetResolvedRecipe(targetKey);
+            }
+
             OutputRecipeIndex index = getOrCreateIndex(recipeType, level);
             List<Object> candidates = collectCandidates(intents, index);
             for (Object candidate : candidates) {
                 if (recipeMatchesInputs(candidate, inputs)) {
+                    rememberResolvedRecipe(targetKey, recipeType, intents, candidate, level.getGameTime());
                     if (ACOConfig.logMekanismRecipeIntentFastPath()) {
                         AE2CraftingOptimizer.LOGGER.info(
                                 "ACO Mekanism intent fast path: selected {} for {} {} with {} input(s)",
@@ -101,10 +127,85 @@ public final class MekanismRecipeIntentFastPath {
     public static void clearIndexes(String reason) {
         synchronized (LOCK) {
             INDEXES.clear();
+            RESOLVED_RECIPES.clear();
+            lastResolvedCleanupTick = Long.MIN_VALUE;
         }
         if (ACOConfig.logMekanismRecipeIntentFastPath()) {
             AE2CraftingOptimizer.LOGGER.info("Cleared Mekanism recipe intent indexes: {}", reason);
         }
+    }
+
+    private static Object findResolvedRecipe(
+            TargetKey targetKey,
+            Object recipeType,
+            List<RecipeIntent> intents,
+            long now) {
+        if (!ACOConfig.cacheResolvedRecipeIntents()) {
+            return null;
+        }
+        RecipeIntentSignature signature = latestSignature(intents);
+        synchronized (LOCK) {
+            cleanupResolvedRecipes(now);
+            ResolvedRecipe cached = RESOLVED_RECIPES.get(targetKey);
+            if (cached == null
+                    || cached.recipeType != recipeType
+                    || !cached.signature.equals(signature)
+                    || cached.expiresTick <= now) {
+                OptimizationMetrics.recordMekanismRecipeCache(false);
+                return null;
+            }
+            OptimizationMetrics.recordMekanismRecipeCache(true);
+            return cached.recipe;
+        }
+    }
+
+    private static void rememberResolvedRecipe(
+            TargetKey targetKey,
+            Object recipeType,
+            List<RecipeIntent> intents,
+            Object recipe,
+            long now) {
+        if (!ACOConfig.cacheResolvedRecipeIntents()) {
+            return;
+        }
+        synchronized (LOCK) {
+            cleanupResolvedRecipes(now);
+            while (RESOLVED_RECIPES.size() >= ACOConfig.getResolvedRecipeIntentCacheSize()) {
+                var iterator = RESOLVED_RECIPES.keySet().iterator();
+                if (!iterator.hasNext()) {
+                    break;
+                }
+                iterator.next();
+                iterator.remove();
+            }
+            RESOLVED_RECIPES.put(
+                    targetKey,
+                    new ResolvedRecipe(recipeType, latestSignature(intents), recipe, latestExpiration(intents)));
+        }
+    }
+
+    private static void forgetResolvedRecipe(TargetKey targetKey) {
+        synchronized (LOCK) {
+            RESOLVED_RECIPES.remove(targetKey);
+        }
+    }
+
+    private static void cleanupResolvedRecipes(long now) {
+        if (lastResolvedCleanupTick != Long.MIN_VALUE
+                && now >= lastResolvedCleanupTick
+                && now - lastResolvedCleanupTick < 20L) {
+            return;
+        }
+        RESOLVED_RECIPES.values().removeIf(entry -> entry.expiresTick <= now);
+        lastResolvedCleanupTick = now;
+    }
+
+    private static RecipeIntentSignature latestSignature(List<RecipeIntent> intents) {
+        return RecipeIntentSignature.of(intents.get(intents.size() - 1));
+    }
+
+    private static long latestExpiration(List<RecipeIntent> intents) {
+        return intents.get(intents.size() - 1).expiresTick();
     }
 
     private static OutputRecipeIndex getOrCreateIndex(Object recipeType, ServerLevel level) {
@@ -155,42 +256,25 @@ public final class MekanismRecipeIntentFastPath {
     private static List<Object> collectInputs(Object tile, int cacheIndex) throws ReflectiveOperationException {
         List<InputHandlerCandidate> handlers = new ArrayList<>();
         Set<Object> seenHandlers = Collections.newSetFromMap(new IdentityHashMap<>());
-        int depth = 0;
-        Class<?> current = tile.getClass();
-        while (current != null) {
-            for (Field field : current.getDeclaredFields()) {
-                if (Modifier.isStatic(field.getModifiers())) {
-                    continue;
-                }
-                String fieldName = field.getName();
-                String lowerName = fieldName.toLowerCase();
-                if (lowerName.contains("output") || lowerName.contains("energy")) {
-                    continue;
-                }
-                field.setAccessible(true);
-                Object value = field.get(tile);
-                if (value == null) {
-                    continue;
-                }
-                if (value.getClass().isArray()) {
-                    if (!lowerName.contains("inputhandlers")) {
-                        continue;
-                    }
-                    int length = Array.getLength(value);
-                    if (cacheIndex < 0 || cacheIndex >= length) {
-                        continue;
-                    }
-                    Object handler = Array.get(value, cacheIndex);
-                    addInputHandler(handlers, seenHandlers, fieldName, handler, 0, depth);
-                    continue;
-                }
-                if (!lowerName.contains("inputhandler")) {
-                    continue;
-                }
-                addInputHandler(handlers, seenHandlers, fieldName, value, inputPriority(fieldName), depth);
+        for (InputFieldAccessor accessor : INPUT_FIELDS.get(tile.getClass())) {
+            Object value = accessor.field().get(tile);
+            if (value == null) {
+                continue;
             }
-            current = current.getSuperclass();
-            depth++;
+            if (accessor.array()) {
+                int length = Array.getLength(value);
+                if (cacheIndex < 0 || cacheIndex >= length) {
+                    continue;
+                }
+                value = Array.get(value, cacheIndex);
+            }
+            addInputHandler(
+                    handlers,
+                    seenHandlers,
+                    accessor.fieldName(),
+                    value,
+                    accessor.priority(),
+                    accessor.depth());
         }
 
         handlers.sort(Comparator
@@ -206,6 +290,42 @@ public final class MekanismRecipeIntentFastPath {
             }
         }
         return inputs;
+    }
+
+    private static List<InputFieldAccessor> buildInputFieldAccessors(Class<?> type) {
+        List<InputFieldAccessor> fields = new ArrayList<>();
+        int depth = 0;
+        Class<?> current = type;
+        while (current != null) {
+            for (Field field : current.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                String fieldName = field.getName();
+                String lowerName = fieldName.toLowerCase();
+                if (lowerName.contains("output") || lowerName.contains("energy")) {
+                    continue;
+                }
+                boolean array = field.getType().isArray();
+                if (array ? !lowerName.contains("inputhandlers") : !lowerName.contains("inputhandler")) {
+                    continue;
+                }
+                field.setAccessible(true);
+                fields.add(new InputFieldAccessor(
+                        fieldName,
+                        field,
+                        array,
+                        array ? 0 : inputPriority(fieldName),
+                        depth));
+            }
+            current = current.getSuperclass();
+            depth++;
+        }
+        fields.sort(Comparator
+                .comparingInt(InputFieldAccessor::priority)
+                .thenComparingInt(InputFieldAccessor::depth)
+                .thenComparing(InputFieldAccessor::fieldName));
+        return List.copyOf(fields);
     }
 
     private static void addInputHandler(
@@ -246,6 +366,7 @@ public final class MekanismRecipeIntentFastPath {
     }
 
     private static boolean recipeMatchesInputs(Object recipe, List<Object> inputs) {
+        OptimizationMetrics.recordMekanismRecipeValidation();
         if (recipe == null || inputs.isEmpty()) {
             return false;
         }
@@ -274,6 +395,10 @@ public final class MekanismRecipeIntentFastPath {
     }
 
     private static List<Method> testMethods(Class<?> type) {
+        return TEST_METHODS.get(type);
+    }
+
+    private static List<Method> findTestMethods(Class<?> type) {
         List<Method> methods = new ArrayList<>();
         for (Method method : type.getMethods()) {
             if (!"test".equals(method.getName())
@@ -288,7 +413,7 @@ public final class MekanismRecipeIntentFastPath {
                 .comparingInt(MekanismRecipeIntentFastPath::objectParameterCount)
                 .thenComparing((Method method) -> method.isBridge() ? 1 : 0)
                 .thenComparing(Method::getParameterCount));
-        return methods;
+        return List.copyOf(methods);
     }
 
     private static int objectParameterCount(Method method) {
@@ -418,6 +543,22 @@ public final class MekanismRecipeIntentFastPath {
     }
 
     private record InputHandlerCandidate(String fieldName, Object handler, int priority, int depth) {
+    }
+
+    private record InputFieldAccessor(String fieldName, Field field, boolean array, int priority, int depth) {
+    }
+
+    private record TargetKey(ResourceLocation dimension, BlockPos machinePos, int cacheIndex) {
+        private TargetKey {
+            machinePos = machinePos.immutable();
+        }
+    }
+
+    private record ResolvedRecipe(
+            Object recipeType,
+            RecipeIntentSignature signature,
+            Object recipe,
+            long expiresTick) {
     }
 
     private static final class OutputRecipeIndex {
