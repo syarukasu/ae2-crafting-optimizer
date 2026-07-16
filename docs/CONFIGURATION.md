@@ -36,8 +36,8 @@ Restart the server after changing optimization settings. Existing config files r
 | Intent | `gtceuRecipeIntentNearbyMaximumEntries` | `64` | Bounds nearby intents considered by one GT recipe search. |
 | Add-on machines | `enableAddonMachineOptimizations` | `true` | Master switch for conservative AdvancedAE, ExtendedAE, and AE2 Overclock caches. |
 | Add-on machines | `cacheReactionChamberRecipe` | `true` | Seeds AdvancedAE's existing Reaction Chamber task cache from its completed recipe lookup. |
-| Add-on machines | `cacheAe2OverclockReflection` | `true` | Caches immutable Java Field/Method discovery performed by AE2 Overclock. |
-| Add-on machines | `useAe2OverclockMethodHandles` | `true` | Uses cached MethodHandles for repeated AE2 Overclock invocation, with reflection fallback. |
+| Add-on machines | `cacheAe2OverclockReflection` | `true` | Caches immutable Field/Method discovery inside AE2 Overclock's runtime helper classes. |
+| Add-on machines | `useAe2OverclockMethodHandles` | `true` | Uses cached MethodHandles in those runtime helpers, with reflection fallback. |
 | Add-on machines | `cacheAe2OverclockUpgradeCounts` | `true` | Reuses overclock/parallel card counts on the same host for one server tick. |
 | Add-on machines | `cacheAssemblerMatrixThreadCounts` | `true` | Reuses one ExtendedAE matrix crafter's used-thread count within a tick. |
 | Add-on machines | `cacheAssemblerMatrixBusyCount` | `true` | Reuses a matrix cluster's complete busy-thread total within a tick. |

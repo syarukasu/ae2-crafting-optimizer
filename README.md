@@ -154,7 +154,7 @@ The reusable parts of the AE2-UEL/GTNH design are applied to AE2 15.4.x without 
 7. Memoize calculation-invariant emit, pattern, fuzzy-candidate, and container-return queries only for the lifetime of one crafting job.
 8. Rebuild provider pattern indexes only when an exact provider-content generation changes.
 9. Advance IO Ports through cell slots with a bounded cursor, try an Import Bus's last successful slot first, and retain Export Bus configured candidates until their config generation changes.
-10. Reuse a validated Assembly Matrix crafter route, share exact Circuit Cutter no-recipe results, and invoke AE2 Overclock's cached Methods through MethodHandles.
+10. Reuse a validated Assembly Matrix crafter route, share exact Circuit Cutter no-recipe results, and cache reflection metadata, MethodHandles, and card counts inside AE2 Overclock's own runtime helper classes.
 
 An additional opt-in client path projects terminal names, IDs, tags, tooltips, and sort keys on the client thread, then performs only immutable search matching and sorting in a worker. A generation check discards stale results.
 
@@ -198,7 +198,7 @@ The path is deliberately narrow: it accepts only standard/Advanced AE Pattern Pr
 
 AdvancedAE Reaction Chambers reuse the recipe that their own `findRecipe` call already resolved after an inventory change. The original recipe finder remains authoritative; ACO only prevents the immediately repeated lookup from rebuilding the same input list and searching again.
 
-AE2 Overclock repeatedly discovers and invokes the same Java fields and methods while accelerating AdvancedAE Reaction Chambers and ExtendedAE Circuit Cutters. ACO caches that immutable reflection metadata by class, invokes accessible cached Methods through MethodHandles with reflection fallback, and reuses overclock/parallel card counts within one server tick. Recipe checks, energy use, output insertion, and the actual accelerated work remain in AE2 Overclock.
+ACO caches reflection metadata and MethodHandles inside AE2 Overclock's own runtime helper classes and reuses overclock/parallel card counts within one server tick. Recipe checks, energy use, output insertion, and the actual accelerated work remain in AE2 Overclock. Direct redirects into machine handlers added by AE2 Overclock's own Mixins are compatibility-disabled in 1.1.0 because Forge Mixin cannot safely inject into those merged methods; those handlers retain AE2 Overclock's original reflection path.
 
 ExtendedAE Assembly Matrix crafters reuse used-thread and total busy-thread counts within one server tick. Every job, inventory mutation, thread-state change, load, stop, and crafting execution invalidates the relevant cache. The busy-count path also captures ExtendedAE Plus's 32-thread-aware result instead of replacing it. Identical visual/status broadcasts from one matrix cluster are coalesced only within the same tick; formation, destruction, crafting threads, and pattern execution are unchanged.
 

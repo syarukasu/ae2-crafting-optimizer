@@ -35,14 +35,16 @@ ACOはAE2内部へMixinするため、別のAE2系列や未検証バージョン
 - Pattern Providerが押し出した入出力をGTCEu/Mekanismの候補検索に使うレシピ意図ブリッジ
 - GT入力バス/ハッチとマルチブロックコントローラの位置差を補う空間索引、および実投入物＋期待出力による候補優先
 - 同一の外部処理パターンを最大65536回ぶんまとめて投入する実験的マイクロバッチ（既定OFF）
-- AdvancedAE反応室の重複レシピ検索、AE2 Overclockの反復リフレクションと同一tickカード数走査のキャッシュ
+- AdvancedAE反応室の重複レシピ検索と、AE2 Overclockランタイムヘルパーの反射・MethodHandle・同一tickカード数キャッシュ
 - ExtendedAE組立マトリックスのスレッド集計・稼働数集計・Crafter経路・同一tick状態通知のキャッシュ
-- クラフト計算内メモ、Provider内容世代、IO Port増分処理、Import成功スロット、Export候補、回路スライサー負結果、AE2 Overclock MethodHandleを含むAE2-UEL/GTNH型最適化
+- クラフト計算内メモ、Provider内容世代、IO Port増分処理、Import成功スロット、Export候補、回路スライサー負結果を含むAE2-UEL/GTNH型最適化
 - 遅いクラフト計算の診断ログ
 
 AE2が最終的なクラフト計算、ジョブ投入、ストレージ操作を担当し続けます。ACOの高速経路が候補を確定できない場合は元のAE2・機械MOD処理へ戻ります。
 
 アドオン機械最適化は新規Configで既定有効ですが、`[addonMachineOptimizations]`以下から個別に無効化できます。反応室・回路スライサーの処理waveや搬入出、組立マトリックスの構造判定・8本の実クラフトスレッドは間引きません。
+
+AE2 Overclock自身のランタイムヘルパーに対する反射・MethodHandle・カード数キャッシュは有効です。一方、AE2 OverclockのMixinが機械へ追加するメソッドへの二重注入だけはForge 1.20.1で安全に適用できないため無効化しています。AE2 Overclock本体の処理は変更しません。
 
 `[uelOptimizations]`の各項目も個別に無効化できます。Import/Export Busと回路スライサーはGrid Tick予算による実行キャンセルとアイドル待機の対象外です。実搬送は毎回AE2本体を通り、Importの成功位置が外れた場合は必ず全走査へ戻ります。回路スライサーの正候補もExtendedAE本体の`testRecipe`を通過した場合だけ使用します。
 

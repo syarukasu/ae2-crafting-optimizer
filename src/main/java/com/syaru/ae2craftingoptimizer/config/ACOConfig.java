@@ -400,10 +400,10 @@ public final class ACOConfig {
                 .comment("Reuse the AdvancedAE Reaction Chamber recipe already resolved after an inventory change instead of immediately searching the same inputs again.")
                 .define("cacheReactionChamberRecipe", true);
         CACHE_AE2_OVERCLOCK_REFLECTION = builder
-                .comment("Cache AE2 Overclock Field and Method metadata by Java class. Invocation and recipe validation still run normally.")
+                .comment("Cache Field and Method metadata used by AE2 Overclock's own runtime helper classes. Invocation and recipe validation still run normally.")
                 .define("cacheAe2OverclockReflection", true);
         USE_AE2_OVERCLOCK_METHOD_HANDLES = builder
-                .comment("Invoke AE2 Overclock's cached reflective Methods through prebuilt MethodHandles while preserving Method.invoke exception wrapping and falling back to reflection when access is unavailable.")
+                .comment("Invoke cached Methods used by AE2 Overclock runtime helpers through prebuilt MethodHandles, with reflection fallback.")
                 .define("useAe2OverclockMethodHandles", true);
         CACHE_AE2_OVERCLOCK_UPGRADE_COUNTS = builder
                 .comment("Reuse AE2 Overclock overclock/parallel card counts for the same machine during one server tick. Upgrade changes are visible no later than the next tick.")
