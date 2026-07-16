@@ -15,6 +15,7 @@ public record RecipeIntent(
         List<InputIntent> inputs,
         List<StackIntent> concreteInputs,
         List<StackIntent> outputs,
+        long patternExecutions,
         long createdTick,
         long expiresTick
 ) {
@@ -24,6 +25,7 @@ public record RecipeIntent(
         inputs = List.copyOf(inputs);
         concreteInputs = List.copyOf(concreteInputs);
         outputs = List.copyOf(outputs);
+        patternExecutions = Math.max(1L, patternExecutions);
     }
 
     public IntentLocation location() {
@@ -32,5 +34,21 @@ public record RecipeIntent(
 
     public boolean isExpired(long now) {
         return now >= expiresTick;
+    }
+
+    public RecipeIntent withPatternExecutions(long executions, long expiration) {
+        return new RecipeIntent(
+                dimension,
+                providerPos,
+                providerSide,
+                targetPos,
+                targetSide,
+                patternDefinitionId,
+                inputs,
+                concreteInputs,
+                outputs,
+                Math.max(1L, executions),
+                createdTick,
+                Math.max(expiresTick, expiration));
     }
 }

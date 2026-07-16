@@ -7,8 +7,18 @@ import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
 import com.syaru.ae2craftingoptimizer.mekanism.MekanismRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.optimization.BusFuzzySearchCache;
+import com.syaru.ae2craftingoptimizer.optimization.BusTransferSimulationCache;
+import com.syaru.ae2craftingoptimizer.optimization.Ae2OverclockUpgradeCountCache;
+import com.syaru.ae2craftingoptimizer.optimization.AssemblerMatrixBusyCountCache;
+import com.syaru.ae2craftingoptimizer.optimization.CircuitCutterRecipeCache;
+import com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget;
 import com.syaru.ae2craftingoptimizer.optimization.P2PNotificationDeduplicator;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
+import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
+import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
+import com.syaru.ae2craftingoptimizer.optimization.MethodHandleInvocationCache;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.OnDatapackSyncEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
@@ -32,6 +42,7 @@ public final class AE2CraftingOptimizer {
         MinecraftForge.EVENT_BUS.addListener(this::onRegisterCommands);
         MinecraftForge.EVENT_BUS.addListener(this::onServerStarted);
         MinecraftForge.EVENT_BUS.addListener(this::onServerTick);
+        MinecraftForge.EVENT_BUS.addListener(this::onDatapackSync);
         MinecraftForge.EVENT_BUS.addListener(this::onServerStopping);
     }
 
@@ -40,6 +51,10 @@ public final class AE2CraftingOptimizer {
     }
 
     private void onServerStarted(ServerStartedEvent event) {
+        ServerTickClock.reset();
+        Ae2OverclockUpgradeCountCache.clear();
+        AssemblerMatrixBusyCountCache.clear();
+        MethodHandleInvocationCache.clear();
         LOGGER.info("ACO active: {}", ACOConfig.enableOptimizer());
         LOGGER.info("ACO two-stage missing preview: {}, cache: {} entries / {}s TTL",
                 ACOConfig.twoStageMissingPreview(),
@@ -81,6 +96,10 @@ public final class AE2CraftingOptimizer {
                 ACOConfig.adaptiveCraftingExecutionBudget(),
                 ACOConfig.getTargetCraftingExecutionMillis(),
                 ACOConfig.getMinimumAdaptiveCoprocessorsPerCpu());
+        LOGGER.info("ACO shared crafting execution budget: {}, target {} ms per ME grid/tick, minimum {} operation(s) per active CPU",
+                ACOConfig.sharedCraftingExecutionBudget(),
+                ACOConfig.getSharedCraftingExecutionMillisPerGrid(),
+                ACOConfig.getMinimumSharedOperationsPerCpu());
         LOGGER.info("ACO grid tick budget: {}, defer {}, budget {} ms/tick, slow threshold {} us, backoff {} ticks",
                 ACOConfig.enableGridTickBudget(),
                 ACOConfig.deferHeavyGridTickables(),
@@ -98,21 +117,50 @@ public final class AE2CraftingOptimizer {
                 ACOConfig.throttleExportBusCraftRequests(),
                 ACOConfig.getExportBusCraftFailureCooldownTicks(),
                 ACOConfig.getExportBusCraftThrottleCacheSize());
+        LOGGER.info(
+                "ACO UEL optimizations: capability cache {}, negative bus simulation cache {}, candidate pruning {}, provider refresh coalescing {}, client terminal coalescing {}",
+                ACOConfig.cacheAdjacentCapabilityLookups(),
+                ACOConfig.cacheNegativeBusTransferSimulations(),
+                ACOConfig.pruneInvalidCraftingCandidates(),
+                ACOConfig.coalesceCraftingProviderRefreshes(),
+                ACOConfig.coalesceClientTerminalViewUpdates());
+        LOGGER.info("ACO ExtendedAE Circuit Cutter recipe cache: {}, max {} entries",
+                ACOConfig.cacheCircuitCutterRecipes(),
+                ACOConfig.getCircuitCutterRecipeCacheSize());
         LOGGER.info("ACO recipe intent bridge: {}, capture Pattern Provider intents: {}, TTL {} ticks, max {} entries",
                 ACOConfig.enableRecipeIntentBridge(),
                 ACOConfig.capturePatternProviderRecipeIntents(),
                 ACOConfig.getRecipeIntentTtlTicks(),
                 ACOConfig.getMaximumRecipeIntentEntries());
+        LOGGER.info("ACO pattern micro-batching: {}, max {} execution(s)/push, single target required {}, target namespaces {}",
+                ACOConfig.enablePatternMicroBatching(),
+                ACOConfig.getMaxPatternExecutionsPerMicroBatch(),
+                ACOConfig.requireSinglePatternProviderTarget(),
+                ACOConfig.getPatternMicroBatchTargetNamespaces());
         LOGGER.info("ACO recipe intent fast paths - GTCEu: {}, Mekanism: {}, Create: {}",
                 ACOConfig.enableGtceuRecipeIntentFastPath(),
                 ACOConfig.enableMekanismRecipeIntentFastPath(),
                 ACOConfig.enableCreateRecipeIntentFastPath());
-        LOGGER.info("ACO GTCEu recipe intent fast path candidates: max {}, index cache {} recipe type(s)",
+        LOGGER.info("ACO GTCEu recipe intent fast path candidates: max {}, index cache {} recipe type(s), multiblock radius {}, nearby intents {}",
                 ACOConfig.getGtceuRecipeIntentMaximumCandidates(),
-                ACOConfig.getGtceuRecipeIntentIndexCacheSize());
+                ACOConfig.getGtceuRecipeIntentIndexCacheSize(),
+                ACOConfig.getGtceuRecipeIntentSearchRadius(),
+                ACOConfig.getGtceuRecipeIntentNearbyMaximumEntries());
         LOGGER.info("ACO Mekanism recipe intent fast path candidates: max {}, index cache {} recipe type(s)",
                 ACOConfig.getMekanismRecipeIntentMaximumCandidates(),
                 ACOConfig.getMekanismRecipeIntentIndexCacheSize());
+        LOGGER.info("ACO resolved recipe intent cache: {}, max {} entries per integration",
+                ACOConfig.cacheResolvedRecipeIntents(),
+                ACOConfig.getResolvedRecipeIntentCacheSize());
+        LOGGER.info(
+                "ACO add-on machine optimizations: master {}, reaction recipe {}, AE2 Overclock reflection {}, upgrade counts {}, matrix threads {}, busy count {}, status coalescing {}",
+                ACOConfig.enableAddonMachineOptimizations(),
+                ACOConfig.cacheReactionChamberRecipe(),
+                ACOConfig.cacheAe2OverclockReflection(),
+                ACOConfig.cacheAe2OverclockUpgradeCounts(),
+                ACOConfig.cacheAssemblerMatrixThreadCounts(),
+                ACOConfig.cacheAssemblerMatrixBusyCount(),
+                ACOConfig.coalesceAssemblerMatrixStatusUpdates());
         logDeepRewriteFlags();
         LOGGER.info("ACO grid tickable hints: {}", ACOConfig.getHeavyGridTickableClassHints());
         LOGGER.info("ACO heavy process hints: {}", ACOConfig.getHeavyProcessHints());
@@ -146,17 +194,46 @@ public final class AE2CraftingOptimizer {
     }
 
     private void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase == TickEvent.Phase.START) {
+            ServerTickClock.advance();
+            return;
+        }
         if (event.phase != TickEvent.Phase.END) {
             return;
         }
         RecipeIntentRegistry.cleanupExpired(event.getServer().overworld().getGameTime());
     }
 
+    private void onDatapackSync(OnDatapackSyncEvent event) {
+        if (event.getPlayer() != null) {
+            return;
+        }
+        RecipeIntentRegistry.clear("server data reload");
+        GTCEuRecipeIntentFastPath.clearIndexes("server data reload");
+        MekanismRecipeIntentFastPath.clearIndexes("server data reload");
+        CircuitCutterRecipeCache.clear();
+        ProviderPatternGenerationTracker.clear();
+    }
+
     private void onServerStopping(ServerStoppingEvent event) {
+        if (ACOConfig.logCacheStatistics()) {
+            for (String line : OptimizationMetrics.summaryLines()) {
+                LOGGER.info("ACO statistics: {}", line);
+            }
+        }
         RecipeIntentRegistry.clear("server stopping");
         GTCEuRecipeIntentFastPath.clearIndexes("server stopping");
         MekanismRecipeIntentFastPath.clearIndexes("server stopping");
+        CraftingExecutionBudget.clearAdaptiveState("server stopping");
+        Ae2OverclockUpgradeCountCache.clear();
+        AssemblerMatrixBusyCountCache.clear();
+        MethodHandleInvocationCache.clear();
+        ServerTickClock.reset();
         BusFuzzySearchCache.clear();
+        BusTransferSimulationCache.clear();
+        CircuitCutterRecipeCache.clear();
+        ProviderPatternGenerationTracker.clear();
         P2PNotificationDeduplicator.clear();
+        OptimizationMetrics.reset();
     }
 }

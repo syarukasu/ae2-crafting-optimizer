@@ -34,7 +34,7 @@ AE2 Crafting Optimizer adds conservative recipe-intent fast paths for large AE2 
 
 ## Status
 
-Version `1.0.0` is a development release pinned to AE2 `15.4.x`. ACO uses Mixins against AE2 internals, so do not assume compatibility with another AE2 branch or minor series without rebuilding and testing it.
+Version `1.1.0` is pinned to AE2 `15.4.x`. ACO uses Mixins against AE2 internals, so do not assume compatibility with another AE2 branch or minor series without rebuilding and testing it.
 
 Install the same ACO jar on the dedicated server and every client. The authoritative config is the per-world server config:
 
@@ -81,7 +81,7 @@ It only returns early when the craft has a single unambiguous pattern path, each
 
 If the craft is possible, ambiguous, tag-driven, substitution-heavy, recursive, emitted, or otherwise unclear, the optimizer falls back to AE2's original calculation.
 
-This feature is enabled by default with a four-tick interval. Direct storage mutation and extraction/insertion are not throttled.
+This feature is disabled by default. It is available only as a strict, opt-in preflight; ambiguous requests always fall back to AE2.
 
 ### Pattern Lookup Cache
 
@@ -101,7 +101,7 @@ The optimizer can optionally buffer client-visible storage watcher updates and f
 
 This affects visible terminal/monitor synchronization timing only. Storage contents and insertion/extraction are not changed.
 
-This feature is disabled by default.
+This feature is enabled by default with a four-tick interval. Direct storage mutation and extraction/insertion are not throttled.
 
 ### Crafting Execution Budget
 
@@ -111,7 +111,7 @@ The optimizer can cap the effective per-window pattern push budget for AE2's nor
 
 This feature is active by default because co-processors increase pattern push throughput, not crafting calculation speed. It is the main TPS protection for giant CPUs.
 
-Advanced AE's Quantum Computer CPU execution mixin is not enabled in the conservative build. Advanced AE integration should be tested separately because applying a pseudo-mixin to its crafting logic can crash when the Quantum Computer menu initializes on some mod-loader stacks.
+Advanced AE Quantum Computer CPUs use the same effective co-processor cap. The optional integration redirects only the co-processor value read by its server execution loop; it does not wrap menu code, change the displayed value, or invoke Advanced AE crafting methods reflectively.
 
 This is intended for CrazyAE-class hardware numbers: the CPU can be huge, but server tick time remains bounded.
 
@@ -123,21 +123,46 @@ If one CPU starts spending more than the configured target time in a server tick
 
 This follows the high-performance CPU idea without forcing every possible operation into one tick. AE2 still executes the same pattern pushes and still owns the final crafting state.
 
+### Shared ME Grid Execution Budget
+
+ACO also measures the combined pattern-push time used by standard AE2 crafting CPUs on the same ME grid. Once that grid reaches its configured budget for the current server tick, later CPU bursts are reduced to a small progress allowance instead of letting several individually safe CPUs add up to an unsafe MSPT spike.
+
+The default is `8 ms` per ME grid per tick with at least one operation for every active CPU. This paces work only after AE2 has accepted a crafting job. It does not change planning, capacity, co-processor display, recipe validity, or job contents.
+
 ### Grid Tick Budget
 
 The optimizer can pace selected AE2 grid tickables that are expensive in large automation networks.
 
-The default target list includes AE2 IO Ports, Import Buses, Export Buses, ExtendedAE Ex buses, ExtendedAE special export buses, and the ExtendedAE Circuit Cutter.
+The configurable target list may include AE2 IO Ports, Import Buses, Export Buses, ExtendedAE Ex buses, ExtendedAE special export buses, and the ExtendedAE Circuit Cutter for measurement.
 
-The optimizer measures these devices at AE2's `TickManagerService` boundary. If selected devices spend the configured budget in the current server tick, later selected devices are deferred through AE2's normal `TickRateModulation.SLOWER` scheduling.
+The optimizer measures these devices at AE2's `TickManagerService` boundary. Progress-sensitive Import/Export Buses and Circuit Cutters are never hard-deferred or given idle/slow backoff. This prevents a device late in the grid iteration order from starving indefinitely. Other explicitly selected tickables can still use the opt-in budget.
 
 Import and Export Buses also receive a configurable operations-per-tick cap after other speed-card mods apply their changes.
 
 This spreads bursts over more ticks. It does not change filters, recipes, redstone behavior, inventories, storage contents, or whether a transfer is valid.
 
-Repeatedly idle selected tickables can also receive a short backoff. This targets empty import buses, blocked export buses, IO ports with no valid move, and similar polling loops.
+Repeatedly idle non-progress-sensitive selected tickables can also receive a short backoff. Import/Export Buses and Circuit Cutters are excluded from this path.
 
 Export-bus-style crafting requests that finish without creating a crafting link can be throttled for the exact same owner, slot, key, and amount. This reduces failed craft-request spam while leaving active and successful jobs alone.
+
+### AE2-UEL-Inspired Optimization Paths
+
+The reusable parts of the AE2-UEL/GTNH design are applied to AE2 15.4.x without replacing its solver or transfer rules:
+
+1. Cache successful adjacent capability lookups for the remainder of the current server tick, while verifying the adjacent Block Entity identity.
+2. Cache only exact failed Import/Export Bus transfer simulations for the current server tick. Real transfers are never skipped.
+3. Remove null, duplicate, wrong-output, and structurally invalid crafting candidates before tree expansion. Inventory availability never makes a recipe invalid.
+4. Coalesce repeated Crafting Provider refreshes within one server tick and flush them before a new calculation begins.
+5. Coalesce repeated client terminal `Repo.updateView()` calls within one client tick.
+6. Share ExtendedAE Circuit Cutter recipe candidates by exact input signature. Every cache hit is revalidated by ExtendedAE's own `testRecipe` before use.
+7. Memoize calculation-invariant emit, pattern, fuzzy-candidate, and container-return queries only for the lifetime of one crafting job.
+8. Rebuild provider pattern indexes only when an exact provider-content generation changes.
+9. Advance IO Ports through cell slots with a bounded cursor, try an Import Bus's last successful slot first, and retain Export Bus configured candidates until their config generation changes.
+10. Reuse a validated Assembly Matrix crafter route, share exact Circuit Cutter no-recipe results, and invoke AE2 Overclock's cached Methods through MethodHandles.
+
+An additional opt-in client path projects terminal names, IDs, tags, tooltips, and sort keys on the client thread, then performs only immutable search matching and sorting in a worker. A generation check discards stale results.
+
+These paths are under `[uelOptimizations]` and are enabled by default. Each can be disabled independently.
 
 ### Terminal Snapshot Optimization
 
@@ -155,11 +180,33 @@ When a Pattern Provider successfully pushes a pattern, ACO records a short-lived
 
 This is the foundation for GTCEu, Mekanism, and future Create fast paths where a machine can avoid rediscovering the recipe every tick.
 
-GTCEu machines with a fresh intent for their position try a small output-indexed candidate list before GTCEu's normal full recipe iterator. Item and fluid outputs are indexed. If no candidate works, GTCEu's original search still runs.
+GTCEu machines with a fresh intent try a small output-indexed candidate list before GTCEu's normal full recipe iterator. Concrete pushed item/fluid inputs prioritize candidates, and a chunk-bucketed nearby lookup connects input-bus/hatch intents to a multiblock controller. If no candidate works, GTCEu's original search still runs.
+
+Repeated GTCEu searches for the same target and current intent outputs reuse the immutable candidate prefix until the intent expires.
 
 Mekanism machines with a fresh intent for their position try output-indexed recipe candidates before Mekanism's normal lookup. Item, fluid, and chemical outputs are indexed, and candidates are returned only after Mekanism's own recipe `test` accepts the current machine inputs.
 
+Mekanism also caches class-level reflection plans and a short-lived resolved recipe. A cache hit still runs Mekanism's live recipe `test`, so changed inputs immediately reject the cached recipe and fall back to normal candidate discovery.
+
 Create machine-side fast paths are still reserved config entries.
+
+### Experimental Pattern Micro-Batching
+
+ACO can collapse many identical external processing-pattern executions into one aggregate Pattern Provider push. AE2 still extracts every input, charges the full energy cost, records every expected output, decrements the job by the exact execution count, and applies the normal CPU execution budget.
+
+The path is deliberately narrow: it accepts only standard/Advanced AE Pattern Providers with supported GTCEu or Mekanism targets. Dedicated crafting machines, blocking or lock-mode providers, container-return patterns, directional Advanced AE patterns, unavailable capacity, and unsupported targets use AE2's original single-execution path. The target must accept the complete aggregate through AE2's existing adapter before the batch is committed.
+
+`enablePatternMicroBatching` defaults to `false`. Its default maximum is `65536` executions per aggregate push, matching the useful batching scale of high-throughput custom AE systems without copying or replacing their schedulers.
+
+### Add-on Machine Optimization
+
+AdvancedAE Reaction Chambers reuse the recipe that their own `findRecipe` call already resolved after an inventory change. The original recipe finder remains authoritative; ACO only prevents the immediately repeated lookup from rebuilding the same input list and searching again.
+
+AE2 Overclock repeatedly discovers and invokes the same Java fields and methods while accelerating AdvancedAE Reaction Chambers and ExtendedAE Circuit Cutters. ACO caches that immutable reflection metadata by class, invokes accessible cached Methods through MethodHandles with reflection fallback, and reuses overclock/parallel card counts within one server tick. Recipe checks, energy use, output insertion, and the actual accelerated work remain in AE2 Overclock.
+
+ExtendedAE Assembly Matrix crafters reuse used-thread and total busy-thread counts within one server tick. Every job, inventory mutation, thread-state change, load, stop, and crafting execution invalidates the relevant cache. The busy-count path also captures ExtendedAE Plus's 32-thread-aware result instead of replacing it. Identical visual/status broadcasts from one matrix cluster are coalesced only within the same tick; formation, destruction, crafting threads, and pattern execution are unchanged.
+
+These optional integrations are enabled by default under `[addonMachineOptimizations]` and can be disabled independently.
 
 ## What This Mod Does Not Do
 
@@ -176,7 +223,7 @@ This mod intentionally does not:
 - Change network topology.
 - Make buses ignore filters or redstone control.
 - Force GTCEu, Mekanism, or Create machines to run a selected recipe.
-- Change Quantum Computer behavior.
+- Change Quantum Computer capacity, structure rules, displayed co-processor count, or crafting result.
 - Change Advanced AE structures.
 - Change Advanced Quantum Engineering structures.
 - Increase crafting CPU capacity.
@@ -197,6 +244,9 @@ Optional integrations and coexistence targets:
 
 - GTCEu Modern
 - Mekanism
+- Advanced AE Reaction Chamber
+- ExtendedAE Circuit Cutter and Assembly Matrix
+- AE2 Overclock
 - ExtendedAE tickable class hints
 - Advanced AE
 - Advanced Quantum Engineering
@@ -209,7 +259,7 @@ Optional integrations and coexistence targets:
 
 No Bukkit or Paper APIs are used.
 
-Only AE2 is a hard compile/runtime dependency. GTCEu and Mekanism hooks use optional pseudo-Mixins and runtime validation; when either mod is absent, its fast path has no target. Advanced AE's Quantum Computer execution logic is deliberately not mixed into by this release.
+Only AE2 is a hard compile/runtime dependency. GTCEu, Mekanism, and Advanced AE hooks use optional pseudo-Mixins with non-fatal injection requirements; when an optional mod is absent, its target is not applied.
 
 ## Configuration
 
@@ -291,6 +341,11 @@ targetCraftingExecutionMillis = 4
 # Never adapt below this effective co-processor budget.
 minimumAdaptiveCoprocessorsPerCpu = 1024
 
+# Bound the combined standard AE2 CPU execution time per ME grid.
+sharedCraftingExecutionBudget = true
+sharedCraftingExecutionMillisPerGrid = 8
+minimumSharedOperationsPerCpu = 1
+
 # Disabled by default to avoid log spam.
 logCraftingExecutionThrottling = false
 
@@ -340,6 +395,38 @@ exportBusCraftThrottleCacheSize = 4096
 # Disabled by default to avoid log spam.
 logGridTickBudget = false
 
+[uelOptimizations]
+cacheAdjacentCapabilityLookups = true
+# Opt-in: requires correct LazyOptional invalidation from adjacent mods.
+cacheAdjacentCapabilitiesAcrossTicks = false
+cacheNegativeBusTransferSimulations = true
+pruneInvalidCraftingCandidates = true
+memoizeCraftingCalculationQueries = true
+coalesceCraftingProviderRefreshes = true
+trackProviderPatternGenerations = true
+incrementalIoPortProcessing = true
+ioPortCellSlotsPerTick = 2
+cacheImportBusLastSuccessfulSlot = true
+cacheExportBusCandidateKeys = true
+coalesceClientTerminalViewUpdates = true
+# Opt-in generation-checked projected search/sort worker.
+asyncTerminalSearchSort = false
+asyncTerminalMinimumEntries = 2048
+cacheCircuitCutterRecipes = true
+cacheCircuitCutterNegativeResults = true
+circuitCutterRecipeCacheSize = 4096
+
+[addonMachineOptimizations]
+enableAddonMachineOptimizations = true
+cacheReactionChamberRecipe = true
+cacheAe2OverclockReflection = true
+useAe2OverclockMethodHandles = true
+cacheAe2OverclockUpgradeCounts = true
+cacheAssemblerMatrixThreadCounts = true
+cacheAssemblerMatrixBusyCount = true
+coalesceAssemblerMatrixStatusUpdates = true
+cacheAssemblerMatrixRouting = true
+
 [storageSync]
 throttleStorageWatcherUpdates = true
 
@@ -379,11 +466,20 @@ capturePatternProviderRecipeIntents = true
 recipeIntentTtlTicks = 20
 maximumRecipeIntentEntries = 4096
 
+# Experimental and disabled by default. Only safe external processing targets
+# that atomically accept the complete aggregate are batched.
+enablePatternMicroBatching = false
+maxPatternExecutionsPerMicroBatch = 65536
+requireSinglePatternProviderTarget = true
+patternMicroBatchTargetNamespaces = ["gtceu", "mekanism"]
+
 # GTCEu fast path is active. It prepends output-indexed candidates
 # before GTCEu's original recipe iterator.
 enableGtceuRecipeIntentFastPath = true
 gtceuRecipeIntentMaximumCandidates = 16
 gtceuRecipeIntentIndexCacheSize = 64
+gtceuRecipeIntentSearchRadius = 16
+gtceuRecipeIntentNearbyMaximumEntries = 64
 logGtceuRecipeIntentFastPath = false
 
 # Mekanism fast path validates candidates with Mekanism recipe tests.
@@ -391,6 +487,11 @@ enableMekanismRecipeIntentFastPath = true
 mekanismRecipeIntentMaximumCandidates = 16
 mekanismRecipeIntentIndexCacheSize = 128
 logMekanismRecipeIntentFastPath = false
+
+# Reuse short-lived candidates. Mekanism still validates live inputs;
+# GTCEu still runs its original candidate checks.
+cacheResolvedRecipeIntents = true
+resolvedRecipeIntentCacheSize = 8192
 enableCreateRecipeIntentFastPath = false
 
 logCapturedRecipeIntents = false
@@ -408,6 +509,8 @@ Recipe intent diagnostics:
 /aco intents
 /aco intents list 10
 /aco intents clear
+/aco stats
+/aco stats reset
 ```
 
 ## Design Philosophy
@@ -428,7 +531,7 @@ The default keeps AE2's normal Craft Confirm and graph-solver paths. Safe deep d
 
 ### Safe Optimization
 
-The generated defaults enable diagnostics, exact duplicate active-calculation sharing, a short missing/simulation completed-plan cache, pattern/craftable lookup caches, crafting execution pacing, terminal/storage-view synchronization pacing, selected deep coalescing paths, Pattern Provider intent capture, and GTCEu/Mekanism output-indexed intent fast paths.
+The generated defaults enable diagnostics, exact duplicate active-calculation sharing, a short missing/simulation completed-plan cache, pattern/craftable lookup caches, crafting execution pacing, terminal/storage-view synchronization pacing, selected deep coalescing paths, Pattern Provider intent capture, and GTCEu/Mekanism intent fast paths. Aggregate pattern micro-batching remains opt-in.
 
 Preliminary missing previews, deterministic fast-fail, grid-tick deferral, IO-bus operation caps, failed Export Bus request throttling, availability-based pattern ordering, fuzzy Export Bus caching, successful-plan reuse, and the reserved Create path are disabled by default.
 

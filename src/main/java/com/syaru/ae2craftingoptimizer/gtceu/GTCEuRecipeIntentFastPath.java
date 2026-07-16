@@ -5,6 +5,7 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntent;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
 import com.syaru.ae2craftingoptimizer.intent.StackIntent;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -31,7 +32,9 @@ import net.minecraftforge.registries.ForgeRegistries;
 public final class GTCEuRecipeIntentFastPath {
     private static final Object LOCK = new Object();
     private static final Map<Object, OutputRecipeIndex> INDEXES = Collections.synchronizedMap(new IdentityHashMap<>());
+    private static final Map<TargetKey, CachedCandidates> RESOLVED_CANDIDATES = new LinkedHashMap<>();
     private static final Set<String> REFLECTION_FAILURES_LOGGED = Collections.synchronizedSet(new LinkedHashSet<>());
+    private static long lastResolvedCleanupTick = Long.MIN_VALUE;
 
     private GTCEuRecipeIntentFastPath() {
     }
@@ -54,33 +57,28 @@ public final class GTCEuRecipeIntentFastPath {
                     context.dimension(),
                     context.machinePos(),
                     context.gameTime());
+            if (intents.isEmpty() && ACOConfig.getGtceuRecipeIntentSearchRadius() > 0) {
+                intents = RecipeIntentRegistry.findNearby(
+                        context.dimension(),
+                        context.machinePos(),
+                        ACOConfig.getGtceuRecipeIntentSearchRadius(),
+                        context.gameTime(),
+                        ACOConfig.getGtceuRecipeIntentNearbyMaximumEntries());
+            }
             if (intents.isEmpty()) {
                 return original;
             }
 
-            OutputRecipeIndex index = getOrCreateIndex(context.recipeType(), context.recipeManager());
-            List<Object> candidates = new ArrayList<>();
-            Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-            int limit = ACOConfig.getGtceuRecipeIntentMaximumCandidates();
-
-            for (int i = intents.size() - 1; i >= 0 && candidates.size() < limit; i--) {
-                RecipeIntent intent = intents.get(i);
-                for (StackIntent output : intent.outputs()) {
-                    if (!isOutput(output)) {
-                        continue;
-                    }
-                    for (Object recipe : index.recipesForOutput(output.keyId())) {
-                        if (seen.add(recipe)) {
-                            candidates.add(recipe);
-                            if (candidates.size() >= limit) {
-                                break;
-                            }
-                        }
-                    }
-                    if (candidates.size() >= limit) {
-                        break;
-                    }
-                }
+            Set<String> outputKeys = outputKeys(intents);
+            if (outputKeys.isEmpty()) {
+                return original;
+            }
+            Set<String> inputKeys = inputKeys(intents);
+            List<Object> candidates = findResolvedCandidates(context, outputKeys, inputKeys);
+            if (candidates == null) {
+                OutputRecipeIndex index = getOrCreateIndex(context.recipeType(), context.recipeManager());
+                candidates = collectCandidates(outputKeys, inputKeys, index);
+                rememberResolvedCandidates(context, outputKeys, inputKeys, intents, candidates);
             }
 
             if (candidates.isEmpty()) {
@@ -104,10 +102,143 @@ public final class GTCEuRecipeIntentFastPath {
     public static void clearIndexes(String reason) {
         synchronized (LOCK) {
             INDEXES.clear();
+            RESOLVED_CANDIDATES.clear();
+            lastResolvedCleanupTick = Long.MIN_VALUE;
         }
         if (ACOConfig.logGtceuRecipeIntentFastPath()) {
             AE2CraftingOptimizer.LOGGER.info("Cleared GTCEu recipe intent indexes: {}", reason);
         }
+    }
+
+    private static List<Object> collectCandidates(
+            Set<String> outputKeys,
+            Set<String> inputKeys,
+            OutputRecipeIndex index) {
+        List<Object> inputMatched = new ArrayList<>();
+        List<Object> fallback = new ArrayList<>();
+        Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        int limit = ACOConfig.getGtceuRecipeIntentMaximumCandidates();
+        for (String outputKey : outputKeys) {
+            for (Object recipe : index.recipesForOutput(outputKey)) {
+                if (seen.add(recipe)) {
+                    if (!inputKeys.isEmpty() && index.inputIds(recipe).containsAll(inputKeys)) {
+                        inputMatched.add(recipe);
+                    } else {
+                        fallback.add(recipe);
+                    }
+                }
+            }
+        }
+        List<Object> candidates = new ArrayList<>(Math.min(limit, inputMatched.size() + fallback.size()));
+        appendUntilLimit(candidates, inputMatched, limit);
+        appendUntilLimit(candidates, fallback, limit);
+        return List.copyOf(candidates);
+    }
+
+    private static void appendUntilLimit(List<Object> target, List<Object> source, int limit) {
+        for (Object candidate : source) {
+            if (target.size() >= limit) {
+                return;
+            }
+            target.add(candidate);
+        }
+    }
+
+    private static List<Object> findResolvedCandidates(
+            Context context,
+            Set<String> outputKeys,
+            Set<String> inputKeys) {
+        if (!ACOConfig.cacheResolvedRecipeIntents()) {
+            return null;
+        }
+        TargetKey key = new TargetKey(context.dimension(), context.machinePos());
+        synchronized (LOCK) {
+            cleanupResolvedCandidates(context.gameTime());
+            CachedCandidates cached = RESOLVED_CANDIDATES.get(key);
+            if (cached == null
+                    || cached.recipeType != context.recipeType()
+                    || !cached.outputKeys.equals(outputKeys)
+                    || !cached.inputKeys.equals(inputKeys)
+                    || cached.expiresTick <= context.gameTime()) {
+                OptimizationMetrics.recordGtCandidateCache(false);
+                return null;
+            }
+            OptimizationMetrics.recordGtCandidateCache(true);
+            return cached.candidates;
+        }
+    }
+
+    private static void rememberResolvedCandidates(
+            Context context,
+            Set<String> outputKeys,
+            Set<String> inputKeys,
+            List<RecipeIntent> intents,
+            List<Object> candidates) {
+        if (!ACOConfig.cacheResolvedRecipeIntents() || candidates.isEmpty()) {
+            return;
+        }
+        synchronized (LOCK) {
+            cleanupResolvedCandidates(context.gameTime());
+            while (RESOLVED_CANDIDATES.size() >= ACOConfig.getResolvedRecipeIntentCacheSize()) {
+                Iterator<TargetKey> iterator = RESOLVED_CANDIDATES.keySet().iterator();
+                if (!iterator.hasNext()) {
+                    break;
+                }
+                iterator.next();
+                iterator.remove();
+            }
+            RESOLVED_CANDIDATES.put(
+                    new TargetKey(context.dimension(), context.machinePos()),
+                    new CachedCandidates(
+                            context.recipeType(),
+                            outputKeys,
+                            inputKeys,
+                            candidates,
+                            earliestExpiration(intents)));
+        }
+    }
+
+    private static void cleanupResolvedCandidates(long now) {
+        if (lastResolvedCleanupTick != Long.MIN_VALUE
+                && now >= lastResolvedCleanupTick
+                && now - lastResolvedCleanupTick < 20L) {
+            return;
+        }
+        RESOLVED_CANDIDATES.values().removeIf(entry -> entry.expiresTick <= now);
+        lastResolvedCleanupTick = now;
+    }
+
+    private static Set<String> outputKeys(List<RecipeIntent> intents) {
+        Set<String> outputKeys = new LinkedHashSet<>();
+        for (int i = intents.size() - 1; i >= 0; i--) {
+            RecipeIntent intent = intents.get(i);
+            for (StackIntent output : intent.outputs()) {
+                if (isOutput(output)) {
+                    outputKeys.add(output.keyId());
+                }
+            }
+        }
+        return Collections.unmodifiableSet(outputKeys);
+    }
+
+    private static Set<String> inputKeys(List<RecipeIntent> intents) {
+        Set<String> inputKeys = new LinkedHashSet<>();
+        for (int i = intents.size() - 1; i >= 0; i--) {
+            for (StackIntent input : intents.get(i).concreteInputs()) {
+                if (isOutput(input)) {
+                    inputKeys.add(input.keyId());
+                }
+            }
+        }
+        return Collections.unmodifiableSet(inputKeys);
+    }
+
+    private static long earliestExpiration(List<RecipeIntent> intents) {
+        long expiration = Long.MAX_VALUE;
+        for (RecipeIntent intent : intents) {
+            expiration = Math.min(expiration, intent.expiresTick());
+        }
+        return expiration;
     }
 
     private static OutputRecipeIndex getOrCreateIndex(Object recipeType, RecipeManager recipeManager) {
@@ -170,6 +301,25 @@ public final class GTCEuRecipeIntentFastPath {
         }
     }
 
+    private record TargetKey(ResourceLocation dimension, BlockPos machinePos) {
+        private TargetKey {
+            machinePos = machinePos.immutable();
+        }
+    }
+
+    private record CachedCandidates(
+            Object recipeType,
+            Set<String> outputKeys,
+            Set<String> inputKeys,
+            List<Object> candidates,
+            long expiresTick) {
+        private CachedCandidates {
+            outputKeys = Collections.unmodifiableSet(new LinkedHashSet<>(outputKeys));
+            inputKeys = Collections.unmodifiableSet(new LinkedHashSet<>(inputKeys));
+            candidates = List.copyOf(candidates);
+        }
+    }
+
     private static Object invoke(Object target, String methodName) throws ReflectiveOperationException {
         Method method = findMethod(target.getClass(), methodName);
         method.setAccessible(true);
@@ -204,15 +354,18 @@ public final class GTCEuRecipeIntentFastPath {
 
     private static final class OutputRecipeIndex {
         private final Map<String, List<Object>> byOutputId;
+        private final Map<Object, Set<String>> inputIdsByRecipe;
 
-        private OutputRecipeIndex(Map<String, List<Object>> byOutputId) {
+        private OutputRecipeIndex(Map<String, List<Object>> byOutputId, Map<Object, Set<String>> inputIdsByRecipe) {
             this.byOutputId = byOutputId;
+            this.inputIdsByRecipe = inputIdsByRecipe;
         }
 
         static OutputRecipeIndex build(Object recipeType, RecipeManager recipeManager) {
             Map<String, List<Object>> byOutput = new LinkedHashMap<>();
+            Map<Object, Set<String>> inputIdsByRecipe = new IdentityHashMap<>();
             if (!(recipeType instanceof RecipeType<?> typedRecipeType)) {
-                return new OutputRecipeIndex(byOutput);
+                return new OutputRecipeIndex(byOutput, inputIdsByRecipe);
             }
 
             @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -221,6 +374,7 @@ public final class GTCEuRecipeIntentFastPath {
                 for (String outputId : outputIds(recipe)) {
                     byOutput.computeIfAbsent(outputId, ignored -> new ArrayList<>()).add(recipe);
                 }
+                inputIdsByRecipe.put(recipe, Collections.unmodifiableSet(new LinkedHashSet<>(contentIds(recipe, "inputs"))));
             }
 
             if (ACOConfig.logGtceuRecipeIntentFastPath()) {
@@ -230,7 +384,7 @@ public final class GTCEuRecipeIntentFastPath {
                         byOutput.size(),
                         recipes.size());
             }
-            return new OutputRecipeIndex(byOutput);
+            return new OutputRecipeIndex(byOutput, inputIdsByRecipe);
         }
 
         List<Object> recipesForOutput(String outputId) {
@@ -238,29 +392,38 @@ public final class GTCEuRecipeIntentFastPath {
             return recipes == null ? List.of() : recipes;
         }
 
+        Set<String> inputIds(Object recipe) {
+            Set<String> inputIds = inputIdsByRecipe.get(recipe);
+            return inputIds == null ? Set.of() : inputIds;
+        }
+
         private static List<String> outputIds(Object recipe) {
+            return contentIds(recipe, "outputs");
+        }
+
+        private static List<String> contentIds(Object recipe, String fieldName) {
             try {
-                Object outputs = getField(recipe, "outputs");
-                if (!(outputs instanceof Map<?, ?> outputMap)) {
+                Object contentsByCapability = getField(recipe, fieldName);
+                if (!(contentsByCapability instanceof Map<?, ?> contentMap)) {
                     return List.of();
                 }
                 List<String> ids = new ArrayList<>();
-                for (Object value : outputMap.values()) {
+                for (Object value : contentMap.values()) {
                     if (!(value instanceof List<?> contents)) {
                         continue;
                     }
                     for (Object content : contents) {
-                        collectContentOutputIds(content, ids);
+                        collectContentIds(content, ids);
                     }
                 }
                 return ids;
             } catch (Throwable throwable) {
-                logReflectionFailure("outputIds", throwable);
+                logReflectionFailure(fieldName + "Ids", throwable);
                 return List.of();
             }
         }
 
-        private static void collectContentOutputIds(Object content, List<String> ids) throws ReflectiveOperationException {
+        private static void collectContentIds(Object content, List<String> ids) throws ReflectiveOperationException {
             Object value = invoke(content, "getContent");
             if (value instanceof Ingredient ingredient) {
                 for (ItemStack stack : ingredient.getItems()) {

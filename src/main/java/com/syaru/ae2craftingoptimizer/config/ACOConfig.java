@@ -45,6 +45,9 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue ADAPTIVE_CRAFTING_EXECUTION_BUDGET;
     private static final ForgeConfigSpec.IntValue TARGET_CRAFTING_EXECUTION_MILLIS;
     private static final ForgeConfigSpec.IntValue MINIMUM_ADAPTIVE_COPROCESSORS_PER_CPU;
+    private static final ForgeConfigSpec.BooleanValue SHARED_CRAFTING_EXECUTION_BUDGET;
+    private static final ForgeConfigSpec.IntValue SHARED_CRAFTING_EXECUTION_MILLIS_PER_GRID;
+    private static final ForgeConfigSpec.IntValue MINIMUM_SHARED_OPERATIONS_PER_CPU;
     private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_EXECUTION_THROTTLING;
     private static final ForgeConfigSpec.BooleanValue ENABLE_GRID_TICK_BUDGET;
     private static final ForgeConfigSpec.BooleanValue DEFER_HEAVY_GRID_TICKABLES;
@@ -62,6 +65,32 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue EXPORT_BUS_CRAFT_FAILURE_COOLDOWN_TICKS;
     private static final ForgeConfigSpec.IntValue EXPORT_BUS_CRAFT_THROTTLE_CACHE_SIZE;
     private static final ForgeConfigSpec.BooleanValue LOG_GRID_TICK_BUDGET;
+    private static final ForgeConfigSpec.BooleanValue CACHE_ADJACENT_CAPABILITY_LOOKUPS;
+    private static final ForgeConfigSpec.BooleanValue CACHE_ADJACENT_CAPABILITIES_ACROSS_TICKS;
+    private static final ForgeConfigSpec.BooleanValue CACHE_NEGATIVE_BUS_TRANSFER_SIMULATIONS;
+    private static final ForgeConfigSpec.BooleanValue PRUNE_INVALID_CRAFTING_CANDIDATES;
+    private static final ForgeConfigSpec.BooleanValue MEMOIZE_CRAFTING_CALCULATION_QUERIES;
+    private static final ForgeConfigSpec.BooleanValue COALESCE_CRAFTING_PROVIDER_REFRESHES;
+    private static final ForgeConfigSpec.BooleanValue TRACK_PROVIDER_PATTERN_GENERATIONS;
+    private static final ForgeConfigSpec.BooleanValue INCREMENTAL_IO_PORT_PROCESSING;
+    private static final ForgeConfigSpec.IntValue IO_PORT_CELL_SLOTS_PER_TICK;
+    private static final ForgeConfigSpec.BooleanValue CACHE_IMPORT_BUS_LAST_SUCCESSFUL_SLOT;
+    private static final ForgeConfigSpec.BooleanValue CACHE_EXPORT_BUS_CANDIDATE_KEYS;
+    private static final ForgeConfigSpec.BooleanValue COALESCE_CLIENT_TERMINAL_VIEW_UPDATES;
+    private static final ForgeConfigSpec.BooleanValue ASYNC_TERMINAL_SEARCH_SORT;
+    private static final ForgeConfigSpec.IntValue ASYNC_TERMINAL_MINIMUM_ENTRIES;
+    private static final ForgeConfigSpec.BooleanValue CACHE_CIRCUIT_CUTTER_RECIPES;
+    private static final ForgeConfigSpec.BooleanValue CACHE_CIRCUIT_CUTTER_NEGATIVE_RESULTS;
+    private static final ForgeConfigSpec.IntValue CIRCUIT_CUTTER_RECIPE_CACHE_SIZE;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_ADDON_MACHINE_OPTIMIZATIONS;
+    private static final ForgeConfigSpec.BooleanValue CACHE_REACTION_CHAMBER_RECIPE;
+    private static final ForgeConfigSpec.BooleanValue CACHE_AE2_OVERCLOCK_REFLECTION;
+    private static final ForgeConfigSpec.BooleanValue USE_AE2_OVERCLOCK_METHOD_HANDLES;
+    private static final ForgeConfigSpec.BooleanValue CACHE_AE2_OVERCLOCK_UPGRADE_COUNTS;
+    private static final ForgeConfigSpec.BooleanValue CACHE_ASSEMBLER_MATRIX_THREAD_COUNTS;
+    private static final ForgeConfigSpec.BooleanValue CACHE_ASSEMBLER_MATRIX_BUSY_COUNT;
+    private static final ForgeConfigSpec.BooleanValue COALESCE_ASSEMBLER_MATRIX_STATUS_UPDATES;
+    private static final ForgeConfigSpec.BooleanValue CACHE_ASSEMBLER_MATRIX_ROUTING;
     private static final ForgeConfigSpec.BooleanValue THROTTLE_STORAGE_WATCHER_UPDATES;
     private static final ForgeConfigSpec.IntValue STORAGE_WATCHER_UPDATE_INTERVAL_TICKS;
     private static final ForgeConfigSpec.BooleanValue THROTTLE_TERMINAL_INVENTORY_SNAPSHOTS;
@@ -90,13 +119,21 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue CAPTURE_PATTERN_PROVIDER_RECIPE_INTENTS;
     private static final ForgeConfigSpec.IntValue RECIPE_INTENT_TTL_TICKS;
     private static final ForgeConfigSpec.IntValue MAXIMUM_RECIPE_INTENT_ENTRIES;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_PATTERN_MICRO_BATCHING;
+    private static final ForgeConfigSpec.IntValue MAX_PATTERN_EXECUTIONS_PER_MICRO_BATCH;
+    private static final ForgeConfigSpec.BooleanValue REQUIRE_SINGLE_PATTERN_PROVIDER_TARGET;
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> PATTERN_MICRO_BATCH_TARGET_NAMESPACES;
     private static final ForgeConfigSpec.BooleanValue ENABLE_GTCEU_RECIPE_INTENT_FAST_PATH;
     private static final ForgeConfigSpec.IntValue GTCEU_RECIPE_INTENT_MAXIMUM_CANDIDATES;
     private static final ForgeConfigSpec.IntValue GTCEU_RECIPE_INTENT_INDEX_CACHE_SIZE;
+    private static final ForgeConfigSpec.IntValue GTCEU_RECIPE_INTENT_SEARCH_RADIUS;
+    private static final ForgeConfigSpec.IntValue GTCEU_RECIPE_INTENT_NEARBY_MAXIMUM_ENTRIES;
     private static final ForgeConfigSpec.BooleanValue LOG_GTCEU_RECIPE_INTENT_FAST_PATH;
     private static final ForgeConfigSpec.BooleanValue ENABLE_MEKANISM_RECIPE_INTENT_FAST_PATH;
     private static final ForgeConfigSpec.IntValue MEKANISM_RECIPE_INTENT_MAXIMUM_CANDIDATES;
     private static final ForgeConfigSpec.IntValue MEKANISM_RECIPE_INTENT_INDEX_CACHE_SIZE;
+    private static final ForgeConfigSpec.BooleanValue CACHE_RESOLVED_RECIPE_INTENTS;
+    private static final ForgeConfigSpec.IntValue RESOLVED_RECIPE_INTENT_CACHE_SIZE;
     private static final ForgeConfigSpec.BooleanValue LOG_MEKANISM_RECIPE_INTENT_FAST_PATH;
     private static final ForgeConfigSpec.BooleanValue ENABLE_CREATE_RECIPE_INTENT_FAST_PATH;
     private static final ForgeConfigSpec.BooleanValue LOG_CAPTURED_RECIPE_INTENTS;
@@ -224,6 +261,15 @@ public final class ACOConfig {
         MINIMUM_ADAPTIVE_COPROCESSORS_PER_CPU = builder
                 .comment("Lowest adaptive effective co-processor budget per CPU. Small CPUs below this value are not slowed further.")
                 .defineInRange("minimumAdaptiveCoprocessorsPerCpu", 1024, 1, MAX_SAFE_EFFECTIVE_COPROCESSORS);
+        SHARED_CRAFTING_EXECUTION_BUDGET = builder
+                .comment("Share a real-time execution budget between all standard AE2 crafting CPUs on the same ME grid. This only paces pattern pushes after planning has completed.")
+                .define("sharedCraftingExecutionBudget", true);
+        SHARED_CRAFTING_EXECUTION_MILLIS_PER_GRID = builder
+                .comment("Target total time in milliseconds that standard AE2 crafting CPUs on one ME grid may spend pushing patterns in one server tick. Every active CPU still receives a small progress allowance.")
+                .defineInRange("sharedCraftingExecutionMillisPerGrid", 8, 1, 45);
+        MINIMUM_SHARED_OPERATIONS_PER_CPU = builder
+                .comment("Minimum pattern-push operations granted to an active CPU after its ME grid has consumed the shared tick budget. Keep this low to prevent many CPUs from recreating a large burst.")
+                .defineInRange("minimumSharedOperationsPerCpu", 1, 1, 65536);
         LOG_CRAFTING_EXECUTION_THROTTLING = builder
                 .comment("Log when a crafting CPU's execution burst is capped. Disabled by default to avoid log spam on large systems.")
                 .define("logCraftingExecutionThrottling", false);
@@ -290,6 +336,90 @@ public final class ACOConfig {
         LOG_GRID_TICK_BUDGET = builder
                 .comment("Log slow/deferred selected AE2 grid tickables. Disabled by default to avoid log spam.")
                 .define("logGridTickBudget", false);
+        builder.pop();
+
+        builder.push("uelOptimizations");
+        CACHE_ADJACENT_CAPABILITY_LOOKUPS = builder
+                .comment("Reuse a non-null adjacent Forge capability for the remainder of the current server tick. The block entity identity is checked on every lookup, and missing capabilities are never cached.")
+                .define("cacheAdjacentCapabilityLookups", true);
+        CACHE_ADJACENT_CAPABILITIES_ACROSS_TICKS = builder
+                .comment("Keep a successful adjacent capability across ticks until Forge invalidates its LazyOptional. The block entity identity is still checked on every access. Disabled by default for unusual capability providers that do not invalidate correctly.")
+                .define("cacheAdjacentCapabilitiesAcrossTicks", false);
+        CACHE_NEGATIVE_BUS_TRANSFER_SIMULATIONS = builder
+                .comment("Remember exact failed import/export insertion simulations for one server tick. Successful simulations and real transfers are always executed normally.")
+                .define("cacheNegativeBusTransferSimulations", true);
+        PRUNE_INVALID_CRAFTING_CANDIDATES = builder
+                .comment("Remove only null, duplicate-by-identity, or structurally invalid pattern candidates before AE2 builds crafting branches. Inventory availability is never used to reject a valid pattern.")
+                .define("pruneInvalidCraftingCandidates", true);
+        MEMOIZE_CRAFTING_CALCULATION_QUERIES = builder
+                .comment("Memoize only calculation-invariant AE2 queries inside one crafting job: emit checks, pattern lists, fuzzy craftable alternatives, and container returns. Mutable simulated inventory amounts are never cached.")
+                .define("memoizeCraftingCalculationQueries", true);
+        COALESCE_CRAFTING_PROVIDER_REFRESHES = builder
+                .comment("Combine repeated refreshes of the same Pattern Provider during one server tick. Pending refreshes are flushed before every crafting read and at server end tick.")
+                .define("coalesceCraftingProviderRefreshes", true);
+        TRACK_PROVIDER_PATTERN_GENERATIONS = builder
+                .comment("Fingerprint Pattern Provider content and rebuild AE2's provider indexes only when patterns, outputs, inputs, emitables, or priority actually change. Cleared on datapack reload.")
+                .define("trackProviderPatternGenerations", true);
+        INCREMENTAL_IO_PORT_PROCESSING = builder
+                .comment("Process AE2 IO Port cell slots from a persistent round-robin cursor instead of restarting at slot zero. Every selected cell transfer still uses AE2's original atomic transfer routine.")
+                .define("incrementalIoPortProcessing", true);
+        IO_PORT_CELL_SLOTS_PER_TICK = builder
+                .comment("Maximum IO Port input-cell slots inspected per grid tick when incremental processing is enabled.")
+                .defineInRange("ioPortCellSlotsPerTick", 2, 1, 6);
+        CACHE_IMPORT_BUS_LAST_SUCCESSFUL_SLOT = builder
+                .comment("Try the Import Bus's last successful external slot first, then fall back to a complete scan of every other slot. Actual extraction and insertion always use AE2's original checks.")
+                .define("cacheImportBusLastSuccessfulSlot", true);
+        CACHE_EXPORT_BUS_CANDIDATE_KEYS = builder
+                .comment("Reuse Export Bus configured candidate keys until the bus configuration is changed. Fuzzy lookup and actual extraction/insertion remain validated by AE2.")
+                .define("cacheExportBusCandidateKeys", true);
+        COALESCE_CLIENT_TERMINAL_VIEW_UPDATES = builder
+                .comment("Allow at most one immediate ME terminal filter/sort rebuild per client tick and combine additional rebuild requests at tick end.")
+                .define("coalesceClientTerminalViewUpdates", true);
+        ASYNC_TERMINAL_SEARCH_SORT = builder
+                .comment("Project terminal names, IDs, tags, tooltips, and sort keys on the client thread, then offload only immutable search matching and sorting. Stale generations are discarded. Disabled by default.")
+                .define("asyncTerminalSearchSort", false);
+        ASYNC_TERMINAL_MINIMUM_ENTRIES = builder
+                .comment("Minimum terminal entry count before the safe asynchronous amount-sort path is used.")
+                .defineInRange("asyncTerminalMinimumEntries", 2048, 128, 1_000_000);
+        CACHE_CIRCUIT_CUTTER_RECIPES = builder
+                .comment("Share validated ExtendedAE Circuit Cutter recipe candidates between machines with identical item/fluid inputs. ExtendedAE still performs its own test before a cached recipe is used.")
+                .define("cacheCircuitCutterRecipes", true);
+        CACHE_CIRCUIT_CUTTER_NEGATIVE_RESULTS = builder
+                .comment("Share exact ExtendedAE Circuit Cutter no-recipe results for identical item/fluid inputs. Negative results are invalidated on input change naturally and globally on datapack reload.")
+                .define("cacheCircuitCutterNegativeResults", true);
+        CIRCUIT_CUTTER_RECIPE_CACHE_SIZE = builder
+                .comment("Maximum validated ExtendedAE Circuit Cutter input signatures retained until a datapack reload.")
+                .defineInRange("circuitCutterRecipeCacheSize", 4096, 16, 262144);
+        builder.pop();
+
+        builder.push("addonMachineOptimizations");
+        ENABLE_ADDON_MACHINE_OPTIMIZATIONS = builder
+                .comment("Master switch for conservative AdvancedAE, ExtendedAE, and AE2 Overclock machine optimizations. These paths cache duplicate lookups only; they do not reduce machine throughput or change recipes.")
+                .define("enableAddonMachineOptimizations", true);
+        CACHE_REACTION_CHAMBER_RECIPE = builder
+                .comment("Reuse the AdvancedAE Reaction Chamber recipe already resolved after an inventory change instead of immediately searching the same inputs again.")
+                .define("cacheReactionChamberRecipe", true);
+        CACHE_AE2_OVERCLOCK_REFLECTION = builder
+                .comment("Cache AE2 Overclock Field and Method metadata by Java class. Invocation and recipe validation still run normally.")
+                .define("cacheAe2OverclockReflection", true);
+        USE_AE2_OVERCLOCK_METHOD_HANDLES = builder
+                .comment("Invoke AE2 Overclock's cached reflective Methods through prebuilt MethodHandles while preserving Method.invoke exception wrapping and falling back to reflection when access is unavailable.")
+                .define("useAe2OverclockMethodHandles", true);
+        CACHE_AE2_OVERCLOCK_UPGRADE_COUNTS = builder
+                .comment("Reuse AE2 Overclock overclock/parallel card counts for the same machine during one server tick. Upgrade changes are visible no later than the next tick.")
+                .define("cacheAe2OverclockUpgradeCounts", true);
+        CACHE_ASSEMBLER_MATRIX_THREAD_COUNTS = builder
+                .comment("Reuse ExtendedAE Assembly Matrix crafter used-thread counts during one server tick. The cache is invalidated before execution and on every job, inventory, state, load, or stop change.")
+                .define("cacheAssemblerMatrixThreadCounts", true);
+        CACHE_ASSEMBLER_MATRIX_BUSY_COUNT = builder
+                .comment("Reuse the complete ExtendedAE Assembly Matrix busy-thread total during one server tick, invalidating it whenever a crafter status is updated.")
+                .define("cacheAssemblerMatrixBusyCount", true);
+        COALESCE_ASSEMBLER_MATRIX_STATUS_UPDATES = builder
+                .comment("Coalesce identical ExtendedAE Assembly Matrix visual/status broadcasts for the same cluster and server tick. Structure formation and destruction are not skipped.")
+                .define("coalesceAssemblerMatrixStatusUpdates", true);
+        CACHE_ASSEMBLER_MATRIX_ROUTING = builder
+                .comment("Reuse the last available ExtendedAE Assembly Matrix crafter until its thread state or the multiblock structure changes, validating capacity before every use.")
+                .define("cacheAssemblerMatrixRouting", true);
         builder.pop();
 
         builder.push("storageSync");
@@ -383,6 +513,21 @@ public final class ACOConfig {
         MAXIMUM_RECIPE_INTENT_ENTRIES = builder
                 .comment("Hard cap for captured recipe intent entries. Oldest entries are evicted when the cap is exceeded.")
                 .defineInRange("maximumRecipeIntentEntries", 4096, 16, 1_048_576);
+        ENABLE_PATTERN_MICRO_BATCHING = builder
+                .comment("Experimental CrazyAE-style processing-pattern micro-batching. Multiple identical AE2 pattern executions are extracted and pushed as one aggregate transfer while AE2 still accounts for every execution. Dedicated crafting machines, blocking/locked providers, patterns with container remainders, and unsupported targets always use AE2's original path. Disabled by default until validated in the target pack.")
+                .define("enablePatternMicroBatching", false);
+        MAX_PATTERN_EXECUTIONS_PER_MICRO_BATCH = builder
+                .comment("Maximum identical processing-pattern executions collapsed into one external-inventory push. This reduces Pattern Provider calls; it does not grant extra co-processors or bypass the crafting execution budget.")
+                .defineInRange("maxPatternExecutionsPerMicroBatch", 65_536, 2, 1_048_576);
+        REQUIRE_SINGLE_PATTERN_PROVIDER_TARGET = builder
+                .comment("Only micro-batch Pattern Providers configured with exactly one target side. Keeping this true preserves deterministic routing and is strongly recommended.")
+                .define("requireSinglePatternProviderTarget", true);
+        PATTERN_MICRO_BATCH_TARGET_NAMESPACES = builder
+                .comment("Registry namespaces of adjacent machine blocks allowed to receive aggregate pattern pushes. Every target still has to accept the full aggregate atomically through AE2's original Pattern Provider adapter.")
+                .defineListAllowEmpty("patternMicroBatchTargetNamespaces", List.of(
+                        "gtceu",
+                        "mekanism"
+                ), value -> value instanceof String);
         ENABLE_GTCEU_RECIPE_INTENT_FAST_PATH = builder
                 .comment("Enable GTCEu recipe intent fast path. When a GTCEu machine has a fresh AE2 Pattern Provider intent for its position, ACO tries matching output-indexed GT recipes before GTCEu's normal full search. If no candidate works, GTCEu's original search still runs.")
                 .define("enableGtceuRecipeIntentFastPath", true);
@@ -392,6 +537,12 @@ public final class ACOConfig {
         GTCEU_RECIPE_INTENT_INDEX_CACHE_SIZE = builder
                 .comment("Maximum GTCEu recipe type indexes kept by ACO. Each index maps output item and fluid ids to GT recipes for that recipe type.")
                 .defineInRange("gtceuRecipeIntentIndexCacheSize", 64, 1, 1024);
+        GTCEU_RECIPE_INTENT_SEARCH_RADIUS = builder
+                .comment("Maximum block radius used to associate a GTCEu multiblock controller with an intent delivered to one of its input buses or hatches. Zero limits matching to the controller position itself. Spatial chunk buckets keep this lookup bounded.")
+                .defineInRange("gtceuRecipeIntentSearchRadius", 16, 0, 64);
+        GTCEU_RECIPE_INTENT_NEARBY_MAXIMUM_ENTRIES = builder
+                .comment("Maximum nearby Pattern Provider intents considered for one GTCEu recipe search.")
+                .defineInRange("gtceuRecipeIntentNearbyMaximumEntries", 64, 1, 4096);
         LOG_GTCEU_RECIPE_INTENT_FAST_PATH = builder
                 .comment("Log GTCEu recipe intent hits, candidate counts, and reflection/index failures. Disabled by default to avoid log spam.")
                 .define("logGtceuRecipeIntentFastPath", false);
@@ -404,6 +555,12 @@ public final class ACOConfig {
         MEKANISM_RECIPE_INTENT_INDEX_CACHE_SIZE = builder
                 .comment("Maximum Mekanism recipe type indexes kept by ACO. Each index maps item, fluid, and chemical output ids to Mekanism recipes for that recipe type.")
                 .defineInRange("mekanismRecipeIntentIndexCacheSize", 128, 1, 1024);
+        CACHE_RESOLVED_RECIPE_INTENTS = builder
+                .comment("Reuse short-lived, already validated machine recipe intent candidates. Mekanism still runs its own recipe test on every hit, and GTCEu still runs its original candidate validation.")
+                .define("cacheResolvedRecipeIntents", true);
+        RESOLVED_RECIPE_INTENT_CACHE_SIZE = builder
+                .comment("Maximum resolved recipe-intent entries shared by each optional machine integration. Entries also expire with the originating Pattern Provider intent and are cleared on recipe reload.")
+                .defineInRange("resolvedRecipeIntentCacheSize", 8192, 16, 1_048_576);
         LOG_MEKANISM_RECIPE_INTENT_FAST_PATH = builder
                 .comment("Log Mekanism recipe intent hits, candidate counts, and reflection/index failures. Disabled by default to avoid log spam.")
                 .define("logMekanismRecipeIntentFastPath", false);
@@ -601,6 +758,18 @@ public final class ACOConfig {
         return Math.min(hardCap, Math.max(1, MINIMUM_ADAPTIVE_COPROCESSORS_PER_CPU.get()));
     }
 
+    public static boolean sharedCraftingExecutionBudget() {
+        return throttleCraftingExecution() && SHARED_CRAFTING_EXECUTION_BUDGET.get();
+    }
+
+    public static int getSharedCraftingExecutionMillisPerGrid() {
+        return Math.min(45, Math.max(1, SHARED_CRAFTING_EXECUTION_MILLIS_PER_GRID.get()));
+    }
+
+    public static int getMinimumSharedOperationsPerCpu() {
+        return Math.min(65536, Math.max(1, MINIMUM_SHARED_OPERATIONS_PER_CPU.get()));
+    }
+
     public static boolean logCraftingExecutionThrottling() {
         return enableOptimizer() && LOG_CRAFTING_EXECUTION_THROTTLING.get();
     }
@@ -671,6 +840,110 @@ public final class ACOConfig {
 
     public static boolean logGridTickBudget() {
         return enableOptimizer() && LOG_GRID_TICK_BUDGET.get();
+    }
+
+    public static boolean cacheAdjacentCapabilityLookups() {
+        return enableOptimizer() && CACHE_ADJACENT_CAPABILITY_LOOKUPS.get();
+    }
+
+    public static boolean cacheAdjacentCapabilitiesAcrossTicks() {
+        return cacheAdjacentCapabilityLookups() && CACHE_ADJACENT_CAPABILITIES_ACROSS_TICKS.get();
+    }
+
+    public static boolean cacheNegativeBusTransferSimulations() {
+        return enableOptimizer() && CACHE_NEGATIVE_BUS_TRANSFER_SIMULATIONS.get();
+    }
+
+    public static boolean pruneInvalidCraftingCandidates() {
+        return enableOptimizer() && PRUNE_INVALID_CRAFTING_CANDIDATES.get();
+    }
+
+    public static boolean memoizeCraftingCalculationQueries() {
+        return enableOptimizer() && MEMOIZE_CRAFTING_CALCULATION_QUERIES.get();
+    }
+
+    public static boolean coalesceCraftingProviderRefreshes() {
+        return enableOptimizer() && COALESCE_CRAFTING_PROVIDER_REFRESHES.get();
+    }
+
+    public static boolean trackProviderPatternGenerations() {
+        return enableOptimizer() && TRACK_PROVIDER_PATTERN_GENERATIONS.get();
+    }
+
+    public static boolean incrementalIoPortProcessing() {
+        return enableOptimizer() && INCREMENTAL_IO_PORT_PROCESSING.get();
+    }
+
+    public static int getIoPortCellSlotsPerTick() {
+        return Math.min(6, Math.max(1, IO_PORT_CELL_SLOTS_PER_TICK.get()));
+    }
+
+    public static boolean cacheImportBusLastSuccessfulSlot() {
+        return enableOptimizer() && CACHE_IMPORT_BUS_LAST_SUCCESSFUL_SLOT.get();
+    }
+
+    public static boolean cacheExportBusCandidateKeys() {
+        return enableOptimizer() && CACHE_EXPORT_BUS_CANDIDATE_KEYS.get();
+    }
+
+    public static boolean coalesceClientTerminalViewUpdates() {
+        return enableOptimizer() && COALESCE_CLIENT_TERMINAL_VIEW_UPDATES.get();
+    }
+
+    public static boolean asyncTerminalSearchSort() {
+        return enableOptimizer() && ASYNC_TERMINAL_SEARCH_SORT.get();
+    }
+
+    public static int getAsyncTerminalMinimumEntries() {
+        return Math.min(1_000_000, Math.max(128, ASYNC_TERMINAL_MINIMUM_ENTRIES.get()));
+    }
+
+    public static boolean cacheCircuitCutterRecipes() {
+        return enableOptimizer() && CACHE_CIRCUIT_CUTTER_RECIPES.get();
+    }
+
+    public static boolean cacheCircuitCutterNegativeResults() {
+        return cacheCircuitCutterRecipes() && CACHE_CIRCUIT_CUTTER_NEGATIVE_RESULTS.get();
+    }
+
+    public static int getCircuitCutterRecipeCacheSize() {
+        return Math.min(262144, Math.max(16, CIRCUIT_CUTTER_RECIPE_CACHE_SIZE.get()));
+    }
+
+    public static boolean enableAddonMachineOptimizations() {
+        return enableOptimizer() && ENABLE_ADDON_MACHINE_OPTIMIZATIONS.get();
+    }
+
+    public static boolean cacheReactionChamberRecipe() {
+        return enableAddonMachineOptimizations() && CACHE_REACTION_CHAMBER_RECIPE.get();
+    }
+
+    public static boolean cacheAe2OverclockReflection() {
+        return enableAddonMachineOptimizations() && CACHE_AE2_OVERCLOCK_REFLECTION.get();
+    }
+
+    public static boolean useAe2OverclockMethodHandles() {
+        return cacheAe2OverclockReflection() && USE_AE2_OVERCLOCK_METHOD_HANDLES.get();
+    }
+
+    public static boolean cacheAe2OverclockUpgradeCounts() {
+        return enableAddonMachineOptimizations() && CACHE_AE2_OVERCLOCK_UPGRADE_COUNTS.get();
+    }
+
+    public static boolean cacheAssemblerMatrixThreadCounts() {
+        return enableAddonMachineOptimizations() && CACHE_ASSEMBLER_MATRIX_THREAD_COUNTS.get();
+    }
+
+    public static boolean cacheAssemblerMatrixBusyCount() {
+        return enableAddonMachineOptimizations() && CACHE_ASSEMBLER_MATRIX_BUSY_COUNT.get();
+    }
+
+    public static boolean coalesceAssemblerMatrixStatusUpdates() {
+        return enableAddonMachineOptimizations() && COALESCE_ASSEMBLER_MATRIX_STATUS_UPDATES.get();
+    }
+
+    public static boolean cacheAssemblerMatrixRouting() {
+        return enableAddonMachineOptimizations() && CACHE_ASSEMBLER_MATRIX_ROUTING.get();
     }
 
     public static boolean throttleStorageWatcherUpdates() {
@@ -785,6 +1058,27 @@ public final class ACOConfig {
         return Math.min(1_048_576, Math.max(16, MAXIMUM_RECIPE_INTENT_ENTRIES.get()));
     }
 
+    public static boolean enablePatternMicroBatching() {
+        return enableOptimizer() && ENABLE_PATTERN_MICRO_BATCHING.get();
+    }
+
+    public static int getMaxPatternExecutionsPerMicroBatch() {
+        return Math.min(1_048_576, Math.max(2, MAX_PATTERN_EXECUTIONS_PER_MICRO_BATCH.get()));
+    }
+
+    public static boolean requireSinglePatternProviderTarget() {
+        return REQUIRE_SINGLE_PATTERN_PROVIDER_TARGET.get();
+    }
+
+    public static List<String> getPatternMicroBatchTargetNamespaces() {
+        return PATTERN_MICRO_BATCH_TARGET_NAMESPACES.get().stream()
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .distinct()
+                .toList();
+    }
+
     public static boolean enableGtceuRecipeIntentFastPath() {
         return enableRecipeIntentBridge() && ENABLE_GTCEU_RECIPE_INTENT_FAST_PATH.get();
     }
@@ -795,6 +1089,14 @@ public final class ACOConfig {
 
     public static int getGtceuRecipeIntentIndexCacheSize() {
         return Math.min(1024, Math.max(1, GTCEU_RECIPE_INTENT_INDEX_CACHE_SIZE.get()));
+    }
+
+    public static int getGtceuRecipeIntentSearchRadius() {
+        return Math.min(64, Math.max(0, GTCEU_RECIPE_INTENT_SEARCH_RADIUS.get()));
+    }
+
+    public static int getGtceuRecipeIntentNearbyMaximumEntries() {
+        return Math.min(4096, Math.max(1, GTCEU_RECIPE_INTENT_NEARBY_MAXIMUM_ENTRIES.get()));
     }
 
     public static boolean logGtceuRecipeIntentFastPath() {
@@ -811,6 +1113,14 @@ public final class ACOConfig {
 
     public static int getMekanismRecipeIntentIndexCacheSize() {
         return Math.min(1024, Math.max(1, MEKANISM_RECIPE_INTENT_INDEX_CACHE_SIZE.get()));
+    }
+
+    public static boolean cacheResolvedRecipeIntents() {
+        return enableRecipeIntentBridge() && CACHE_RESOLVED_RECIPE_INTENTS.get();
+    }
+
+    public static int getResolvedRecipeIntentCacheSize() {
+        return Math.min(1_048_576, Math.max(16, RESOLVED_RECIPE_INTENT_CACHE_SIZE.get()));
     }
 
     public static boolean logMekanismRecipeIntentFastPath() {
