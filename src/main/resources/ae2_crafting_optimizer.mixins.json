@@ -8,7 +8,6 @@
     "AdvancedAeCraftingCpuLogicMicroBatchMixin",
     "AdvancedAePatternProviderIntentCaptureMixin",
     "AdvancedAeReactionChamberRecipeCacheMixin",
-    "Ae2OverclockMachineReflectionCacheMixin",
     "Ae2OverclockParallelRuntimeCacheMixin",
     "Ae2OverclockRuntimeCacheMixin",
     "BlockApiCacheTickCacheMixin",

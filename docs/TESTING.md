@@ -64,7 +64,7 @@ Expected:
 36. Form an ExtendedAE Assembly Matrix containing several crafter blocks, pattern blocks, and speed blocks. Start enough jobs to use multiple internal threads and confirm every job completes.
 37. If ExtendedAE Plus is installed, include its 32-thread crafter core and confirm the matrix busy count and scheduling still use all supported threads.
 38. Break and reform that matrix, reload its chunks, and restart the server. Confirm formation, patterns, busy state, names, and stored jobs recover normally.
-39. Run `/aco stats` after the add-on tests and confirm reflection, upgrade-count, Reaction Chamber, or Assembly Matrix counters increase for the installed integrations.
+39. Run `/aco stats` after the add-on tests and confirm runtime-helper reflection, upgrade-count, Reaction Chamber, Circuit Cutter, or Assembly Matrix counters increase for the installed integrations. Direct redirects into machine methods merged by AE2 Overclock are compatibility-disabled in 1.1.0.
 40. Disable each `[addonMachineOptimizations]` sub-option separately, restart, and confirm its counter stops increasing while the machine remains functional through the original add-on path.
 
 ## Pattern Micro-Batch Checks

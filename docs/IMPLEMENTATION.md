@@ -69,13 +69,13 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
   - Stores that exact recipe in AdvancedAE's existing `cachedTask` field so the following `getTask` call does not search the unchanged inputs again.
   - Does not select a different recipe or bypass AdvancedAE's own finder.
 - `Ae2OverclockRuntimeCacheMixin` and `Ae2OverclockParallelRuntimeCacheMixin`
-  - Cache AE2 Overclock's public/declared reflection metadata through `ClassValue` tables.
+  - Cache reflection metadata used by AE2 Overclock's own runtime helper classes through `ClassValue` tables.
+  - Invoke cached helper Methods through MethodHandles with reflection fallback.
   - Cache overclock and parallel card counts per machine for one server tick.
   - Do not alter process time, parallel multiplier, energy use, input consumption, or output insertion.
-- `Ae2OverclockMachineReflectionCacheMixin`
-  - Runs at Mixin priority 900, after AE2 Overclock's default-priority machine mixins.
-  - Redirects repeated `Class.getField/getMethod` discovery inside AE2 Overclock's merged Reaction Chamber and Circuit Cutter handlers to the same metadata cache.
-  - Uses `require = 0`; an unsupported AE2 Overclock layout leaves the original reflection calls intact instead of preventing startup.
+- `Ae2OverclockMachineReflectionCacheMixin` is intentionally not registered in 1.1.0.
+  - AE2 Overclock adds the target Reaction Chamber and Circuit Cutter handlers through its own higher-priority Mixins.
+  - Forge Mixin rejects redirects into methods merged by another Mixin, so ACO leaves those reflection calls untouched instead of producing startup injection warnings.
 - `ExtendedAeAssemblerMatrixCrafterCacheMixin`
   - Reuses `usedThread()` within one server tick.
   - Invalidates before thread execution and on jobs, inventory changes, thread-state changes, loading, and stopping.
@@ -315,7 +315,7 @@ The original six `[uelOptimizations]` paths remain deliberately narrower than a 
 5. `ClientRepoUpdateCoalescingMixin` allows the first terminal view rebuild in a client tick and queues one final rebuild at tick end.
 6. `ExtendedAeCircuitCutterRecipeCacheMixin` indexes a candidate by exact item/fluid input signature. A hit calls ExtendedAE `RecipeSearchContext.testRecipe`; rejection evicts the entry and continues its original search.
 
-The expanded layer also includes crafting-job-local invariant query memoization, exact provider-content generations, a bounded IO Port cell cursor, Import/Export locality hints, Assembly Matrix crafter routing, Circuit Cutter negative results, MethodHandle invocation, and an opt-in projected terminal worker. Mutable simulated inventory amounts, real transfers, recipe validation, and matrix thread execution are not cached. Datapack reload clears provider generations and Circuit Cutter results.
+The expanded layer also includes crafting-job-local invariant query memoization, exact provider-content generations, a bounded IO Port cell cursor, Import/Export locality hints, Assembly Matrix crafter routing, Circuit Cutter negative results, AE2 Overclock runtime-helper MethodHandle invocation, and an opt-in projected terminal worker. Mutable simulated inventory amounts, real transfers, recipe validation, and matrix thread execution are not cached. Datapack reload clears provider generations and Circuit Cutter results.
 
 ## Machine Intent Boundary
 

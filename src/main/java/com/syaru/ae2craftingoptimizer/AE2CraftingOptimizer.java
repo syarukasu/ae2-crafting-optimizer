@@ -153,7 +153,7 @@ public final class AE2CraftingOptimizer {
                 ACOConfig.cacheResolvedRecipeIntents(),
                 ACOConfig.getResolvedRecipeIntentCacheSize());
         LOGGER.info(
-                "ACO add-on machine optimizations: master {}, reaction recipe {}, AE2 Overclock reflection {}, upgrade counts {}, matrix threads {}, busy count {}, status coalescing {}",
+                "ACO add-on machine optimizations: master {}, reaction recipe {}, AE2 Overclock runtime reflection {}, upgrade counts {}, matrix threads {}, busy count {}, status coalescing {}",
                 ACOConfig.enableAddonMachineOptimizations(),
                 ACOConfig.cacheReactionChamberRecipe(),
                 ACOConfig.cacheAe2OverclockReflection(),
