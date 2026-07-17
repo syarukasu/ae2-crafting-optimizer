@@ -16,22 +16,8 @@ public final class CraftingExecutionBudget {
     }
 
     public static int limitCoProcessors(Object executionOwner, ICraftingCPU cpu, int originalCoProcessors) {
-        if (!ACOConfig.throttleCraftingExecution()) {
-            return originalCoProcessors;
-        }
-
-        int maxCoProcessors = ACOConfig.getMaxEffectiveCoprocessorsPerCpu();
-        int cappedCoProcessors = Math.min(originalCoProcessors, maxCoProcessors);
-
-        if (ACOConfig.adaptiveCraftingExecutionBudget()) {
-            cappedCoProcessors = Math.min(cappedCoProcessors, getAdaptiveCap(executionOwner));
-        }
-
-        if (originalCoProcessors <= cappedCoProcessors) {
-            return originalCoProcessors;
-        }
-
-        if (ACOConfig.logCraftingExecutionThrottling()) {
+        int cappedCoProcessors = limitOperations(executionOwner, originalCoProcessors);
+        if (originalCoProcessors > cappedCoProcessors && ACOConfig.logCraftingExecutionThrottling()) {
             AE2CraftingOptimizer.LOGGER.debug(
                     "Capped AE2 crafting execution for CPU {} from {} coprocessors to {} effective coprocessors",
                     cpu.getName().getString(),
@@ -39,6 +25,32 @@ public final class CraftingExecutionBudget {
                     cappedCoProcessors);
         }
         return cappedCoProcessors;
+    }
+
+    public static int limitExternalOperations(Object executionOwner, int originalOperations, String integrationName) {
+        int cappedOperations = limitOperations(executionOwner, originalOperations);
+        if (originalOperations > cappedOperations && ACOConfig.logCraftingExecutionThrottling()) {
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "Capped {} crafting execution from {} to {} pattern operations",
+                    integrationName,
+                    originalOperations,
+                    cappedOperations);
+        }
+        return cappedOperations;
+    }
+
+    private static int limitOperations(Object executionOwner, int originalOperations) {
+        if (!ACOConfig.throttleCraftingExecution()) {
+            return originalOperations;
+        }
+
+        int maxCoProcessors = ACOConfig.getMaxEffectiveCoprocessorsPerCpu();
+        int cappedOperations = Math.min(originalOperations, maxCoProcessors);
+
+        if (ACOConfig.adaptiveCraftingExecutionBudget()) {
+            cappedOperations = Math.min(cappedOperations, getAdaptiveCap(executionOwner));
+        }
+        return cappedOperations;
     }
 
     public static void recordExecution(Object executionOwner, int requestedOperations, int completedOperations, long elapsedNanos) {

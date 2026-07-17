@@ -5,12 +5,17 @@ import appeng.api.config.PowerMultiplier;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.energy.IEnergyService;
+import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import appeng.crafting.execution.CraftingCpuHelper;
-import appeng.crafting.execution.InputTemplate;
 import appeng.crafting.inv.ICraftingInventory;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
+import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchAdapter;
+import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchApi;
+import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchBudget;
+import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchContext;
+import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchResult;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -22,6 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Coordinates exact accepted-execution-count batches without treating aggregate inventory
+ * insertion as machine recipe completion.
+ */
 public final class BatchedCraftingExecutor {
     public static final int NOT_HANDLED = -1;
 
@@ -61,7 +70,7 @@ public final class BatchedCraftingExecutor {
             CraftingService craftingService,
             IEnergyService energyService,
             Level level) {
-        if (!ACOConfig.enablePatternMicroBatching()
+        if (!ACOConfig.enableTransactionalPatternBatching()
                 || logic == null
                 || maxPatterns < 2
                 || craftingService == null
@@ -70,7 +79,18 @@ public final class BatchedCraftingExecutor {
             return NOT_HANDLED;
         }
 
-        boolean externalPushAccepted = false;
+        BatchExtraction pendingExtraction = null;
+        ICraftingInventory pendingInventory = null;
+        boolean commitStarted = false;
+        int acceptedTotal = 0;
+        int transactionCount = 0;
+        boolean instantDispatch = ACOConfig.enableInstantPatternDispatch();
+        int maximumTransactions = instantDispatch
+                ? ACOConfig.getMaxInstantPatternDispatchTransactions()
+                : 1;
+        long deadlineNanos = instantDispatch
+                ? deadlineAfterMillis(ACOConfig.getInstantPatternDispatchTimeBudgetMillis())
+                : Long.MAX_VALUE;
         try {
             LogicAccess logicAccess = LOGIC_ACCESS.get(logic.getClass());
             if (!logicAccess.supported()) {
@@ -83,6 +103,7 @@ public final class BatchedCraftingExecutor {
             if (job == null || owner == null || inventory == null) {
                 return NOT_HANDLED;
             }
+            pendingInventory = inventory;
 
             JobAccess jobAccess = JOB_ACCESS.get(job.getClass());
             OwnerAccess ownerAccess = OWNER_ACCESS.get(owner.getClass());
@@ -97,7 +118,10 @@ public final class BatchedCraftingExecutor {
             }
 
             Iterator<? extends Map.Entry<?, ?>> iterator = tasks.entrySet().iterator();
-            while (iterator.hasNext()) {
+            while (iterator.hasNext()
+                    && acceptedTotal < maxPatterns
+                    && transactionCount < maximumTransactions
+                    && hasTimeRemaining(deadlineNanos)) {
                 Map.Entry<?, ?> task = iterator.next();
                 if (!(task.getKey() instanceof IPatternDetails details) || task.getValue() == null) {
                     continue;
@@ -105,170 +129,264 @@ public final class BatchedCraftingExecutor {
                 ProgressAccess progressAccess = PROGRESS_ACCESS.get(task.getValue().getClass());
                 if (!progressAccess.supported()) {
                     logAccessFailure(logic.getClass(), "crafting task progress field was not found", null);
-                    return NOT_HANDLED;
+                    return acceptedTotal > 0 ? acceptedTotal : NOT_HANDLED;
                 }
                 long remainingExecutions = progressAccess.get(task.getValue());
                 if (remainingExecutions < 2L) {
                     continue;
                 }
 
-                ICraftingProvider selectedProvider = null;
-                PatternProviderBatchEligibility.BatchTarget batchTarget = null;
-                for (ICraftingProvider provider : craftingService.getProviders(details)) {
-                    if (provider.isBusy()) {
-                        continue;
+                ExactPatternPlan plan = ExactPatternPlan.create(details, level);
+                if (plan == null) {
+                    continue;
+                }
+
+                while (remainingExecutions >= 2L
+                        && acceptedTotal < maxPatterns
+                        && transactionCount < maximumTransactions
+                        && hasTimeRemaining(deadlineNanos)) {
+                    ProviderSelection selection = selectProvider(craftingService, details, plan, level);
+                    if (selection == ProviderSelection.UNSUPPORTED) {
+                        return acceptedTotal > 0 ? acceptedTotal : NOT_HANDLED;
                     }
-                    batchTarget = PatternProviderBatchEligibility.inspect(provider, details, level);
-                    if (batchTarget == null) {
-                        // Preserve AE2 provider ordering when the first available provider cannot be batched.
-                        return NOT_HANDLED;
+                    if (selection == null) {
+                        break;
                     }
-                    selectedProvider = provider;
-                    break;
-                }
-                if (selectedProvider == null) {
-                    continue;
+
+                    long operationBudget = (long) maxPatterns - acceptedTotal;
+                    long requestedBatch = Math.min(
+                            Math.min(remainingExecutions, operationBudget),
+                            (long) ACOConfig.getMaxTransactionalPatternBatchExecutions());
+                    requestedBatch = plan.safeBatchSize(requestedBatch);
+                    requestedBatch = PatternBatchApi.limitExecutions(
+                            selection.adapter(), selection.context(), requestedBatch);
+                    requestedBatch = limitByEnergy(plan.inputsPerExecution(), requestedBatch, energyService);
+                    requestedBatch = limitByInventory(plan.totalInputsPerExecution(), requestedBatch, inventory);
+                    if (requestedBatch < 2L) {
+                        break;
+                    }
+
+                    pendingExtraction = extractBatch(plan, inventory, requestedBatch);
+                    if (pendingExtraction == null) {
+                        break;
+                    }
+
+                    transactionCount++;
+                    commitStarted = true;
+                    PatternBatchResult result = PatternBatchApi.commit(
+                            selection.adapter(),
+                            selection.context(),
+                            new PatternBatchBudget(requestedBatch, deadlineNanos));
+                    long accepted = result.acceptedExecutions();
+                    if (accepted < 0L || accepted > requestedBatch) {
+                        throw new IllegalStateException(
+                                "Pattern batch adapter " + selection.adapter().id()
+                                        + " returned invalid accepted count " + accepted
+                                        + " for request " + requestedBatch);
+                    }
+                    if (accepted == 0L) {
+                        BatchExtraction rejectedExtraction = pendingExtraction;
+                        CraftingCpuHelper.reinjectPatternInputs(
+                                inventory,
+                                rejectedExtraction.aggregateInputs());
+                        pendingExtraction = null;
+                        commitStarted = false;
+                        break;
+                    }
+
+                    long unaccepted = requestedBatch - accepted;
+                    if (unaccepted > 0L) {
+                        CraftingCpuHelper.reinjectPatternInputs(
+                                inventory,
+                                scaleCounters(plan.inputsPerExecution(), unaccepted));
+                    }
+
+                    double acceptedPower = CraftingCpuHelper.calculatePatternPower(
+                            scaleCounters(plan.inputsPerExecution(), accepted));
+                    energyService.extractAEPower(
+                            acceptedPower,
+                            Actionable.MODULATE,
+                            PowerMultiplier.CONFIG);
+
+                    KeyCounter acceptedOutputs = scaleCounter(plan.outputsPerExecution(), accepted);
+                    for (var expectedOutput : acceptedOutputs) {
+                        waitingFor.insert(
+                                expectedOutput.getKey(),
+                                expectedOutput.getLongValue(),
+                                Actionable.MODULATE);
+                    }
+
+                    remainingExecutions -= accepted;
+                    progressAccess.set(task.getValue(), remainingExecutions);
+                    ownerAccess.markDirty(owner);
+                    OptimizationMetrics.recordTransactionalPatternBatch(accepted);
+                    acceptedTotal = Math.addExact(acceptedTotal, Math.toIntExact(accepted));
+                    pendingExtraction = null;
+                    commitStarted = false;
+
+                    if (!instantDispatch) {
+                        break;
+                    }
                 }
 
-                long requestedBatch = Math.min(
-                        Math.min(remainingExecutions, (long) maxPatterns),
-                        (long) ACOConfig.getMaxPatternExecutionsPerMicroBatch());
-                long batchSize = safeBatchSize(details, requestedBatch);
-                if (batchSize < 2L) {
-                    return NOT_HANDLED;
-                }
-
-                BatchExtraction extraction = extractBatch(details, inventory, level, batchSize);
-                if (extraction == null) {
-                    continue;
-                }
-
-                double patternPower = CraftingCpuHelper.calculatePatternPower(extraction.inputs());
-                if (energyService.extractAEPower(patternPower, Actionable.SIMULATE, PowerMultiplier.CONFIG)
-                        < patternPower - 0.01D) {
-                    CraftingCpuHelper.reinjectPatternInputs(inventory, extraction.inputs());
-                    continue;
-                }
-
-                ICraftingProvider provider = selectedProvider;
-                PatternProviderBatchEligibility.BatchTarget target = batchTarget;
-                boolean pushed = PatternPushContext.withBatch(
-                        batchSize,
-                        target.providerSide(),
-                        () -> provider.pushPattern(details, extraction.inputs()));
-                if (!pushed) {
-                    CraftingCpuHelper.reinjectPatternInputs(inventory, extraction.inputs());
-                    return NOT_HANDLED;
-                }
-                externalPushAccepted = true;
-
-                energyService.extractAEPower(patternPower, Actionable.MODULATE, PowerMultiplier.CONFIG);
-                for (var expectedOutput : extraction.expectedOutputs()) {
-                    waitingFor.insert(
-                            expectedOutput.getKey(),
-                            expectedOutput.getLongValue(),
-                            Actionable.MODULATE);
-                }
-
-                long remaining = remainingExecutions - batchSize;
-                progressAccess.set(task.getValue(), remaining);
-                if (remaining <= 0L) {
+                if (remainingExecutions <= 0L) {
                     iterator.remove();
                 }
-                ownerAccess.markDirty(owner);
-                OptimizationMetrics.recordPatternMicroBatch(batchSize);
-                return Math.toIntExact(batchSize);
             }
-            return NOT_HANDLED;
+            if (acceptedTotal > 0) {
+                return acceptedTotal;
+            }
+            return transactionCount >= maximumTransactions || !hasTimeRemaining(deadlineNanos)
+                    ? 0
+                    : NOT_HANDLED;
         } catch (Throwable throwable) {
-            if (externalPushAccepted) {
+            if (pendingExtraction != null && pendingInventory != null && !commitStarted) {
+                CraftingCpuHelper.reinjectPatternInputs(
+                        pendingInventory,
+                        pendingExtraction.aggregateInputs());
+            }
+            if (commitStarted) {
                 throw new IllegalStateException(
-                        "ACO accepted a pattern micro-batch but could not commit AE2 crafting state safely.",
+                        "ACO pattern batch adapter entered commit but AE2 accounting could not be completed safely.",
                         throwable);
             }
-            logAccessFailure(logic.getClass(), "micro-batch execution fell back to AE2", throwable);
-            return NOT_HANDLED;
+            logAccessFailure(logic.getClass(), "transactional batch execution fell back to AE2", throwable);
+            return acceptedTotal > 0 ? acceptedTotal : NOT_HANDLED;
         }
     }
 
-    private static long safeBatchSize(IPatternDetails details, long requestedBatch) {
-        long safe = requestedBatch;
-        for (IPatternDetails.IInput input : details.getInputs()) {
-            long multiplier = input.getMultiplier();
-            if (multiplier <= 0L) {
-                return 1L;
+    private static long deadlineAfterMillis(int milliseconds) {
+        long now = System.nanoTime();
+        long budget = milliseconds * 1_000_000L;
+        return now > Long.MAX_VALUE - budget ? Long.MAX_VALUE : now + budget;
+    }
+
+    private static boolean hasTimeRemaining(long deadlineNanos) {
+        return deadlineNanos == Long.MAX_VALUE || System.nanoTime() < deadlineNanos;
+    }
+
+    @Nullable
+    private static ProviderSelection selectProvider(
+            CraftingService craftingService,
+            IPatternDetails details,
+            ExactPatternPlan plan,
+            Level level) {
+        for (ICraftingProvider provider : craftingService.getProviders(details)) {
+            if (provider.isBusy()) {
+                continue;
             }
-            safe = Math.min(safe, Long.MAX_VALUE / multiplier);
-            for (var possibleInput : input.getPossibleInputs()) {
-                long amount = possibleInput.amount();
-                if (amount <= 0L) {
-                    return 1L;
-                }
-                safe = Math.min(safe, Long.MAX_VALUE / multiplier / amount);
+            PatternProviderBatchEligibility.BatchTarget target =
+                    PatternProviderBatchEligibility.inspect(provider, details, level);
+            if (target == null) {
+                return ProviderSelection.UNSUPPORTED;
+            }
+            PatternBatchContext context = new PatternBatchContext(
+                    provider,
+                    details,
+                    plan.inputsPerExecution(),
+                    plan.outputsPerExecution(),
+                    level,
+                    target.providerSide(),
+                    target.targetSide(),
+                    target.target(),
+                    target.deterministicTarget());
+            PatternBatchAdapter adapter = PatternBatchApi.find(context).orElse(null);
+            if (adapter == null) {
+                return ProviderSelection.UNSUPPORTED;
+            }
+            return new ProviderSelection(adapter, context);
+        }
+        return null;
+    }
+
+    private static long limitByEnergy(
+            KeyCounter[] inputsPerExecution,
+            long requestedExecutions,
+            IEnergyService energyService) {
+        double powerPerExecution = CraftingCpuHelper.calculatePatternPower(inputsPerExecution);
+        if (!Double.isFinite(powerPerExecution) || powerPerExecution < 0.0D) {
+            return 0L;
+        }
+        if (powerPerExecution <= 0.0D) {
+            return requestedExecutions;
+        }
+        double requestedPower = powerPerExecution * requestedExecutions;
+        if (!Double.isFinite(requestedPower)) {
+            requestedPower = Double.MAX_VALUE;
+        }
+        double available = energyService.extractAEPower(
+                requestedPower,
+                Actionable.SIMULATE,
+                PowerMultiplier.CONFIG);
+        if (available >= requestedPower - 0.01D) {
+            return requestedExecutions;
+        }
+        long energyLimited = (long) Math.floor((available + 0.01D) / powerPerExecution);
+        return Math.max(0L, Math.min(requestedExecutions, energyLimited));
+    }
+
+    private static long limitByInventory(
+            KeyCounter totalInputsPerExecution,
+            long requestedExecutions,
+            ICraftingInventory inventory) {
+        long limited = requestedExecutions;
+        for (var entry : totalInputsPerExecution) {
+            long amountPerExecution = entry.getLongValue();
+            long requested = Math.multiplyExact(amountPerExecution, limited);
+            long available = inventory.extract(entry.getKey(), requested, Actionable.SIMULATE);
+            limited = Math.min(limited, available / amountPerExecution);
+            if (limited < 2L) {
+                return limited;
             }
         }
-        for (var output : details.getOutputs()) {
-            if (output.amount() <= 0L) {
-                return 1L;
-            }
-            safe = Math.min(safe, Long.MAX_VALUE / output.amount());
-        }
-        return safe;
+        return limited;
     }
 
     @Nullable
     private static BatchExtraction extractBatch(
-            IPatternDetails details,
+            ExactPatternPlan plan,
             ICraftingInventory inventory,
-            Level level,
-            long batchSize) {
-        IPatternDetails.IInput[] patternInputs = details.getInputs();
-        KeyCounter[] extractedInputs = new KeyCounter[patternInputs.length];
+            long executions) {
+        KeyCounter[] aggregate = scaleCounters(plan.inputsPerExecution(), executions);
+        KeyCounter[] extracted = new KeyCounter[aggregate.length];
         try {
-            for (int index = 0; index < patternInputs.length; index++) {
-                IPatternDetails.IInput input = patternInputs[index];
-                KeyCounter extractedForInput = extractedInputs[index] = new KeyCounter();
-                long remainingMultiplier = Math.multiplyExact(input.getMultiplier(), batchSize);
-
-                for (InputTemplate template : CraftingCpuHelper.getValidItemTemplates(inventory, input, level)) {
-                    if (remainingMultiplier <= 0L) {
-                        break;
-                    }
-                    if (template.amount() <= 0L || input.getRemainingKey(template.key()) != null) {
-                        CraftingCpuHelper.reinjectPatternInputs(inventory, extractedInputs);
+            for (int index = 0; index < aggregate.length; index++) {
+                KeyCounter extractedForInput = extracted[index] = new KeyCounter();
+                for (var entry : aggregate[index]) {
+                    long requested = entry.getLongValue();
+                    long simulated = inventory.extract(entry.getKey(), requested, Actionable.SIMULATE);
+                    if (simulated != requested) {
+                        CraftingCpuHelper.reinjectPatternInputs(inventory, extracted);
                         return null;
                     }
-
-                    long requestedAmount = Math.multiplyExact(template.amount(), remainingMultiplier);
-                    long simulated = inventory.extract(template.key(), requestedAmount, Actionable.SIMULATE);
-                    long availableTemplates = Math.min(remainingMultiplier, simulated / template.amount());
-                    if (availableTemplates <= 0L) {
-                        continue;
-                    }
-                    long amountToExtract = Math.multiplyExact(template.amount(), availableTemplates);
-                    long extracted = inventory.extract(template.key(), amountToExtract, Actionable.MODULATE);
-                    if (extracted != amountToExtract) {
+                    long actual = inventory.extract(entry.getKey(), requested, Actionable.MODULATE);
+                    if (actual != requested) {
                         throw new IllegalStateException("AE2 crafting inventory simulation disagreed with extraction");
                     }
-                    extractedForInput.add(template.key(), extracted);
-                    remainingMultiplier -= availableTemplates;
-                }
-
-                if (remainingMultiplier > 0L) {
-                    CraftingCpuHelper.reinjectPatternInputs(inventory, extractedInputs);
-                    return null;
+                    extractedForInput.add(entry.getKey(), actual);
                 }
             }
-
-            KeyCounter expectedOutputs = new KeyCounter();
-            for (var output : details.getOutputs()) {
-                expectedOutputs.add(output.what(), Math.multiplyExact(output.amount(), batchSize));
-            }
-            return new BatchExtraction(extractedInputs, expectedOutputs);
+            return new BatchExtraction(extracted);
         } catch (Throwable throwable) {
-            CraftingCpuHelper.reinjectPatternInputs(inventory, extractedInputs);
+            CraftingCpuHelper.reinjectPatternInputs(inventory, extracted);
             throw throwable;
         }
+    }
+
+    private static KeyCounter[] scaleCounters(KeyCounter[] source, long multiplier) {
+        KeyCounter[] scaled = new KeyCounter[source.length];
+        for (int index = 0; index < source.length; index++) {
+            scaled[index] = scaleCounter(source[index], multiplier);
+        }
+        return scaled;
+    }
+
+    private static KeyCounter scaleCounter(KeyCounter source, long multiplier) {
+        KeyCounter scaled = new KeyCounter();
+        for (var entry : source) {
+            scaled.add(entry.getKey(), Math.multiplyExact(entry.getLongValue(), multiplier));
+        }
+        return scaled;
     }
 
     private static void logAccessFailure(Class<?> logicClass, String message, @Nullable Throwable throwable) {
@@ -277,17 +395,90 @@ public final class BatchedCraftingExecutor {
             return;
         }
         if (throwable == null) {
-            AE2CraftingOptimizer.LOGGER.warn("ACO pattern micro-batching disabled for {}: {}", logicClass.getName(), message);
+            AE2CraftingOptimizer.LOGGER.warn(
+                    "ACO transactional pattern batching disabled for {}: {}",
+                    logicClass.getName(),
+                    message);
         } else {
             AE2CraftingOptimizer.LOGGER.warn(
-                    "ACO pattern micro-batching disabled for {}: {} ({})",
+                    "ACO transactional pattern batching disabled for {}: {} ({})",
                     logicClass.getName(),
                     message,
                     throwable.toString());
         }
     }
 
-    private record BatchExtraction(KeyCounter[] inputs, KeyCounter expectedOutputs) {
+    private record ExactInput(AEKey key, long amountPerExecution) {
+    }
+
+    private record ExactPatternPlan(
+            ExactInput[] inputs,
+            KeyCounter[] inputsPerExecution,
+            KeyCounter totalInputsPerExecution,
+            KeyCounter outputsPerExecution) {
+        @Nullable
+        static ExactPatternPlan create(IPatternDetails details, Level level) {
+            if (!details.supportsPushInputsToExternalInventory()) {
+                return null;
+            }
+            IPatternDetails.IInput[] patternInputs = details.getInputs();
+            ExactInput[] exactInputs = new ExactInput[patternInputs.length];
+            KeyCounter[] perExecution = new KeyCounter[patternInputs.length];
+            KeyCounter totalInputs = new KeyCounter();
+            try {
+                for (int index = 0; index < patternInputs.length; index++) {
+                    IPatternDetails.IInput input = patternInputs[index];
+                    var possibleInputs = input.getPossibleInputs();
+                    if (input.getMultiplier() <= 0L || possibleInputs.length != 1) {
+                        return null;
+                    }
+                    var possible = possibleInputs[0];
+                    if (possible.amount() <= 0L
+                            || !input.isValid(possible.what(), level)
+                            || input.getRemainingKey(possible.what()) != null) {
+                        return null;
+                    }
+                    long amount = Math.multiplyExact(possible.amount(), input.getMultiplier());
+                    exactInputs[index] = new ExactInput(possible.what(), amount);
+                    KeyCounter counter = perExecution[index] = new KeyCounter();
+                    counter.add(possible.what(), amount);
+                    addExact(totalInputs, possible.what(), amount);
+                }
+
+                KeyCounter outputs = new KeyCounter();
+                for (var output : details.getOutputs()) {
+                    if (output.amount() <= 0L) {
+                        return null;
+                    }
+                    addExact(outputs, output.what(), output.amount());
+                }
+                return new ExactPatternPlan(exactInputs, perExecution, totalInputs, outputs);
+            } catch (ArithmeticException ignored) {
+                return null;
+            }
+        }
+
+        long safeBatchSize(long requested) {
+            long safe = requested;
+            for (var input : totalInputsPerExecution) {
+                safe = Math.min(safe, Long.MAX_VALUE / input.getLongValue());
+            }
+            for (var output : outputsPerExecution) {
+                safe = Math.min(safe, Long.MAX_VALUE / output.getLongValue());
+            }
+            return safe;
+        }
+
+        private static void addExact(KeyCounter counter, AEKey key, long amount) {
+            counter.set(key, Math.addExact(counter.get(key), amount));
+        }
+    }
+
+    private record BatchExtraction(KeyCounter[] aggregateInputs) {
+    }
+
+    private record ProviderSelection(PatternBatchAdapter adapter, PatternBatchContext context) {
+        private static final ProviderSelection UNSUPPORTED = new ProviderSelection(null, null);
     }
 
     private record LogicAccess(

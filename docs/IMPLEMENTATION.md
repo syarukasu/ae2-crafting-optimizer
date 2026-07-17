@@ -2,7 +2,7 @@
 
 ## Scope
 
-This mod keeps AE2's final crafting result authoritative. Active behavior includes diagnostics, calculation de-duplication, short-lived missing/simulation plan caching, pattern/craftable lookup caching, crafting CPU execution pacing, terminal/storage synchronization pacing, Pattern Provider intent capture, and GTCEu/Mekanism item/fluid/chemical recipe intent fast paths. Deeper rewrites remain individually switchable.
+This mod keeps AE2's final crafting result authoritative. Active behavior includes diagnostics, calculation de-duplication, short-lived missing/simulation plan caching, pattern/craftable lookup caching, crafting CPU execution pacing, storage-watcher display pacing, Pattern Provider intent capture, and GTCEu/Mekanism item/fluid/chemical recipe intent fast paths. Terminal snapshot reuse and deeper rewrites remain individually switchable.
 
 ## Mixins
 
@@ -27,11 +27,12 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
   - Redirects open ME terminal `MEStorage.getAvailableStacks()` calls through a per-menu snapshot for a few ticks.
   - Caches the private terminal craftable set for a few ticks.
   - Does not affect live insertion/extraction or storage mutation.
-  - Enabled by default; only server-side view refresh timing changes.
+  - Disabled by default in 1.1.1 because a stale zero-stock generation can conflict with clickable virtual slots in heavily modified clients.
 - `IncrementalUpdateHelperDeepRangeMixin` and `MEInventoryUpdatePacketBuilderRangeMixin`
   - Drain terminal full/delta changes in bounded rolling ranges.
   - Keep AE2's packet format, serial mapping, filters, and final values.
   - Retain unsent keys for the next menu tick instead of discarding them.
+  - Disabled by default in 1.1.1 so one interactive terminal generation remains coherent unless explicitly tested.
 - `StorageServiceDeepCoalescingMixin`
   - Coalesces the aggregate `StorageService.onServerEndTick` rebuild into a configurable interval.
   - Direct storage insertion/extraction is untouched.
@@ -103,9 +104,17 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
   - Optionally redirects only `AdvCraftingCPU.getCoProcessors()` inside the server crafting tick.
   - Applies ACO's hard effective co-processor cap without reflectively invoking Advanced AE methods or touching menu code.
   - Leaves Quantum Computer storage, displayed statistics, structure formation, and job state unchanged.
-- `CraftingCpuLogicMicroBatchMixin` / `AdvancedAeCraftingCpuLogicMicroBatchMixin`
-  - Offer AE2 and Advanced AE CPU execution loops one aggregate external-processing push when the experimental switch is enabled.
-  - Return the exact number of collapsed executions, so each CPU's original operation accounting remains authoritative.
+- `NeoEcoCraftingCpuExecutionBudgetMixin`
+  - Optional pseudo-mixin targeting Neo ECO AE Extension 20.3.x `ECOCraftingCPULogic`.
+  - Caps the return values of Neo ECO's own `getOperationLimit()` and `effectiveFastPathTickLimit()` methods through ACO's existing adaptive per-CPU and shared per-grid budgets.
+  - Measures `executeCrafting(...)` and records Neo ECO's returned pattern-push count, so later ticks use measured cost rather than a guessed operation cost.
+  - Uses ACO's server tick clock, shared with the standard AE2 execution wrapper, so both CPU implementations debit the same `CraftingService` budget in one tick.
+  - Does not replace Neo ECO's normal, batch, or aggressive fast path; does not alter recipes, storage, CPU statistics, energy accounting, simulated crafts, status batching, or job persistence.
+  - Is absent at runtime when `neoecoae` is not installed. Neo ECO 20.3.0 is present only as a compile-time signature target and is not bundled.
+- `CraftingCpuLogicTransactionalBatchMixin` / `AdvancedAeCraftingCpuLogicTransactionalBatchMixin`
+  - Offer exact processing tasks to the registered accepted-execution-count adapter API before the original CPU loop.
+  - Cancel the original method only when an adapter reports at least one durably accepted execution.
+  - Apply energy, expected outputs, task progress, and dirty state from the returned accepted count only.
 - `AdvancedAePatternProviderIntentCaptureMixin`
   - Captures the same short-lived input/output intent from Advanced AE Pattern Providers as from standard AE2 providers.
 - `GridTickBudgetMixin`
@@ -213,7 +222,7 @@ The returned `KeyCounter` is copied before reuse so AE2's later diffing does not
 
 The deep range path keeps AE2's packet protocol but drains the helper's pending changes in bounded rolling ranges. It is not a client-requested virtual-page protocol; every key is still synchronized and searchable after the range completes.
 
-Snapshot pacing and rolling ranges are enabled by default. Both can be disabled independently.
+Snapshot pacing, craftable-set reuse, client view coalescing, and rolling ranges are disabled by default in 1.1.1. They can still be enabled independently for pack-specific tests. Storage watcher display pacing is separate and remains configurable.
 
 ## Crafting Execution Budget
 
@@ -227,6 +236,8 @@ This feature is enabled by default because it is the direct TPS protection for g
 
 Advanced AE Quantum Computer execution receives the same hard effective co-processor cap. The Advanced AE path intentionally does not use the standard CPU's reflective execution wrapper, adaptive timing sample, or per-grid shared budget. This keeps the integration at one server-side value read and avoids the previous menu-time class-loading failure.
 
+Neo ECO AE Extension 20.3.x uses a separate `ECOCraftingCPULogic`, so the standard AE2 redirect cannot see it. ACO injects only at Neo ECO's two existing limit-return methods and around its existing `executeCrafting(...)` call. The lower of Neo ECO's own limit and ACO's limit wins. The actual return value from Neo ECO remains the completed-operation count used for adaptive measurement.
+
 The generated default cap is `264192` effective co-processors per CPU. This keeps the optimizer safe by default while matching AQE's non-experimental full structure.
 
 For explicit AQE experimental-core stress testing, set `maxEffectiveCoprocessorsPerCpu = 2147483646`, which is `Integer.MAX_VALUE - 1`. This lets AQE's experimental maximum-value core reach AE2's execution loop while still allowing AE2 to add one execution slot without integer overflow.
@@ -239,23 +250,21 @@ The first observed burst for a CPU has no cost estimate, so it still uses the ex
 
 This is the mod's CrazyAE-style safety layer: giant CPU values are allowed, but execution is paced by measured server cost instead of assuming every possible operation should happen in one tick.
 
-### Processing Pattern Micro-Batching
+### Transactional Pattern Batching
 
-When `enablePatternMicroBatching = true`, ACO can collapse repeated identical processing tasks into one Pattern Provider call. The executor multiplies and extracts each AE2 `GenericStack` input with checked `long` arithmetic, calculates full AE power from the aggregate, pushes through the original provider adapter, inserts all expected outputs into the original job's `waitingFor` inventory, decrements the task by the exact batch size, and marks the original CPU dirty.
+The 1.1.0 experiment aggregated N processing inputs, then immediately registered N multiplied outputs in AE2's `waitingFor` inventory. AE2 Pattern Provider success can include partial insertion plus a retained `sendList`, so that return value was not an N-execution commit receipt. ACO 1.1.1 disabled that implementation, and its legacy config gate still always returns false.
 
-Eligibility is deliberately strict:
+ACO 1.2.0 introduces `PatternBatchAdapter`, `PatternBatchContext`, `PatternBatchResult`, and `PatternBatchApi`. The contract requires a zero result to perform no mutation and a positive result to represent exactly that many durably accepted complete executions. The API validates result bounds centrally. Multi-target contexts are not offered to a native adapter unless it explicitly declares support.
 
-- external-inventory processing patterns only,
-- standard or Advanced AE Pattern Providers only,
-- one configured target side by default,
-- GTCEu/Mekanism registry namespaces by default,
-- no `ICraftingMachine` plan target,
-- no blocking or crafting-lock mode,
-- no container remainder,
-- no directional Advanced AE pattern,
-- complete aggregate acceptance through the provider's original atomic simulation.
+Adapters can narrow an offered batch through `limitExecutions` before ACO extracts aggregate inputs. ACO also limits the offer by exact CPU inventory availability and energy, avoiding large extract/reinsert cycles when only a smaller batch can run.
 
-Any failed eligibility, extraction, power, capacity, or provider check returns control to the unchanged AE2 execution method. The path never splits an accepted aggregate after accounting it as complete.
+`PatternBatchBudget` adds the hard deadline used by instant dispatch. The executor may continue through multiple batches and ready task entries in one CPU invocation, but stops at the effective CPU operation allowance, configured transaction count, or wall-clock deadline. This is an aggressive dispatch scheduler, not zero-tick external-machine execution.
+
+`BatchedCraftingExecutor` now accepts only exact external-processing patterns with one possible key per input and no remaining container. It extracts a checked aggregate from the CPU inventory, but expected outputs, energy, and task progress are scaled from the adapter's returned accepted count. Unaccepted extracted inputs are re-injected before control returns.
+
+The built-in `SequentialPatternProviderBatchAdapter` preserves one original `pushPattern` call per execution. It checks `isBusy()` before every call and stops on the first rejection or backpressure event. This removes the old semantic mismatch while still combining exact input extraction and CPU bookkeeping. Future GTCEu/Mekanism native adapters may reduce provider calls only if they can provide the same durable accepted-count guarantee.
+
+See [BATCH_API.md](BATCH_API.md) for the adapter contract and registration example.
 
 AQE's non-experimental full default structure remains:
 

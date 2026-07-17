@@ -19,6 +19,7 @@ This mod does not modify recipes, crafting rules, storage behavior, or Quantum C
 - Applied Energistics 2: 15.4.10 (15.4.x)
 - Built against Applied Energistics 2 15.4.10
 - Optional intent fast paths for GTCEu Modern and Mekanism
+- Optional execution-budget integration for Neo ECO AE Extension 20.3.x
 - Designed to coexist with Advanced AE and Advanced Quantum Engineering
 - Intended for large automation packs such as Astral Mekanism
 
@@ -30,7 +31,7 @@ AE2 Crafting Optimizer adds conservative recipe-intent fast paths for large AE2 
 
 ## Status
 
-Version `1.1.0` is pinned to AE2 `15.4.x`. ACO uses Mixins against AE2 internals, so do not assume compatibility with another AE2 branch or minor series without rebuilding and testing it.
+Version `1.1.1` is pinned to AE2 `15.4.x`. The optional Neo ECO integration is pinned to Neo ECO AE Extension `20.3.x`. ACO uses Mixins against mod internals, so do not assume compatibility with another branch or minor series without rebuilding and testing it.
 
 Install the same ACO jar on the dedicated server and every client. The authoritative config is the per-world server config:
 
@@ -109,6 +110,8 @@ This feature is active by default because co-processors increase pattern push th
 
 Advanced AE Quantum Computer CPUs use the same effective co-processor cap. The optional integration redirects only the co-processor value read by its server execution loop; it does not wrap menu code, change the displayed value, or invoke Advanced AE crafting methods reflectively.
 
+Neo ECO AE Extension 20.3.x custom ECO CPUs can also join ACO's adaptive per-CPU and shared per-grid execution budgets. ACO caps the values returned by Neo ECO's own normal and fast-path tick-limit methods, then records the actual number of pattern pushes reported by Neo ECO. Neo ECO's scheduler, batch/aggressive fast paths, recipes, storage, CPU statistics, and crafting accounting remain unchanged.
+
 This is intended for CrazyAE-class hardware numbers: the CPU can be huge, but server tick time remains bounded.
 
 ### Adaptive Execution Budget
@@ -166,7 +169,7 @@ Open ME terminals can reuse their server-side available-stack snapshot and craft
 
 This reduces repeated full-network scans while a terminal is open. It only delays visible updates by the configured interval; storage mutation and extraction/insertion still use AE2's live storage path.
 
-This feature is enabled by default. The deeper range mode additionally splits a large initial/delta update across several AE2 packets and menu ticks without dropping entries.
+Terminal inventory snapshot reuse and craftable-set reuse are disabled by default in 1.1.1. Stale zero-stock terminal generations can conflict with clickable virtual slots in heavily modified clients. The deeper range mode is also disabled by default. Storage watcher display pacing remains independently configurable and never replaces live insertion or extraction.
 
 ### Machine Intent Boundary
 
@@ -186,13 +189,17 @@ Mekanism also caches class-level reflection plans and a short-lived resolved rec
 
 Create machine-side fast paths are still reserved config entries.
 
-### Experimental Pattern Micro-Batching
+### Transactional Pattern Batching API
 
-ACO can collapse many identical external processing-pattern executions into one aggregate Pattern Provider push. AE2 still extracts every input, charges the full energy cost, records every expected output, decrements the job by the exact execution count, and applies the normal CPU execution budget.
+ACO 1.2.0 replaces the unsafe aggregate-input experiment with an accepted-execution-count adapter API. An adapter must return the exact number of complete processing-pattern executions it durably accepted. A zero result is required to leave the target unchanged. Aggregate insertion simulation or partial inventory insertion is explicitly not acceptance.
 
-The path is deliberately narrow: it accepts only standard/Advanced AE Pattern Providers with supported GTCEu or Mekanism targets. Dedicated crafting machines, blocking or lock-mode providers, container-return patterns, directional Advanced AE patterns, unavailable capacity, and unsupported targets use AE2's original single-execution path. The target must accept the complete aggregate through AE2's existing adapter before the batch is committed.
+The built-in adapter batches exact input extraction and CPU accounting, while preserving one original AE2 `pushPattern` call per accepted execution. It checks provider backpressure before every call and stops immediately when the provider becomes busy. Only that returned count is charged, removed from task progress, and added to `waitingFor`.
 
-`enablePatternMicroBatching` defaults to `false`. Its default maximum is `65536` executions per aggregate push, matching the useful batching scale of high-throughput custom AE systems without copying or replacing their schedulers.
+Instant pattern dispatch can continue across multiple ready tasks and adapter transactions during the same CPU call. It is bounded by the CPU operation allowance, a hard transaction cap, and a 4 ms wall-clock deadline by default. It does not skip GTCEu/Mekanism machine duration or synthesize machine outputs.
+
+Only exact external-processing patterns without substitutions, returned containers, blocking mode, crafting locks, or unsupported targets are eligible. Everything else returns to AE2 before input ownership changes. Future GTCEu/Mekanism native adapters can use the same API for true O(1) acceptance, but must provide a durable accepted-count guarantee.
+
+The 1.1.0 aggregate path remains compatibility-disabled. Its legacy `enablePatternMicroBatching` keys remain readable but cannot reactivate it.
 
 ### Add-on Machine Optimization
 
@@ -245,6 +252,7 @@ Optional integrations and coexistence targets:
 - AE2 Overclock
 - ExtendedAE tickable class hints
 - Advanced AE
+- Neo ECO AE Extension 20.3.x
 - Advanced Quantum Engineering
 - EMI
 - JEI
@@ -255,7 +263,7 @@ Optional integrations and coexistence targets:
 
 No Bukkit or Paper APIs are used.
 
-Only AE2 is a hard compile/runtime dependency. GTCEu, Mekanism, and Advanced AE hooks use optional pseudo-Mixins with non-fatal injection requirements; when an optional mod is absent, its target is not applied.
+Only AE2 is a hard runtime dependency. GTCEu, Mekanism, Advanced AE, and Neo ECO hooks use optional pseudo-Mixins with non-fatal injection requirements; when an optional mod is absent, its target is not applied. Neo ECO 20.3.0 is a compile-only signature target and is not bundled in the ACO jar.
 
 ## Configuration
 
@@ -404,7 +412,7 @@ incrementalIoPortProcessing = true
 ioPortCellSlotsPerTick = 2
 cacheImportBusLastSuccessfulSlot = true
 cacheExportBusCandidateKeys = true
-coalesceClientTerminalViewUpdates = true
+coalesceClientTerminalViewUpdates = false
 # Opt-in generation-checked projected search/sort worker.
 asyncTerminalSearchSort = false
 asyncTerminalMinimumEntries = 2048
@@ -430,9 +438,9 @@ throttleStorageWatcherUpdates = true
 storageWatcherUpdateIntervalTicks = 4
 
 # Server-side ME terminal snapshot pacing.
-throttleTerminalInventorySnapshots = true
+throttleTerminalInventorySnapshots = false
 terminalInventorySnapshotIntervalTicks = 4
-cacheTerminalCraftables = true
+cacheTerminalCraftables = false
 terminalCraftableCacheTicks = 4
 
 flushImmediatelyOnScreenOpen = true
@@ -446,7 +454,7 @@ patternSelectionByAvailability = false
 patternSelectionMaximumCandidates = 64
 networkForceUpdateCoalescing = true
 networkUpdateIntervalTicks = 2
-visibleTerminalRangeSync = true
+visibleTerminalRangeSync = false
 terminalRangeEntriesPerTick = 4096
 p2pTopologyChangeOnlyRecheck = true
 p2pDuplicateWindowTicks = 1
@@ -462,12 +470,23 @@ capturePatternProviderRecipeIntents = true
 recipeIntentTtlTicks = 20
 maximumRecipeIntentEntries = 4096
 
-# Experimental and disabled by default. Only safe external processing targets
-# that atomically accept the complete aggregate are batched.
+# Compatibility-disabled since 1.1.1. These legacy keys are retained so old
+# configs remain readable; enablePatternMicroBatching=true is ignored.
 enablePatternMicroBatching = false
 maxPatternExecutionsPerMicroBatch = 65536
 requireSinglePatternProviderTarget = true
 patternMicroBatchTargetNamespaces = ["gtceu", "mekanism"]
+
+[transactionalPatternBatching]
+enableTransactionalPatternBatching = true
+maxTransactionalPatternBatchExecutions = 65536
+enableSequentialPatternProviderBatchAdapter = true
+maxSequentialProviderExecutionsPerCall = 256
+enableInstantPatternDispatch = true
+instantPatternDispatchTimeBudgetMillis = 4
+maxInstantPatternDispatchTransactions = 1024
+requireSingleTransactionalBatchTarget = true
+transactionalBatchTargetNamespaces = ["gtceu", "mekanism"]
 
 # GTCEu fast path is active. It prepends output-indexed candidates
 # before GTCEu's original recipe iterator.
@@ -497,6 +516,10 @@ logRecipeIntentRegistryEvictions = false
 logSlowCraftCalculations = true
 slowCraftCalculationMillis = 500
 logCacheStatistics = false
+
+[compatibility.neoEcoAe]
+# Applies only when Neo ECO AE Extension 20.3.x is installed.
+throttleNeoEcoAeExecution = true
 ```
 
 Recipe intent diagnostics:
@@ -527,9 +550,9 @@ The default keeps AE2's normal Craft Confirm and graph-solver paths. Safe deep d
 
 ### Safe Optimization
 
-The generated defaults enable diagnostics, exact duplicate active-calculation sharing, a short missing/simulation completed-plan cache, pattern/craftable lookup caches, crafting execution pacing, terminal/storage-view synchronization pacing, selected deep coalescing paths, Pattern Provider intent capture, and GTCEu/Mekanism intent fast paths. Aggregate pattern micro-batching remains opt-in.
+The generated defaults enable diagnostics, exact duplicate active-calculation sharing, a short missing/simulation completed-plan cache, pattern/craftable lookup caches, crafting execution pacing, storage-watcher display pacing, selected deep coalescing paths, Pattern Provider intent capture, GTCEu/Mekanism intent fast paths, transactional exact-count batching, and Neo ECO execution pacing when that optional mod is present. Unsafe aggregate insertion remains compatibility-disabled, and server-side terminal snapshot reuse remains opt-in.
 
-Preliminary missing previews, deterministic fast-fail, grid-tick deferral, IO-bus operation caps, failed Export Bus request throttling, availability-based pattern ordering, fuzzy Export Bus caching, successful-plan reuse, and the reserved Create path are disabled by default.
+Preliminary missing previews, deterministic fast-fail, grid-tick deferral, IO-bus operation caps, failed Export Bus request throttling, availability-based pattern ordering, fuzzy Export Bus caching, successful-plan reuse, terminal snapshot/craftable reuse, visible terminal range splitting, client terminal view coalescing, and the reserved Create path are disabled by default.
 
 Craft validity, recipes, storage mutation, and final crafting results remain controlled by AE2.
 
@@ -545,7 +568,7 @@ Keeping both projects independent makes debugging, compatibility testing, and fu
 
 ## Build
 
-The project resolves Forge from Forge Maven and AE2 `15.4.10` from ModMaven. It does not depend on a local Minecraft or Prism Launcher installation.
+The project resolves Forge from Forge Maven, AE2 `15.4.10` from ModMaven, and the optional Neo ECO `20.3.0` compile-only signature target from CurseMaven. It does not depend on a local Minecraft or Prism Launcher installation.
 
 Run:
 

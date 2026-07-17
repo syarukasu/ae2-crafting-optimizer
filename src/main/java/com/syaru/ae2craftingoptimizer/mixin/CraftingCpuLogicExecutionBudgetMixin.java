@@ -5,6 +5,7 @@ import appeng.crafting.execution.CraftingCpuLogic;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget;
+import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -38,12 +39,12 @@ public abstract class CraftingCpuLogicExecutionBudgetMixin {
                 craftingService,
                 this,
                 maxOperations,
-                level.getGameTime());
+                ServerTickClock.currentTick());
         long startedAt = System.nanoTime();
         int completedOperations = logic.executeCrafting(limitedOperations, craftingService, energyService, level);
         long elapsedNanos = System.nanoTime() - startedAt;
         CraftingExecutionBudget.recordExecution(this, limitedOperations, completedOperations, elapsedNanos);
-        CraftingExecutionBudget.recordSharedExecution(craftingService, level.getGameTime(), elapsedNanos);
+        CraftingExecutionBudget.recordSharedExecution(craftingService, ServerTickClock.currentTick(), elapsedNanos);
         return completedOperations;
     }
 }

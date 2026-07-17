@@ -2,6 +2,7 @@ package com.syaru.ae2craftingoptimizer;
 
 import com.mojang.logging.LogUtils;
 import com.syaru.ae2craftingoptimizer.command.ACOIntentCommands;
+import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchApi;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
@@ -26,6 +27,7 @@ import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
@@ -38,6 +40,7 @@ public final class AE2CraftingOptimizer {
     public AE2CraftingOptimizer() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         ACOConfig.register();
+        PatternBatchApi.registerBuiltIns();
         modBus.addListener(this::commonSetup);
         MinecraftForge.EVENT_BUS.addListener(this::onRegisterCommands);
         MinecraftForge.EVENT_BUS.addListener(this::onServerStarted);
@@ -100,6 +103,10 @@ public final class AE2CraftingOptimizer {
                 ACOConfig.sharedCraftingExecutionBudget(),
                 ACOConfig.getSharedCraftingExecutionMillisPerGrid(),
                 ACOConfig.getMinimumSharedOperationsPerCpu());
+        ModList.get().getModContainerById("neoecoae").ifPresent(container -> LOGGER.info(
+                "ACO Neo ECO AE integration: detected {}, execution budget {}",
+                container.getModInfo().getVersion(),
+                ACOConfig.throttleNeoEcoAeExecution()));
         LOGGER.info("ACO grid tick budget: {}, defer {}, budget {} ms/tick, slow threshold {} us, backoff {} ticks",
                 ACOConfig.enableGridTickBudget(),
                 ACOConfig.deferHeavyGridTickables(),
@@ -132,11 +139,22 @@ public final class AE2CraftingOptimizer {
                 ACOConfig.capturePatternProviderRecipeIntents(),
                 ACOConfig.getRecipeIntentTtlTicks(),
                 ACOConfig.getMaximumRecipeIntentEntries());
-        LOGGER.info("ACO pattern micro-batching: {}, max {} execution(s)/push, single target required {}, target namespaces {}",
-                ACOConfig.enablePatternMicroBatching(),
-                ACOConfig.getMaxPatternExecutionsPerMicroBatch(),
-                ACOConfig.requireSinglePatternProviderTarget(),
-                ACOConfig.getPatternMicroBatchTargetNamespaces());
+        LOGGER.info("ACO pattern micro-batching: compatibility-disabled (configured: {})",
+                ACOConfig.patternMicroBatchingRequested());
+        if (ACOConfig.patternMicroBatchingRequested()) {
+            LOGGER.warn("ACO ignored enablePatternMicroBatching=true. Aggregate processing-pattern pushes can desynchronize AE2 task and waiting-output accounting; AE2's original execution path remains active.");
+        }
+        LOGGER.info(
+                "ACO transactional pattern batching: {}, max {} prepared execution(s), sequential adapter {}, max {} push(es)/transaction, instant dispatch {} ({} ms, max {} transactions), targets {}, adapters {}",
+                ACOConfig.enableTransactionalPatternBatching(),
+                ACOConfig.getMaxTransactionalPatternBatchExecutions(),
+                ACOConfig.enableSequentialPatternProviderBatchAdapter(),
+                ACOConfig.getMaxSequentialProviderExecutionsPerCall(),
+                ACOConfig.enableInstantPatternDispatch(),
+                ACOConfig.getInstantPatternDispatchTimeBudgetMillis(),
+                ACOConfig.getMaxInstantPatternDispatchTransactions(),
+                ACOConfig.getTransactionalBatchTargetNamespaces(),
+                PatternBatchApi.registeredAdapterIds());
         LOGGER.info("ACO recipe intent fast paths - GTCEu: {}, Mekanism: {}, Create: {}",
                 ACOConfig.enableGtceuRecipeIntentFastPath(),
                 ACOConfig.enableMekanismRecipeIntentFastPath(),

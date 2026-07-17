@@ -19,13 +19,11 @@ Restart the server after changing optimization settings. Existing config files r
 | Calculation | `cacheCraftableSets` | `true` | Reuses filtered craftable sets until provider/grid invalidation. |
 | Execution | `throttleCraftingExecution` | `true` | Caps the effective AE2 pattern-push window without changing CPU stats. |
 | Execution | `adaptiveCraftingExecutionBudget` | `true` | Adjusts the active CPU budget toward the configured tick-time target. |
-| Execution | `sharedCraftingExecutionBudget` | `true` | Bounds the combined standard AE2 CPU pattern-push time on one ME grid. |
+| Execution | `sharedCraftingExecutionBudget` | `true` | Bounds combined supported CPU pattern-push time on one ME grid. |
+| Neo ECO compatibility | `throttleNeoEcoAeExecution` | `true` | Adds Neo ECO 20.3.x custom CPUs to ACO's adaptive and shared execution budgets when installed. |
 | Storage view | `throttleStorageWatcherUpdates` | `true` | Buffers client-visible watcher updates for four ticks by default. |
-| Terminal | `throttleTerminalInventorySnapshots` | `true` | Reuses terminal inventory snapshots briefly. |
-| Terminal | `cacheTerminalCraftables` | `true` | Reuses the terminal craftable set briefly. |
 | Deep master | `enableDeepAe2RewriteFlags` | `true` | Master switch for the deep sub-options below. |
 | Deep sync | `networkForceUpdateCoalescing` | `true` | Coalesces repeated aggregate storage refreshes. |
-| Deep sync | `visibleTerminalRangeSync` | `true` | Splits large terminal deltas into bounded ranges. |
 | Deep topology | `p2pTopologyChangeOnlyRecheck` | `true` | Deduplicates equivalent P2P notifications in a short window. |
 | Deep fluid | `fluidPatternRework` | `true` | Uses an exact single-fluid input fast path and falls back for ambiguous cases. |
 | Intent | `enableRecipeIntentBridge` | `true` | Enables the Pattern Provider intent registry. |
@@ -53,7 +51,6 @@ Restart the server after changing optimization settings. Existing config files r
 | UEL safe paths | `ioPortCellSlotsPerTick` | `2` | Bounds the cell slots inspected per IO Port grid tick. |
 | UEL safe paths | `cacheImportBusLastSuccessfulSlot` | `true` | Tries the last successful slot first and then scans all remaining slots. |
 | UEL safe paths | `cacheExportBusCandidateKeys` | `true` | Reuses configured Export Bus keys until its config generation changes. |
-| UEL safe paths | `coalesceClientTerminalViewUpdates` | `true` | Coalesces repeated terminal view rebuilds within one client tick. |
 | UEL safe paths | `cacheCircuitCutterRecipes` | `true` | Reuses exact-input ExtendedAE Circuit Cutter candidates after its live recipe validation. |
 | UEL safe paths | `cacheCircuitCutterNegativeResults` | `true` | Shares exact no-recipe results until input change or datapack reload. |
 | UEL safe paths | `circuitCutterRecipeCacheSize` | `4096` | Bounds shared Circuit Cutter candidates. |
@@ -79,11 +76,31 @@ The AE2 Overclock upgrade-count cache can delay recognition of a card inserted a
 | `cacheAdjacentCapabilitiesAcrossTicks` | `false` | Depends on external capability providers correctly invalidating their LazyOptional. |
 | `asyncTerminalSearchSort` | `false` | Moves immutable projected search/sort work to a worker and discards stale generations. |
 | `asyncTerminalMinimumEntries` | `2048` | Minimum terminal size for the async path. |
+| `coalesceClientTerminalViewUpdates` | `false` | Can desynchronize clickable virtual slots from the repository generation on heavily modified clients. |
+| `throttleTerminalInventorySnapshots` | `false` | A stale zero-stock snapshot can conflict with an insertion click. |
+| `cacheTerminalCraftables` | `false` | Keeps terminal craftable transitions immediate by default. |
+| `visibleTerminalRangeSync` | `false` | Splits one coherent terminal generation across packets/menu ticks. |
 | `enableCreateRecipeIntentFastPath` | `false` | Reserved; no Create machine fast path is implemented in 1.0.0. |
-| `enablePatternMicroBatching` | `false` | Collapses repeated safe external processing executions into aggregate Pattern Provider pushes. Requires pack-specific machine tests. |
-| `maxPatternExecutionsPerMicroBatch` | `65536` | Maximum executions represented by one accepted aggregate push. |
-| `requireSinglePatternProviderTarget` | `true` | Preserves deterministic routing; changing this is not recommended. |
-| `patternMicroBatchTargetNamespaces` | `["gtceu", "mekanism"]` | Restricts aggregate targets by block/block-entity registry namespace. |
+| `enablePatternMicroBatching` | `false` | Compatibility-disabled in 1.1.1. `true` is ignored because aggregate acceptance cannot guarantee multiplied recipe outputs. |
+| `maxPatternExecutionsPerMicroBatch` | `65536` | Legacy no-op retained for existing config compatibility. |
+| `requireSinglePatternProviderTarget` | `true` | Legacy no-op retained for existing config compatibility. |
+| `patternMicroBatchTargetNamespaces` | `["gtceu", "mekanism"]` | Legacy no-op retained for existing config compatibility. |
+
+### Transactional Pattern Batching
+
+| Key | Default | Notes |
+|---|---:|---|
+| `enableTransactionalPatternBatching` | `true` | Enables accepted-execution-count adapters. Unsupported cases fall back before input transfer. |
+| `maxTransactionalPatternBatchExecutions` | `65536` | Maximum exact executions prepared for one adapter transaction; the adapter may accept fewer. |
+| `enableSequentialPatternProviderBatchAdapter` | `true` | Enables the conservative built-in adapter that preserves one AE2 push per accepted execution. |
+| `maxSequentialProviderExecutionsPerCall` | `256` | Bounds original AE2 pushes inside one conservative adapter transaction. |
+| `enableInstantPatternDispatch` | `true` | Continues through ready tasks and batches in the same CPU call; does not make machines zero-tick. |
+| `instantPatternDispatchTimeBudgetMillis` | `4` | Hard wall-clock deadline for one instant-dispatch CPU call. |
+| `maxInstantPatternDispatchTransactions` | `1024` | Hard transaction-count boundary in addition to operation and time limits. |
+| `requireSingleTransactionalBatchTarget` | `true` | Requires deterministic one-side routing before native-style adapters are considered. |
+| `transactionalBatchTargetNamespaces` | `["gtceu", "mekanism"]` | Limits eligible adjacent machine namespaces. |
+
+The old aggregate-inventory keys above do not control this API. They remain disabled because `pushPattern() == true` does not prove complete aggregate insertion or N machine recipe executions.
 
 Enable one experimental path at a time and repeat the relevant section in [TESTING.md](TESTING.md).
 
@@ -105,11 +122,15 @@ sharedCraftingExecutionMillisPerGrid = 8
 
 # Each active CPU still makes forward progress after the shared budget is spent.
 minimumSharedOperationsPerCpu = 1
+
+[compatibility.neoEcoAe]
+# Active only when Neo ECO AE Extension 20.3.x is present.
+throttleNeoEcoAeExecution = true
 ```
 
 ACO does not lower the CPU's displayed storage or co-processor count. It limits how much of AE2's pattern-push execution loop one CPU may spend in a server tick. Raising the maximum can increase throughput and MSPT together.
 
-The shared budget is deliberately separate from the per-CPU adaptive target. A `4 ms` per-CPU target alone does not prevent four active CPUs from consuming roughly `16 ms` together. The shared `8 ms` target bounds that aggregate burst while retaining a one-operation progress allowance per active CPU.
+The shared budget is deliberately separate from the per-CPU adaptive target. A `4 ms` per-CPU target alone does not prevent four active CPUs from consuming roughly `16 ms` together. The shared `8 ms` target bounds that aggregate burst while retaining a one-operation progress allowance per active CPU. Neo ECO's normal and fast-path limits are fed through the same budget when `throttleNeoEcoAeExecution` is enabled; its own lower limits still win.
 
 ## Recovery Switch
 

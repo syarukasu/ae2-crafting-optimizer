@@ -6,6 +6,55 @@ All notable changes to this project are documented here.
 
 No unreleased changes.
 
+## [1.2.0] - 2026-07-17
+
+### Added
+
+- A public internal pattern-batch adapter API with explicit accepted-execution-count receipts.
+- A conservative built-in Pattern Provider adapter for standard AE2 and Advanced AE CPU execution.
+- Independent transactional batching limits, target namespaces, and adapter controls in server config.
+- Defensive API rules for zero-mutation rejection, exact ownership transfer, deterministic target routing, and adapter result validation.
+- Time-bounded instant dispatch across multiple ready tasks and adapter transactions in one CPU call.
+- `PatternBatchBudget` for shared operation and wall-clock boundaries inside iterative or native adapters.
+
+### Changed
+
+- Reimplemented CPU batching around exact one-execution input templates. Only exact processing patterns without substitutions or container remainders are eligible.
+- Batch extraction and AE2 accounting may be combined, but the built-in adapter preserves one original `pushPattern` call per accepted execution and stops immediately when the provider becomes busy.
+- Expected outputs, task progress, energy, and metrics are now updated from the adapter's actual accepted count rather than the requested batch size.
+
+### Safety
+
+- The unsafe 1.1.0 aggregate-inventory path remains permanently disabled and its legacy config keys remain no-ops.
+- Unsupported providers, targets, patterns, and adapters fall back to AE2's original `executeCrafting` path before inputs are transferred.
+- A native future adapter may accept multiple executions in one call only when it can durably own exactly the returned count; partial insertion simulation is explicitly not sufficient.
+- This source build is intentionally not deployed over the currently installed 1.1.1 jars until an in-game test is requested.
+
+## [1.1.1] - 2026-07-17
+
+### Added
+
+- Optional Neo ECO AE Extension 20.3.x integration for its custom ECO crafting CPU.
+- A dedicated `[compatibility.neoEcoAe].throttleNeoEcoAeExecution` server-config switch, enabled by default when ACO execution pacing is enabled.
+- Compile-only signature validation against Neo ECO 20.3.0 without bundling or requiring Neo ECO at runtime.
+
+### Changed
+
+- Neo ECO's existing normal and FastPath tick limits now pass through ACO's adaptive per-CPU and shared per-grid execution budgets when the optional integration is active.
+- Standard AE2 and Neo ECO execution wrappers now use ACO's common server tick identifier, ensuring they debit one coherent `CraftingService` budget in the same tick.
+
+### Fixed
+
+- Changed terminal inventory snapshot reuse, terminal craftable caching, client view coalescing, and visible range splitting to default OFF. This prevents stale zero-stock terminal generations from conflicting with interactive insertion slots in heavily modified clients.
+- Compatibility-disabled aggregate processing-pattern micro-batching. External machine input acceptance cannot guarantee every represented recipe completion, which could leave AE2 waiting forever for multiplied outputs that were never produced.
+
+### Safety
+
+- Neo ECO's recipe logic, scheduler, batch/aggressive FastPath, storage, displayed CPU values, energy accounting, status batching, job persistence, and crafting results remain authoritative and unchanged.
+- The optional Pseudo Mixin is version-bounded to Neo ECO 20.3.x and is skipped when the mod is absent.
+- This release was clean-built and checked against the published Neo ECO 20.3.0 bytecode signatures. In-game Neo ECO runtime testing remains pending.
+- Both standard AE2 and Advanced AE micro-batch Mixins are unregistered. Legacy config keys remain readable, but a configured `true` value is ignored with a startup warning.
+
 ## [1.1.0] - 2026-07-17
 
 ### Added
@@ -69,6 +118,7 @@ No unreleased changes.
 - Deterministic fast-fail, grid tick deferral, IO-bus caps, fuzzy bus caching, and successful-plan reuse are disabled by default.
 - Advanced AE Quantum Computer execution logic is not mixed into by the conservative 1.0.0 build.
 
-[Unreleased]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/beta_1.0.0...v1.1.0
 [1.0.0]: https://github.com/syarukasu/ae2-crafting-optimizer/releases/tag/beta_1.0.0

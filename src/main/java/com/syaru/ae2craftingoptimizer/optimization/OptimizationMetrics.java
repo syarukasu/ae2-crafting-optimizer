@@ -19,8 +19,8 @@ public final class OptimizationMetrics {
     private static final LongAdder ASSEMBLER_MATRIX_THREAD_COUNT_HITS = new LongAdder();
     private static final LongAdder ASSEMBLER_MATRIX_BUSY_COUNT_HITS = new LongAdder();
     private static final LongAdder ASSEMBLER_MATRIX_STATUS_UPDATES_COALESCED = new LongAdder();
-    private static final LongAdder PATTERN_MICRO_BATCH_PUSHES = new LongAdder();
-    private static final LongAdder PATTERN_MICRO_BATCH_EXECUTIONS = new LongAdder();
+    private static final LongAdder TRANSACTIONAL_PATTERN_BATCH_COMMITS = new LongAdder();
+    private static final LongAdder TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS = new LongAdder();
 
     private OptimizationMetrics() {
     }
@@ -69,9 +69,9 @@ public final class OptimizationMetrics {
         ASSEMBLER_MATRIX_STATUS_UPDATES_COALESCED.increment();
     }
 
-    public static void recordPatternMicroBatch(long patternExecutions) {
-        PATTERN_MICRO_BATCH_PUSHES.increment();
-        PATTERN_MICRO_BATCH_EXECUTIONS.add(Math.max(1L, patternExecutions));
+    public static void recordTransactionalPatternBatch(long patternExecutions) {
+        TRANSACTIONAL_PATTERN_BATCH_COMMITS.increment();
+        TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS.add(Math.max(1L, patternExecutions));
     }
 
     public static List<String> summaryLines() {
@@ -91,9 +91,9 @@ public final class OptimizationMetrics {
                 "Mekanism resolved recipe cache: " + mekHits + " hit(s), " + mekMisses
                         + " miss(es), " + percent(mekHits, mekMisses) + "% hit rate",
                 "Mekanism recipe validations: " + MEKANISM_RECIPE_VALIDATIONS.sum(),
-                "Pattern micro-batching: " + PATTERN_MICRO_BATCH_PUSHES.sum()
-                        + " aggregate push(es), " + PATTERN_MICRO_BATCH_EXECUTIONS.sum()
-                        + " pattern execution(s)",
+                "Transactional pattern batching: " + TRANSACTIONAL_PATTERN_BATCH_COMMITS.sum()
+                        + " adapter commit(s), " + TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS.sum()
+                        + " exactly accepted execution(s)",
                 "AE2 Overclock reflection cache: " + reflectionHits + " hit(s), " + reflectionMisses
                         + " miss(es), " + percent(reflectionHits, reflectionMisses) + "% hit rate",
                 "AE2 Overclock upgrade-count cache: " + upgradeHits + " hit(s), " + upgradeMisses
@@ -121,8 +121,8 @@ public final class OptimizationMetrics {
         ASSEMBLER_MATRIX_THREAD_COUNT_HITS.reset();
         ASSEMBLER_MATRIX_BUSY_COUNT_HITS.reset();
         ASSEMBLER_MATRIX_STATUS_UPDATES_COALESCED.reset();
-        PATTERN_MICRO_BATCH_PUSHES.reset();
-        PATTERN_MICRO_BATCH_EXECUTIONS.reset();
+        TRANSACTIONAL_PATTERN_BATCH_COMMITS.reset();
+        TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS.reset();
     }
 
     private static long percent(long hits, long misses) {
