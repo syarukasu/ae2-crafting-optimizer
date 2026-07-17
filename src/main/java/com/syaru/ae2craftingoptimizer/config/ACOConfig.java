@@ -446,7 +446,7 @@ public final class ACOConfig {
         builder.push("storageSync");
         THROTTLE_STORAGE_WATCHER_UPDATES = builder
                 .comment("Throttle AE2 StorageService watcher updates. ME terminal/monitor visible storage updates may be delayed by the configured interval, but storage contents are not changed.")
-                .define("throttleStorageWatcherUpdates", true);
+                .define("throttleStorageWatcherUpdates", false);
         STORAGE_WATCHER_UPDATE_INTERVAL_TICKS = builder
                 .comment("Storage watcher update interval in ticks when throttling is enabled. 1 is vanilla behavior.")
                 .defineInRange("storageWatcherUpdateIntervalTicks", 4, 1, 40);
@@ -488,7 +488,7 @@ public final class ACOConfig {
                 .defineInRange("patternSelectionMaximumCandidates", 64, 2, 4096);
         DEEP_NETWORK_FORCE_UPDATE_COALESCING = builder
                 .comment("Coalesce AE2 StorageService watcher rebuilds into a short interval. Direct inventory operations remain immediate; only cached aggregate/watcher refresh work is paced.")
-                .define("networkForceUpdateCoalescing", true);
+                .define("networkForceUpdateCoalescing", false);
         DEEP_NETWORK_UPDATE_INTERVAL_TICKS = builder
                 .comment("Maximum interval between coalesced StorageService aggregate rebuilds.")
                 .defineInRange("networkUpdateIntervalTicks", 2, 1, 40);
