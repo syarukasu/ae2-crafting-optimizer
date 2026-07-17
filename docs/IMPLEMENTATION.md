@@ -2,7 +2,7 @@
 
 ## Scope
 
-This mod keeps AE2's final crafting result authoritative. Active behavior includes diagnostics, calculation de-duplication, short-lived missing/simulation plan caching, pattern/craftable lookup caching, crafting CPU execution pacing, storage-watcher display pacing, Pattern Provider intent capture, and GTCEu/Mekanism item/fluid/chemical recipe intent fast paths. Terminal snapshot reuse and deeper rewrites remain individually switchable.
+This mod keeps AE2's final crafting result authoritative. Active behavior includes diagnostics, calculation de-duplication, short-lived missing/simulation plan caching, pattern/craftable lookup caching, crafting CPU execution pacing, Pattern Provider intent capture, and GTCEu/Mekanism item/fluid/chemical recipe intent fast paths. ACO 1.2.1 leaves AE2's terminal, storage-watcher, aggregate refresh, and terminal packet paths untouched because the corresponding Mixins are unregistered.
 
 ## Mixins
 
@@ -27,15 +27,16 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
   - Redirects open ME terminal `MEStorage.getAvailableStacks()` calls through a per-menu snapshot for a few ticks.
   - Caches the private terminal craftable set for a few ticks.
   - Does not affect live insertion/extraction or storage mutation.
-  - Disabled by default in 1.1.1 because a stale zero-stock generation can conflict with clickable virtual slots in heavily modified clients.
+  - Not registered in 1.2.1 because a stale zero-stock generation can conflict with clickable virtual slots in heavily modified clients.
 - `IncrementalUpdateHelperDeepRangeMixin` and `MEInventoryUpdatePacketBuilderRangeMixin`
   - Drain terminal full/delta changes in bounded rolling ranges.
   - Keep AE2's packet format, serial mapping, filters, and final values.
   - Retain unsent keys for the next menu tick instead of discarding them.
-  - Disabled by default in 1.1.1 so one interactive terminal generation remains coherent unless explicitly tested.
+  - Not registered in 1.2.1 so one interactive terminal generation remains coherent.
 - `StorageServiceDeepCoalescingMixin`
   - Coalesces the aggregate `StorageService.onServerEndTick` rebuild into a configurable interval.
   - Direct storage insertion/extraction is untouched.
+  - Not registered in 1.2.1.
 - `P2PServiceTopologyDeduplicationMixin`
   - AE2 15.4.10 already runs topology callbacks only for add/remove/frequency changes, so those callbacks remain untouched.
   - Coalesces duplicate full `wakeInputTunnels` sweeps from boot/power events inside the configured tick window.
@@ -91,6 +92,7 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
 - `StorageServiceWatcherThrottleMixin`
   - Redirects storage watcher `onStackChange` calls through a small buffer when `throttleStorageWatcherUpdates = true`.
   - Flushes on `StorageService.onServerEndTick`, storage node changes, and cache invalidation.
+  - Not registered in 1.2.1.
 - `CraftingCpuLogicExecutionBudgetMixin`
   - Redirects AE2's `CraftingCPUCluster.getCoProcessors()` call inside `CraftingCpuLogic.tickCraftingLogic`.
   - Caps the effective execution window before AE2 calls `executeCrafting`.
@@ -206,11 +208,11 @@ Because some AE2 filter lambdas are short-lived, this cache is most effective wh
 
 ## Storage Watcher Sync Throttle
 
-The storage watcher throttle is optional and enabled by default with a short interval.
+The storage watcher throttle is compatibility-disabled in 1.2.1. Its config key remains readable and defaults to false, but `StorageServiceWatcherThrottleMixin` is not registered.
 
 When enabled, calls to `IStorageWatcherNode.onStackChange` are buffered per watcher and key. The last amount for each key is retained and flushed every `storageWatcherUpdateIntervalTicks`, or sooner when buffered changes exceed `maximumBufferedChanges`.
 
-The buffer flushes before storage node add/remove and storage cache invalidation. This avoids keeping stale visible state across topology changes.
+The retained implementation is not reachable at runtime. A replacement must preserve a coherent terminal generation and prove that a zero-stock insertion cannot be dropped before this path is registered again.
 
 ## Terminal Snapshot Pacing
 
@@ -222,7 +224,7 @@ The returned `KeyCounter` is copied before reuse so AE2's later diffing does not
 
 The deep range path keeps AE2's packet protocol but drains the helper's pending changes in bounded rolling ranges. It is not a client-requested virtual-page protocol; every key is still synchronized and searchable after the range completes.
 
-Snapshot pacing, craftable-set reuse, client view coalescing, and rolling ranges are disabled by default in 1.1.1. They can still be enabled independently for pack-specific tests. Storage watcher display pacing is separate and remains configurable.
+Snapshot pacing, craftable-set reuse, client view coalescing, and rolling ranges are not registered in 1.2.1. Their config keys remain no-ops for existing TOML compatibility.
 
 ## Crafting Execution Budget
 
@@ -321,7 +323,7 @@ The original six `[uelOptimizations]` paths remain deliberately narrower than a 
 2. `StorageImportSimulationCacheMixin` and `StorageExportSimulationCacheMixin` remember exact zero-result `SIMULATE` calls for one tick. `MODULATE` always invokes AE2/storage code.
 3. `CraftingTreeCandidatePruningMixin` removes only malformed/identity-duplicate candidates before child expansion. It does not inspect current stock and cannot make a valid unavailable branch disappear.
 4. `CraftingProviderRefreshCoalescingMixin` queues repeated provider refreshes on the server thread, flushes at tick end, and flushes before `beginCraftingCalculation`. Solver worker threads never perform provider refreshes.
-5. `ClientRepoUpdateCoalescingMixin` allows the first terminal view rebuild in a client tick and queues one final rebuild at tick end.
+5. `ClientRepoUpdateCoalescingMixin` is retained as source research but is not registered in 1.2.1 after terminal-generation regressions.
 6. `ExtendedAeCircuitCutterRecipeCacheMixin` indexes a candidate by exact item/fluid input signature. A hit calls ExtendedAE `RecipeSearchContext.testRecipe`; rejection evicts the entry and continues its original search.
 
 The expanded layer also includes crafting-job-local invariant query memoization, exact provider-content generations, a bounded IO Port cell cursor, Import/Export locality hints, Assembly Matrix crafter routing, Circuit Cutter negative results, AE2 Overclock runtime-helper MethodHandle invocation, and an opt-in projected terminal worker. Mutable simulated inventory amounts, real transfers, recipe validation, and matrix thread execution are not cached. Datapack reload clears provider generations and Circuit Cutter results.
@@ -346,9 +348,14 @@ Implemented in this mod:
 - export-bus-style failed craft retry cooldown,
 - IO/import/export/circuit-cutter tick pacing.
 
-Available and configurable:
+Compatibility-disabled in 1.2.1:
 
-- terminal snapshot pacing.
+- terminal snapshot pacing,
+- terminal craftable reuse,
+- storage watcher pacing,
+- aggregate storage refresh coalescing,
+- rolling terminal range packets,
+- client terminal view coalescing.
 
 Implemented deep AE2 rewrite flags under `[deepAe2Rewrite]`:
 
@@ -359,7 +366,7 @@ Implemented deep AE2 rewrite flags under `[deepAe2Rewrite]`:
 - `busSearchRewrite`
 - `fluidPatternRework`
 
-Each flag gates a concrete implementation and returns directly to AE2's original path when disabled. The master switch disables every deep path at once.
+`patternSelectionByAvailability`, `p2pTopologyChangeOnlyRecheck`, `busSearchRewrite`, and `fluidPatternRework` gate active implementations and return directly to AE2's original path when disabled. `networkForceUpdateCoalescing` and `visibleTerminalRangeSync` remain readable compatibility keys but have no registered Mixins in 1.2.1. The master switch disables every active deep path at once.
 
 Not implemented in this mod:
 

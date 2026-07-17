@@ -94,11 +94,9 @@ This targets repeated terminal/provider scans. It never creates craftable entrie
 
 ### Storage Watcher Sync Throttle
 
-The optimizer can optionally buffer client-visible storage watcher updates and flush them every configured interval.
+ACO 1.2.1 compatibility-disables this path. `StorageServiceWatcherThrottleMixin` is not registered, and the retained config key defaults to `false` and cannot reactivate it.
 
-This affects visible terminal/monitor synchronization timing only. Storage contents and insertion/extraction are not changed.
-
-This feature is enabled by default with a four-tick interval. Direct storage mutation and extraction/insertion are not throttled.
+The previous implementation buffered client-visible watcher updates only, but stale display generations could conflict with live terminal insertion in heavily modified clients. Any future replacement must preserve one coherent menu generation and pass the zero-stock insertion regression test before it can be registered again.
 
 ### Crafting Execution Budget
 
@@ -152,7 +150,7 @@ The reusable parts of the AE2-UEL/GTNH design are applied to AE2 15.4.x without 
 2. Cache only exact failed Import/Export Bus transfer simulations for the current server tick. Real transfers are never skipped.
 3. Remove null, duplicate, wrong-output, and structurally invalid crafting candidates before tree expansion. Inventory availability never makes a recipe invalid.
 4. Coalesce repeated Crafting Provider refreshes within one server tick and flush them before a new calculation begins.
-5. Coalesce repeated client terminal `Repo.updateView()` calls within one client tick.
+5. Keep client terminal `Repo.updateView()` coalescing compatibility-disabled in 1.2.1; its Mixin is not registered.
 6. Share ExtendedAE Circuit Cutter recipe candidates by exact input signature. Every cache hit is revalidated by ExtendedAE's own `testRecipe` before use.
 7. Memoize calculation-invariant emit, pattern, fuzzy-candidate, and container-return queries only for the lifetime of one crafting job.
 8. Rebuild provider pattern indexes only when an exact provider-content generation changes.
@@ -161,7 +159,7 @@ The reusable parts of the AE2-UEL/GTNH design are applied to AE2 15.4.x without 
 
 An additional opt-in client path projects terminal names, IDs, tags, tooltips, and sort keys on the client thread, then performs only immutable search matching and sorting in a worker. A generation check discards stale results.
 
-These paths are under `[uelOptimizations]` and are enabled by default. Each can be disabled independently.
+The active server-side paths are under `[uelOptimizations]` and can be disabled independently. The client terminal coalescing key remains readable for config compatibility but has no active Mixin in 1.2.1.
 
 ### Terminal Snapshot Optimization
 
@@ -169,7 +167,7 @@ Open ME terminals can reuse their server-side available-stack snapshot and craft
 
 This reduces repeated full-network scans while a terminal is open. It only delays visible updates by the configured interval; storage mutation and extraction/insertion still use AE2's live storage path.
 
-Terminal inventory snapshot reuse and craftable-set reuse are disabled by default in 1.1.1. Stale zero-stock terminal generations can conflict with clickable virtual slots in heavily modified clients. The deeper range mode is also disabled by default. Storage watcher display pacing remains independently configurable and never replaces live insertion or extraction.
+Terminal inventory snapshot reuse, terminal craftable reuse, rolling range synchronization, aggregate storage coalescing, storage watcher pacing, and client view coalescing are unregistered in 1.2.1. Their keys remain readable for existing configs but are no-ops until a replacement passes the terminal interaction regression matrix.
 
 ### Machine Intent Boundary
 
@@ -412,6 +410,7 @@ incrementalIoPortProcessing = true
 ioPortCellSlotsPerTick = 2
 cacheImportBusLastSuccessfulSlot = true
 cacheExportBusCandidateKeys = true
+# Compatibility key; its client Mixin is unregistered in 1.2.1.
 coalesceClientTerminalViewUpdates = false
 # Opt-in generation-checked projected search/sort worker.
 asyncTerminalSearchSort = false
@@ -432,6 +431,7 @@ coalesceAssemblerMatrixStatusUpdates = true
 cacheAssemblerMatrixRouting = true
 
 [storageSync]
+# Compatibility-disabled in 1.2.1; retained keys cannot register the removed Mixins.
 throttleStorageWatcherUpdates = false
 
 # Client-visible synchronization interval when throttling is enabled.
@@ -452,8 +452,10 @@ maximumBufferedChanges = 4096
 enableDeepAe2RewriteFlags = true
 patternSelectionByAvailability = false
 patternSelectionMaximumCandidates = 64
+# Compatibility key; aggregate refresh Mixin is unregistered in 1.2.1.
 networkForceUpdateCoalescing = false
 networkUpdateIntervalTicks = 2
+# Compatibility key; terminal range Mixins are unregistered in 1.2.1.
 visibleTerminalRangeSync = false
 terminalRangeEntriesPerTick = 4096
 p2pTopologyChangeOnlyRecheck = true
@@ -546,13 +548,13 @@ The optimizer never replaces AE2's internal crafting logic.
 
 Large crafting calculations and automation bursts may take time.
 
-The default keeps AE2's normal Craft Confirm and graph-solver paths. Safe deep defaults add short aggregate refresh coalescing, rolling terminal synchronization, duplicate P2P notification suppression, and exact single-fluid input matching. Availability-based pattern ordering and Export Bus fuzzy caching remain explicit experiments.
+The default keeps AE2's normal Craft Confirm, graph-solver, terminal, watcher, and packet paths. Safe deep defaults retain duplicate P2P notification suppression and exact single-fluid input matching. Availability-based pattern ordering and Export Bus fuzzy caching remain explicit experiments.
 
 ### Safe Optimization
 
-The generated defaults enable diagnostics, exact duplicate active-calculation sharing, a short missing/simulation completed-plan cache, pattern/craftable lookup caches, crafting execution pacing, storage-watcher display pacing, selected deep coalescing paths, Pattern Provider intent capture, GTCEu/Mekanism intent fast paths, transactional exact-count batching, and Neo ECO execution pacing when that optional mod is present. Unsafe aggregate insertion remains compatibility-disabled, and server-side terminal snapshot reuse remains opt-in.
+The generated defaults enable diagnostics, exact duplicate active-calculation sharing, a short missing/simulation completed-plan cache, pattern/craftable lookup caches, crafting execution pacing, Pattern Provider intent capture, GTCEu/Mekanism intent fast paths, transactional exact-count batching, and Neo ECO execution pacing when that optional mod is present. Unsafe aggregate insertion and the terminal/storage synchronization rewrite Mixins remain compatibility-disabled.
 
-Preliminary missing previews, deterministic fast-fail, grid-tick deferral, IO-bus operation caps, failed Export Bus request throttling, availability-based pattern ordering, fuzzy Export Bus caching, successful-plan reuse, terminal snapshot/craftable reuse, visible terminal range splitting, client terminal view coalescing, and the reserved Create path are disabled by default.
+Preliminary missing previews, deterministic fast-fail, grid-tick deferral, IO-bus operation caps, failed Export Bus request throttling, availability-based pattern ordering, fuzzy Export Bus caching, successful-plan reuse, and the reserved Create path are disabled by default. Terminal snapshot/craftable reuse, watcher pacing, aggregate refresh coalescing, visible range splitting, and client view coalescing are unregistered compatibility keys in 1.2.1.
 
 Craft validity, recipes, storage mutation, and final crafting results remain controlled by AE2.
 
@@ -580,6 +582,7 @@ The generated jar is written under `build/libs/`. GitHub Actions runs the same c
 
 ## Documentation
 
+- [Team development specification and design references](docs/TEAM_DEVELOPMENT_SPEC.md)
 - [Configuration and safety tiers](docs/CONFIGURATION.md)
 - [Implementation details](docs/IMPLEMENTATION.md)
 - [Manual test matrix](docs/TESTING.md)
