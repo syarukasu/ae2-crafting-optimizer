@@ -113,24 +113,10 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
   - Uses ACO's server tick clock, shared with the standard AE2 execution wrapper, so both CPU implementations debit the same `CraftingService` budget in one tick.
   - Does not replace Neo ECO's normal, batch, or aggressive fast path; does not alter recipes, storage, CPU statistics, energy accounting, simulated crafts, status batching, or job persistence.
   - Is absent at runtime when `neoecoae` is not installed. Neo ECO 20.3.0 is present only as a compile-time signature target and is not bundled.
-- `CraftingCpuLogicTransactionalBatchMixin` / `AdvancedAeCraftingCpuLogicTransactionalBatchMixin`
-  - Offer exact processing tasks to the registered accepted-execution-count adapter API before the original CPU loop.
-  - Cancel the original method only when an adapter reports at least one durably accepted execution.
-  - Apply energy, expected outputs, task progress, and dirty state from the returned accepted count only.
+- Transactional batch execution Mixins are removed in 1.2.2. Standard AE2 and Advanced AE now transfer every crafting input through their original execution paths.
 - `AdvancedAePatternProviderIntentCaptureMixin`
   - Captures the same short-lived input/output intent from Advanced AE Pattern Providers as from standard AE2 providers.
-- `GridTickBudgetMixin`
-  - Injects around AE2's `TickManagerService.unsafeTickingRequest`.
-  - Measures selected `IGridTickable` calls such as AE2 IO Ports, AE2 Import/Export Buses, ExtendedAE Ex buses, and ExtendedAE Circuit Cutters.
-  - Defers selected devices with AE2's normal `TickRateModulation.SLOWER` when the configured per-server-tick budget is spent or a device has triggered short slow-call backoff.
-  - Applies short backoff to repeatedly idle selected devices that return `SLOWER` or `IDLE` several times in a row.
-  - Does not mutate storage, skip AE2 state updates permanently, or replace device logic.
-- `IOBusOperationsCapMixin`
-  - Injects at return of AE2 `IOBusPart.getOperationsPerTick`.
-  - Caps the final operations-per-tick value after other speed-card mixins have modified it.
-- `ExtendedIOBusOperationsCapMixin`
-  - Pseudo-mixin targeting ExtendedAE Ex Import Bus, Ex Export Bus, and Precise Export Bus `getOperationsPerTick`.
-  - Applies the same final operations-per-tick cap to ExtendedAE overrides without requiring ExtendedAE on the compile classpath.
+- Grid tick, Import/Export Bus, and IO Port Mixins are removed in 1.2.2. Their configuration keys remain readable compatibility no-ops.
 - `CraftingServiceInvalidationMixin`
   - Clears adaptive execution state, calculation de-duplication state, completed plan cache, failed craft-request throttle state, craftable-set cache, and pattern lookup cache when crafting providers or nodes change.
 
@@ -317,16 +303,7 @@ If automation becomes too slow but MSPT is stable, raise `gridTickBudgetMillisPe
 
 ## AE2-UEL-Inspired Safe Optimization Layer
 
-The original six `[uelOptimizations]` paths remain deliberately narrower than a backport of AE2-UEL:
-
-1. `BlockApiCacheTickCacheMixin` reuses non-null capability results only for the current server tick and only while the adjacent Block Entity object is unchanged. Missing capabilities are not cached.
-2. `StorageImportSimulationCacheMixin` and `StorageExportSimulationCacheMixin` remember exact zero-result `SIMULATE` calls for one tick. `MODULATE` always invokes AE2/storage code.
-3. `CraftingTreeCandidatePruningMixin` removes only malformed/identity-duplicate candidates before child expansion. It does not inspect current stock and cannot make a valid unavailable branch disappear.
-4. `CraftingProviderRefreshCoalescingMixin` queues repeated provider refreshes on the server thread, flushes at tick end, and flushes before `beginCraftingCalculation`. Solver worker threads never perform provider refreshes.
-5. `ClientRepoUpdateCoalescingMixin` is retained as source research but is not registered in 1.2.1 after terminal-generation regressions.
-6. `ExtendedAeCircuitCutterRecipeCacheMixin` indexes a candidate by exact item/fluid input signature. A hit calls ExtendedAE `RecipeSearchContext.testRecipe`; rejection evicts the entry and continues its original search.
-
-The expanded layer also includes crafting-job-local invariant query memoization, exact provider-content generations, a bounded IO Port cell cursor, Import/Export locality hints, Assembly Matrix crafter routing, Circuit Cutter negative results, AE2 Overclock runtime-helper MethodHandle invocation, and an opt-in projected terminal worker. Mutable simulated inventory amounts, real transfers, recipe validation, and matrix thread execution are not cached. Datapack reload clears provider generations and Circuit Cutter results.
+Version 1.2.2 retains only non-mutating calculation, provider-refresh, recipe-validation, and machine-intent optimizations. Capability, terminal craftable-set, Import/Export Bus, IO Port, storage simulation, and live transfer Mixins are removed. AE2 remains the sole owner of mutable storage amounts and every insertion, extraction, rollback, cell transfer, and terminal repository generation.
 
 ## Machine Intent Boundary
 

@@ -16,7 +16,7 @@ Restart the server after changing optimization settings. Existing config files r
 | Calculation | `deduplicateActiveCraftingCalculations` | `true` | Shares identical in-flight calculations from the same requester and grid. |
 | Calculation | `cacheCompletedCraftingPlans` | `true` | Briefly caches missing/simulation plans; successful plans remain excluded by default. |
 | Calculation | `cachePatternLookups` | `true` | Reuses exact pattern lookups until provider/grid invalidation. |
-| Calculation | `cacheCraftableSets` | `true` | Reuses filtered craftable sets until provider/grid invalidation. |
+| Calculation | `cacheCraftableSets` | `false` | Compatibility option; disabled so AE2 computes terminal craftables directly. |
 | Execution | `throttleCraftingExecution` | `true` | Caps the effective AE2 pattern-push window without changing CPU stats. |
 | Execution | `adaptiveCraftingExecutionBudget` | `true` | Adjusts the active CPU budget toward the configured tick-time target. |
 | Execution | `sharedCraftingExecutionBudget` | `true` | Bounds combined supported CPU pattern-push time on one ME grid. |
@@ -47,7 +47,7 @@ Restart the server after changing optimization settings. Existing config files r
 | UEL safe paths | `trackProviderPatternGenerations` | `true` | Rebuilds provider indexes only after exact provider content changes. |
 | UEL safe paths | `incrementalIoPortProcessing` | `true` | Advances IO Port input cells from a persistent round-robin cursor. |
 | UEL safe paths | `ioPortCellSlotsPerTick` | `2` | Bounds the cell slots inspected per IO Port grid tick. |
-| UEL safe paths | `cacheImportBusLastSuccessfulSlot` | `true` | Tries the last successful slot first and then scans all remaining slots. |
+| UEL safe paths | `cacheImportBusLastSuccessfulSlot` | `false` | Compatibility option; the custom transfer Mixin is unregistered and AE2 owns all transfers. |
 | UEL safe paths | `cacheExportBusCandidateKeys` | `true` | Reuses configured Export Bus keys until its config generation changes. |
 | UEL safe paths | `cacheCircuitCutterRecipes` | `true` | Reuses exact-input ExtendedAE Circuit Cutter candidates after its live recipe validation. |
 | UEL safe paths | `cacheCircuitCutterNegativeResults` | `true` | Shares exact no-recipe results until input change or datapack reload. |
