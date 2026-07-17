@@ -246,7 +246,7 @@ public final class ACOConfig {
                 .defineInRange("patternLookupCacheSize", 8192, 0, 1_000_000);
         CACHE_CRAFTABLE_SETS = builder
                 .comment("Cache CraftingService.getCraftables(filter) results until crafting providers or network nodes change. This targets terminals and provider scans; it does not cache completed crafting plans.")
-                .define("cacheCraftableSets", true);
+                .define("cacheCraftableSets", false);
         CRAFTABLE_SET_CACHE_SIZE = builder
                 .comment("Maximum cached craftable-set entries per JVM.")
                 .defineInRange("craftableSetCacheSize", 256, 0, 65536);
@@ -388,8 +388,8 @@ public final class ACOConfig {
                 .comment("Maximum IO Port input-cell slots inspected per grid tick when incremental processing is enabled.")
                 .defineInRange("ioPortCellSlotsPerTick", 2, 1, 6);
         CACHE_IMPORT_BUS_LAST_SUCCESSFUL_SLOT = builder
-                .comment("Try the Import Bus's last successful external slot first, then fall back to a complete scan of every other slot. Actual extraction and insertion always use AE2's original checks.")
-                .define("cacheImportBusLastSuccessfulSlot", true);
+                .comment("Compatibility key. The custom Import Bus transfer Mixin is unregistered; AE2 always owns extraction and insertion.")
+                .define("cacheImportBusLastSuccessfulSlot", false);
         CACHE_EXPORT_BUS_CANDIDATE_KEYS = builder
                 .comment("Reuse Export Bus configured candidate keys until the bus configuration is changed. Fuzzy lookup and actual extraction/insertion remain validated by AE2.")
                 .define("cacheExportBusCandidateKeys", true);

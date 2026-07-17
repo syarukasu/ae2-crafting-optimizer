@@ -317,7 +317,7 @@ cachePatternLookups = true
 patternLookupCacheSize = 8192
 
 # Read-through cache for CraftingService.getCraftables(filter).
-cacheCraftableSets = true
+cacheCraftableSets = false
 craftableSetCacheSize = 256
 logPatternLookupCache = false
 
@@ -408,7 +408,7 @@ coalesceCraftingProviderRefreshes = true
 trackProviderPatternGenerations = true
 incrementalIoPortProcessing = true
 ioPortCellSlotsPerTick = 2
-cacheImportBusLastSuccessfulSlot = true
+cacheImportBusLastSuccessfulSlot = false
 cacheExportBusCandidateKeys = true
 # Compatibility key; its client Mixin is unregistered in 1.2.1.
 coalesceClientTerminalViewUpdates = false

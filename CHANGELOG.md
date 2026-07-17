@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-07-18
+
+### Fixed
+
+- Unregistered every custom Import Bus, Export Bus, IO Port, and shared I/O tick-budget Mixin. AE2 now exclusively owns live storage insertion, extraction, rollback, and cell transfer.
+- Unregistered standard and Advanced AE transactional batch execution Mixins so crafting inputs are transferred only by AE2's original execution path.
+- Unregistered terminal craftable-set caching to keep zero-stock terminal entries synchronized with AE2's current repository generation.
+
+### Safety
+
+- Removed the custom Import Bus implementation that could extract first and fail to return a remainder when network insertion changed between simulation and modulation.
+- Changed `cacheCraftableSets` and `cacheImportBusLastSuccessfulSlot` defaults to `false`; the latter is now a compatibility no-op.
+- Recipe lookup, crafting calculation, execution-budget, machine-intent, and non-mutating compatibility optimizations remain enabled.
+
 ### Documentation
 
 - Added the team development specification, safety invariants, acceptance criteria, and design-reference map.
