@@ -11,9 +11,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = CraftingCpuLogic.class, remap = false)
-public abstract class CraftingCpuLogicMicroBatchMixin {
+public abstract class CraftingCpuLogicTransactionalBatchMixin {
     @Inject(method = "executeCrafting", at = @At("HEAD"), cancellable = true, require = 0)
-    private void aco$tryPatternMicroBatch(
+    private void aco$tryTransactionalPatternBatch(
             int maxPatterns,
             CraftingService craftingService,
             IEnergyService energyService,

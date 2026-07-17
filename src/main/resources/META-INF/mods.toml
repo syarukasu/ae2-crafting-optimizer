@@ -35,3 +35,10 @@ mandatory = true
 versionRange = "[15.4.10,15.5.0)"
 ordering = "AFTER"
 side = "BOTH"
+
+[[dependencies.ae2_crafting_optimizer]]
+modId = "neoecoae"
+mandatory = false
+versionRange = "[20.3.0,20.4.0)"
+ordering = "AFTER"
+side = "BOTH"

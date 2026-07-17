@@ -49,6 +49,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue SHARED_CRAFTING_EXECUTION_MILLIS_PER_GRID;
     private static final ForgeConfigSpec.IntValue MINIMUM_SHARED_OPERATIONS_PER_CPU;
     private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_EXECUTION_THROTTLING;
+    private static final ForgeConfigSpec.BooleanValue THROTTLE_NEO_ECO_AE_EXECUTION;
     private static final ForgeConfigSpec.BooleanValue ENABLE_GRID_TICK_BUDGET;
     private static final ForgeConfigSpec.BooleanValue DEFER_HEAVY_GRID_TICKABLES;
     private static final ForgeConfigSpec.IntValue GRID_TICK_BUDGET_MILLIS_PER_SERVER_TICK;
@@ -123,6 +124,15 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue MAX_PATTERN_EXECUTIONS_PER_MICRO_BATCH;
     private static final ForgeConfigSpec.BooleanValue REQUIRE_SINGLE_PATTERN_PROVIDER_TARGET;
     private static final ForgeConfigSpec.ConfigValue<List<? extends String>> PATTERN_MICRO_BATCH_TARGET_NAMESPACES;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_TRANSACTIONAL_PATTERN_BATCHING;
+    private static final ForgeConfigSpec.IntValue MAX_TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_SEQUENTIAL_PATTERN_PROVIDER_BATCH_ADAPTER;
+    private static final ForgeConfigSpec.IntValue MAX_SEQUENTIAL_PROVIDER_EXECUTIONS_PER_CALL;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_INSTANT_PATTERN_DISPATCH;
+    private static final ForgeConfigSpec.IntValue INSTANT_PATTERN_DISPATCH_TIME_BUDGET_MILLIS;
+    private static final ForgeConfigSpec.IntValue MAX_INSTANT_PATTERN_DISPATCH_TRANSACTIONS;
+    private static final ForgeConfigSpec.BooleanValue REQUIRE_SINGLE_TRANSACTIONAL_BATCH_TARGET;
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TRANSACTIONAL_BATCH_TARGET_NAMESPACES;
     private static final ForgeConfigSpec.BooleanValue ENABLE_GTCEU_RECIPE_INTENT_FAST_PATH;
     private static final ForgeConfigSpec.IntValue GTCEU_RECIPE_INTENT_MAXIMUM_CANDIDATES;
     private static final ForgeConfigSpec.IntValue GTCEU_RECIPE_INTENT_INDEX_CACHE_SIZE;
@@ -275,6 +285,17 @@ public final class ACOConfig {
                 .define("logCraftingExecutionThrottling", false);
         builder.pop();
 
+        builder.push("compatibility");
+        builder.push("neoEcoAe");
+        THROTTLE_NEO_ECO_AE_EXECUTION = builder
+                .comment(
+                        "Apply ACO's adaptive per-CPU and shared per-grid pattern-push budgets to Neo ECO AE Extension's custom ECO CPU.",
+                        "Neo ECO's own normal, batch, and aggressive fast paths remain authoritative; ACO only bounds their per-tick execution window.",
+                        "Supported target: Neo ECO AE Extension 20.3.x.")
+                .define("throttleNeoEcoAeExecution", true);
+        builder.pop();
+        builder.pop();
+
         builder.push("gridTickBudget");
         ENABLE_GRID_TICK_BUDGET = builder
                 .comment("Enable server-side budget controls for selected AE2 grid tickables such as IO ports, import/export buses, and ExtendedAE circuit cutters. Disabled by default because AE2 buses are correctness-sensitive and must be opt-in tested per pack.")
@@ -373,8 +394,8 @@ public final class ACOConfig {
                 .comment("Reuse Export Bus configured candidate keys until the bus configuration is changed. Fuzzy lookup and actual extraction/insertion remain validated by AE2.")
                 .define("cacheExportBusCandidateKeys", true);
         COALESCE_CLIENT_TERMINAL_VIEW_UPDATES = builder
-                .comment("Allow at most one immediate ME terminal filter/sort rebuild per client tick and combine additional rebuild requests at tick end.")
-                .define("coalesceClientTerminalViewUpdates", true);
+                .comment("Allow at most one immediate ME terminal filter/sort rebuild per client tick. Experimental and disabled by default to keep clickable virtual slots synchronized with the current repository generation.")
+                .define("coalesceClientTerminalViewUpdates", false);
         ASYNC_TERMINAL_SEARCH_SORT = builder
                 .comment("Project terminal names, IDs, tags, tooltips, and sort keys on the client thread, then offload only immutable search matching and sorting. Stale generations are discarded. Disabled by default.")
                 .define("asyncTerminalSearchSort", false);
@@ -430,14 +451,14 @@ public final class ACOConfig {
                 .comment("Storage watcher update interval in ticks when throttling is enabled. 1 is vanilla behavior.")
                 .defineInRange("storageWatcherUpdateIntervalTicks", 4, 1, 40);
         THROTTLE_TERMINAL_INVENTORY_SNAPSHOTS = builder
-                .comment("Throttle ME terminal server-side inventory snapshots. This reduces repeated getAvailableStacks scans while a terminal is open; visible amounts may update at the configured interval.")
-                .define("throttleTerminalInventorySnapshots", true);
+                .comment("Throttle ME terminal server-side inventory snapshots. Disabled by default because stale zero-stock entries can interfere with interactive terminal slots in heavily modified clients.")
+                .define("throttleTerminalInventorySnapshots", false);
         TERMINAL_INVENTORY_SNAPSHOT_INTERVAL_TICKS = builder
                 .comment("How often an open ME terminal should rebuild its server-side available-stack snapshot.")
                 .defineInRange("terminalInventorySnapshotIntervalTicks", 4, 1, 40);
         CACHE_TERMINAL_CRAFTABLES = builder
-                .comment("Cache the craftable set used by open ME terminals for a few ticks. This reduces repeated craftable-list scans while preserving AE2's provider invalidation caches.")
-                .define("cacheTerminalCraftables", true);
+                .comment("Cache the craftable set used by open ME terminals for a few ticks. Disabled by default so zero-stock transitions use AE2's immediate terminal state.")
+                .define("cacheTerminalCraftables", false);
         TERMINAL_CRAFTABLE_CACHE_TICKS = builder
                 .comment("How many ticks an open ME terminal may reuse its craftable set.")
                 .defineInRange("terminalCraftableCacheTicks", 4, 1, 40);
@@ -472,8 +493,8 @@ public final class ACOConfig {
                 .comment("Maximum interval between coalesced StorageService aggregate rebuilds.")
                 .defineInRange("networkUpdateIntervalTicks", 2, 1, 40);
         DEEP_VISIBLE_TERMINAL_RANGE_SYNC = builder
-                .comment("Split terminal full/delta synchronization into bounded rolling ranges. All entries are eventually sent through AE2's original packet format; this limits one-tick packet and serialization spikes.")
-                .define("visibleTerminalRangeSync", true);
+                .comment("Split terminal full/delta synchronization into bounded rolling ranges. Experimental and disabled by default because interactive virtual slots require one coherent AE2 update generation.")
+                .define("visibleTerminalRangeSync", false);
         DEEP_TERMINAL_RANGE_ENTRIES_PER_TICK = builder
                 .comment("Maximum terminal entries serialized per menu tick while rolling range synchronization is active.")
                 .defineInRange("terminalRangeEntriesPerTick", 4096, 64, 32767);
@@ -514,7 +535,9 @@ public final class ACOConfig {
                 .comment("Hard cap for captured recipe intent entries. Oldest entries are evicted when the cap is exceeded.")
                 .defineInRange("maximumRecipeIntentEntries", 4096, 16, 1_048_576);
         ENABLE_PATTERN_MICRO_BATCHING = builder
-                .comment("Experimental CrazyAE-style processing-pattern micro-batching. Multiple identical AE2 pattern executions are extracted and pushed as one aggregate transfer while AE2 still accounts for every execution. Dedicated crafting machines, blocking/locked providers, patterns with container remainders, and unsupported targets always use AE2's original path. Disabled by default until validated in the target pack.")
+                .comment(
+                        "Compatibility-disabled in ACO 1.1.1. The key is retained so existing world configs remain readable.",
+                        "Aggregate machine acceptance cannot prove that every represented processing-pattern execution will produce its declared output, so AE2's original one-execution accounting is always used.")
                 .define("enablePatternMicroBatching", false);
         MAX_PATTERN_EXECUTIONS_PER_MICRO_BATCH = builder
                 .comment("Maximum identical processing-pattern executions collapsed into one external-inventory push. This reduces Pattern Provider calls; it does not grant extra co-processors or bypass the crafting execution budget.")
@@ -573,6 +596,43 @@ public final class ACOConfig {
         LOG_RECIPE_INTENT_REGISTRY_EVICTIONS = builder
                 .comment("Log recipe intent expiration, clears, and hard-cap evictions.")
                 .define("logRecipeIntentRegistryEvictions", false);
+        builder.pop();
+
+        builder.push("transactionalPatternBatching");
+        ENABLE_TRANSACTIONAL_PATTERN_BATCHING = builder
+                .comment(
+                        "Enable ACO's accepted-execution-count batch API. Only registered adapters may handle a batch; unsupported providers always use AE2's original path.",
+                        "The built-in adapter preserves one pushPattern call per accepted execution and never treats aggregate inventory insertion as recipe completion.")
+                .define("enableTransactionalPatternBatching", true);
+        MAX_TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS = builder
+                .comment("Maximum exact processing-pattern executions prepared by one ACO batch transaction. The selected adapter may accept fewer.")
+                .defineInRange("maxTransactionalPatternBatchExecutions", 65_536, 2, 1_048_576);
+        ENABLE_SEQUENTIAL_PATTERN_PROVIDER_BATCH_ADAPTER = builder
+                .comment("Enable the conservative built-in Pattern Provider adapter. It returns the exact number of successful one-execution AE2 pushes and stops immediately on provider backpressure.")
+                .define("enableSequentialPatternProviderBatchAdapter", true);
+        MAX_SEQUENTIAL_PROVIDER_EXECUTIONS_PER_CALL = builder
+                .comment("Maximum one-execution pushPattern calls made by the conservative adapter in one transaction. Instant dispatch may run more than one bounded transaction. Native adapters use their own acceptance limits.")
+                .defineInRange("maxSequentialProviderExecutionsPerCall", 256, 1, 65_536);
+        ENABLE_INSTANT_PATTERN_DISPATCH = builder
+                .comment(
+                        "Continue dispatching ready processing-pattern batches during the same crafting CPU call instead of returning after the first batch.",
+                        "This is instant dispatch, not zero-tick machine processing. Operation, transaction, and wall-clock budgets still apply.")
+                .define("enableInstantPatternDispatch", true);
+        INSTANT_PATTERN_DISPATCH_TIME_BUDGET_MILLIS = builder
+                .comment("Hard wall-clock budget for ACO instant pattern dispatch inside one CPU call. Work resumes on the next server tick after this deadline.")
+                .defineInRange("instantPatternDispatchTimeBudgetMillis", 4, 1, 45);
+        MAX_INSTANT_PATTERN_DISPATCH_TRANSACTIONS = builder
+                .comment("Maximum adapter transactions attempted by one instant-dispatch CPU call, independent of the accepted execution count.")
+                .defineInRange("maxInstantPatternDispatchTransactions", 1024, 1, 65_536);
+        REQUIRE_SINGLE_TRANSACTIONAL_BATCH_TARGET = builder
+                .comment("Require one configured Pattern Provider target side before using a transactional batch adapter. This keeps target ownership deterministic.")
+                .define("requireSingleTransactionalBatchTarget", true);
+        TRANSACTIONAL_BATCH_TARGET_NAMESPACES = builder
+                .comment("Registry namespaces eligible for ACO's transactional Pattern Provider batching. Unlisted targets use AE2's original execution path.")
+                .defineListAllowEmpty("transactionalBatchTargetNamespaces", List.of(
+                        "gtceu",
+                        "mekanism"
+                ), value -> value instanceof String);
         builder.pop();
 
         builder.push("diagnostics");
@@ -772,6 +832,10 @@ public final class ACOConfig {
 
     public static boolean logCraftingExecutionThrottling() {
         return enableOptimizer() && LOG_CRAFTING_EXECUTION_THROTTLING.get();
+    }
+
+    public static boolean throttleNeoEcoAeExecution() {
+        return throttleCraftingExecution() && THROTTLE_NEO_ECO_AE_EXECUTION.get();
     }
 
     public static boolean enableGridTickBudget() {
@@ -1059,7 +1123,11 @@ public final class ACOConfig {
     }
 
     public static boolean enablePatternMicroBatching() {
-        return enableOptimizer() && ENABLE_PATTERN_MICRO_BATCHING.get();
+        return false;
+    }
+
+    public static boolean patternMicroBatchingRequested() {
+        return ENABLE_PATTERN_MICRO_BATCHING.get();
     }
 
     public static int getMaxPatternExecutionsPerMicroBatch() {
@@ -1072,6 +1140,47 @@ public final class ACOConfig {
 
     public static List<String> getPatternMicroBatchTargetNamespaces() {
         return PATTERN_MICRO_BATCH_TARGET_NAMESPACES.get().stream()
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .distinct()
+                .toList();
+    }
+
+    public static boolean enableTransactionalPatternBatching() {
+        return enableOptimizer() && ENABLE_TRANSACTIONAL_PATTERN_BATCHING.get();
+    }
+
+    public static int getMaxTransactionalPatternBatchExecutions() {
+        return Math.min(1_048_576, Math.max(2, MAX_TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS.get()));
+    }
+
+    public static boolean enableSequentialPatternProviderBatchAdapter() {
+        return enableTransactionalPatternBatching() && ENABLE_SEQUENTIAL_PATTERN_PROVIDER_BATCH_ADAPTER.get();
+    }
+
+    public static int getMaxSequentialProviderExecutionsPerCall() {
+        return Math.min(65_536, Math.max(1, MAX_SEQUENTIAL_PROVIDER_EXECUTIONS_PER_CALL.get()));
+    }
+
+    public static boolean enableInstantPatternDispatch() {
+        return enableTransactionalPatternBatching() && ENABLE_INSTANT_PATTERN_DISPATCH.get();
+    }
+
+    public static int getInstantPatternDispatchTimeBudgetMillis() {
+        return Math.min(45, Math.max(1, INSTANT_PATTERN_DISPATCH_TIME_BUDGET_MILLIS.get()));
+    }
+
+    public static int getMaxInstantPatternDispatchTransactions() {
+        return Math.min(65_536, Math.max(1, MAX_INSTANT_PATTERN_DISPATCH_TRANSACTIONS.get()));
+    }
+
+    public static boolean requireSingleTransactionalBatchTarget() {
+        return REQUIRE_SINGLE_TRANSACTIONAL_BATCH_TARGET.get();
+    }
+
+    public static List<String> getTransactionalBatchTargetNamespaces() {
+        return TRANSACTIONAL_BATCH_TARGET_NAMESPACES.get().stream()
                 .map(String::trim)
                 .filter(value -> !value.isEmpty())
                 .map(value -> value.toLowerCase(Locale.ROOT))

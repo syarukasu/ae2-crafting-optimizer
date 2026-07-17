@@ -50,12 +50,20 @@ repositories {
             includeGroup 'appeng'
         }
     }
+    maven {
+        name = 'CurseMaven'
+        url = 'https://www.cursemaven.com'
+        content {
+            includeGroup 'curse.maven'
+        }
+    }
 }
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.18'
 
     implementation fg.deobf('appeng:appliedenergistics2-forge:15.4.10')
+    compileOnly fg.deobf('curse.maven:neo-eco-ae-extension-1460639:8438819')
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 

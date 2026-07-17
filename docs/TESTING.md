@@ -37,8 +37,12 @@ Expected:
 21. With `adaptiveCraftingExecutionBudget = true`, keep `targetCraftingExecutionMillis = 4` and confirm repeated heavy crafts do not create sustained MSPT spikes.
 22. Start large jobs on at least three standard AE2 crafting CPUs attached to one ME grid, leave `sharedCraftingExecutionBudget = true`, and confirm every job progresses while combined CPU execution remains near the configured grid target.
 23. Run `/aco stats` and confirm shared-budget limits/deferred operations increase during that test.
-24. Repeatedly process the same Pattern Provider recipe through GTCEu and Mekanism, then confirm `/aco stats` reports machine cache hits.
-25. Run `/reload`, repeat one GTCEu and one Mekanism processing recipe, and confirm the machines rebuild their indexes and still select the correct recipes.
+24. With Neo ECO AE Extension 20.3.x installed, confirm startup logs report its detected version and `execution budget true`.
+25. Start one large job on a Neo ECO CPU and one on a standard AE2 CPU on the same grid. Confirm both progress and neither bypasses the shared grid target.
+26. Toggle `[compatibility.neoEcoAe].throttleNeoEcoAeExecution = false`, restart, and confirm Neo ECO returns to its own configured normal/FastPath limits while standard AE2 pacing remains enabled.
+27. Repeat a Neo ECO batch/aggressive FastPath craft and confirm input, output, energy, status, cancellation, save/reload, and completion match a run without ACO.
+28. Repeatedly process the same Pattern Provider recipe through GTCEu and Mekanism, then confirm `/aco stats` reports machine cache hits.
+29. Run `/reload`, repeat one GTCEu and one Mekanism processing recipe, and confirm the machines rebuild their indexes and still select the correct recipes.
 26. Place several AE2 Import Buses and Export Buses with speed-card upgrades on a large ME network.
 27. Confirm item movement still respects filters, redstone mode, craft-only mode, and scheduling mode.
 28. Leave `enableGridTickBudget = false` first and confirm Import Buses, Export Buses, IO Ports, and the ExtendedAE Circuit Cutter behave exactly like AE2/addons normally do.
@@ -67,18 +71,27 @@ Expected:
 39. Run `/aco stats` after the add-on tests and confirm runtime-helper reflection, upgrade-count, Reaction Chamber, Circuit Cutter, or Assembly Matrix counters increase for the installed integrations. Direct redirects into machine methods merged by AE2 Overclock are compatibility-disabled in 1.1.0.
 40. Disable each `[addonMachineOptimizations]` sub-option separately, restart, and confirm its counter stops increasing while the machine remains functional through the original add-on path.
 
-## Pattern Micro-Batch Checks
+## Transactional Pattern Batch Checks
 
-1. Keep `enablePatternMicroBatching = false`, run a repeated GTCEu and Mekanism processing craft, and record output counts and `/aco stats` as a baseline.
-2. Enable it with `maxPatternExecutionsPerMicroBatch = 64` and a Pattern Provider exposing exactly one target side.
-3. Request at least 256 identical executions and confirm inputs consumed, AE energy charged, outputs received, and CPU task progress exactly match the baseline.
-4. Confirm `/aco stats` reports aggregate pushes and the represented execution count.
-5. Repeat with item, fluid, and chemical-containing processing patterns supported by the target machine.
-6. Test a full target inventory. The aggregate must be rejected and AE2's original single-execution path must continue without duplication or loss.
-7. Test a crafting pattern/Molecular Assembler, a pattern with a returned container, a blocking Pattern Provider, lock-until-result mode, multiple provider sides, and an Advanced AE directional pattern. Every case must remain on the original path.
-8. Place the Provider against a GT input bus or fluid hatch whose controller is up to 16 blocks away. Confirm `/aco intents list` shows the execution count and GT starts the intended recipe while still rejecting invalid live inputs.
-9. Test a standard AE2 CPU and an Advanced AE Quantum Computer separately. Both must progress; the Advanced AE menu must open without a class-loading or Mixin error.
-10. Disable `enablePatternMicroBatching` again and confirm the same saved jobs continue through AE2's original execution path after restart.
+1. Keep legacy `enablePatternMicroBatching = false` and enable `[transactionalPatternBatching].enableTransactionalPatternBatching`.
+2. Confirm startup lists `ae2_crafting_optimizer:sequential_pattern_provider` as the registered adapter.
+3. Submit at least 256 identical exact GTCEu item-processing executions through a standard AE2 CPU. Confirm inputs, energy, outputs, task progress, and `/aco stats` accepted counts match exactly.
+4. Repeat through an Advanced AE Quantum Computer.
+5. Repeat with exact fluid and Mekanism chemical processing patterns supported by AE2. Confirm each job reaches completion.
+6. Fill the target so the first push leaves Provider work queued. Confirm the adapter accepts only that one execution, stops on `isBusy()`, and later CPU ticks continue without multiplied `waitingFor` entries.
+7. Use a substitution pattern, container remainder, blocking provider, lock mode, multiple target sides with the deterministic-target requirement enabled, and an unsupported target namespace. Every case must remain on AE2's original path before batch extraction.
+8. Disable `enableSequentialPatternProviderBatchAdapter`. Confirm no transactional commit metric increases and normal AE2 crafting remains functional.
+9. Set `maxSequentialProviderExecutionsPerCall = 2`; confirm no adapter commit reports more than two executions even when the machine can immediately accept more.
+10. Cancel and resubmit a large job, restart the server, and reload chunks. The conservative adapter must leave no ACO-owned external queue or new persistent state.
+11. With instant dispatch enabled, provide at least two independent ready processing tasks and confirm both can receive work in one CPU call without exceeding the configured time or transaction budget.
+12. Disable instant dispatch and confirm one adapter transaction is attempted per CPU call while transactional accepted-count accounting remains active.
+
+Native adapter qualification, before registration:
+
+1. Returning zero must leave every target inventory and queue unchanged.
+2. Returning N must prove durable ownership of exactly N complete executions.
+3. Partial insertion simulation must never be converted into N accepted executions.
+4. Target removal, chunk unload, restart, cancellation, and rollback behavior must be documented and tested.
 
 Optional disabled-by-default checks:
 

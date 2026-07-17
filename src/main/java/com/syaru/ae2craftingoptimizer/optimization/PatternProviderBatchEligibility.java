@@ -37,7 +37,7 @@ public final class PatternProviderBatchEligibility {
 
     @Nullable
     public static BatchTarget inspect(ICraftingProvider provider, IPatternDetails pattern, Level level) {
-        if (!ACOConfig.enablePatternMicroBatching()
+        if (!ACOConfig.enableTransactionalPatternBatching()
                 || provider == null
                 || pattern == null
                 || level == null
@@ -83,11 +83,11 @@ public final class PatternProviderBatchEligibility {
                 }
             }
             if (targets.isEmpty()
-                    || (ACOConfig.requireSinglePatternProviderTarget() && targets.size() != 1)) {
+                    || (ACOConfig.requireSingleTransactionalBatchTarget() && targets.size() != 1)) {
                 return null;
             }
 
-            List<String> allowedNamespaces = ACOConfig.getPatternMicroBatchTargetNamespaces();
+            List<String> allowedNamespaces = ACOConfig.getTransactionalBatchTargetNamespaces();
             if (allowedNamespaces.isEmpty()) {
                 return null;
             }
@@ -103,7 +103,16 @@ public final class PatternProviderBatchEligibility {
                 }
             }
 
-            return new BatchTarget(targets.size() == 1 ? targets.get(0) : null);
+            Direction selectedSide = targets.get(0);
+            BlockEntity selectedTarget = level.getBlockEntity(providerPos.relative(selectedSide));
+            if (selectedTarget == null) {
+                return null;
+            }
+            return new BatchTarget(
+                    selectedSide,
+                    selectedSide.getOpposite(),
+                    selectedTarget,
+                    targets.size() == 1);
         } catch (Throwable ignored) {
             return null;
         }
@@ -132,7 +141,11 @@ public final class PatternProviderBatchEligibility {
             if (input.getMultiplier() <= 0) {
                 return false;
             }
-            for (var possibleInput : input.getPossibleInputs()) {
+            var possibleInputs = input.getPossibleInputs();
+            if (possibleInputs.length != 1) {
+                return false;
+            }
+            for (var possibleInput : possibleInputs) {
                 if (possibleInput.amount() <= 0 || input.getRemainingKey(possibleInput.what()) != null) {
                     return false;
                 }
@@ -175,7 +188,11 @@ public final class PatternProviderBatchEligibility {
         return craftingMachine != null && craftingMachine.acceptsPlans();
     }
 
-    public record BatchTarget(@Nullable Direction providerSide) {
+    public record BatchTarget(
+            Direction providerSide,
+            Direction targetSide,
+            BlockEntity target,
+            boolean deterministicTarget) {
     }
 
     private record ProviderAccess(
