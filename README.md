@@ -432,7 +432,7 @@ coalesceAssemblerMatrixStatusUpdates = true
 cacheAssemblerMatrixRouting = true
 
 [storageSync]
-throttleStorageWatcherUpdates = true
+throttleStorageWatcherUpdates = false
 
 # Client-visible synchronization interval when throttling is enabled.
 storageWatcherUpdateIntervalTicks = 4
@@ -452,7 +452,7 @@ maximumBufferedChanges = 4096
 enableDeepAe2RewriteFlags = true
 patternSelectionByAvailability = false
 patternSelectionMaximumCandidates = 64
-networkForceUpdateCoalescing = true
+networkForceUpdateCoalescing = false
 networkUpdateIntervalTicks = 2
 visibleTerminalRangeSync = false
 terminalRangeEntriesPerTick = 4096

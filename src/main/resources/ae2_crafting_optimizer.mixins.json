@@ -35,23 +35,16 @@
     "GridTickBudgetMixin",
     "IOBusOperationsCapMixin",
     "IOPortIncrementalProcessingMixin",
-    "IncrementalUpdateHelperDeepRangeMixin",
-    "MEInventoryUpdatePacketBuilderRangeMixin",
-    "MEStorageMenuSyncOptimizationMixin",
     "MekanismRecipeIntentFastPathMixin",
     "MultiCraftingTrackerCraftRequestThrottleMixin",
     "NeoEcoCraftingCpuExecutionBudgetMixin",
     "PatternProviderLogicIntentCaptureMixin",
     "P2PServiceTopologyDeduplicationMixin",
-    "StorageServiceDeepCoalescingMixin",
-    "StorageServiceWatcherThrottleMixin",
     "StorageExportSimulationCacheMixin",
     "StorageImportSimulationCacheMixin",
     "StorageImportLastSuccessfulSlotMixin"
   ],
-  "client": [
-    "ClientRepoUpdateCoalescingMixin"
-  ],
+  "client": [],
   "injectors": {
     "defaultRequire": 0
   }
