@@ -21,9 +21,7 @@ Restart the server after changing optimization settings. Existing config files r
 | Execution | `adaptiveCraftingExecutionBudget` | `true` | Adjusts the active CPU budget toward the configured tick-time target. |
 | Execution | `sharedCraftingExecutionBudget` | `true` | Bounds combined supported CPU pattern-push time on one ME grid. |
 | Neo ECO compatibility | `throttleNeoEcoAeExecution` | `true` | Adds Neo ECO 20.3.x custom CPUs to ACO's adaptive and shared execution budgets when installed. |
-| Storage view | `throttleStorageWatcherUpdates` | `true` | Buffers client-visible watcher updates for four ticks by default. |
 | Deep master | `enableDeepAe2RewriteFlags` | `true` | Master switch for the deep sub-options below. |
-| Deep sync | `networkForceUpdateCoalescing` | `true` | Coalesces repeated aggregate storage refreshes. |
 | Deep topology | `p2pTopologyChangeOnlyRecheck` | `true` | Deduplicates equivalent P2P notifications in a short window. |
 | Deep fluid | `fluidPatternRework` | `true` | Uses an exact single-fluid input fast path and falls back for ambiguous cases. |
 | Intent | `enableRecipeIntentBridge` | `true` | Enables the Pattern Provider intent registry. |
@@ -57,6 +55,21 @@ Restart the server after changing optimization settings. Existing config files r
 
 These defaults still need pack-specific runtime testing. "Enabled by default" is not a promise of compatibility with every AE2 addon or coremod stack.
 
+### Compatibility-Disabled Sync Paths in 1.2.1
+
+The following keys remain readable for existing world configs, but their Mixins are not registered in 1.2.1:
+
+| Key | Source default | 1.2.1 behavior |
+| --- | --- | --- |
+| `throttleStorageWatcherUpdates` | `false` | No-op; `StorageServiceWatcherThrottleMixin` is unregistered. |
+| `networkForceUpdateCoalescing` | `false` | No-op; `StorageServiceDeepCoalescingMixin` is unregistered. |
+| `throttleTerminalInventorySnapshots` | `false` | No-op; `MEStorageMenuSyncOptimizationMixin` is unregistered. |
+| `cacheTerminalCraftables` | `false` | No-op; `MEStorageMenuSyncOptimizationMixin` is unregistered. |
+| `visibleTerminalRangeSync` | `false` | No-op; both terminal range packet Mixins are unregistered. |
+| `coalesceClientTerminalViewUpdates` | `false` | No-op; `ClientRepoUpdateCoalescingMixin` is unregistered. |
+
+These paths were removed from the runtime Mixin list after stale terminal generations could conflict with live insertion. Changing the retained keys to `true` does not reactivate them.
+
 The AE2 Overclock upgrade-count cache can delay recognition of a card inserted after that machine was already inspected in the same server tick. The next tick always performs a new lookup. Disabling the option restores AE2 Overclock's original repeated scan path.
 
 ## Opt-In Experimental Paths
@@ -76,10 +89,6 @@ The AE2 Overclock upgrade-count cache can delay recognition of a card inserted a
 | `cacheAdjacentCapabilitiesAcrossTicks` | `false` | Depends on external capability providers correctly invalidating their LazyOptional. |
 | `asyncTerminalSearchSort` | `false` | Moves immutable projected search/sort work to a worker and discards stale generations. |
 | `asyncTerminalMinimumEntries` | `2048` | Minimum terminal size for the async path. |
-| `coalesceClientTerminalViewUpdates` | `false` | Can desynchronize clickable virtual slots from the repository generation on heavily modified clients. |
-| `throttleTerminalInventorySnapshots` | `false` | A stale zero-stock snapshot can conflict with an insertion click. |
-| `cacheTerminalCraftables` | `false` | Keeps terminal craftable transitions immediate by default. |
-| `visibleTerminalRangeSync` | `false` | Splits one coherent terminal generation across packets/menu ticks. |
 | `enableCreateRecipeIntentFastPath` | `false` | Reserved; no Create machine fast path is implemented in 1.0.0. |
 | `enablePatternMicroBatching` | `false` | Compatibility-disabled in 1.1.1. `true` is ignored because aggregate acceptance cannot guarantee multiplied recipe outputs. |
 | `maxPatternExecutionsPerMicroBatch` | `65536` | Legacy no-op retained for existing config compatibility. |

@@ -24,6 +24,15 @@ ACO's design research used public behavior, issue discussions, and optimization 
 - Referenced branch: `rv6-1.12`
 - License: GNU Lesser General Public License v3.0
 
+Specific public design references include:
+
+- AE2 1.20.1 crafting CPU guide: https://guide.appliedenergistics.org/1.20.1/items-blocks-machines/crafting_cpu_multiblock
+- AE2 1.20.1 autocrafting guide: https://guide.appliedenergistics.org/1.20.1/ae2-mechanics/autocrafting
+- AE2 performance issue `#7884`: https://github.com/AppliedEnergistics/Applied-Energistics-2/issues/7884
+- AE2 terminal synchronization issue `#2363`: https://github.com/AppliedEnergistics/Applied-Energistics-2/issues/2363
+- GTNH AE2 feature proposal `#11349`: https://github.com/GTNewHorizons/GT-New-Horizons-Modpack/issues/11349
+- AE2 Fluid Crafting Rework: https://github.com/AE2-UEL/AE2FluidCraft-Rework
+
 ACO is not a port or fork of AE2-UEL. No AE2 or AE2-UEL source files, textures, models, translations, or binaries are vendored in this repository. ACO contains independently implemented compatibility and optimization code for Forge 1.20.1 and falls back to the installed mods' original behavior when its optional fast paths cannot validate a candidate.
 
 ## Neo ECO AE Extension

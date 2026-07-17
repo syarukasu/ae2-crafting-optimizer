@@ -4,7 +4,21 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-No unreleased changes.
+### Documentation
+
+- Added the team development specification, safety invariants, acceptance criteria, and design-reference map.
+- Aligned synchronization documentation with the 1.2.1 runtime Mixin list.
+
+## [1.2.1] - 2026-07-17
+
+### Fixed
+
+- Unregistered terminal inventory snapshot, terminal range packet, client repository coalescing, storage watcher pacing, and aggregate storage refresh Mixins after stale terminal generations could conflict with live insertion.
+
+### Changed
+
+- Changed `throttleStorageWatcherUpdates` and `networkForceUpdateCoalescing` source defaults to `false`.
+- Retained the affected Config keys as compatibility no-ops for existing world TOML files.
 
 ## [1.2.0] - 2026-07-17
 

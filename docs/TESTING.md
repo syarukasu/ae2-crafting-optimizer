@@ -93,17 +93,17 @@ Native adapter qualification, before registration:
 3. Partial insertion simulation must never be converted into N accepted executions.
 4. Target removal, chunk unload, restart, cancellation, and rollback behavior must be documented and tested.
 
-Optional disabled-by-default checks:
+Compatibility-disabled sync checks for 1.2.1:
 
-1. Open an ME terminal on a large network with `throttleTerminalInventorySnapshots = true` and confirm visible amounts update every few ticks while extraction/insertion still uses live AE2 storage.
-2. Enable `throttleStorageWatcherUpdates = true`, use `storageWatcherUpdateIntervalTicks = 4`, and confirm terminal visible amounts update with small delay but no item loss or insertion/extraction change.
+1. Set the retained terminal, watcher, aggregate refresh, range, and client coalescing keys to `true`, restart, and confirm ACO still leaves AE2's original terminal and storage synchronization paths active because the related Mixins are unregistered.
+2. Insert an item whose ME stock is zero through the terminal, then extract and reinsert it. Confirm no item is lost and the visible amount converges to live storage.
 
 ## Deep Rewrite Checks
 
-1. Enable the deep master switch and all six feature switches, then repeat one normal item craft and one normal fluid processing craft.
+1. Enable the deep master switch and the four active feature switches (`patternSelectionByAvailability`, `p2pTopologyChangeOnlyRecheck`, `busSearchRewrite`, and `fluidPatternRework`), then repeat one normal item craft and one normal fluid processing craft.
 2. Give one output two valid patterns, toggle `patternSelectionByAvailability`, and confirm only the attempted order changes while AE2's success/missing result remains the same.
-3. Set `networkUpdateIntervalTicks = 2`, mutate storage continuously, and confirm monitors/terminals converge within two ticks while direct insert/extract amounts remain exact.
-4. Open a terminal containing more than `terminalRangeEntriesPerTick` keys and confirm entries arrive over multiple ticks, searching works after synchronization, and no entry remains missing.
+3. Confirm `networkForceUpdateCoalescing = true` remains a no-op in 1.2.1 and AE2's original aggregate refresh path remains active.
+4. Confirm `visibleTerminalRangeSync = true` remains a no-op in 1.2.1 and AE2's original coherent terminal packet path remains active.
 5. Add/remove and retune P2P tunnels several times in one tick. Confirm every structural change applies, then toggle grid power and confirm duplicate wake sweeps do not alter the final input/output topology.
 6. Use a fuzzy-card Export Bus while variants enter and leave storage. Confirm valid variants still export and newly added variants are visible after at most `busFuzzySearchCacheTicks`.
 7. Craft with one exact fluid input and then with fluid substitutions. Confirm the exact case uses the fast path and substitutions fall back to AE2.
