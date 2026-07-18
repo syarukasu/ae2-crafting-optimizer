@@ -32,7 +32,7 @@ AE2 Crafting Optimizer adds conservative recipe-intent fast paths for large AE2 
 
 ## Status
 
-Release `1.3.1` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
+Release `1.3.2` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
 and passed the complete automated test suite. P9 startup, recovery, multiplayer,
 and long-running live-world qualification remains operator-run. The optional Neo ECO integration is pinned to Neo ECO AE
 Extension `20.3.x`. ACO uses Mixins against mod internals, so do not assume
@@ -56,7 +56,7 @@ long/BigInteger planner, durable GTCEu/Mekanism native batching protocol, fair
 multi-job scheduler, versioned BigInteger CPU-host API, and bounded status
 channel. These are source-complete foundations, not live defaults. Read
 [Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md) before testing them.
-The current source carries the `1.3.1` test-candidate version while P0-P8 are reviewed;
+The current source carries the `1.3.2` maintenance version while P0-P8 are reviewed;
 P9 startup, recovery, multiplayer, and long-running world tests are deliberately
 not claimed by this source revision. See
 [P0-P8 implementation status](docs/P0_P8_IMPLEMENTATION_STATUS.md).
@@ -461,6 +461,8 @@ coalesceClientTerminalViewUpdates = false
 # Opt-in generation-checked projected search/sort worker.
 asyncTerminalSearchSort = false
 asyncTerminalMinimumEntries = 2048
+# Stops orphaned AE2 Page Up/Down repeats after the physical mouse button is released.
+fixStuckAe2ScrollbarRepeat = true
 cacheCircuitCutterRecipes = true
 cacheCircuitCutterNegativeResults = true
 circuitCutterRecipeCacheSize = 4096
@@ -626,7 +628,7 @@ Run:
 gradlew.bat clean build
 ```
 
-This branch generates `build/libs/ae2-crafting-optimizer-1.3.1.jar`. Building
+This branch generates `build/libs/ae2-crafting-optimizer-1.3.2.jar`. Building
 it does not authorize deployment or feature enablement before the runtime
 matrix is complete. GitHub Actions runs the same clean build for
 pushes and pull requests.

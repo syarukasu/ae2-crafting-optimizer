@@ -84,6 +84,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue COALESCE_CLIENT_TERMINAL_VIEW_UPDATES;
     private static final ForgeConfigSpec.BooleanValue ASYNC_TERMINAL_SEARCH_SORT;
     private static final ForgeConfigSpec.IntValue ASYNC_TERMINAL_MINIMUM_ENTRIES;
+    private static final ForgeConfigSpec.BooleanValue FIX_STUCK_AE2_SCROLLBAR_REPEAT;
     private static final ForgeConfigSpec.BooleanValue CACHE_CIRCUIT_CUTTER_RECIPES;
     private static final ForgeConfigSpec.BooleanValue CACHE_CIRCUIT_CUTTER_NEGATIVE_RESULTS;
     private static final ForgeConfigSpec.IntValue CIRCUIT_CUTTER_RECIPE_CACHE_SIZE;
@@ -434,6 +435,9 @@ public final class ACOConfig {
         ASYNC_TERMINAL_MINIMUM_ENTRIES = builder
                 .comment("Minimum terminal entry count before the safe asynchronous amount-sort path is used.")
                 .defineInRange("asyncTerminalMinimumEntries", 2048, 128, 1_000_000);
+        FIX_STUCK_AE2_SCROLLBAR_REPEAT = builder
+                .comment("Stop AE2 scrollbar page-repeat when the physical left mouse button is already released. Prevents Pattern Access Terminal scrolling from continuing after another screen mod loses the mouse-up event.")
+                .define("fixStuckAe2ScrollbarRepeat", true);
         CACHE_CIRCUIT_CUTTER_RECIPES = builder
                 .comment("Share validated ExtendedAE Circuit Cutter recipe candidates between machines with identical item/fluid inputs. ExtendedAE still performs its own test before a cached recipe is used.")
                 .define("cacheCircuitCutterRecipes", true);
@@ -1110,6 +1114,10 @@ public final class ACOConfig {
 
     public static int getAsyncTerminalMinimumEntries() {
         return Math.min(1_000_000, Math.max(128, ASYNC_TERMINAL_MINIMUM_ENTRIES.get()));
+    }
+
+    public static boolean fixStuckAe2ScrollbarRepeat() {
+        return enableOptimizer() && FIX_STUCK_AE2_SCROLLBAR_REPEAT.get();
     }
 
     public static boolean cacheCircuitCutterRecipes() {
