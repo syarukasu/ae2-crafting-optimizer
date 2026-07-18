@@ -6,10 +6,9 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.implementations.blockentities.ICraftingMachine;
 import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.util.IConfigManager;
-import appeng.helpers.patternprovider.PatternProviderLogic;
+import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import com.syaru.ae2craftingoptimizer.integration.AdvancedAePatternProviderAccess;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -19,42 +18,49 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.fml.ModList;
 import org.jetbrains.annotations.Nullable;
 
 public final class PatternProviderBatchEligibility {
-    private static final String ADVANCED_PROVIDER_CLASS =
-            "net.pedroksl.advanced_ae.common.logic.AdvPatternProviderLogic";
-
-    private static final ClassValue<ProviderAccess> ACCESS = new ClassValue<>() {
-        @Override
-        protected ProviderAccess computeValue(Class<?> type) {
-            return ProviderAccess.create(type);
-        }
-    };
-
     private PatternProviderBatchEligibility() {
     }
 
     @Nullable
     public static BatchTarget inspect(ICraftingProvider provider, IPatternDetails pattern, Level level) {
-        if (!ACOConfig.enableTransactionalPatternBatching()
-                || provider == null
+        if (!ACOConfig.enableTransactionalPatternBatching()) {
+            return null;
+        }
+        return inspect(provider, pattern, level, ACOConfig.requireSingleTransactionalBatchTarget(), true);
+    }
+
+    @Nullable
+    public static BatchTarget inspectV2(ICraftingProvider provider, IPatternDetails pattern, Level level) {
+        if (!ACOConfig.enableTransactionalBatchingV2()) {
+            return null;
+        }
+        return inspect(provider, pattern, level, true, false);
+    }
+
+    @Nullable
+    private static BatchTarget inspect(
+            ICraftingProvider provider,
+            IPatternDetails pattern,
+            Level level,
+            boolean requireSingleTarget,
+            boolean enforceLegacyNamespaces) {
+        if (provider == null
                 || pattern == null
                 || level == null
-                || !isSupportedProvider(provider)
+                || !(provider instanceof PatternProviderTransactionAccess access)
                 || !isSafeProcessingPattern(pattern)) {
             return null;
         }
 
         try {
-            ProviderAccess access = ACCESS.get(provider.getClass());
-            if (!access.supported()) {
+            if (!access.aco$isProviderBlocking()) {
                 return null;
             }
-            if (access.isBlocking(provider)) {
-                return null;
-            }
-            IConfigManager configManager = access.configManager(provider);
+            IConfigManager configManager = access.aco$getProviderConfigManager();
             if (configManager == null
                     || configManager.getSetting(Settings.LOCK_CRAFTING_MODE) != LockCraftingMode.NONE) {
                 return null;
@@ -63,12 +69,8 @@ public final class PatternProviderBatchEligibility {
                 return null;
             }
 
-            Object host = access.host(provider);
-            if (host == null) {
-                return null;
-            }
-            BlockEntity providerBlockEntity = access.blockEntity(host);
-            Collection<?> rawTargets = access.targets(host);
+            BlockEntity providerBlockEntity = access.aco$getProviderBlockEntity();
+            Collection<Direction> rawTargets = access.aco$getProviderTargets();
             if (providerBlockEntity == null
                     || providerBlockEntity.getLevel() != level
                     || rawTargets == null
@@ -77,18 +79,14 @@ public final class PatternProviderBatchEligibility {
             }
 
             List<Direction> targets = new ArrayList<>(rawTargets.size());
-            for (Object rawTarget : rawTargets) {
-                if (rawTarget instanceof Direction direction) {
-                    targets.add(direction);
-                }
-            }
+            targets.addAll(rawTargets);
             if (targets.isEmpty()
-                    || (ACOConfig.requireSingleTransactionalBatchTarget() && targets.size() != 1)) {
+                    || (requireSingleTarget && targets.size() != 1)) {
                 return null;
             }
 
             List<String> allowedNamespaces = ACOConfig.getTransactionalBatchTargetNamespaces();
-            if (allowedNamespaces.isEmpty()) {
+            if (enforceLegacyNamespaces && allowedNamespaces.isEmpty()) {
                 return null;
             }
             BlockPos providerPos = providerBlockEntity.getBlockPos();
@@ -97,7 +95,7 @@ public final class PatternProviderBatchEligibility {
                 BlockEntity target = level.getBlockEntity(targetPos);
                 Direction targetSide = providerSide.getOpposite();
                 if (target == null
-                        || !hasAllowedNamespace(target, allowedNamespaces)
+                        || (enforceLegacyNamespaces && !hasAllowedNamespace(target, allowedNamespaces))
                         || isDedicatedCraftingMachine(level, targetPos, targetSide, target)) {
                     return null;
                 }
@@ -116,21 +114,6 @@ public final class PatternProviderBatchEligibility {
         } catch (Throwable ignored) {
             return null;
         }
-    }
-
-    private static boolean isSupportedProvider(ICraftingProvider provider) {
-        return provider instanceof PatternProviderLogic || hasClassName(provider.getClass(), ADVANCED_PROVIDER_CLASS);
-    }
-
-    private static boolean hasClassName(Class<?> type, String expectedName) {
-        Class<?> current = type;
-        while (current != null) {
-            if (current.getName().equals(expectedName)) {
-                return true;
-            }
-            current = current.getSuperclass();
-        }
-        return false;
     }
 
     private static boolean isSafeProcessingPattern(IPatternDetails pattern) {
@@ -160,14 +143,8 @@ public final class PatternProviderBatchEligibility {
     }
 
     private static boolean directionalAdvancedPattern(IPatternDetails pattern) {
-        try {
-            Method method = pattern.getClass().getMethod("directionalInputsSet");
-            return Boolean.TRUE.equals(method.invoke(pattern));
-        } catch (NoSuchMethodException ignored) {
-            return false;
-        } catch (ReflectiveOperationException ignored) {
-            return true;
-        }
+        return ModList.get().isLoaded("advanced_ae")
+                && AdvancedAePatternProviderAccess.hasDirectionalInputs(pattern);
     }
 
     private static boolean hasAllowedNamespace(BlockEntity target, List<String> allowedNamespaces) {
@@ -195,73 +172,4 @@ public final class PatternProviderBatchEligibility {
             boolean deterministicTarget) {
     }
 
-    private record ProviderAccess(
-            @Nullable Field hostField,
-            @Nullable Method getBlockEntity,
-            @Nullable Method getTargets,
-            @Nullable Method isBlocking,
-            @Nullable Method getConfigManager) {
-
-        static ProviderAccess create(Class<?> providerType) {
-            try {
-                Field host = findField(providerType, "host");
-                host.setAccessible(true);
-                Class<?> hostType = host.getType();
-                Method blockEntity = hostType.getMethod("getBlockEntity");
-                Method targets = hostType.getMethod("getTargets");
-                Method blocking = providerType.getMethod("isBlocking");
-                Method configManager = providerType.getMethod("getConfigManager");
-                return new ProviderAccess(host, blockEntity, targets, blocking, configManager);
-            } catch (ReflectiveOperationException ignored) {
-                return new ProviderAccess(null, null, null, null, null);
-            }
-        }
-
-        boolean supported() {
-            return hostField != null
-                    && getBlockEntity != null
-                    && getTargets != null
-                    && isBlocking != null
-                    && getConfigManager != null;
-        }
-
-        @Nullable
-        Object host(Object provider) throws ReflectiveOperationException {
-            return hostField == null ? null : hostField.get(provider);
-        }
-
-        @Nullable
-        BlockEntity blockEntity(Object host) throws ReflectiveOperationException {
-            Object value = getBlockEntity == null ? null : getBlockEntity.invoke(host);
-            return value instanceof BlockEntity blockEntity ? blockEntity : null;
-        }
-
-        @Nullable
-        Collection<?> targets(Object host) throws ReflectiveOperationException {
-            Object value = getTargets == null ? null : getTargets.invoke(host);
-            return value instanceof Collection<?> collection ? collection : null;
-        }
-
-        boolean isBlocking(Object provider) throws ReflectiveOperationException {
-            return isBlocking != null && Boolean.TRUE.equals(isBlocking.invoke(provider));
-        }
-
-        @Nullable
-        IConfigManager configManager(Object provider) throws ReflectiveOperationException {
-            Object value = getConfigManager == null ? null : getConfigManager.invoke(provider);
-            return value instanceof IConfigManager configManager ? configManager : null;
-        }
-
-        private static Field findField(Class<?> type, String name) throws NoSuchFieldException {
-            Class<?> current = type;
-            while (current != null) {
-                try {
-                    return current.getDeclaredField(name);
-                } catch (NoSuchFieldException ignored) {
-                    current = current.getSuperclass();
-                }
-            }
-            throw new NoSuchFieldException(type.getName() + "." + name);
-        }
-    }
 }

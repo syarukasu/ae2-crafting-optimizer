@@ -2,7 +2,64 @@
 
 ## Scope
 
-This mod keeps AE2's final crafting result authoritative. Active behavior includes diagnostics, calculation de-duplication, short-lived missing/simulation plan caching, pattern/craftable lookup caching, crafting CPU execution pacing, Pattern Provider intent capture, and GTCEu/Mekanism item/fluid/chemical recipe intent fast paths. ACO 1.2.1 leaves AE2's terminal, storage-watcher, aggregate refresh, and terminal packet paths untouched because the corresponding Mixins are unregistered.
+This mod keeps AE2's final crafting result authoritative. Active 1.2.2 behavior includes diagnostics, calculation de-duplication, short-lived missing/simulation plan caching, pattern lookup caching, crafting CPU execution pacing, Pattern Provider intent capture, and GTCEu/Mekanism item/fluid/chemical recipe intent fast paths. ACO leaves AE2's mutable storage, terminal craftable, storage-watcher, aggregate refresh, terminal packet, Import/Export Bus, and IO Port paths untouched because the corresponding Mixins are unregistered.
+
+The source-only next-generation compiled planner, V2 durable native batching,
+fair scheduler, and BigInteger CPU sidecar API are documented separately in
+[EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md). Their master and
+behavior-changing switches remain disabled, and they are not part of the active
+1.2.2 behavior described below.
+
+## 1.3.0 Implementation Boundary
+
+The development backend is additive. It does not replace AE2's standard
+`CraftingTreeNode`, standard job NBT, terminal packets, or mutable storage paths.
+An unsupported or unproven calculation returns to AE2 before execution.
+
+The compiled planning layer consists of:
+
+- `CompiledCraftingGraph`, immutable pattern nodes, output indexes, and SCC data;
+- `GenerationAwareGraphCache` and `Ae2CompiledCraftingGraphCache`, which publish
+  a graph only if the provider generation remains unchanged;
+- `LongCraftingPlanner`, `BigCraftingPlanner`, and
+  `OverflowPromotingCraftingPlanner`, which keep small jobs on checked `long`
+  arithmetic and promote only overflowed deterministic plans;
+- `CompiledPlanningSession`, `PlanningGuard`, and generation/cancellation tokens,
+  which share one inventory snapshot and discard stale work;
+- `Ae2CraftingShadowValidator`, which compares only after AE2 has produced its
+  authoritative result.
+
+V2 execution uses Accessor Mixin contracts instead of field-name reflection:
+
+- `CraftingLogicTransactionAccess` exposes the current job, owner, and inventory;
+- `CraftingJobTransactionAccess` exposes task and waiting-output state;
+- `CraftingTaskProgressAccess` exposes the exact task counter;
+- `CraftingOwnerTransactionAccess` and cluster-host accessors locate a persisted
+  CPU again after chunk/server reload;
+- `PatternProviderTransactionAccess` exposes the real provider host and facing;
+- source and native receipt-store interfaces persist forward-only ledgers.
+
+Optional GTCEu and Mekanism implementation classes are loaded reflectively only
+to preserve optional class loading. After loading, their recipe and machine
+logic is typed. Registration requires the exact versions recorded in
+`RESEARCH_FINAL_ENGINE.md`. Missing transformations fail fast when the matching
+experimental feature is enabled.
+
+The source receipt uses explicit `EXTRACTING`, `ENERGY_ACCOUNTING`, and
+per-output `OUTPUT_ACCOUNTING` uncertainty barriers. A recovered transaction in
+one of those states is quarantined: ACO does not guess whether a partial input
+move, energy charge, or waiting-output insertion completed. Terminal source and
+target receipts are removed only after the overworld journal has reached and
+removed its terminal record; cleanup failure leaves bounded evidence instead of
+removing the last proof first.
+
+`BigCraftingEngineApi` is deliberately a host API, not an automatic Advanced AE
+patch. It creates a versioned `BigCraftingRuntime`, reserves BigInteger capacity,
+schedules bounded execution windows, persists jobs, and emits bounded status
+pages. AQE or another CPU add-on must explicitly own that runtime and its GUI;
+normal AE2 and Advanced AE continue to expose their original long-based jobs.
+Configured bit limits are enforced during intermediate planner arithmetic as
+well as runtime submission, NBT decode, and packet decode.
 
 ## Mixins
 
@@ -17,9 +74,6 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
   - Can cache short-lived completed missing/simulation plans.
   - Successful completed plans are not cached unless `cacheSuccessfulCompletedCraftingPlans = true`.
   - Does not synthesize successful `ICraftingPlan` results.
-- `CraftingServiceCraftableSetCacheMixin`
-  - Caches `CraftingService.getCraftables(filter)` results until crafting providers or nodes change.
-  - Stores immutable snapshots of AE2's reported craftable keys.
 - `CraftingServicePatternLookupCacheMixin`
   - Caches `CraftingService.getCraftingFor(output)` results until crafting providers or nodes change.
   - Stores immutable snapshots of the returned pattern collections.
@@ -27,22 +81,19 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
   - Redirects open ME terminal `MEStorage.getAvailableStacks()` calls through a per-menu snapshot for a few ticks.
   - Caches the private terminal craftable set for a few ticks.
   - Does not affect live insertion/extraction or storage mutation.
-  - Not registered in 1.2.1 because a stale zero-stock generation can conflict with clickable virtual slots in heavily modified clients.
+  - Retained only as compatibility source and remains unregistered in 1.2.2 because a stale zero-stock generation can conflict with clickable virtual slots in heavily modified clients.
 - `IncrementalUpdateHelperDeepRangeMixin` and `MEInventoryUpdatePacketBuilderRangeMixin`
   - Drain terminal full/delta changes in bounded rolling ranges.
   - Keep AE2's packet format, serial mapping, filters, and final values.
   - Retain unsent keys for the next menu tick instead of discarding them.
-  - Not registered in 1.2.1 so one interactive terminal generation remains coherent.
+  - Remain unregistered in 1.2.2 so one interactive terminal generation stays coherent.
 - `StorageServiceDeepCoalescingMixin`
   - Coalesces the aggregate `StorageService.onServerEndTick` rebuild into a configurable interval.
   - Direct storage insertion/extraction is untouched.
-  - Not registered in 1.2.1.
+  - Remains unregistered in 1.2.2.
 - `P2PServiceTopologyDeduplicationMixin`
   - AE2 15.4.10 already runs topology callbacks only for add/remove/frequency changes, so those callbacks remain untouched.
   - Coalesces duplicate full `wakeInputTunnels` sweeps from boot/power events inside the configured tick window.
-- `ExportBusFuzzySearchCacheMixin`
-  - Reuses immutable fuzzy-key results for a short bounded interval.
-  - Export transfer simulation and extraction still validate the current storage state.
 - `CraftingCpuHelperFluidFastPathMixin`
   - Handles a single exact fluid input without building AE2's fuzzy substitute list.
   - Falls back for substitutions or fuzzy-capable keys.
@@ -92,7 +143,7 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
 - `StorageServiceWatcherThrottleMixin`
   - Redirects storage watcher `onStackChange` calls through a small buffer when `throttleStorageWatcherUpdates = true`.
   - Flushes on `StorageService.onServerEndTick`, storage node changes, and cache invalidation.
-  - Not registered in 1.2.1.
+  - Remains unregistered in 1.2.2.
 - `CraftingCpuLogicExecutionBudgetMixin`
   - Redirects AE2's `CraftingCPUCluster.getCoProcessors()` call inside `CraftingCpuLogic.tickCraftingLogic`.
   - Caps the effective execution window before AE2 calls `executeCrafting`.
@@ -113,12 +164,18 @@ This mod keeps AE2's final crafting result authoritative. Active behavior includ
   - Uses ACO's server tick clock, shared with the standard AE2 execution wrapper, so both CPU implementations debit the same `CraftingService` budget in one tick.
   - Does not replace Neo ECO's normal, batch, or aggressive fast path; does not alter recipes, storage, CPU statistics, energy accounting, simulated crafts, status batching, or job persistence.
   - Is absent at runtime when `neoecoae` is not installed. Neo ECO 20.3.0 is present only as a compile-time signature target and is not bundled.
-- Transactional batch execution Mixins are removed in 1.2.2. Standard AE2 and Advanced AE now transfer every crafting input through their original execution paths.
+- `CraftingCpuLogicTransactionalBatchV2Mixin` / `AdvancedAeCraftingCpuLogicTransactionalBatchV2Mixin`
+  - Are isolated behind the default-off experimental master and V2 switches.
+  - Pause a CPU with unresolved source receipts even if feature switches are later disabled.
+  - Do not call the removed 1.2.0/1.2.1 transactional executor.
 - `AdvancedAePatternProviderIntentCaptureMixin`
   - Captures the same short-lived input/output intent from Advanced AE Pattern Providers as from standard AE2 providers.
-- Grid tick, Import/Export Bus, and IO Port Mixins are removed in 1.2.2. Their configuration keys remain readable compatibility no-ops.
+- Grid tick, Import/Export Bus, IO Port, capability, and storage-simulation
+  Mixins are unregistered in 1.2.2. Their configuration keys are compatibility
+  no-ops; AE2 owns every live transfer and rollback.
 - `CraftingServiceInvalidationMixin`
-  - Clears adaptive execution state, calculation de-duplication state, completed plan cache, failed craft-request throttle state, craftable-set cache, and pattern lookup cache when crafting providers or nodes change.
+  - Clears adaptive execution state, calculation de-duplication state, completed plan cache, failed craft-request throttle state, and pattern lookup cache when crafting providers or nodes change.
+  - The compatibility craftable-cache helper is also cleared defensively, but no craftable-set Mixin is registered.
 
 The build intentionally does not include the previous Craft Confirm GUI or CraftingTreeNode solver replacement mixins.
 
@@ -156,7 +213,7 @@ Storage cache invalidation and crafting provider invalidation clear the complete
 
 ## Deterministic Missing Fast-Fail
 
-The fast-fail path is disabled by default. When enabled, it only runs for `CalculationStrategy.REPORT_MISSING_ITEMS` and requests at least `minimumRequestedAmountForFastFail`.
+The fast-fail path is enabled by default. It only runs for `CalculationStrategy.REPORT_MISSING_ITEMS` and requests at least `minimumRequestedAmountForFastFail` (default `1`). Item, fluid, and chemical keys use the same generic AEKey proof path.
 
 It recursively follows only strict deterministic pattern paths:
 
@@ -184,19 +241,19 @@ The cache is cleared when `CraftingService.refreshNodeCraftingProvider`, `addNod
 
 ## Craftable Set Cache
 
-The craftable set cache wraps `CraftingService.getCraftables(AEKeyFilter)` with a weakly keyed per-service cache.
-
-This is useful for terminals and repeated provider scans. The cache stores only AE2's returned key set. It does not inspect patterns, create new craftable keys, or change recipe validity.
-
-The cache is cleared on the same crafting provider/node invalidation paths as the pattern lookup cache.
-
-Because some AE2 filter lambdas are short-lived, this cache is most effective when the same filter object is reused. Per-menu terminal caching covers the common open-terminal case where AE2 creates a fresh filter closure.
+The source key remains for configuration compatibility, but
+`CraftingServiceCraftableSetCacheMixin` is unregistered in 1.2.2. AE2 computes
+terminal craftables directly from its current repository generation.
 
 ## Storage Watcher Sync Throttle
 
-The storage watcher throttle is compatibility-disabled in 1.2.1. Its config key remains readable and defaults to false, but `StorageServiceWatcherThrottleMixin` is not registered.
+The storage watcher throttle has been compatibility-disabled since 1.2.1. Its
+config key remains readable and defaults to false, but
+`StorageServiceWatcherThrottleMixin` remains unregistered in 1.2.2.
 
-When enabled, calls to `IStorageWatcherNode.onStackChange` are buffered per watcher and key. The last amount for each key is retained and flushed every `storageWatcherUpdateIntervalTicks`, or sooner when buffered changes exceed `maximumBufferedChanges`.
+The retained historical implementation buffered
+`IStorageWatcherNode.onStackChange` by watcher and key. It is not reachable from
+the current runtime Mixin list.
 
 The retained implementation is not reachable at runtime. A replacement must preserve a coherent terminal generation and prove that a zero-stock insertion cannot be dropped before this path is registered again.
 
@@ -204,13 +261,16 @@ The retained implementation is not reachable at runtime. A replacement must pres
 
 `MEStorageMenu` normally refreshes craftables and calls `MEStorage.getAvailableStacks()` on every server-side broadcast tick while the terminal is open.
 
-The optimizer can reuse a per-menu `KeyCounter` snapshot for `terminalInventorySnapshotIntervalTicks` and a per-menu craftable set for `terminalCraftableCacheTicks`.
+The retained historical implementation could reuse a per-menu `KeyCounter`
+snapshot and craftable set for a few ticks.
 
 The returned `KeyCounter` is copied before reuse so AE2's later diffing does not mutate the cached snapshot.
 
 The deep range path keeps AE2's packet protocol but drains the helper's pending changes in bounded rolling ranges. It is not a client-requested virtual-page protocol; every key is still synchronized and searchable after the range completes.
 
-Snapshot pacing, craftable-set reuse, client view coalescing, and rolling ranges are not registered in 1.2.1. Their config keys remain no-ops for existing TOML compatibility.
+Snapshot pacing, craftable-set reuse, client view coalescing, and rolling ranges
+remain unregistered in 1.2.2. Their config keys are no-ops for existing TOML
+compatibility.
 
 ## Crafting Execution Budget
 
@@ -240,19 +300,15 @@ This is the mod's CrazyAE-style safety layer: giant CPU values are allowed, but 
 
 ### Transactional Pattern Batching
 
-The 1.1.0 experiment aggregated N processing inputs, then immediately registered N multiplied outputs in AE2's `waitingFor` inventory. AE2 Pattern Provider success can include partial insertion plus a retained `sendList`, so that return value was not an N-execution commit receipt. ACO 1.1.1 disabled that implementation, and its legacy config gate still always returns false.
+The 1.2.0/1.2.1 `CraftingCpuLogicTransactionalBatchMixin` classes are removed in
+1.2.2. The legacy API and config remain source-compatible, but no standard or
+Advanced AE CPU invokes `BatchedCraftingExecutor`.
 
-ACO 1.2.0 introduces `PatternBatchAdapter`, `PatternBatchContext`, `PatternBatchResult`, and `PatternBatchApi`. The contract requires a zero result to perform no mutation and a positive result to represent exactly that many durably accepted complete executions. The API validates result bounds centrally. Multi-target contexts are not offered to a native adapter unless it explicitly declares support.
-
-Adapters can narrow an offered batch through `limitExecutions` before ACO extracts aggregate inputs. ACO also limits the offer by exact CPU inventory availability and energy, avoiding large extract/reinsert cycles when only a smaller batch can run.
-
-`PatternBatchBudget` adds the hard deadline used by instant dispatch. The executor may continue through multiple batches and ready task entries in one CPU invocation, but stops at the effective CPU operation allowance, configured transaction count, or wall-clock deadline. This is an aggressive dispatch scheduler, not zero-tick external-machine execution.
-
-`BatchedCraftingExecutor` now accepts only exact external-processing patterns with one possible key per input and no remaining container. It extracts a checked aggregate from the CPU inventory, but expected outputs, energy, and task progress are scaled from the adapter's returned accepted count. Unaccepted extracted inputs are re-injected before control returns.
-
-The built-in `SequentialPatternProviderBatchAdapter` preserves one original `pushPattern` call per execution. It checks `isBusy()` before every call and stops on the first rejection or backpressure event. This removes the old semantic mismatch while still combining exact input extraction and CPU bookkeeping. Future GTCEu/Mekanism native adapters may reduce provider calls only if they can provide the same durable accepted-count guarantee.
-
-See [BATCH_API.md](BATCH_API.md) for the adapter contract and registration example.
+The new V2 path is a separate prepare/accept/account/reconcile protocol with
+durable source, target, and world-journal state. It is disabled at both master
+and child levels and is documented in
+[EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md). It must not be treated as an
+active 1.2.2 feature until the copied-world recovery matrix passes.
 
 AQE's non-experimental full default structure remains:
 
@@ -264,46 +320,21 @@ If the server shows MSPT spikes during real large crafts, the first fallback val
 
 For the adaptive path, the first fallback is lowering `targetCraftingExecutionMillis` from `4` to `2`; if crafts become too slow, raise it back to `4` or `6`.
 
-## Grid Tick Budget
+## Compatibility-Disabled Grid And I/O Budget
 
-The grid tick budget addresses a different bottleneck from crafting calculation or crafting CPU execution.
-
-AE2 IO Ports, Import Buses, Export Buses, ExtendedAE Ex buses, and the ExtendedAE Circuit Cutter are normal `IGridTickable` devices. In large packs they can become expensive because they repeatedly scan filters, adjacent inventories, cells, storage services, and export crafting state. With `ae2_overclocked` installed, several of these devices can also return `URGENT`, which keeps them scheduled aggressively.
-
-The optimizer hooks the AE2 tick manager boundary for measurement and opt-in pacing:
-
-```text
-TickManagerService -> unsafeTickingRequest(TickTracker, ticksSinceLastCall)
-```
-
-Before a selected non-progress-sensitive tickable runs, the optimizer checks the selected-device budget for the current server tick. If the budget is already spent, it returns `TickRateModulation.SLOWER` for that call. After it runs, ACO records elapsed time and may apply a short backoff. Import/Export Buses and Circuit Cutters are explicitly progress-sensitive: they are measured but never canceled or backed off by this layer.
-
-The exemption prevents repeated `SLOWER` returns from combining with backoff and starving a bus or processing machine that appears late in grid iteration order.
-
-Import/Export buses also get an operations-per-tick cap. This cap is applied after AE2 or speed-card addons calculate the value. It prevents a single bus from doing an integer-saturated burst while preserving filters, redstone control, scheduling mode, craft-only mode, and storage validity.
-
-Repeated idle returns can also trigger a short backoff. This targets polling loops where the selected tickable keeps reporting no work through `SLOWER` or `IDLE`.
-
-Export-bus-style craft request throttling is separate from the grid tick boundary. It hooks `MultiCraftingTracker` and only records failures after a completed job leaves no crafting link. This avoids hammering the crafting solver with the same impossible request every tick while still allowing active jobs and new requests to proceed.
-
-Grid tick budgeting is disabled by default because AE2 buses are correctness-sensitive and must be opt-in tested per pack.
-
-The opt-in grid tick values are intentionally conservative:
-
-```text
-gridTickBudgetMillisPerServerTick = 6
-slowGridTickableMicros = 2000
-slowGridTickableBackoffTicks = 2
-idleGridTickableBackoffAfterFailures = 4
-idleGridTickableBackoffTicks = 5
-maxIoBusOperationsPerTick = 4096
-```
-
-If automation becomes too slow but MSPT is stable, raise `gridTickBudgetMillisPerServerTick` first. If MSPT still spikes, lower `maxIoBusOperationsPerTick` or increase `slowGridTickableBackoffTicks`.
+The grid-tick deferral and I/O operation-cap Mixins are unregistered in 1.2.2.
+Their keys remain readable no-ops. The separate failed automatic-craft request
+cooldown still hooks `MultiCraftingTracker`, but it does not alter a live bus
+transfer.
 
 ## AE2-UEL-Inspired Safe Optimization Layer
 
-Version 1.2.2 retains only non-mutating calculation, provider-refresh, recipe-validation, and machine-intent optimizations. Capability, terminal craftable-set, Import/Export Bus, IO Port, storage simulation, and live transfer Mixins are removed. AE2 remains the sole owner of mutable storage amounts and every insertion, extraction, rollback, cell transfer, and terminal repository generation.
+Version 1.2.2 retains only non-mutating calculation, provider-refresh,
+recipe-validation, and machine-intent optimizations. Capability, terminal
+craftable-set, Import/Export Bus, IO Port, storage simulation, and live transfer
+Mixins are removed. AE2 remains the sole owner of mutable storage amounts and
+every insertion, extraction, rollback, cell transfer, and terminal repository
+generation.
 
 ## Machine Intent Boundary
 
@@ -319,13 +350,11 @@ Implemented in this mod:
 - GTCEu item/fluid output-indexed candidate prefixing before the normal recipe iterator,
 - Mekanism item/fluid/chemical output-indexed candidate selection before the normal machine recipe lookup,
 - pattern lookup reuse,
-- craftable set reuse,
 - exact duplicate craft calculation de-duplication,
 - short-lived missing/simulation plan reuse,
-- export-bus-style failed craft retry cooldown,
-- IO/import/export/circuit-cutter tick pacing.
+- export-bus-style failed craft retry cooldown.
 
-Compatibility-disabled in 1.2.1:
+Compatibility-disabled and still unregistered in 1.2.2:
 
 - terminal snapshot pacing,
 - terminal craftable reuse,
@@ -333,6 +362,14 @@ Compatibility-disabled in 1.2.1:
 - aggregate storage refresh coalescing,
 - rolling terminal range packets,
 - client terminal view coalescing.
+
+Also unregistered in 1.2.2:
+
+- terminal craftable-set reuse,
+- grid-tick deferral and idle backoff,
+- Import/Export Bus operation caps and mutable caches,
+- IO Port incremental transfer,
+- adjacent capability and storage-simulation caches.
 
 Implemented deep AE2 rewrite flags under `[deepAe2Rewrite]`:
 
@@ -343,7 +380,12 @@ Implemented deep AE2 rewrite flags under `[deepAe2Rewrite]`:
 - `busSearchRewrite`
 - `fluidPatternRework`
 
-`patternSelectionByAvailability`, `p2pTopologyChangeOnlyRecheck`, `busSearchRewrite`, and `fluidPatternRework` gate active implementations and return directly to AE2's original path when disabled. `networkForceUpdateCoalescing` and `visibleTerminalRangeSync` remain readable compatibility keys but have no registered Mixins in 1.2.1. The master switch disables every active deep path at once.
+`patternSelectionByAvailability`, `p2pTopologyChangeOnlyRecheck`, and
+`fluidPatternRework` gate active implementations and return directly to AE2's
+original path when disabled. `networkForceUpdateCoalescing`,
+`visibleTerminalRangeSync`, and `busSearchRewrite` remain readable compatibility
+keys but have no registered Mixins in 1.2.2. The master switch disables every
+active deep path at once.
 
 Not implemented in this mod:
 

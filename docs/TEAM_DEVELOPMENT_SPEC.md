@@ -1,6 +1,6 @@
 # ACO Team Development Specification
 
-この文書は、AE2 Crafting Optimizer（ACO）を複数人で開発するための共通仕様です。現行基準は `1.2.1` です。
+この文書は、AE2 Crafting Optimizer（ACO）を複数人で開発するための共通仕様です。安定版の現行基準は `1.3.0` です。深い実験機能は既定で無効とし、有効化前にコピーしたワールドで復旧・ゲーム内試験を行います。
 
 ## 製品定義
 
@@ -19,7 +19,7 @@
 - 巨大自動クラフトの計算待ち時間と重複計算を減らします。
 - 巨大クラフトCPUが一tickへ集中させるパターン投入負荷を制御します。
 - 複数CPUが同時に動いた際のMEグリッド全体のMSPT上昇を抑えます。
-- Pattern Provider、ストレージ、端末、Import/Export Bus、IO Portの反復処理を減らします。
+- Pattern Providerとクラフト計算の反復処理を減らします。可変ストレージ、端末、Import/Export Bus、IO Portは1.2.2でAE2本体へ完全に戻しており、再導入には独立した安全性試験を必須とします。
 - GTCEu、Mekanism、Advanced AE、ExtendedAEなどの頻出ホットパスを安全な範囲で短縮します。
 - TPSを守りながら、元のAE2と同じクラフト結果、在庫、進捗、復元結果を維持します。
 - 大規模工業環境で、最適化の有無をConfig一つで比較できるようにします。
@@ -126,23 +126,19 @@
 - `/reload`、レシピ世代変更、期限切れでIntent索引を破棄します。
 - Create連携キーは予約済みですが、実体のない高速経路を実装済みとして扱いません。
 
-## 搬入出とGrid Tick
+## 搬入出とGrid Tick（1.2.2では互換No-op）
 
-- Import Busは前回成功スロットを最初に試し、失敗時は必ず全スキャンへ戻ります。
-- Export Busの候補キーは設定世代が変わるまで再利用します。
-- 失敗した搬入出シミュレーションは同一条件・短期間だけ共有し、実搬入出を省略しません。
-- 隣接Capabilityは同tick内でBlock Entity同一性を確認した上で再利用します。
-- tickを跨ぐCapabilityキャッシュは外部MODのInvalidation品質に依存するため既定OFFとします。
-- IO Portは永続ラウンドロビンカーソルを使い、既定で一tickに `2` セルスロットを検査します。
-- セル移動そのものは原子的に行い、途中状態や重複排出を作りません。
-- IO Busのハード操作上限はスループットを変えるため既定OFFとします。
+- Import/Export Bus、IO Port、Capability、搬入出シミュレーション、Grid Tick遅延のMixinは1.2.2で登録解除しています。
+- 対応Configキーは既存TOML互換のため残りますが、`true`でも動作しません。
+- 再実装する場合、Import Busは前回成功スロット失敗後に必ず全スキャンへ戻す必要があります。
+- 再実装する場合、セル移動は原子的で、途中状態・重複排出・超過分消失を作ってはいけません。
+- 再実装する場合、Capability無効化、隣接Block Entity交換、満杯解除、チャンク再読込を独立試験します。
 - 自動クラフト失敗のCooldownは、在庫・パターン変更後の有効要求を妨げない失効条件を持たせます。
-- Grid Tick予算による遅延はスループットへ影響するため既定OFFとします。
-- Import/Export BusとExtendedAE Circuit Cutterをハード遅延対象にせず、枯渇を防ぎます。
+- 自動クラフト失敗Cooldownは別経路であり、実搬入出を置換しません。
 
 ## 端末と同期
 
-- `1.2.1`では、Storage Watcher、aggregate refresh、端末snapshot、range packet、client Repo coalescingのMixinを互換性のため登録解除しています。
+- 1.2.2では、Storage Watcher、aggregate refresh、端末snapshot、craftable-set、range packet、client Repo coalescingのMixinを互換性のため登録解除しています。
 - 上記のConfigキーは既存TOML互換のため残しますが、対応Mixinを再登録するまでは動作しない互換キーとして扱います。
 - Storage Watcherの間引きはクライアント表示用更新だけを対象にします。
 - 実際の挿入、抽出、クラフトは常に現在のAE2ストレージへ問い合わせます。
@@ -160,7 +156,7 @@
 - 同一tick内の重複Provider Refreshはまとめますが、クラフト計算開始前には必ずflushします。
 - P2P再評価は同一内容の重複通知だけを短時間除外します。
 - P2Pの接続、切断、向き、周波数、電力状態が変わった場合は即時再評価します。
-- Storage aggregateの更新通知をまとめても、最終状態は設定間隔内に必ず収束させます。
+- Storage aggregate更新の再実装を行う場合、最終状態が設定間隔内に必ず収束することを証明します。現行1.2.2では対応Mixinは未登録です。
 
 ## Add-on連携
 
@@ -271,7 +267,7 @@
 - Release Notesには既定ON/OFF、互換性、危険性、移行手順を明記します。
 - native Batch Adapter追加時は、対応機械と保証する永続化境界を明記します。
 
-## 現時点の非目標
+## 安定版ランタイムの非目標
 
 - AE2のCrafting Graph Solverを独自実装へ置換しません。
 - AE2-UELを1.20.1へ丸ごと移植しません。
@@ -281,13 +277,17 @@
 - 機械の出力をACOが代理生成しません。
 - Storage内容やNetwork TopologyをACO独自形式で保存しません。
 - Bukkit/Paper/Arclight専用処理を追加しません。
-- BigInteger在庫や独自ストレージ型を追加しません。
+- 通常AE2の在庫、標準CPU、標準PacketをBigInteger型へ置換しません。実験ツリーの
+  BigInteger機能は、明示連携するCPU追加MOD用のversioned sidecar APIに限定します。
 - 非同期スレッドでAE2のmutable stateを探索しません。
 
-## 将来候補の合格条件
+## 実験機能の合格条件
 
-- Native GTCEu/Mekanism Batchは、機械側が完全実行単位を原子的にenqueueして実受理数を返せる場合だけ検討します。
-- 部分挿入しか提供できない機械はNative Batch対象にしません。
+- V2 Native GTCEu/Mekanism Batchは、完全一致レシピ、上流の実処理上限、Pattern
+  Providerの永続send buffer、all-or-zero受領票をすべて確認できる場合だけ実行します。
+- 部分受理、曖昧なターゲット、確率出力、返却物、未対応CapabilityはNative Batch対象にしません。
+- BigInteger CPUホストは、保存、再起動、複数ジョブ、キャンセル、ページ同期、long実行窓の
+  全試験を通過するまでAQEや通常AE2へ接続しません。
 - 端末のVisible Range Syncは、世代単位のatomic snapshotとclick整合性を証明してから既定ONを検討します。
 - 成功済みCraft Plan Cacheは、提出直前の在庫・Provider世代再検証を実装してから既定ONを検討します。
 - tick跨ぎCapability Cacheは、対象MODのInvalidationを実機で確認してから個別allow-list化します。

@@ -12,9 +12,9 @@ import appeng.api.stacks.KeyCounter;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import net.minecraft.world.level.Level;
@@ -37,138 +37,102 @@ public final class DeterministicCraftingPreflight {
             return null;
         }
 
-        PreflightState state = new PreflightState(grid.getStorageService().getCachedInventory());
-        MissingResult missing = state.require(craftingService, level, output, amount, 0, new HashSet<>());
-        if (missing == null || missing == MissingResult.UNKNOWN) {
+        PreflightGraph graph = new PreflightGraph(craftingService, grid.getStorageService().getCachedInventory());
+        DeterministicMissingProof.Missing<AEKey> missing = DeterministicMissingProof.find(
+                graph,
+                output,
+                amount,
+                ACOConfig.getDeterministicPreflightMaxDepth(),
+                ACOConfig.getDeterministicPreflightMaxNodes());
+        if (missing == null) {
             return null;
         }
 
         long simulatedAvailable = grid.getStorageService().getInventory().extract(
-                missing.key,
-                missing.amount,
+                missing.key(),
+                missing.amount(),
                 Actionable.SIMULATE,
                 requester.getActionSource());
-        long verifiedMissing = saturatingSubtract(missing.amount, simulatedAvailable);
+        long verifiedMissing = DeterministicMissingProof.saturatingSubtract(missing.amount(), simulatedAvailable);
         if (verifiedMissing <= 0) {
             return null;
         }
 
         if (ACOConfig.logFastFailMissingCrafts()) {
             AE2CraftingOptimizer.LOGGER.info(
-                    "Fast-failed deterministic AE2 craft for {} x{}: missing {} x{}",
+                    "Fast-failed deterministic AE2 craft for {} x{}: missing {} ({}) x{}",
                     output.getId(),
                     amount,
-                    missing.key.getId(),
+                    missing.key().getId(),
+                    missing.key().getClass().getSimpleName(),
                     verifiedMissing);
         }
 
-        return CompletableFuture.completedFuture(new MissingOnlyCraftingPlan(output, amount, missing.key, verifiedMissing));
+        return CompletableFuture.completedFuture(new MissingOnlyCraftingPlan(output, amount, missing.key(), verifiedMissing));
     }
 
-    private static long ceilDiv(long value, long divisor) {
-        if (value <= 0 || divisor <= 0) {
-            return 0;
-        }
-        return 1 + (value - 1) / divisor;
-    }
-
-    private static long saturatingMultiply(long left, long right) {
-        if (left <= 0 || right <= 0) {
-            return 0;
-        }
-        if (left > Long.MAX_VALUE / right) {
-            return Long.MAX_VALUE;
-        }
-        return left * right;
-    }
-
-    private static long saturatingSubtract(long left, long right) {
-        if (right >= left) {
-            return 0;
-        }
-        return left - right;
-    }
-
-    private static final class PreflightState {
+    private static final class PreflightGraph
+            implements DeterministicMissingProof.Graph<AEKey, IPatternDetails, IPatternDetails.IInput> {
+        private final CraftingService craftingService;
         private final KeyCounter available;
-        private int visitedNodes;
 
-        private PreflightState(KeyCounter cachedInventory) {
+        private PreflightGraph(CraftingService craftingService, KeyCounter cachedInventory) {
+            this.craftingService = craftingService;
             this.available = new KeyCounter();
             this.available.addAll(cachedInventory);
         }
 
-        private MissingResult require(
-                CraftingService craftingService,
-                Level level,
-                AEKey key,
-                long amount,
-                int depth,
-                Set<AEKey> stack) {
-            if (amount <= 0) {
-                return null;
-            }
-            if (depth > ACOConfig.getDeterministicPreflightMaxDepth()
-                    || ++visitedNodes > ACOConfig.getDeterministicPreflightMaxNodes()
-                    || !stack.add(key)) {
-                return MissingResult.UNKNOWN;
-            }
-
-            long stored = available.get(key);
-            long used = Math.min(stored, amount);
-            if (used > 0) {
-                available.remove(key, used);
-                amount -= used;
-            }
-            if (amount <= 0) {
-                stack.remove(key);
-                return null;
-            }
-
-            if (craftingService.canEmitFor(key)) {
-                stack.remove(key);
-                return MissingResult.UNKNOWN;
-            }
-
-            Collection<IPatternDetails> patterns = craftingService.getCraftingFor(key);
-            if (patterns.isEmpty()) {
-                stack.remove(key);
-                return new MissingResult(key, amount);
-            }
-            if (patterns.size() != 1) {
-                stack.remove(key);
-                return MissingResult.UNKNOWN;
-            }
-
-            IPatternDetails pattern = patterns.iterator().next();
-            GenericStack[] outputs = pattern.getOutputs();
-            if (outputs.length != 1 || !key.matches(outputs[0]) || outputs[0].amount() <= 0) {
-                stack.remove(key);
-                return MissingResult.UNKNOWN;
-            }
-
-            long batches = ceilDiv(amount, outputs[0].amount());
-            for (IPatternDetails.IInput input : pattern.getInputs()) {
-                GenericStack[] possibleInputs = input.getPossibleInputs();
-                if (possibleInputs.length != 1 || possibleInputs[0].amount() <= 0 || input.getMultiplier() <= 0) {
-                    stack.remove(key);
-                    return MissingResult.UNKNOWN;
-                }
-                long needed = saturatingMultiply(possibleInputs[0].amount(), input.getMultiplier());
-                needed = saturatingMultiply(needed, batches);
-                MissingResult missing = require(craftingService, level, possibleInputs[0].what(), needed, depth + 1, stack);
-                if (missing != null) {
-                    stack.remove(key);
-                    return missing;
-                }
-            }
-
-            stack.remove(key);
-            return null;
+        @Override
+        public long available(AEKey key) {
+            return available.get(key);
         }
-    }
 
-    private record MissingResult(AEKey key, long amount) {
-        private static final MissingResult UNKNOWN = new MissingResult(null, -1);
+        @Override
+        public boolean canEmit(AEKey key) {
+            return craftingService.canEmitFor(key);
+        }
+
+        @Override
+        public Collection<IPatternDetails> patterns(AEKey key) {
+            return craftingService.getCraftingFor(key);
+        }
+
+        @Override
+        public long outputAmountPerExecution(IPatternDetails pattern, AEKey requestedKey) {
+            long total = 0;
+            for (GenericStack output : pattern.getOutputs()) {
+                if (requestedKey.matches(output) && output.amount() > 0) {
+                    total = DeterministicMissingProof.saturatingAdd(total, output.amount());
+                }
+            }
+            return total;
+        }
+
+        @Override
+        public Collection<IPatternDetails.IInput> inputs(IPatternDetails pattern) {
+            return List.of(pattern.getInputs());
+        }
+
+        @Override
+        public Collection<DeterministicMissingProof.Requirement<AEKey>> alternatives(
+                IPatternDetails.IInput input,
+                long executions) {
+            if (input.getMultiplier() <= 0) {
+                return List.of();
+            }
+            GenericStack[] possibleInputs = input.getPossibleInputs();
+            List<DeterministicMissingProof.Requirement<AEKey>> alternatives = new ArrayList<>(possibleInputs.length);
+            for (GenericStack possibleInput : possibleInputs) {
+                if (possibleInput == null || possibleInput.what() == null || possibleInput.amount() <= 0) {
+                    return List.of();
+                }
+                long amount = DeterministicMissingProof.saturatingMultiply(
+                        possibleInput.amount(),
+                        input.getMultiplier());
+                amount = DeterministicMissingProof.saturatingMultiply(amount, executions);
+                alternatives.add(new DeterministicMissingProof.Requirement<>(possibleInput.what(), amount));
+            }
+            return alternatives;
+        }
     }
 }

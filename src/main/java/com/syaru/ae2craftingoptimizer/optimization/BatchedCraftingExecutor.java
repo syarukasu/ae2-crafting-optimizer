@@ -11,14 +11,17 @@ import appeng.crafting.execution.CraftingCpuHelper;
 import appeng.crafting.inv.ICraftingInventory;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
+import com.syaru.ae2craftingoptimizer.access.CraftingJobTransactionAccess;
+import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
+import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
+import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchAdapter;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchApi;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchBudget;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchContext;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchResult;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -36,31 +39,6 @@ public final class BatchedCraftingExecutor {
 
     private static final Set<String> ACCESS_FAILURES_LOGGED =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private static final ClassValue<LogicAccess> LOGIC_ACCESS = new ClassValue<>() {
-        @Override
-        protected LogicAccess computeValue(Class<?> type) {
-            return LogicAccess.create(type);
-        }
-    };
-    private static final ClassValue<JobAccess> JOB_ACCESS = new ClassValue<>() {
-        @Override
-        protected JobAccess computeValue(Class<?> type) {
-            return JobAccess.create(type);
-        }
-    };
-    private static final ClassValue<ProgressAccess> PROGRESS_ACCESS = new ClassValue<>() {
-        @Override
-        protected ProgressAccess computeValue(Class<?> type) {
-            return ProgressAccess.create(type);
-        }
-    };
-    private static final ClassValue<OwnerAccess> OWNER_ACCESS = new ClassValue<>() {
-        @Override
-        protected OwnerAccess computeValue(Class<?> type) {
-            return OwnerAccess.create(type);
-        }
-    };
-
     private BatchedCraftingExecutor() {
     }
 
@@ -92,46 +70,39 @@ public final class BatchedCraftingExecutor {
                 ? deadlineAfterMillis(ACOConfig.getInstantPatternDispatchTimeBudgetMillis())
                 : Long.MAX_VALUE;
         try {
-            LogicAccess logicAccess = LOGIC_ACCESS.get(logic.getClass());
-            if (!logicAccess.supported()) {
-                logAccessFailure(logic.getClass(), "required CPU fields were not found", null);
+            if (!(logic instanceof CraftingLogicTransactionAccess logicAccess)) {
+                logAccessFailure(logic.getClass(), "required CPU access mixin was not applied", null);
                 return NOT_HANDLED;
             }
-            Object job = logicAccess.job(logic);
-            Object owner = logicAccess.owner(logic);
-            ICraftingInventory inventory = logicAccess.inventory(logic);
+            Object job = logicAccess.aco$getExecutingJob();
+            CraftingOwnerTransactionAccess owner = logicAccess.aco$getCraftingOwner();
+            ICraftingInventory inventory = logicAccess.aco$getCraftingInventory();
             if (job == null || owner == null || inventory == null) {
                 return NOT_HANDLED;
             }
             pendingInventory = inventory;
 
-            JobAccess jobAccess = JOB_ACCESS.get(job.getClass());
-            OwnerAccess ownerAccess = OWNER_ACCESS.get(owner.getClass());
-            if (!jobAccess.supported() || !ownerAccess.supported()) {
-                logAccessFailure(logic.getClass(), "required crafting job or CPU owner fields were not found", null);
+            if (!(job instanceof CraftingJobTransactionAccess jobAccess)) {
+                logAccessFailure(logic.getClass(), "required crafting job access mixin was not applied", null);
                 return NOT_HANDLED;
             }
-            Map<?, ?> tasks = jobAccess.tasks(job);
-            ICraftingInventory waitingFor = jobAccess.waitingFor(job);
+            Map<IPatternDetails, Object> tasks = jobAccess.aco$getTasks();
+            ICraftingInventory waitingFor = jobAccess.aco$getWaitingFor();
             if (tasks == null || waitingFor == null || tasks.isEmpty()) {
                 return NOT_HANDLED;
             }
 
-            Iterator<? extends Map.Entry<?, ?>> iterator = tasks.entrySet().iterator();
+            Iterator<Map.Entry<IPatternDetails, Object>> iterator = tasks.entrySet().iterator();
             while (iterator.hasNext()
                     && acceptedTotal < maxPatterns
                     && transactionCount < maximumTransactions
                     && hasTimeRemaining(deadlineNanos)) {
-                Map.Entry<?, ?> task = iterator.next();
-                if (!(task.getKey() instanceof IPatternDetails details) || task.getValue() == null) {
+                Map.Entry<IPatternDetails, Object> task = iterator.next();
+                IPatternDetails details = task.getKey();
+                if (details == null || !(task.getValue() instanceof CraftingTaskProgressAccess progress)) {
                     continue;
                 }
-                ProgressAccess progressAccess = PROGRESS_ACCESS.get(task.getValue().getClass());
-                if (!progressAccess.supported()) {
-                    logAccessFailure(logic.getClass(), "crafting task progress field was not found", null);
-                    return acceptedTotal > 0 ? acceptedTotal : NOT_HANDLED;
-                }
-                long remainingExecutions = progressAccess.get(task.getValue());
+                long remainingExecutions = progress.aco$getTaskProgress();
                 if (remainingExecutions < 2L) {
                     continue;
                 }
@@ -217,8 +188,8 @@ public final class BatchedCraftingExecutor {
                     }
 
                     remainingExecutions -= accepted;
-                    progressAccess.set(task.getValue(), remainingExecutions);
-                    ownerAccess.markDirty(owner);
+                    progress.aco$setTaskProgress(remainingExecutions);
+                    owner.aco$markCraftingOwnerDirty();
                     OptimizationMetrics.recordTransactionalPatternBatch(accepted);
                     acceptedTotal = Math.addExact(acceptedTotal, Math.toIntExact(accepted));
                     pendingExtraction = null;
@@ -271,14 +242,16 @@ public final class BatchedCraftingExecutor {
             IPatternDetails details,
             ExactPatternPlan plan,
             Level level) {
-        for (ICraftingProvider provider : craftingService.getProviders(details)) {
+        boolean sawAvailableProvider = false;
+        for (ICraftingProvider provider : PatternProviderRoutingCache.candidates(craftingService, details)) {
             if (provider.isBusy()) {
                 continue;
             }
+            sawAvailableProvider = true;
             PatternProviderBatchEligibility.BatchTarget target =
                     PatternProviderBatchEligibility.inspect(provider, details, level);
             if (target == null) {
-                return ProviderSelection.UNSUPPORTED;
+                continue;
             }
             PatternBatchContext context = new PatternBatchContext(
                     provider,
@@ -292,11 +265,11 @@ public final class BatchedCraftingExecutor {
                     target.deterministicTarget());
             PatternBatchAdapter adapter = PatternBatchApi.find(context).orElse(null);
             if (adapter == null) {
-                return ProviderSelection.UNSUPPORTED;
+                continue;
             }
             return new ProviderSelection(adapter, context);
         }
-        return null;
+        return sawAvailableProvider ? ProviderSelection.UNSUPPORTED : null;
     }
 
     private static long limitByEnergy(
@@ -481,150 +454,4 @@ public final class BatchedCraftingExecutor {
         private static final ProviderSelection UNSUPPORTED = new ProviderSelection(null, null);
     }
 
-    private record LogicAccess(
-            @Nullable Field jobField,
-            @Nullable Field inventoryField,
-            @Nullable Field ownerField) {
-
-        static LogicAccess create(Class<?> type) {
-            try {
-                Field job = findField(type, "job");
-                Field inventory = findField(type, "inventory");
-                Field owner;
-                try {
-                    owner = findField(type, "cluster");
-                } catch (NoSuchFieldException ignored) {
-                    owner = findField(type, "cpu");
-                }
-                job.setAccessible(true);
-                inventory.setAccessible(true);
-                owner.setAccessible(true);
-                return new LogicAccess(job, inventory, owner);
-            } catch (ReflectiveOperationException ignored) {
-                return new LogicAccess(null, null, null);
-            }
-        }
-
-        boolean supported() {
-            return jobField != null && inventoryField != null && ownerField != null;
-        }
-
-        @Nullable
-        Object job(Object logic) throws IllegalAccessException {
-            return jobField == null ? null : jobField.get(logic);
-        }
-
-        @Nullable
-        Object owner(Object logic) throws IllegalAccessException {
-            return ownerField == null ? null : ownerField.get(logic);
-        }
-
-        @Nullable
-        ICraftingInventory inventory(Object logic) throws IllegalAccessException {
-            Object value = inventoryField == null ? null : inventoryField.get(logic);
-            return value instanceof ICraftingInventory inventory ? inventory : null;
-        }
-    }
-
-    private record JobAccess(@Nullable Field tasksField, @Nullable Field waitingForField) {
-        static JobAccess create(Class<?> type) {
-            try {
-                Field tasks = findField(type, "tasks");
-                Field waitingFor = findField(type, "waitingFor");
-                tasks.setAccessible(true);
-                waitingFor.setAccessible(true);
-                return new JobAccess(tasks, waitingFor);
-            } catch (ReflectiveOperationException ignored) {
-                return new JobAccess(null, null);
-            }
-        }
-
-        boolean supported() {
-            return tasksField != null && waitingForField != null;
-        }
-
-        @Nullable
-        Map<?, ?> tasks(Object job) throws IllegalAccessException {
-            Object value = tasksField == null ? null : tasksField.get(job);
-            return value instanceof Map<?, ?> map ? map : null;
-        }
-
-        @Nullable
-        ICraftingInventory waitingFor(Object job) throws IllegalAccessException {
-            Object value = waitingForField == null ? null : waitingForField.get(job);
-            return value instanceof ICraftingInventory inventory ? inventory : null;
-        }
-    }
-
-    private record ProgressAccess(@Nullable Field valueField) {
-        static ProgressAccess create(Class<?> type) {
-            try {
-                Field value = findField(type, "value");
-                value.setAccessible(true);
-                return new ProgressAccess(value);
-            } catch (ReflectiveOperationException ignored) {
-                return new ProgressAccess(null);
-            }
-        }
-
-        boolean supported() {
-            return valueField != null;
-        }
-
-        long get(Object progress) throws IllegalAccessException {
-            return valueField == null ? 0L : valueField.getLong(progress);
-        }
-
-        void set(Object progress, long value) throws IllegalAccessException {
-            if (valueField != null) {
-                valueField.setLong(progress, value);
-            }
-        }
-    }
-
-    private record OwnerAccess(@Nullable Method markDirtyMethod) {
-        static OwnerAccess create(Class<?> type) {
-            try {
-                Method markDirty = findMethod(type, "markDirty");
-                markDirty.setAccessible(true);
-                return new OwnerAccess(markDirty);
-            } catch (ReflectiveOperationException ignored) {
-                return new OwnerAccess(null);
-            }
-        }
-
-        boolean supported() {
-            return markDirtyMethod != null;
-        }
-
-        void markDirty(Object owner) throws ReflectiveOperationException {
-            if (markDirtyMethod != null) {
-                markDirtyMethod.invoke(owner);
-            }
-        }
-    }
-
-    private static Field findField(Class<?> type, String name) throws NoSuchFieldException {
-        Class<?> current = type;
-        while (current != null) {
-            try {
-                return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-                current = current.getSuperclass();
-            }
-        }
-        throw new NoSuchFieldException(type.getName() + "." + name);
-    }
-
-    private static Method findMethod(Class<?> type, String name) throws NoSuchMethodException {
-        Class<?> current = type;
-        while (current != null) {
-            try {
-                return current.getDeclaredMethod(name);
-            } catch (NoSuchMethodException ignored) {
-                current = current.getSuperclass();
-            }
-        }
-        return type.getMethod(name);
-    }
 }

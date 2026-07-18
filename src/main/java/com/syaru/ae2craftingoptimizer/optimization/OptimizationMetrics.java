@@ -2,6 +2,8 @@ package com.syaru.ae2craftingoptimizer.optimization;
 
 import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 
 public final class OptimizationMetrics {
     private static final LongAdder SHARED_BUDGET_LIMITS = new LongAdder();
@@ -21,6 +23,11 @@ public final class OptimizationMetrics {
     private static final LongAdder ASSEMBLER_MATRIX_STATUS_UPDATES_COALESCED = new LongAdder();
     private static final LongAdder TRANSACTIONAL_PATTERN_BATCH_COMMITS = new LongAdder();
     private static final LongAdder TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS = new LongAdder();
+    private static final LongAdder CRAFTING_ENGINE_SHADOW_MATCHES = new LongAdder();
+    private static final LongAdder CRAFTING_ENGINE_SHADOW_MISMATCHES = new LongAdder();
+    private static final LongAdder CRAFTING_ENGINE_SHADOW_SKIPS = new LongAdder();
+    private static final LongAdder CRAFTING_ENGINE_SHADOW_OVERFLOWS = new LongAdder();
+    private static final Map<String, LongAdder> NATIVE_BATCH_EXECUTIONS = new ConcurrentHashMap<>();
 
     private OptimizationMetrics() {
     }
@@ -74,6 +81,22 @@ public final class OptimizationMetrics {
         TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS.add(Math.max(1L, patternExecutions));
     }
 
+    public static void recordCraftingEngineShadowComparison(boolean matched) {
+        (matched ? CRAFTING_ENGINE_SHADOW_MATCHES : CRAFTING_ENGINE_SHADOW_MISMATCHES).increment();
+    }
+
+    public static void recordCraftingEngineShadowSkipped() {
+        CRAFTING_ENGINE_SHADOW_SKIPS.increment();
+    }
+
+    public static void recordCraftingEngineShadowOverflow() {
+        CRAFTING_ENGINE_SHADOW_OVERFLOWS.increment();
+    }
+
+    public static void recordNativePatternBatch(String adapterId, long executions) {
+        NATIVE_BATCH_EXECUTIONS.computeIfAbsent(adapterId, ignored -> new LongAdder()).add(executions);
+    }
+
     public static List<String> summaryLines() {
         long gtHits = GT_CANDIDATE_CACHE_HITS.sum();
         long gtMisses = GT_CANDIDATE_CACHE_MISSES.sum();
@@ -94,6 +117,11 @@ public final class OptimizationMetrics {
                 "Transactional pattern batching: " + TRANSACTIONAL_PATTERN_BATCH_COMMITS.sum()
                         + " adapter commit(s), " + TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS.sum()
                         + " exactly accepted execution(s)",
+                "Experimental planner Shadow Mode: " + CRAFTING_ENGINE_SHADOW_MATCHES.sum()
+                        + " match(es), " + CRAFTING_ENGINE_SHADOW_MISMATCHES.sum()
+                        + " mismatch(es), " + CRAFTING_ENGINE_SHADOW_SKIPS.sum()
+                        + " skip(s), " + CRAFTING_ENGINE_SHADOW_OVERFLOWS.sum() + " overflow(s)",
+                "Experimental native batch executions: " + NATIVE_BATCH_EXECUTIONS,
                 "AE2 Overclock reflection cache: " + reflectionHits + " hit(s), " + reflectionMisses
                         + " miss(es), " + percent(reflectionHits, reflectionMisses) + "% hit rate",
                 "AE2 Overclock upgrade-count cache: " + upgradeHits + " hit(s), " + upgradeMisses
@@ -123,6 +151,11 @@ public final class OptimizationMetrics {
         ASSEMBLER_MATRIX_STATUS_UPDATES_COALESCED.reset();
         TRANSACTIONAL_PATTERN_BATCH_COMMITS.reset();
         TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS.reset();
+        CRAFTING_ENGINE_SHADOW_MATCHES.reset();
+        CRAFTING_ENGINE_SHADOW_MISMATCHES.reset();
+        CRAFTING_ENGINE_SHADOW_SKIPS.reset();
+        CRAFTING_ENGINE_SHADOW_OVERFLOWS.reset();
+        NATIVE_BATCH_EXECUTIONS.clear();
     }
 
     private static long percent(long hits, long misses) {

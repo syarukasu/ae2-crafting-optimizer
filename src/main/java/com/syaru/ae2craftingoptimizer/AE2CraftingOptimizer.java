@@ -6,6 +6,8 @@ import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchApi;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
+import com.syaru.ae2craftingoptimizer.integration.OptionalNativeBatchIntegrations;
+import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
 import com.syaru.ae2craftingoptimizer.mekanism.MekanismRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.optimization.BusFuzzySearchCache;
 import com.syaru.ae2craftingoptimizer.optimization.BusTransferSimulationCache;
@@ -17,7 +19,18 @@ import com.syaru.ae2craftingoptimizer.optimization.P2PNotificationDeduplicator;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
+import com.syaru.ae2craftingoptimizer.optimization.NativeBatchTargetGuard;
 import com.syaru.ae2craftingoptimizer.optimization.MethodHandleInvocationCache;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
+import com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusInbox;
+import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRegistry;
+import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
+import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
+import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecovery;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchV2Api;
+import com.syaru.ae2craftingoptimizer.batch.PatternTaskFingerprint;
+import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.OnDatapackSyncEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -38,9 +51,11 @@ public final class AE2CraftingOptimizer {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public AE2CraftingOptimizer() {
+        BigCraftingNetwork.register();
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         ACOConfig.register();
         PatternBatchApi.registerBuiltIns();
+        PatternBatchV2Api.registerBuiltIns();
         modBus.addListener(this::commonSetup);
         MinecraftForge.EVENT_BUS.addListener(this::onRegisterCommands);
         MinecraftForge.EVENT_BUS.addListener(this::onServerStarted);
@@ -54,6 +69,8 @@ public final class AE2CraftingOptimizer {
     }
 
     private void onServerStarted(ServerStartedEvent event) {
+        OptionalNativeBatchIntegrations.registerEnabledVerifiedAdapters();
+        ExperimentalCompatibilityValidator.validateEnabledFeatures();
         ServerTickClock.reset();
         Ae2OverclockUpgradeCountCache.clear();
         AssemblerMatrixBusyCountCache.clear();
@@ -145,7 +162,7 @@ public final class AE2CraftingOptimizer {
             LOGGER.warn("ACO ignored enablePatternMicroBatching=true. Aggregate processing-pattern pushes can desynchronize AE2 task and waiting-output accounting; AE2's original execution path remains active.");
         }
         LOGGER.info(
-                "ACO transactional pattern batching: {}, max {} prepared execution(s), sequential adapter {}, max {} push(es)/transaction, instant dispatch {} ({} ms, max {} transactions), targets {}, adapters {}",
+                "ACO legacy transactional pattern batching: compatibility-disabled (configured {}, max {} prepared execution(s), sequential adapter {}, max {} push(es)/transaction, instant dispatch {} ({} ms, max {} transactions), targets {}, adapters {})",
                 ACOConfig.enableTransactionalPatternBatching(),
                 ACOConfig.getMaxTransactionalPatternBatchExecutions(),
                 ACOConfig.enableSequentialPatternProviderBatchAdapter(),
@@ -180,6 +197,25 @@ public final class AE2CraftingOptimizer {
                 ACOConfig.cacheAssemblerMatrixBusyCount(),
                 ACOConfig.coalesceAssemblerMatrixStatusUpdates());
         logDeepRewriteFlags();
+        LOGGER.info(
+                "ACO experimental crafting engine: {} (shadow {}, compiled graph {}, transaction V2 {}, GT native {}, Mekanism native {}, fair scheduler {}, persistent journal {})",
+                ACOConfig.enableExperimentalCraftingEngine(),
+                ACOConfig.enableCraftingEngineShadowMode(),
+                ACOConfig.enableCompiledCraftingGraph(),
+                ACOConfig.enableTransactionalBatchingV2(),
+                ACOConfig.enableGtceuNativeBatching(),
+                ACOConfig.enableMekanismNativeBatching(),
+                ACOConfig.enableFairCraftingJobScheduler(),
+                ACOConfig.persistBatchTransactionJournal());
+        LOGGER.info(
+                "ACO BigInteger backend: {} (API {}, protocol {}, max {} bits, execution window {}, status page {}, count budget {} MiB)",
+                ACOConfig.enableBigIntegerCraftingBackend(),
+                com.syaru.ae2craftingoptimizer.api.big.BigCraftingEngineApi.API_VERSION,
+                BigCraftingNetwork.PROTOCOL,
+                ACOConfig.getBigIntegerMaximumBits(),
+                ACOConfig.getBigIntegerExecutionWindow(),
+                ACOConfig.getBigIntegerStatusPageEntries(),
+                ACOConfig.getBigIntegerRuntimeCountBudgetBytes() / (1024L * 1024L));
         LOGGER.info("ACO grid tickable hints: {}", ACOConfig.getHeavyGridTickableClassHints());
         LOGGER.info("ACO heavy process hints: {}", ACOConfig.getHeavyProcessHints());
     }
@@ -220,6 +256,7 @@ public final class AE2CraftingOptimizer {
             return;
         }
         RecipeIntentRegistry.cleanupExpired(event.getServer().overworld().getGameTime());
+        BatchTransactionRecovery.tick(event.getServer(), event.getServer().overworld().getGameTime());
     }
 
     private void onDatapackSync(OnDatapackSyncEvent event) {
@@ -227,10 +264,18 @@ public final class AE2CraftingOptimizer {
             return;
         }
         RecipeIntentRegistry.clear("server data reload");
+        RecipeGenerationTracker.invalidate();
         GTCEuRecipeIntentFastPath.clearIndexes("server data reload");
         MekanismRecipeIntentFastPath.clearIndexes("server data reload");
         CircuitCutterRecipeCache.clear();
         ProviderPatternGenerationTracker.clear();
+        Ae2CompiledCraftingGraphCache.clear();
+        BigCraftingStatusInbox.clear();
+        PatternTaskFingerprint.clear();
+        PatternProviderRoutingCache.clear();
+        NativeBatchTargetGuard.clear();
+        OptionalNativeBatchIntegrations.clearRecipeCaches();
+        BatchTransactionRecovery.clearRuntimeState();
     }
 
     private void onServerStopping(ServerStoppingEvent event) {
@@ -253,5 +298,13 @@ public final class AE2CraftingOptimizer {
         ProviderPatternGenerationTracker.clear();
         P2PNotificationDeduplicator.clear();
         OptimizationMetrics.reset();
+        Ae2CraftingShadowValidator.resetDiagnostics();
+        Ae2CompiledCraftingGraphCache.clear();
+        BigCraftingStatusInbox.clear();
+        BigCraftingHostRegistry.clear();
+        PatternTaskFingerprint.clear();
+        PatternProviderRoutingCache.clear();
+        NativeBatchTargetGuard.clear();
+        OptionalNativeBatchIntegrations.clearRecipeCaches();
     }
 }
