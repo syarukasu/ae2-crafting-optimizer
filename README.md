@@ -19,11 +19,12 @@ This mod does not modify recipes, crafting rules, storage behavior, or Quantum C
 - Applied Energistics 2: 15.4.10 (15.4.x)
 - Built against Applied Energistics 2 15.4.10
 - Optional intent fast paths for GTCEu Modern and Mekanism
+- Experimental Mekanism native batching additionally requires Applied Mekanistics `1.4.3`
 - Optional execution-budget integration for Neo ECO AE Extension 20.3.x
 - Designed to coexist with Advanced AE and Advanced Quantum Engineering
 - Intended for large automation packs such as Astral Mekanism
 
-This project is completely independent from Advanced Quantum Engineering.
+This project remains independently installable from Advanced Quantum Engineering.
 
 Advanced Quantum Engineering upgrades Quantum Computer hardware.
 
@@ -31,7 +32,12 @@ AE2 Crafting Optimizer adds conservative recipe-intent fast paths for large AE2 
 
 ## Status
 
-Version `1.1.1` is pinned to AE2 `15.4.x`. The optional Neo ECO integration is pinned to Neo ECO AE Extension `20.3.x`. ACO uses Mixins against mod internals, so do not assume compatibility with another branch or minor series without rebuilding and testing it.
+Release `1.3.0` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
+and qualified through Forge client bootstrap and Arclight dedicated-server
+startup on the documented stack. The optional Neo ECO integration is pinned to Neo ECO AE
+Extension `20.3.x`. ACO uses Mixins against mod internals, so do not assume
+compatibility with another branch or minor series without rebuilding and
+testing it.
 
 Install the same ACO jar on the dedicated server and every client. The authoritative config is the per-world server config:
 
@@ -40,6 +46,32 @@ Install the same ACO jar on the dedicated server and every client. The authorita
 ```
 
 Back up the world before enabling disabled-by-default deep rewrites. See [Configuration](docs/CONFIGURATION.md), [Implementation](docs/IMPLEMENTATION.md), and [Testing](docs/TESTING.md).
+
+The development tree also contains a disabled next-generation checked
+long/BigInteger planner, durable GTCEu/Mekanism native batching protocol, fair
+multi-job scheduler, versioned BigInteger CPU-host API, and bounded status
+channel. These are source-complete foundations, not live defaults. Read
+[Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md) before testing them.
+
+### Experimental BigInteger Boundary
+
+ACO does not silently convert normal AE2 or Advanced AE CPUs to BigInteger.
+`BigCraftingEngineApi` is an explicit sidecar API for a separately integrating
+CPU add-on. AQE 2.0.0 is the first optional consumer. It keeps large counts in
+`BigInteger`, promotes only after checked-long overflow, gives existing machine
+APIs bounded execution windows, persists a versioned multi-job capacity ledger,
+and sends paged status through a separate strict protocol. The configured bit
+limit is enforced during intermediate planning arithmetic, runtime accounting,
+NBT decode, and packet decode.
+
+The host API is enabled by default because it has no effect until an explicitly
+integrated CPU registers a host. The compiled planner, native batching, fair
+scheduler, and other behavior-changing engine switches remain default-off.
+Complete the documented copied-world recovery matrix before enabling those
+deep rewrites on a production world. The experimental master is
+fail-fast pinned to AE2 `15.4.10`; version-sensitive
+Advanced AE and native machine bridges are likewise accepted only at their
+documented tested versions.
 
 ## Goals
 
@@ -60,7 +92,10 @@ This is the measurement layer. It does not change AE2 behavior.
 
 The current build does not inject into AE2's Craft Confirm menu or replace `CraftingTreeNode`.
 
-Craft planning, missing-item calculation, and recipe validity stay authoritative in AE2. Optional deep paths only reorder candidates, pace aggregate refreshes, split terminal deltas, or cache validated lookups.
+Craft planning, missing-item calculation, and recipe validity stay authoritative
+in AE2. Active optional paths only reorder candidates or cache validated,
+calculation-invariant lookups. Aggregate refresh and terminal-delta rewrites are
+unregistered compatibility paths.
 
 ### Active Calculation Single-Flight
 
@@ -72,7 +107,7 @@ AE2 remains responsible for the final calculation and job submission.
 
 ### Deterministic Missing Fast-Fail
 
-For large `REPORT_MISSING_ITEMS` requests, the optimizer can optionally run a strict deterministic preflight before AE2 starts the full solver.
+For `REPORT_MISSING_ITEMS` requests, the optimizer runs a strict deterministic preflight before AE2 starts the full solver. Item, fluid, and chemical storage keys follow the same proof path.
 
 It only returns early when the craft has a single unambiguous pattern path, each pattern has exactly one output, each input has exactly one possible input, and the optimizer can prove that a raw missing ingredient is unavailable.
 
@@ -88,13 +123,15 @@ This mirrors the GTNH/UEL-style "invalidate on structure change, not every query
 
 ### Craftable Set Cache
 
-The optimizer can also cache `CraftingService.getCraftables(filter)` results until crafting providers or network nodes change.
-
-This targets repeated terminal/provider scans. It never creates craftable entries that AE2 did not report.
+ACO 1.2.2 leaves `CraftingService.getCraftables(filter)` entirely to AE2. The
+retained config key defaults to `false`, and its Mixin is unregistered so a
+zero-stock terminal entry cannot outlive AE2's current repository generation.
 
 ### Storage Watcher Sync Throttle
 
-ACO 1.2.1 compatibility-disables this path. `StorageServiceWatcherThrottleMixin` is not registered, and the retained config key defaults to `false` and cannot reactivate it.
+ACO has compatibility-disabled this path since 1.2.1.
+`StorageServiceWatcherThrottleMixin` remains unregistered in 1.2.2, and the
+retained config key defaults to `false` and cannot reactivate it.
 
 The previous implementation buffered client-visible watcher updates only, but stale display generations could conflict with live terminal insertion in heavily modified clients. Any future replacement must preserve one coherent menu generation and pass the zero-stock insertion regression test before it can be registered again.
 
@@ -126,48 +163,40 @@ ACO also measures the combined pattern-push time used by standard AE2 crafting C
 
 The default is `8 ms` per ME grid per tick with at least one operation for every active CPU. This paces work only after AE2 has accepted a crafting job. It does not change planning, capacity, co-processor display, recipe validity, or job contents.
 
-### Grid Tick Budget
+### Compatibility-Disabled Mutable I/O Paths
 
-The optimizer can pace selected AE2 grid tickables that are expensive in large automation networks.
+ACO 1.2.2 unregisters grid-tick deferral, Import/Export Bus caps, IO Port
+incremental transfer, capability caching, and storage simulation caching. Their
+configuration keys remain readable no-ops. AE2 exclusively owns live storage
+insertion, extraction, rollback, and cell transfer.
 
-The configurable target list may include AE2 IO Ports, Import Buses, Export Buses, ExtendedAE Ex buses, ExtendedAE special export buses, and the ExtendedAE Circuit Cutter for measurement.
+### Failed Automatic Craft Request Backoff
 
-The optimizer measures these devices at AE2's `TickManagerService` boundary. Progress-sensitive Import/Export Buses and Circuit Cutters are never hard-deferred or given idle/slow backoff. This prevents a device late in the grid iteration order from starving indefinitely. Other explicitly selected tickables can still use the opt-in budget.
-
-Import and Export Buses also receive a configurable operations-per-tick cap after other speed-card mods apply their changes.
-
-This spreads bursts over more ticks. It does not change filters, recipes, redstone behavior, inventories, storage contents, or whether a transfer is valid.
-
-Repeatedly idle non-progress-sensitive selected tickables can also receive a short backoff. Import/Export Buses and Circuit Cutters are excluded from this path.
-
-Export-bus-style crafting requests that finish without creating a crafting link can be throttled for the exact same owner, slot, key, and amount. This reduces failed craft-request spam while leaving active and successful jobs alone.
+Export-bus-style crafting requests that finish without creating a crafting link
+can be throttled for the exact same owner, slot, key, and amount. This separate
+path reduces failed craft-request spam while leaving active and successful jobs
+alone; it does not cap or replace Import/Export Bus transfers.
 
 ### AE2-UEL-Inspired Optimization Paths
 
-The reusable parts of the AE2-UEL/GTNH design are applied to AE2 15.4.x without replacing its solver or transfer rules:
-
-1. Cache successful adjacent capability lookups for the remainder of the current server tick, while verifying the adjacent Block Entity identity.
-2. Cache only exact failed Import/Export Bus transfer simulations for the current server tick. Real transfers are never skipped.
-3. Remove null, duplicate, wrong-output, and structurally invalid crafting candidates before tree expansion. Inventory availability never makes a recipe invalid.
-4. Coalesce repeated Crafting Provider refreshes within one server tick and flush them before a new calculation begins.
-5. Keep client terminal `Repo.updateView()` coalescing compatibility-disabled in 1.2.1; its Mixin is not registered.
-6. Share ExtendedAE Circuit Cutter recipe candidates by exact input signature. Every cache hit is revalidated by ExtendedAE's own `testRecipe` before use.
-7. Memoize calculation-invariant emit, pattern, fuzzy-candidate, and container-return queries only for the lifetime of one crafting job.
-8. Rebuild provider pattern indexes only when an exact provider-content generation changes.
-9. Advance IO Ports through cell slots with a bounded cursor, try an Import Bus's last successful slot first, and retain Export Bus configured candidates until their config generation changes.
-10. Reuse a validated Assembly Matrix crafter route, share exact Circuit Cutter no-recipe results, and cache reflection metadata, MethodHandles, and card counts inside AE2 Overclock's own runtime helper classes.
+The retained AE2-UEL/GTNH ideas are non-mutating: prune structurally invalid
+crafting candidates, memoize calculation-invariant queries for one job,
+coalesce provider refreshes before calculation, rebuild indexes on exact
+provider-content generations, and reuse machine recipe candidates only after
+the machine mod's live validation. Mutable storage and terminal paths are not
+intercepted in 1.2.2.
 
 An additional opt-in client path projects terminal names, IDs, tags, tooltips, and sort keys on the client thread, then performs only immutable search matching and sorting in a worker. A generation check discards stale results.
 
-The active server-side paths are under `[uelOptimizations]` and can be disabled independently. The client terminal coalescing key remains readable for config compatibility but has no active Mixin in 1.2.1.
+The active non-mutating paths are under `[uelOptimizations]` and can be disabled independently. Removed mutable-path keys remain readable compatibility no-ops.
 
-### Terminal Snapshot Optimization
+### Compatibility-Disabled Terminal Rewrites
 
-Open ME terminals can reuse their server-side available-stack snapshot and craftable set for a few ticks.
-
-This reduces repeated full-network scans while a terminal is open. It only delays visible updates by the configured interval; storage mutation and extraction/insertion still use AE2's live storage path.
-
-Terminal inventory snapshot reuse, terminal craftable reuse, rolling range synchronization, aggregate storage coalescing, storage watcher pacing, and client view coalescing are unregistered in 1.2.1. Their keys remain readable for existing configs but are no-ops until a replacement passes the terminal interaction regression matrix.
+Terminal inventory snapshot reuse, terminal craftable reuse, rolling range
+synchronization, aggregate storage coalescing, storage watcher pacing, and client
+view coalescing have been unregistered since 1.2.1. Their keys remain readable
+for existing configs but are no-ops until a replacement passes the terminal
+interaction regression matrix.
 
 ### Machine Intent Boundary
 
@@ -189,15 +218,15 @@ Create machine-side fast paths are still reserved config entries.
 
 ### Transactional Pattern Batching API
 
-ACO 1.2.0 replaces the unsafe aggregate-input experiment with an accepted-execution-count adapter API. An adapter must return the exact number of complete processing-pattern executions it durably accepted. A zero result is required to leave the target unchanged. Aggregate insertion simulation or partial inventory insertion is explicitly not acceptance.
+ACO 1.2.2 unregisters the 1.2.0/1.2.1 transactional execution Mixins. Their
+API and config keys remain for compatibility, but standard and Advanced AE CPUs
+do not call them.
 
-The built-in adapter batches exact input extraction and CPU accounting, while preserving one original AE2 `pushPattern` call per accepted execution. It checks provider backpressure before every call and stops immediately when the provider becomes busy. Only that returned count is charged, removed from task progress, and added to `waitingFor`.
-
-Instant pattern dispatch can continue across multiple ready tasks and adapter transactions during the same CPU call. It is bounded by the CPU operation allowance, a hard transaction cap, and a 4 ms wall-clock deadline by default. It does not skip GTCEu/Mekanism machine duration or synthesize machine outputs.
-
-Only exact external-processing patterns without substitutions, returned containers, blocking mode, crafting locks, or unsupported targets are eligible. Everything else returns to AE2 before input ownership changes. Future GTCEu/Mekanism native adapters can use the same API for true O(1) acceptance, but must provide a durable accepted-count guarantee.
-
-The 1.1.0 aggregate path remains compatibility-disabled. Its legacy `enablePatternMicroBatching` keys remain readable but cannot reactivate it.
+The development tree contains a separate V2 prepare/accept/account/reconcile
+protocol with source, target, and world-journal NBT. It is isolated behind a
+new master and child switches that all default to `false`; it is not part of
+the active 1.2.2 runtime. See
+[Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md).
 
 ### Add-on Machine Optimization
 
@@ -304,10 +333,10 @@ cacheSuccessfulCompletedCraftingPlans = false
 completedCraftingPlanCacheSize = 1024
 completedCraftingPlanCacheTtlTicks = 40
 
-# Disabled by default. Only returns an early missing-only result when
-# the deterministic preflight can prove the request cannot complete.
-fastFailMissingCrafts = false
-minimumRequestedAmountForFastFail = 4096
+# Only returns an early missing-only result when the deterministic
+# preflight can prove the request cannot complete. Ambiguous paths fall back to AE2.
+fastFailMissingCrafts = true
+minimumRequestedAmountForFastFail = 1
 deterministicPreflightMaxDepth = 64
 deterministicPreflightMaxNodes = 4096
 logFastFailMissingCrafts = false
@@ -352,6 +381,7 @@ minimumSharedOperationsPerCpu = 1
 logCraftingExecutionThrottling = false
 
 [gridTickBudget]
+# Compatibility section in 1.2.2: grid-tick deferral and I/O caps are no-ops.
 enableGridTickBudget = false
 deferHeavyGridTickables = false
 
@@ -398,9 +428,11 @@ exportBusCraftThrottleCacheSize = 4096
 logGridTickBudget = false
 
 [uelOptimizations]
+# Compatibility no-op in 1.2.2; no capability cache Mixin is registered.
 cacheAdjacentCapabilityLookups = true
-# Opt-in: requires correct LazyOptional invalidation from adjacent mods.
+# Compatibility no-op companion key.
 cacheAdjacentCapabilitiesAcrossTicks = false
+# Compatibility no-op in 1.2.2.
 cacheNegativeBusTransferSimulations = true
 pruneInvalidCraftingCandidates = true
 memoizeCraftingCalculationQueries = true
@@ -410,7 +442,7 @@ incrementalIoPortProcessing = true
 ioPortCellSlotsPerTick = 2
 cacheImportBusLastSuccessfulSlot = false
 cacheExportBusCandidateKeys = true
-# Compatibility key; its client Mixin is unregistered in 1.2.1.
+# Compatibility key; its client Mixin remains unregistered in 1.2.2.
 coalesceClientTerminalViewUpdates = false
 # Opt-in generation-checked projected search/sort worker.
 asyncTerminalSearchSort = false
@@ -431,7 +463,7 @@ coalesceAssemblerMatrixStatusUpdates = true
 cacheAssemblerMatrixRouting = true
 
 [storageSync]
-# Compatibility-disabled in 1.2.1; retained keys cannot register the removed Mixins.
+# Compatibility-disabled since 1.2.1; retained keys cannot register the removed Mixins.
 throttleStorageWatcherUpdates = false
 
 # Client-visible synchronization interval when throttling is enabled.
@@ -452,10 +484,10 @@ maximumBufferedChanges = 4096
 enableDeepAe2RewriteFlags = true
 patternSelectionByAvailability = false
 patternSelectionMaximumCandidates = 64
-# Compatibility key; aggregate refresh Mixin is unregistered in 1.2.1.
+# Compatibility key; aggregate refresh Mixin remains unregistered in 1.2.2.
 networkForceUpdateCoalescing = false
 networkUpdateIntervalTicks = 2
-# Compatibility key; terminal range Mixins are unregistered in 1.2.1.
+# Compatibility key; terminal range Mixins remain unregistered in 1.2.2.
 visibleTerminalRangeSync = false
 terminalRangeEntriesPerTick = 4096
 p2pTopologyChangeOnlyRecheck = true
@@ -552,9 +584,9 @@ The default keeps AE2's normal Craft Confirm, graph-solver, terminal, watcher, a
 
 ### Safe Optimization
 
-The generated defaults enable diagnostics, exact duplicate active-calculation sharing, a short missing/simulation completed-plan cache, pattern/craftable lookup caches, crafting execution pacing, Pattern Provider intent capture, GTCEu/Mekanism intent fast paths, transactional exact-count batching, and Neo ECO execution pacing when that optional mod is present. Unsafe aggregate insertion and the terminal/storage synchronization rewrite Mixins remain compatibility-disabled.
+The generated defaults enable diagnostics, exact duplicate active-calculation sharing, a short missing/simulation completed-plan cache, pattern lookup caching, crafting execution pacing, Pattern Provider intent capture, GTCEu/Mekanism intent fast paths, and Neo ECO execution pacing when that optional mod is present. Mutable storage, terminal craftable, and legacy transactional execution Mixins remain unregistered.
 
-Preliminary missing previews, deterministic fast-fail, grid-tick deferral, IO-bus operation caps, failed Export Bus request throttling, availability-based pattern ordering, fuzzy Export Bus caching, successful-plan reuse, and the reserved Create path are disabled by default. Terminal snapshot/craftable reuse, watcher pacing, aggregate refresh coalescing, visible range splitting, and client view coalescing are unregistered compatibility keys in 1.2.1.
+Preliminary missing previews, deterministic fast-fail, failed Export Bus request throttling, availability-based pattern ordering, successful-plan reuse, and the reserved Create path are disabled by default. Grid-tick deferral, IO-bus caps, mutable bus/IO Port caches, terminal snapshot/craftable reuse, watcher pacing, aggregate refresh coalescing, visible range splitting, and client view coalescing are unregistered compatibility paths in 1.2.2.
 
 Craft validity, recipes, storage mutation, and final crafting results remain controlled by AE2.
 
@@ -578,11 +610,15 @@ Run:
 gradlew.bat clean build
 ```
 
-The generated jar is written under `build/libs/`. GitHub Actions runs the same clean build for pushes and pull requests.
+This branch generates `build/libs/ae2-crafting-optimizer-1.3.0.jar`. Building
+it does not authorize deployment or feature enablement before the runtime
+matrix is complete. GitHub Actions runs the same clean build for
+pushes and pull requests.
 
 ## Documentation
 
 - [Team development specification and design references](docs/TEAM_DEVELOPMENT_SPEC.md)
+- [Experimental engine, BigInteger API, and runtime qualification](docs/EXPERIMENTAL_ENGINE.md)
 - [Configuration and safety tiers](docs/CONFIGURATION.md)
 - [Implementation details](docs/IMPLEMENTATION.md)
 - [Manual test matrix](docs/TESTING.md)

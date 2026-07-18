@@ -48,6 +48,21 @@ repositories {
         url = 'https://modmaven.dev/'
         content {
             includeGroup 'appeng'
+            includeGroup 'mekanism'
+        }
+    }
+    maven {
+        name = 'GTCEu'
+        url = 'https://maven.gtceu.com/'
+        content {
+            includeGroup 'com.gregtechceu.gtceu'
+        }
+    }
+    maven {
+        name = 'FirstDarkDev'
+        url = 'https://maven.firstdark.dev/snapshots'
+        content {
+            includeGroup 'com.lowdragmc.ldlib'
         }
     }
     maven {
@@ -62,13 +77,43 @@ repositories {
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.18'
 
-    implementation fg.deobf('appeng:appliedenergistics2-forge:15.4.10')
-    compileOnly fg.deobf('curse.maven:neo-eco-ae-extension-1460639:8438819')
+    def localModsDir = file(findProperty('acoLocalModsDir') ?: '../../mods')
+    def localAe2 = new File(localModsDir, 'appliedenergistics2-forge-15.4.10.jar')
+    def localGtceu = new File(localModsDir, 'gtceu-1.20.1-7.5.3.jar')
+    def localLdlib = new File(localModsDir, 'ldlib-forge-1.20.1-1.0.50.jar')
+    def localMekanism = new File(localModsDir, 'Mekanism-1.20.1-10.4.16.80.jar')
+    def localAppliedMekanistics = new File(localModsDir, 'Applied-Mekanistics-1.4.3.jar')
+    def localAdvancedAe = new File(localModsDir, 'AdvancedAE-1.3.5-1.20.1.jar')
+
+    if (localAe2.isFile() && localGtceu.isFile() && localLdlib.isFile()
+            && localMekanism.isFile() && localAppliedMekanistics.isFile() && localAdvancedAe.isFile()) {
+        // A checked-out pack can build reproducibly even when an optional mod Maven is unavailable.
+        implementation files(localAe2)
+        compileOnly files(localGtceu)
+        compileOnly files(localLdlib)
+        compileOnly files(localMekanism)
+        compileOnly files(localAppliedMekanistics)
+        compileOnly files(localAdvancedAe)
+    } else {
+        implementation fg.deobf('appeng:appliedenergistics2-forge:15.4.10')
+        compileOnly(fg.deobf('com.gregtechceu.gtceu:gtceu-1.20.1:7.5.3')) { transitive = false }
+        compileOnly(fg.deobf('com.lowdragmc.ldlib:ldlib-forge-1.20.1:1.0.40.b')) { transitive = false }
+        compileOnly(fg.deobf('mekanism:Mekanism:1.20.1-10.4.16.80')) { transitive = false }
+        compileOnly(fg.deobf('curse.maven:applied-mekanistics-574300:7244744')) { transitive = false }
+        compileOnly(fg.deobf('curse.maven:advancedae-1084104:7939754')) { transitive = false }
+    }
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    testImplementation platform('org.junit:junit-bom:5.10.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 processResources {

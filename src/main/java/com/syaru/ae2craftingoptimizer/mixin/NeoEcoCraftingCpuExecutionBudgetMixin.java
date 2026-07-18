@@ -93,6 +93,7 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
                 elapsedNanos);
         CraftingExecutionBudget.recordSharedExecution(
                 aco$neoEcoCraftingService,
+                this,
                 ServerTickClock.currentTick(),
                 elapsedNanos);
         aco$neoEcoExecutionStartedAt = 0L;

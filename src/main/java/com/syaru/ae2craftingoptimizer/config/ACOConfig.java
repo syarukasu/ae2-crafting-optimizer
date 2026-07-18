@@ -151,6 +151,27 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue LOG_SLOW_CRAFT_CALCULATIONS;
     private static final ForgeConfigSpec.IntValue SLOW_CRAFT_CALCULATION_MILLIS;
     private static final ForgeConfigSpec.BooleanValue LOG_CACHE_STATISTICS;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_EXPERIMENTAL_CRAFTING_ENGINE;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_CRAFTING_ENGINE_SHADOW_MODE;
+    private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_ENGINE_SHADOW_MISMATCHES;
+    private static final ForgeConfigSpec.IntValue CRAFTING_ENGINE_SHADOW_MAXIMUM_PATTERNS;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_COMPILED_CRAFTING_GRAPH;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_TRANSACTIONAL_BATCHING_V2;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_GTCEU_NATIVE_BATCHING;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_MEKANISM_NATIVE_BATCHING;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_FAIR_CRAFTING_JOB_SCHEDULER;
+    private static final ForgeConfigSpec.IntValue FAIR_SCHEDULER_OPERATIONS_PER_TICK;
+    private static final ForgeConfigSpec.IntValue FAIR_SCHEDULER_QUANTUM;
+    private static final ForgeConfigSpec.IntValue FAIR_SCHEDULER_TIME_BUDGET_MILLIS;
+    private static final ForgeConfigSpec.BooleanValue PERSIST_BATCH_TRANSACTION_JOURNAL;
+    private static final ForgeConfigSpec.IntValue BATCH_TRANSACTION_JOURNAL_MAXIMUM_ENTRIES;
+    private static final ForgeConfigSpec.IntValue BATCH_TRANSACTION_RECONCILIATION_INTERVAL_TICKS;
+    private static final ForgeConfigSpec.IntValue NATIVE_BATCH_MAXIMUM_EXECUTIONS;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_CRAFTING_BACKEND;
+    private static final ForgeConfigSpec.IntValue BIG_INTEGER_MAXIMUM_BITS;
+    private static final ForgeConfigSpec.IntValue BIG_INTEGER_EXECUTION_WINDOW;
+    private static final ForgeConfigSpec.IntValue BIG_INTEGER_STATUS_PAGE_ENTRIES;
+    private static final ForgeConfigSpec.IntValue BIG_INTEGER_RUNTIME_COUNT_BUDGET_MIB;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -224,11 +245,11 @@ public final class ACOConfig {
                 .comment("Time-to-live for completed crafting plan cache entries, in server ticks. Storage or crafting topology invalidation clears this earlier.")
                 .defineInRange("completedCraftingPlanCacheTtlTicks", 40, 1, 20 * 60);
         FAST_FAIL_MISSING_CRAFTS = builder
-                .comment("For large REPORT_MISSING_ITEMS requests, return an immediate missing-only plan only when the optimizer can prove the craft is impossible through a strict deterministic preflight. Successful or ambiguous crafts still use AE2's normal solver.")
-                .define("fastFailMissingCrafts", false);
+                .comment("For REPORT_MISSING_ITEMS requests, return an immediate missing-only plan only when the optimizer can prove the craft is impossible through a strict deterministic preflight. Item, fluid, and chemical keys use the same proof path. Successful or ambiguous crafts still use AE2's normal solver.")
+                .define("fastFailMissingCrafts", true);
         MINIMUM_REQUESTED_AMOUNT_FOR_FAST_FAIL = builder
                 .comment("Do not run deterministic missing preflight below this requested amount.")
-                .defineInRange("minimumRequestedAmountForFastFail", 4096L, 1L, Long.MAX_VALUE);
+                .defineInRange("minimumRequestedAmountForFastFail", 1L, 1L, Long.MAX_VALUE);
         DETERMINISTIC_PREFLIGHT_MAX_DEPTH = builder
                 .comment("Maximum recursive depth for deterministic missing preflight.")
                 .defineInRange("deterministicPreflightMaxDepth", 64, 1, 1024);
@@ -633,6 +654,86 @@ public final class ACOConfig {
                         "gtceu",
                         "mekanism"
                 ), value -> value instanceof String);
+        builder.pop();
+
+        builder.push("experimentalCraftingEngine");
+        ENABLE_EXPERIMENTAL_CRAFTING_ENGINE = builder
+                .comment(
+                        "Master switch for ACO's next-generation compiled planner, native machine batching, fair scheduler, and persistent transaction journal.",
+                        "This is deliberately false. The implementation can be built and tested without changing live AE2 behavior.")
+                .define("enableExperimentalCraftingEngine", false);
+        ENABLE_CRAFTING_ENGINE_SHADOW_MODE = builder
+                .comment(
+                        "Compare the compiled long planner with completed AE2 plans without replacing or modifying AE2's result.",
+                        "Requires enableExperimentalCraftingEngine. Shadow mismatches only update diagnostics.")
+                .define("enableShadowMode", false);
+        LOG_CRAFTING_ENGINE_SHADOW_MISMATCHES = builder
+                .comment("Log the first bounded set of Shadow Mode differences. Disabled engine means no comparison or logging.")
+                .define("logShadowMismatches", true);
+        CRAFTING_ENGINE_SHADOW_MAXIMUM_PATTERNS = builder
+                .comment("Skip Shadow Mode validation above this many patterns to keep diagnostic work bounded.")
+                .defineInRange("shadowMaximumPatterns", 262_144, 1, 1_048_576);
+        ENABLE_COMPILED_CRAFTING_GRAPH = builder
+                .comment("Build an immutable, generation-keyed crafting graph for experimental planning. No AE2 result replacement is performed in this version.")
+                .define("enableCompiledCraftingGraph", false);
+        ENABLE_TRANSACTIONAL_BATCHING_V2 = builder
+                .comment("Use the prepare/commit/account/reconcile transaction protocol. Kept false until recovery testing is complete.")
+                .define("enableTransactionalBatchingV2", false);
+        ENABLE_GTCEU_NATIVE_BATCHING = builder
+                .comment("Allow the V2 transaction engine to use the exact-recipe GTCEu native batch adapter. Unsupported recipes always fall back.")
+                .define("enableGtceuNativeBatching", false);
+        ENABLE_MEKANISM_NATIVE_BATCHING = builder
+                .comment("Allow the V2 transaction engine to use the exact-recipe Mekanism item/fluid/chemical native batch adapter. Unsupported recipes always fall back.")
+                .define("enableMekanismNativeBatching", false);
+        ENABLE_FAIR_CRAFTING_JOB_SCHEDULER = builder
+                .comment("Use the experimental deficit-round-robin scheduler for multiple crafting jobs. Kept false until multiplayer soak testing.")
+                .define("enableFairCraftingJobScheduler", false);
+        FAIR_SCHEDULER_OPERATIONS_PER_TICK = builder
+                .comment("Shared hard operation budget for the experimental scheduler per server tick.")
+                .defineInRange("fairSchedulerOperationsPerTick", 4096, 1, 1_048_576);
+        FAIR_SCHEDULER_QUANTUM = builder
+                .comment("Deficit-round-robin operation quantum granted to each runnable job per scheduling round.")
+                .defineInRange("fairSchedulerQuantum", 64, 1, 65_536);
+        FAIR_SCHEDULER_TIME_BUDGET_MILLIS = builder
+                .comment("Shared wall-clock budget for experimental scheduling in one server tick.")
+                .defineInRange("fairSchedulerTimeBudgetMillis", 4, 1, 45);
+        PERSIST_BATCH_TRANSACTION_JOURNAL = builder
+                .comment(
+                        "Persist non-terminal V2 batch transactions in overworld SavedData/NBT before target ownership transfer.",
+                        "Disabling this also disables transactional V2 execution; V2 is never allowed to run without recovery state.")
+                .define("persistBatchTransactionJournal", true);
+        BATCH_TRANSACTION_JOURNAL_MAXIMUM_ENTRIES = builder
+                .comment("Hard cap for non-terminal persistent transaction records. New native batches fall back when full.")
+                .defineInRange("batchTransactionJournalMaximumEntries", 16_384, 16, 16_384);
+        BATCH_TRANSACTION_RECONCILIATION_INTERVAL_TICKS = builder
+                .comment("Interval between bounded recovery scans for prepared or target-accepted transactions.")
+                .defineInRange("batchTransactionReconciliationIntervalTicks", 20, 1, 20 * 60);
+        NATIVE_BATCH_MAXIMUM_EXECUTIONS = builder
+                .comment("Hard per-transaction execution cap shared by native machine adapters. Machine limits may reduce it further.")
+                .defineInRange("nativeBatchMaximumExecutions", 65_536, 1, 1_048_576);
+        ENABLE_BIG_INTEGER_CRAFTING_BACKEND = builder
+                .comment(
+                        "Expose ACO's versioned BigInteger host and job backend to explicitly integrated CPU add-ons.",
+                        "This does not patch normal AE2 CPUs. It is safe to leave enabled when no compatible host add-on is installed.")
+                .define("enableBigIntegerCraftingBackend", true);
+        BIG_INTEGER_MAXIMUM_BITS = builder
+                .comment(
+                        "Maximum magnitude stored by the BigInteger backend, in binary bits. 256 bits is about 77 decimal digits.",
+                        "The hard implementation range is 64..1048576 bits; larger values are rejected before NBT or packet allocation.")
+                .defineInRange("bigIntegerMaximumBits", 256, 64, 1_048_576);
+        BIG_INTEGER_EXECUTION_WINDOW = builder
+                .comment(
+                        "Maximum pattern executions exposed to a long/int machine adapter in one BigInteger execution window.",
+                        "Larger jobs remain BigInteger counters and are resumed through additional windows.")
+                .defineInRange("bigIntegerExecutionWindow", 65_536, 1, 1_048_576);
+        BIG_INTEGER_STATUS_PAGE_ENTRIES = builder
+                .comment("Maximum job summaries carried by one BigInteger crafting-status page.")
+                .defineInRange("bigIntegerStatusPageEntries", 1024, 16, 16_384);
+        BIG_INTEGER_RUNTIME_COUNT_BUDGET_MIB = builder
+                .comment(
+                        "Aggregate memory-accounting budget for BigInteger count magnitudes in one CPU runtime, in MiB.",
+                        "New jobs or output reservations fall back before exceeding this bound.")
+                .defineInRange("bigIntegerRuntimeCountBudgetMiB", 256, 32, 4096);
         builder.pop();
 
         builder.push("diagnostics");
@@ -1164,7 +1265,8 @@ public final class ACOConfig {
     }
 
     public static boolean enableInstantPatternDispatch() {
-        return enableTransactionalPatternBatching() && ENABLE_INSTANT_PATTERN_DISPATCH.get();
+        return (enableTransactionalPatternBatching() || enableTransactionalBatchingV2())
+                && ENABLE_INSTANT_PATTERN_DISPATCH.get();
     }
 
     public static int getInstantPatternDispatchTimeBudgetMillis() {
@@ -1258,5 +1360,93 @@ public final class ACOConfig {
 
     public static boolean logCacheStatistics() {
         return enableOptimizer() && LOG_CACHE_STATISTICS.get();
+    }
+
+    public static boolean enableExperimentalCraftingEngine() {
+        return enableOptimizer() && ENABLE_EXPERIMENTAL_CRAFTING_ENGINE.get();
+    }
+
+    public static boolean enableCraftingEngineShadowMode() {
+        return enableCompiledCraftingGraph() && ENABLE_CRAFTING_ENGINE_SHADOW_MODE.get();
+    }
+
+    public static boolean logCraftingEngineShadowMismatches() {
+        return enableCraftingEngineShadowMode() && LOG_CRAFTING_ENGINE_SHADOW_MISMATCHES.get();
+    }
+
+    public static int getCraftingEngineShadowMaximumPatterns() {
+        return Math.min(1_048_576, Math.max(1, CRAFTING_ENGINE_SHADOW_MAXIMUM_PATTERNS.get()));
+    }
+
+    public static boolean enableCompiledCraftingGraph() {
+        return enableExperimentalCraftingEngine() && ENABLE_COMPILED_CRAFTING_GRAPH.get();
+    }
+
+    public static boolean enableTransactionalBatchingV2() {
+        return enableExperimentalCraftingEngine()
+                && ENABLE_TRANSACTIONAL_BATCHING_V2.get()
+                && PERSIST_BATCH_TRANSACTION_JOURNAL.get();
+    }
+
+    public static boolean enableGtceuNativeBatching() {
+        return enableTransactionalBatchingV2() && ENABLE_GTCEU_NATIVE_BATCHING.get();
+    }
+
+    public static boolean enableMekanismNativeBatching() {
+        return enableTransactionalBatchingV2() && ENABLE_MEKANISM_NATIVE_BATCHING.get();
+    }
+
+    public static boolean enableFairCraftingJobScheduler() {
+        return enableExperimentalCraftingEngine() && ENABLE_FAIR_CRAFTING_JOB_SCHEDULER.get();
+    }
+
+    public static int getFairSchedulerOperationsPerTick() {
+        return Math.min(1_048_576, Math.max(1, FAIR_SCHEDULER_OPERATIONS_PER_TICK.get()));
+    }
+
+    public static int getFairSchedulerQuantum() {
+        return Math.min(65_536, Math.max(1, FAIR_SCHEDULER_QUANTUM.get()));
+    }
+
+    public static int getFairSchedulerTimeBudgetMillis() {
+        return Math.min(45, Math.max(1, FAIR_SCHEDULER_TIME_BUDGET_MILLIS.get()));
+    }
+
+    public static boolean persistBatchTransactionJournal() {
+        return PERSIST_BATCH_TRANSACTION_JOURNAL.get();
+    }
+
+    public static int getBatchTransactionJournalMaximumEntries() {
+        return Math.min(16_384, Math.max(16, BATCH_TRANSACTION_JOURNAL_MAXIMUM_ENTRIES.get()));
+    }
+
+    public static int getBatchTransactionReconciliationIntervalTicks() {
+        return Math.min(20 * 60, Math.max(1, BATCH_TRANSACTION_RECONCILIATION_INTERVAL_TICKS.get()));
+    }
+
+    public static int getNativeBatchMaximumExecutions() {
+        return Math.min(1_048_576, Math.max(1, NATIVE_BATCH_MAXIMUM_EXECUTIONS.get()));
+    }
+
+    public static boolean enableBigIntegerCraftingBackend() {
+        return ENABLE_BIG_INTEGER_CRAFTING_BACKEND.get();
+    }
+
+    public static int getBigIntegerMaximumBits() {
+        return Math.min(1_048_576, Math.max(64, BIG_INTEGER_MAXIMUM_BITS.get()));
+    }
+
+    public static int getBigIntegerExecutionWindow() {
+        return Math.min(1_048_576, Math.max(1, BIG_INTEGER_EXECUTION_WINDOW.get()));
+    }
+
+    public static int getBigIntegerStatusPageEntries() {
+        return Math.min(16_384, Math.max(16, BIG_INTEGER_STATUS_PAGE_ENTRIES.get()));
+    }
+
+    public static long getBigIntegerRuntimeCountBudgetBytes() {
+        return Math.multiplyExact(
+                (long) Math.min(4096, Math.max(32, BIG_INTEGER_RUNTIME_COUNT_BUDGET_MIB.get())),
+                1024L * 1024L);
     }
 }

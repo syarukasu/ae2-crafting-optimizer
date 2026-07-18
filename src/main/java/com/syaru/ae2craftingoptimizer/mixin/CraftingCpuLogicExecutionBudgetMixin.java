@@ -44,7 +44,8 @@ public abstract class CraftingCpuLogicExecutionBudgetMixin {
         int completedOperations = logic.executeCrafting(limitedOperations, craftingService, energyService, level);
         long elapsedNanos = System.nanoTime() - startedAt;
         CraftingExecutionBudget.recordExecution(this, limitedOperations, completedOperations, elapsedNanos);
-        CraftingExecutionBudget.recordSharedExecution(craftingService, ServerTickClock.currentTick(), elapsedNanos);
+        CraftingExecutionBudget.recordSharedExecution(
+                craftingService, this, ServerTickClock.currentTick(), elapsedNanos);
         return completedOperations;
     }
 }

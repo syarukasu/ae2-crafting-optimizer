@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 import appeng.me.service.CraftingService;
+import com.syaru.ae2craftingoptimizer.scheduler.FairCraftingJobScheduler;
 
 public final class CraftingExecutionBudget {
     private static final Map<Object, AdaptiveState> ADAPTIVE_STATES = Collections.synchronizedMap(new WeakHashMap<>());
@@ -87,7 +88,18 @@ public final class CraftingExecutionBudget {
             int requestedOperations,
             long gameTick) {
         if (!ACOConfig.sharedCraftingExecutionBudget() || craftingService == null || requestedOperations <= 0) {
+            if (ACOConfig.enableFairCraftingJobScheduler()
+                    && FairCraftingJobScheduler.supports(executionOwner)) {
+                return FairCraftingJobScheduler.grant(
+                        craftingService, executionOwner, requestedOperations, gameTick);
+            }
             return requestedOperations;
+        }
+
+        if (ACOConfig.enableFairCraftingJobScheduler()
+                && FairCraftingJobScheduler.supports(executionOwner)) {
+            return FairCraftingJobScheduler.grant(
+                    craftingService, executionOwner, requestedOperations, gameTick);
         }
 
         long targetNanos = ACOConfig.getSharedCraftingExecutionMillisPerGrid() * 1_000_000L;
@@ -116,7 +128,16 @@ public final class CraftingExecutionBudget {
         }
     }
 
-    public static void recordSharedExecution(CraftingService craftingService, long gameTick, long elapsedNanos) {
+    public static void recordSharedExecution(
+            CraftingService craftingService,
+            Object executionOwner,
+            long gameTick,
+            long elapsedNanos) {
+        if (ACOConfig.enableFairCraftingJobScheduler()
+                && FairCraftingJobScheduler.supports(executionOwner)) {
+            FairCraftingJobScheduler.recordElapsed(craftingService, gameTick, elapsedNanos);
+            return;
+        }
         if (!ACOConfig.sharedCraftingExecutionBudget() || craftingService == null || elapsedNanos <= 0L) {
             return;
         }
@@ -134,6 +155,7 @@ public final class CraftingExecutionBudget {
         synchronized (SHARED_STATES) {
             SHARED_STATES.clear();
         }
+        FairCraftingJobScheduler.clear();
         if (ACOConfig.logCraftingExecutionThrottling()) {
             AE2CraftingOptimizer.LOGGER.debug("Cleared AE2 crafting execution adaptive state: {}", reason);
         }

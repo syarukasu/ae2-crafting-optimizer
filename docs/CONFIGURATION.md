@@ -12,11 +12,10 @@ Restart the server after changing optimization settings. Existing config files r
 
 | Area | Key | Default | Purpose |
 | --- | --- | --- | --- |
-| Master | `enableOptimizer` | `true` | Disables all ACO behavior when false. |
+| Master | `enableOptimizer` | `true` | Disables normal ACO optimization behavior when false. The separately configured explicit-host BigInteger API can remain available for state recovery. |
 | Calculation | `deduplicateActiveCraftingCalculations` | `true` | Shares identical in-flight calculations from the same requester and grid. |
 | Calculation | `cacheCompletedCraftingPlans` | `true` | Briefly caches missing/simulation plans; successful plans remain excluded by default. |
 | Calculation | `cachePatternLookups` | `true` | Reuses exact pattern lookups until provider/grid invalidation. |
-| Calculation | `cacheCraftableSets` | `false` | Compatibility option; disabled so AE2 computes terminal craftables directly. |
 | Execution | `throttleCraftingExecution` | `true` | Caps the effective AE2 pattern-push window without changing CPU stats. |
 | Execution | `adaptiveCraftingExecutionBudget` | `true` | Adjusts the active CPU budget toward the configured tick-time target. |
 | Execution | `sharedCraftingExecutionBudget` | `true` | Bounds combined supported CPU pattern-push time on one ME grid. |
@@ -39,27 +38,22 @@ Restart the server after changing optimization settings. Existing config files r
 | Add-on machines | `cacheAssemblerMatrixBusyCount` | `true` | Reuses a matrix cluster's complete busy-thread total within a tick. |
 | Add-on machines | `coalesceAssemblerMatrixStatusUpdates` | `true` | Coalesces identical same-tick matrix visual/status broadcasts. |
 | Add-on machines | `cacheAssemblerMatrixRouting` | `true` | Reuses a still-available Assembly Matrix crafter until job/structure state invalidates it. |
-| UEL safe paths | `cacheAdjacentCapabilityLookups` | `true` | Reuses a successful adjacent capability lookup for one server tick after Block Entity identity verification. |
-| UEL safe paths | `cacheNegativeBusTransferSimulations` | `true` | Reuses exact failed bus simulations for one server tick; never skips real transfers. |
 | UEL safe paths | `pruneInvalidCraftingCandidates` | `true` | Removes only null, duplicate, wrong-output, and structurally invalid candidates. |
 | UEL safe paths | `memoizeCraftingCalculationQueries` | `true` | Caches only calculation-invariant queries for one job; simulated inventory amounts are excluded. |
 | UEL safe paths | `coalesceCraftingProviderRefreshes` | `true` | Coalesces repeated provider refreshes and flushes before calculation. |
 | UEL safe paths | `trackProviderPatternGenerations` | `true` | Rebuilds provider indexes only after exact provider content changes. |
-| UEL safe paths | `incrementalIoPortProcessing` | `true` | Advances IO Port input cells from a persistent round-robin cursor. |
-| UEL safe paths | `ioPortCellSlotsPerTick` | `2` | Bounds the cell slots inspected per IO Port grid tick. |
-| UEL safe paths | `cacheImportBusLastSuccessfulSlot` | `false` | Compatibility option; the custom transfer Mixin is unregistered and AE2 owns all transfers. |
-| UEL safe paths | `cacheExportBusCandidateKeys` | `true` | Reuses configured Export Bus keys until its config generation changes. |
 | UEL safe paths | `cacheCircuitCutterRecipes` | `true` | Reuses exact-input ExtendedAE Circuit Cutter candidates after its live recipe validation. |
 | UEL safe paths | `cacheCircuitCutterNegativeResults` | `true` | Shares exact no-recipe results until input change or datapack reload. |
 | UEL safe paths | `circuitCutterRecipeCacheSize` | `4096` | Bounds shared Circuit Cutter candidates. |
 
 These defaults still need pack-specific runtime testing. "Enabled by default" is not a promise of compatibility with every AE2 addon or coremod stack.
 
-### Compatibility-Disabled Sync Paths in 1.2.1
+### Compatibility-Disabled Sync Paths Since 1.2.1
 
-The following keys remain readable for existing world configs, but their Mixins are not registered in 1.2.1:
+The following keys remain readable for existing world configs, but their Mixins
+remain unregistered in 1.2.2:
 
-| Key | Source default | 1.2.1 behavior |
+| Key | Source default | Current behavior |
 | --- | --- | --- |
 | `throttleStorageWatcherUpdates` | `false` | No-op; `StorageServiceWatcherThrottleMixin` is unregistered. |
 | `networkForceUpdateCoalescing` | `false` | No-op; `StorageServiceDeepCoalescingMixin` is unregistered. |
@@ -70,26 +64,77 @@ The following keys remain readable for existing world configs, but their Mixins 
 
 These paths were removed from the runtime Mixin list after stale terminal generations could conflict with live insertion. Changing the retained keys to `true` does not reactivate them.
 
+### Compatibility-Disabled Mutable Paths in 1.2.2
+
+These retained keys cannot reactivate the Mixins removed in 1.2.2:
+
+| Key | Source default | 1.2.2 behavior |
+| --- | --- | --- |
+| `cacheCraftableSets` | `false` | No-op; AE2 computes terminal craftables directly. |
+| `cacheAdjacentCapabilityLookups` | `true` | No-op; `BlockApiCacheTickCacheMixin` is unregistered. |
+| `cacheAdjacentCapabilitiesAcrossTicks` | `false` | No-op companion key; no capability cache Mixin is registered. |
+| `cacheNegativeBusTransferSimulations` | `true` | No-op; both storage simulation Mixins are unregistered. |
+| `incrementalIoPortProcessing` | `true` | No-op; AE2 owns complete IO Port cell transfer. |
+| `ioPortCellSlotsPerTick` | `2` | No-op companion limit. |
+| `cacheImportBusLastSuccessfulSlot` | `false` | No-op; AE2 owns Import Bus extraction and rollback. |
+| `cacheExportBusCandidateKeys` | `true` | No-op; the custom Export Bus key Mixin is unregistered. |
+| `enableGridTickBudget` / `deferHeavyGridTickables` / `backoffIdleGridTickables` | `false` | No-op; the grid tick deferral Mixin is unregistered. |
+| Grid tick interval, time, class-hint, and backoff limits | retained | No-op companion limits. |
+| `limitIoBusOperationsPerTick` | `false` | No-op; standard and ExtendedAE I/O cap Mixins are unregistered. |
+| `busSearchRewrite` | `false` | No-op; the fuzzy Export Bus Mixin is unregistered. |
+
+ACO 1.2.2 deliberately leaves every live storage insertion, extraction,
+rollback, cell transfer, and terminal repository generation to AE2.
+
 The AE2 Overclock upgrade-count cache can delay recognition of a card inserted after that machine was already inspected in the same server tick. The next tick always performs a new lookup. Disabling the option restores AE2 Overclock's original repeated scan path.
 
 ## Opt-In Experimental Paths
 
+### Next-Generation Crafting Engine
+
+This section is a development foundation and is disabled at both the master and
+behavior-changing child levels. Do not copy these values into a live world until
+the qualification in [EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md) is complete.
+The master accepts only the researched AE2 `15.4.10`; enabled Advanced AE V2 or
+fair scheduling accepts only `1.3.5-1.20.1`.
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `enableExperimentalCraftingEngine` | `false` | Master switch for behavior-changing planner, V2 batching, and fair-scheduler paths. The explicit-host BigInteger API is independent. |
+| `enableShadowMode` | `false` | Diagnostic comparison only; requires the master and compiled graph. |
+| `enableCompiledCraftingGraph` | `false` | Builds the immutable generation-keyed graph; unsupported or unproven plans still fall back to AE2. |
+| `enableTransactionalBatchingV2` | `false` | Enables durable prepare/accept/account/reconcile transactions. |
+| `enableGtceuNativeBatching` | `false` | Enables exact all-or-zero GTCEu native batches; requires V2. |
+| `enableMekanismNativeBatching` | `false` | Enables exact item/fluid/chemical Mekanism native batches; requires V2. |
+| `enableFairCraftingJobScheduler` | `false` | Enables persistent DRR scheduling for AE2 and Advanced AE CPUs. |
+| `fairSchedulerOperationsPerTick` | `4096` | Hard operation budget per supported ME grid and tick. |
+| `fairSchedulerQuantum` | `64` | Deficit-round-robin allocation quantum. |
+| `fairSchedulerTimeBudgetMillis` | `4` | Measured execution-time budget per grid and tick. |
+| `persistBatchTransactionJournal` | `true` | Required safety dependency for new V2 execution; existing journal records are still reconciled when feature switches are off. |
+| `batchTransactionJournalMaximumEntries` | `16384` | Hard journal bound, range `16..16384`; new V2 work falls back when it is full. |
+| `batchTransactionReconciliationIntervalTicks` | `20` | Interval for bounded unresolved-transaction recovery scans. |
+| `nativeBatchMaximumExecutions` | `65536` | Checked-long per-transaction hard cap. |
+| `enableBigIntegerCraftingBackend` | `true` | Exposes API v3 to an explicitly integrating CPU add-on; does not patch normal AE2 or Advanced AE CPUs and has no effect without a registered host. |
+| `bigIntegerMaximumBits` | `256` | Maximum non-negative count and planner-intermediate magnitude. Range `64..1048576` binary bits; 256 bits is about 77 decimal digits. |
+| `bigIntegerExecutionWindow` | `65536` | Maximum executions exposed to a long/int machine adapter in one window. |
+| `bigIntegerStatusPageEntries` | `1024` | Configured job summaries per status page; hard protocol cap `16384`. |
+| `bigIntegerRuntimeCountBudgetMiB` | `256` | Aggregate encoded-count budget for one BigInteger CPU runtime. Range `32..4096` MiB. |
+
+No empty scheduler, receipt, or BigInteger job NBT is written while these paths
+remain unused. BigInteger status uses Forge channel protocol `2` and payload
+protocol `1`, with a hard `1 MiB` packet cap. Server and clients must use the
+same ACO jar before an integrating add-on uses status synchronization.
+
 | Key | Default | Main risk |
 | --- | --- | --- |
 | `twoStageMissingPreview` | `false` | Changes calculation presentation and has legacy companion flags. |
-| `fastFailMissingCrafts` | `false` | Returns early only for strictly provable deterministic missing paths. |
+| `fastFailMissingCrafts` | `true` | Returns early only for strictly provable deterministic item, fluid, or chemical missing paths. |
 | `cacheSuccessfulCompletedCraftingPlans` | `false` | A successful plan may become stale before submission. |
-| `enableGridTickBudget` | `false` | Defers selected non-progress-sensitive grid tickables and can reduce automation throughput. |
-| `deferHeavyGridTickables` | `false` | Requires the grid-tick master and pack-specific transfer tests. |
-| `backoffIdleGridTickables` | `false` | Intentionally delays repeated idle polls. |
-| `limitIoBusOperationsPerTick` | `false` | Directly caps Import/Export Bus work per tick. |
 | `throttleExportBusCraftRequests` | `false` | Delays repeated failed automatic crafting requests. |
 | `patternSelectionByAvailability` | `false` | Changes candidate attempt order, but not validity. |
-| `busSearchRewrite` | `false` | Reuses fuzzy Export Bus search results for a short interval. |
-| `cacheAdjacentCapabilitiesAcrossTicks` | `false` | Depends on external capability providers correctly invalidating their LazyOptional. |
 | `asyncTerminalSearchSort` | `false` | Moves immutable projected search/sort work to a worker and discards stale generations. |
 | `asyncTerminalMinimumEntries` | `2048` | Minimum terminal size for the async path. |
-| `enableCreateRecipeIntentFastPath` | `false` | Reserved; no Create machine fast path is implemented in 1.0.0. |
+| `enableCreateRecipeIntentFastPath` | `false` | Reserved; no Create machine fast path is implemented. |
 | `enablePatternMicroBatching` | `false` | Compatibility-disabled in 1.1.1. `true` is ignored because aggregate acceptance cannot guarantee multiplied recipe outputs. |
 | `maxPatternExecutionsPerMicroBatch` | `65536` | Legacy no-op retained for existing config compatibility. |
 | `requireSinglePatternProviderTarget` | `true` | Legacy no-op retained for existing config compatibility. |
@@ -97,9 +142,14 @@ The AE2 Overclock upgrade-count cache can delay recognition of a card inserted a
 
 ### Transactional Pattern Batching
 
+The 1.2.0/1.2.1 execution Mixins for this legacy section are unregistered in
+1.2.2. The keys remain readable but cannot intercept standard or Advanced AE
+CPU execution. New durable batching is the separate, default-off V2 section
+above.
+
 | Key | Default | Notes |
 |---|---:|---|
-| `enableTransactionalPatternBatching` | `true` | Enables accepted-execution-count adapters. Unsupported cases fall back before input transfer. |
+| `enableTransactionalPatternBatching` | `true` | Compatibility no-op in 1.2.2; no execution Mixin is registered. |
 | `maxTransactionalPatternBatchExecutions` | `65536` | Maximum exact executions prepared for one adapter transaction; the adapter may accept fewer. |
 | `enableSequentialPatternProviderBatchAdapter` | `true` | Enables the conservative built-in adapter that preserves one AE2 push per accepted execution. |
 | `maxSequentialProviderExecutionsPerCall` | `256` | Bounds original AE2 pushes inside one conservative adapter transaction. |
@@ -109,11 +159,15 @@ The AE2 Overclock upgrade-count cache can delay recognition of a card inserted a
 | `requireSingleTransactionalBatchTarget` | `true` | Requires deterministic one-side routing before native-style adapters are considered. |
 | `transactionalBatchTargetNamespaces` | `["gtceu", "mekanism"]` | Limits eligible adjacent machine namespaces. |
 
-The old aggregate-inventory keys above do not control this API. They remain disabled because `pushPattern() == true` does not prove complete aggregate insertion or N machine recipe executions.
+These keys do not control V2. They remain only for existing config and API
+compatibility because `pushPattern() == true` alone does not prove complete
+aggregate insertion or N machine recipe executions.
 
 Enable one experimental path at a time and repeat the relevant section in [TESTING.md](TESTING.md).
 
-Import/Export Buses and ExtendedAE Circuit Cutters are always exempt from hard Grid Tick deferral and idle/slow backoff. Their work is optimized through bounded operations and validated caches so a late iteration position cannot starve them.
+Import/Export Buses, IO Ports, and ExtendedAE Circuit Cutters use their original
+tick scheduling in 1.2.2. Circuit Cutter recipe candidates remain
+live-validated; ACO does not defer its machine tick.
 
 ## Giant CPU Defaults
 

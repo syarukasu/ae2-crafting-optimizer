@@ -2,7 +2,103 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [1.3.0] - 2026-07-18
+
+The release artifact was clean-built and qualified through Forge client bootstrap
+and Arclight dedicated-server startup on the documented dependency stack. Deep
+planner and native-batch rewrites remain opt-in and disabled by default.
+
+### Added
+
+- Added a disabled next-generation crafting-engine master section.
+- Added checked-long arithmetic, an immutable generation-aware crafting graph,
+  and a symbolic long planner with comparison-only Shadow Mode.
+- Added a bounded deterministic missing-input proof for item, fluid, and chemical
+  crafting keys. It short-circuits only when every recipe and alternative path
+  is proven impossible; ambiguous graphs fall back to AE2 unchanged.
+- Added a persistent V2 prepare/accept/account/reconcile journal with AE2 source
+  receipts and GTCEu/Mekanism target receipts.
+- Added exact all-or-zero native Pattern Provider batch adapters for GTCEu and
+  Mekanism item, fluid, and supported chemical keys.
+- Added a persistent deficit-round-robin scheduler for standard AE2 and Advanced
+  AE CPU jobs, bounded by per-grid operation and elapsed-time budgets.
+- Added JUnit coverage for arithmetic, graph/planner behavior, NBT, transaction
+  phases, receipt state, scheduler budgets, fairness, and starvation prevention.
+- Added stable SHA-256 graph/task fingerprints and exact aggregate validation at
+  the native adapter boundary.
+- Added checked overflow promotion from the deterministic long planner to a
+  BigInteger planner, while ambiguous results remain Shadow-only fallbacks.
+- Added API v3 for explicitly integrated BigInteger CPU hosts: atomic capacity
+  reservation, multiple fair jobs, bounded execution windows, versioned NBT,
+  long-job migration, persisted-lease recovery, cancellation quarantine, and
+  output completion.
+- Added a shared physical-capacity host that reconciles standard signed-long CPU
+  reservations and native BigInteger jobs without allowing either path to
+  oversubscribe the other.
+- Added optional AQE 2.0.0 integration through a weak owner registry; ACO is not
+  a required dependency of AQE and has no dependency on AQE.
+- Applied the configured runtime count-byte budget to externally reconciled
+  standard-job reservations, preventing oversized host NBT from allocating an
+  unbounded collection of BigInteger magnitudes.
+- Added a separate Forge channel protocol `2` with status payload protocol `1`, immutable paging,
+  strict key/count decoding, a `1 MiB` packet cap, and persistent runtime ids.
+- Added configurable BigInteger magnitude, execution-window, status-page, and
+  aggregate count-memory bounds.
+- Added a bounded multi-transaction instant dispatcher and generation-aware
+  Pattern Provider routing cache for V2.
+- Added exact-version optional bridge loading for GTCEu `7.5.3`, Mekanism
+  `10.4.16.80`, and Applied Mekanistics `1.4.3`.
+- Expanded automated coverage with randomized planner properties, 64/128/1024
+  digit NBT values, status protocol rejection tests, runtime memory limits,
+  output completion, and a 1,000-pattern/1024-digit benchmark.
+
+### Fixed
+
+- Recorded the actual modulated source extraction before validating its amount,
+  so a simulation/modulation race cannot omit a partial extraction from rollback.
+- Added an `ENERGY_ACCOUNTING` receipt barrier. An interrupted or failed charge
+  is quarantined instead of being replayed and potentially charged twice.
+- Replaced transaction-path field-name reflection with typed Accessor Mixin
+  contracts and startup transformation audits.
+- Deduplicated identical logical compiled patterns, built graphs outside the
+  global cache lock, and revalidated provider generation before publication.
+- Removed full remaining-task map copies from each BigInteger scheduler pass and
+  made status totals and encoded-count memory accounting incremental.
+- Closed the BigInteger host API around defensive job copies and immutable,
+  runtime-bound execution leases so callers cannot bypass capacity accounting.
+- Added byte-aware status-page shrinking so extreme configured magnitudes cannot
+  overflow the strict packet cap merely because the entry-count limit was met.
+- Added `EXTRACTING` and per-output `OUTPUT_ACCOUNTING` receipt barriers so a
+  stop inside a source/output side effect is quarantined instead of guessed and
+  replayed.
+- Removed resolved source/target receipts only after the terminal journal record
+  is complete, preventing the 256-entry ledgers from stalling normal throughput.
+- Enforced the configured BigInteger bit limit during planner intermediates,
+  added configured API planner/runtime restore factories, and made runtime
+  encoded-count accounting incremental.
+- Distributed a BigInteger runtime tick budget across selected runnable jobs and
+  preserved the rotating cursor when the budget cannot reach every job.
+- Aligned the journal Config maximum with its `16,384`-record load safety bound.
+- Added exact-version fail-fast checks for the experimental AE2 and Advanced AE
+  integration paths.
+
+### Safety
+
+- The experimental master, compiled graph, V2 batching, both native adapters,
+  and fair scheduler all default to disabled.
+- Empty receipt and scheduler compounds are not written while the experimental
+  paths are unused.
+- Malformed receipts and unknown journal schemas fail closed and remain
+  inspectable. Stale terminal receipts are retained as bounded replay evidence
+  only if post-journal cleanup cannot remove them.
+- Existing journal records continue recovery after experimental feature flags
+  are disabled, while unresolved source receipts pause that CPU's normal pushes.
+- BigInteger support is an explicit-host sidecar API only. The API switch is
+  enabled by default, but it does not patch standard AE2/Advanced AE jobs and
+  has no gameplay effect without a compatible CPU add-on.
+- Shipping defaults keep the experimental master, compiled planner, V2 native
+  batching, and fair scheduler disabled. The explicit-host BigInteger API is
+  enabled but inert unless a compatible add-on registers a host.
 
 ## [1.2.2] - 2026-07-18
 
@@ -21,7 +117,33 @@ All notable changes to this project are documented here.
 ### Documentation
 
 - Added the team development specification, safety invariants, acceptance criteria, and design-reference map.
-- Aligned synchronization documentation with the 1.2.1 runtime Mixin list.
+- Aligned compatibility-path documentation with the 1.3.0 runtime Mixin list,
+  release defaults, and qualified dependency versions.
+- Added the experimental engine architecture, recovery model, NBT keys, and
+  deferred runtime qualification matrix.
+- Documented the BigInteger API/packet boundary and corrected native target
+  receipt ownership to the persisted Pattern Provider logic.
+
+## [1.2.2] - 2026-07-18
+
+### Fixed
+
+- Unregistered every custom Import Bus, Export Bus, IO Port, and shared I/O
+  tick-budget Mixin. AE2 now exclusively owns live storage insertion,
+  extraction, rollback, and cell transfer.
+- Unregistered standard and Advanced AE legacy transactional batch execution
+  Mixins so crafting inputs use AE2's original execution path.
+- Unregistered terminal craftable-set caching to keep zero-stock entries tied
+  to AE2's current repository generation.
+
+### Safety
+
+- Removed the custom Import Bus implementation that could lose a remainder when
+  network insertion changed between simulation and modulation.
+- Changed `cacheCraftableSets` and `cacheImportBusLastSuccessfulSlot` defaults
+  to `false`; the latter is now a compatibility no-op.
+- Recipe lookup, crafting calculation, execution-budget, machine-intent, and
+  non-mutating compatibility optimizations remain enabled.
 
 ## [1.2.1] - 2026-07-17
 
