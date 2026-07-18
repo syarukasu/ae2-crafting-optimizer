@@ -9,7 +9,10 @@ import java.lang.reflect.Method;
 import java.util.Map;
 import net.minecraftforge.fml.ModList;
 
-/** Loads optional typed bridges only for the exact dependency versions they were verified against. */
+/**
+ * 動作確認済みの依存MODバージョンに限ってNative Batch Adapterを遅延登録する。
+ * 対象MODがない環境では連携クラス自体をロードせず、Dedicated Serverの起動を守る。
+ */
 public final class OptionalNativeBatchIntegrations {
     private static final String GTCEU_ADAPTER =
             "com.syaru.ae2craftingoptimizer.gtceu.GTCEuNativePatternBatchAdapter";
@@ -36,7 +39,9 @@ public final class OptionalNativeBatchIntegrations {
         if (ACOConfig.enableMekanismNativeBatching() && !mekanismRegistered) {
             mekanismRegistered = registerIfExact(
                     "Mekanism + Applied Mekanistics",
-                    Map.of("mekanism", "10.4.16.80", "appmek", "1.4.3"),
+                    // JAR名の末尾にあるbuild番号「.80」はForgeのMODバージョンには含まれない。
+                    // ModListが返す値と比較し、検証済みJARを誤って無効化しないようにする。
+                    Map.of("mekanism", "10.4.16", "appmek", "1.4.3"),
                     MEKANISM_ADAPTER);
         }
     }

@@ -9,16 +9,26 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 
-/** Persistent BigInteger job state. Machine execution is always exposed as bounded long windows. */
+/**
+ * BigInteger注文の永続状態。
+ * 保存上の残量はBigIntegerのまま維持し、機械へ渡す時だけ上限付きlong実行Windowとして貸し出す。
+ */
 public final class BigCraftingJob<K> {
-    public static final int SCHEMA_VERSION = 2;
+    public static final int SCHEMA_VERSION = 3;
     public static final long MAX_EXECUTIONS_PER_WINDOW = 1_048_576L;
+    /**
+     * BigInteger注文を標準AE2 Jobへ分割する時だけ使う予約済みTask ID。
+     * 通常のPattern fingerprintと衝突しないACO所有の名前空間に固定する。
+     */
+    public static final String ROOT_WINDOW_TASK_ID = "aco:root-window-v1";
     private static final int MAX_ENTRIES = 1_048_576;
 
     private final UUID id;
     private final K requestedKey;
     private final BigInteger requestedAmount;
     private final BigInteger reservedCapacity;
+    private final long patternGeneration;
+    private final long recipeGeneration;
     private final Map<String, BigCraftingTaskProgress> tasks;
     private final BigCraftingInventory<K> waitingFor;
     private BigInteger remainingExecutionTotal;
@@ -42,7 +52,45 @@ public final class BigCraftingJob<K> {
                 newTasks(patternExecutions),
                 new BigCraftingInventory<>(initialWaitingFor),
                 State.PLANNED,
-                null);
+                null,
+                -1L,
+                -1L);
+    }
+
+    /**
+     * 一つの巨大な完成品要求を、同じ完成品のlong範囲Jobへ順番に分割する。
+     * 実行窓の成功確認までは進捗を増やさないため、再起動時も未確定分を再送しない。
+     */
+    public static <K> BigCraftingJob<K> rootWindowed(
+            UUID id,
+            K requestedKey,
+            BigInteger requestedAmount,
+            BigInteger reservedCapacity) {
+        return rootWindowed(
+                id, requestedKey, requestedAmount, reservedCapacity, -1L, -1L);
+    }
+
+    public static <K> BigCraftingJob<K> rootWindowed(
+            UUID id,
+            K requestedKey,
+            BigInteger requestedAmount,
+            BigInteger reservedCapacity,
+            long patternGeneration,
+            long recipeGeneration) {
+        if (patternGeneration < -1L || recipeGeneration < -1L) {
+            throw new IllegalArgumentException("planning generations must be -1 or non-negative");
+        }
+        return new BigCraftingJob<>(
+                id,
+                requestedKey,
+                requestedAmount,
+                reservedCapacity,
+                newTasks(Map.of(ROOT_WINDOW_TASK_ID, requestedAmount)),
+                new BigCraftingInventory<>(Map.of()),
+                State.PLANNED,
+                null,
+                patternGeneration,
+                recipeGeneration);
     }
 
     /** Lossless migration entry point for an add-on's existing signed-long job state. */
@@ -75,8 +123,12 @@ public final class BigCraftingJob<K> {
                 requestedKey,
                 BigInteger.valueOf(requestedAmount),
                 BigInteger.valueOf(reservedCapacity),
-                tasks,
-                waiting);
+                newTasks(tasks),
+                new BigCraftingInventory<>(waiting),
+                State.PLANNED,
+                null,
+                -1L,
+                -1L);
     }
 
     private BigCraftingJob(
@@ -87,11 +139,18 @@ public final class BigCraftingJob<K> {
             Map<String, BigCraftingTaskProgress> tasks,
             BigCraftingInventory<K> waitingFor,
             State state,
-            PreparedExecution preparedExecution) {
+            PreparedExecution preparedExecution,
+            long patternGeneration,
+            long recipeGeneration) {
         this.id = Objects.requireNonNull(id, "id");
         this.requestedKey = Objects.requireNonNull(requestedKey, "requestedKey");
         this.requestedAmount = positive(requestedAmount, "requestedAmount");
         this.reservedCapacity = BigCountMath.requireNonNegative(reservedCapacity, "reservedCapacity");
+        if (patternGeneration < -1L || recipeGeneration < -1L) {
+            throw new IllegalArgumentException("planning generations must be -1 or non-negative");
+        }
+        this.patternGeneration = patternGeneration;
+        this.recipeGeneration = recipeGeneration;
         this.tasks = new LinkedHashMap<>(Objects.requireNonNull(tasks, "tasks"));
         if (this.tasks.size() > MAX_ENTRIES) {
             throw new IllegalArgumentException("too many BigInteger crafting tasks");
@@ -209,6 +268,8 @@ public final class BigCraftingJob<K> {
         BigIntegerNbtCodec.putNonNegative(tag, "requestedAmount", requestedAmount, maximumBits);
         BigIntegerNbtCodec.putNonNegative(tag, "reservedCapacity", reservedCapacity, maximumBits);
         tag.putString("state", state.name());
+        tag.putLong("patternGeneration", patternGeneration);
+        tag.putLong("recipeGeneration", recipeGeneration);
         if (preparedExecution != null) {
             CompoundTag prepared = new CompoundTag();
             prepared.putUUID("transaction", preparedExecution.transactionId());
@@ -241,7 +302,7 @@ public final class BigCraftingJob<K> {
         Objects.requireNonNull(tag, "tag");
         Objects.requireNonNull(codec, "codec");
         int schema = tag.getInt("schema");
-        if ((schema != 1 && schema != SCHEMA_VERSION) || !tag.hasUUID("id")) {
+        if ((schema < 1 || schema > SCHEMA_VERSION) || !tag.hasUUID("id")) {
             throw new IllegalArgumentException("unsupported BigInteger crafting job schema " + schema);
         }
         Map<String, BigCraftingTaskProgress> tasks = new LinkedHashMap<>();
@@ -274,7 +335,9 @@ public final class BigCraftingJob<K> {
                 tasks,
                 new BigCraftingInventory<>(waitingFor),
                 state,
-                prepared);
+                prepared,
+                schema >= 3 ? tag.getLong("patternGeneration") : -1L,
+                schema >= 3 ? tag.getLong("recipeGeneration") : -1L);
     }
 
     public UUID id() {
@@ -293,6 +356,14 @@ public final class BigCraftingJob<K> {
         return reservedCapacity;
     }
 
+    public long patternGeneration() {
+        return patternGeneration;
+    }
+
+    public long recipeGeneration() {
+        return recipeGeneration;
+    }
+
     public synchronized State state() {
         return state;
     }
@@ -309,6 +380,10 @@ public final class BigCraftingJob<K> {
 
     public synchronized boolean hasRemainingTasks() {
         return remainingTaskTypes > 0;
+    }
+
+    public synchronized boolean isRootWindowed() {
+        return tasks.size() == 1 && tasks.containsKey(ROOT_WINDOW_TASK_ID);
     }
 
     public synchronized BigInteger remainingExecutionTotal() {

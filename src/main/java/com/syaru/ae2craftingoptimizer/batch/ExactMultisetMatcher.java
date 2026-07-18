@@ -9,6 +9,7 @@ import java.util.Objects;
 
 public final class ExactMultisetMatcher {
     private static final int MAX_REQUIREMENTS = 64;
+    private static final int MAX_SEARCH_STATES = 65_536;
 
     private ExactMultisetMatcher() {
     }
@@ -48,13 +49,19 @@ public final class ExactMultisetMatcher {
             resolved.add(new ResolvedRequirement<>(List.copyOf(candidates)));
         }
         resolved.sort(Comparator.comparingInt(value -> value.candidates().size()));
-        return match(resolved, 0, remaining) && remaining.values().stream().allMatch(value -> value == 0L);
+        return match(resolved, 0, remaining, new SearchBudget(MAX_SEARCH_STATES))
+                && remaining.values().stream().allMatch(value -> value == 0L);
     }
 
     private static <K> boolean match(
             List<ResolvedRequirement<K>> requirements,
             int index,
-            Map<K, Long> remaining) {
+            Map<K, Long> remaining,
+            SearchBudget budget) {
+        if (!budget.tryConsume()) {
+            // タグ候補の組み合わせ爆発時は推測せずNative経路を断念する。
+            return false;
+        }
         if (index == requirements.size()) {
             return remaining.values().stream().allMatch(value -> value == 0L);
         }
@@ -64,7 +71,7 @@ public final class ExactMultisetMatcher {
                 continue;
             }
             remaining.put(candidate.key(), current - candidate.amount());
-            if (match(requirements, index + 1, remaining)) {
+            if (match(requirements, index + 1, remaining, budget)) {
                 return true;
             }
             remaining.put(candidate.key(), current);
@@ -82,5 +89,21 @@ public final class ExactMultisetMatcher {
     }
 
     private record ResolvedRequirement<K>(List<Candidate<K>> candidates) {
+    }
+
+    private static final class SearchBudget {
+        private int remaining;
+
+        private SearchBudget(int remaining) {
+            this.remaining = remaining;
+        }
+
+        private boolean tryConsume() {
+            if (remaining <= 0) {
+                return false;
+            }
+            remaining--;
+            return true;
+        }
     }
 }

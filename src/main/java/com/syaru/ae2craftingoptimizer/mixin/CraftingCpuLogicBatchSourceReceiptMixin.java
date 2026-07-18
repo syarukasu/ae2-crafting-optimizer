@@ -4,6 +4,7 @@ import appeng.crafting.execution.CraftingCpuLogic;
 import appeng.crafting.execution.ExecutingCraftingJob;
 import appeng.crafting.inv.ICraftingInventory;
 import appeng.crafting.inv.ListCraftingInventory;
+import appeng.api.stacks.GenericStack;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
@@ -80,6 +81,14 @@ public abstract class CraftingCpuLogicBatchSourceReceiptMixin
     @Override
     public boolean aco$stageBatchSourceReceipt(BatchSourceReceipt receipt) {
         return aco$batchSourceReceipts.stage(receipt);
+    }
+
+    @Override
+    public void aco$recordExtractedBatchSourceInput(
+            UUID transactionId,
+            GenericStack extracted,
+            long updatedTick) {
+        aco$batchSourceReceipts.recordExtraction(transactionId, extracted, updatedTick);
     }
 
     @Override

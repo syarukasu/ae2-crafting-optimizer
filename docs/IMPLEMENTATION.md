@@ -10,7 +10,7 @@ fair scheduler, and BigInteger CPU sidecar API are documented separately in
 behavior-changing switches remain disabled, and they are not part of the active
 1.2.2 behavior described below.
 
-## 1.3.0 Implementation Boundary
+## 1.3.1 Implementation Boundary
 
 The development backend is additive. It does not replace AE2's standard
 `CraftingTreeNode`, standard job NBT, terminal packets, or mutable storage paths.
@@ -45,13 +45,15 @@ logic is typed. Registration requires the exact versions recorded in
 `RESEARCH_FINAL_ENGINE.md`. Missing transformations fail fast when the matching
 experimental feature is enabled.
 
-The source receipt uses explicit `EXTRACTING`, `ENERGY_ACCOUNTING`, and
-per-output `OUTPUT_ACCOUNTING` uncertainty barriers. A recovered transaction in
-one of those states is quarantined: ACO does not guess whether a partial input
-move, energy charge, or waiting-output insertion completed. Terminal source and
-target receipts are removed only after the overworld journal has reached and
-removed its terminal record; cleanup failure leaves bounded evidence instead of
-removing the last proof first.
+The source receipt uses schema 3 to persist the exact amount returned by every
+successful `extract(MODULATE)` call. A schema-2 transaction recovered in
+`EXTRACTING` restores only that proven partial list; legacy schema-1 data without
+the list remains quarantined. `ENERGY_ACCOUNTING` and per-output
+`OUTPUT_ACCOUNTING` stay as uncertainty barriers because those AE2 side effects
+have no idempotent transaction key. Terminal source and target receipts are
+removed only after the overworld journal has reached and removed its terminal
+record; cleanup failure leaves bounded evidence instead of removing the last
+proof first.
 
 `BigCraftingEngineApi` is deliberately a host API, not an automatic Advanced AE
 patch. It creates a versioned `BigCraftingRuntime`, reserves BigInteger capacity,
@@ -147,15 +149,16 @@ well as runtime submission, NBT decode, and packet decode.
 - `CraftingCpuLogicExecutionBudgetMixin`
   - Redirects AE2's `CraftingCPUCluster.getCoProcessors()` call inside `CraftingCpuLogic.tickCraftingLogic`.
   - Caps the effective execution window before AE2 calls `executeCrafting`.
-  - Wraps the `executeCrafting` call and records elapsed server-side execution time for adaptive pacing.
+  - Routes each original `executeCrafting` wave through `SequentialInstantDispatcher` and records elapsed server-side execution time for adaptive pacing.
   - Applies a second, shared budget keyed by `CraftingService`, which corresponds to one ME grid's crafting service.
   - Uses an exponentially weighted nanoseconds-per-operation estimate to fit later CPU bursts into the remaining grid budget.
+  - Never aggregates pattern inputs; every accepted operation is still accounted by AE2's original method.
   - Grants every active CPU `minimumSharedOperationsPerCpu` after the shared budget is consumed to avoid starvation.
   - Does not change the CPU's real co-processor count, display value, storage, job validation, or crafting result.
   - Enabled by default because AE2 co-processors increase pattern push throughput, not craft calculation speed.
 - `AdvancedAeCraftingCpuLogicExecutionBudgetMixin`
-  - Optionally redirects only `AdvCraftingCPU.getCoProcessors()` inside the server crafting tick.
-  - Applies ACO's hard effective co-processor cap without reflectively invoking Advanced AE methods or touching menu code.
+  - Redirects `AdvCraftingCPU.getCoProcessors()` and the original `executeCrafting` wave boundary inside the server crafting tick.
+  - Applies the same hard cap and Sequential Instant CPU/Grid budgets without reflection or menu code.
   - Leaves Quantum Computer storage, displayed statistics, structure formation, and job state unchanged.
 - `NeoEcoCraftingCpuExecutionBudgetMixin`
   - Optional pseudo-mixin targeting Neo ECO AE Extension 20.3.x `ECOCraftingCPULogic`.
@@ -282,11 +285,13 @@ The optimizer caps only the effective co-processor value seen by AE2's normal cr
 
 This feature is enabled by default because it is the direct TPS protection for giant CPUs: the CPU can remain large, but it cannot spend an unbounded amount of one server tick pushing patterns.
 
-Advanced AE Quantum Computer execution receives the same hard effective co-processor cap. The Advanced AE path intentionally does not use the standard CPU's reflective execution wrapper, adaptive timing sample, or per-grid shared budget. This keeps the integration at one server-side value read and avoids the previous menu-time class-loading failure.
+Advanced AE Quantum Computer execution receives the same hard effective co-processor cap and Sequential Instant wave controller. Its public original `executeCrafting` method still performs all extraction, Provider, energy, task, and waiting-output accounting; ACO only chooses the maximum size of the next measured wave. No menu class is touched and no reflective execution call is used.
 
 Neo ECO AE Extension 20.3.x uses a separate `ECOCraftingCPULogic`, so the standard AE2 redirect cannot see it. ACO injects only at Neo ECO's two existing limit-return methods and around its existing `executeCrafting(...)` call. The lower of Neo ECO's own limit and ACO's limit wins. The actual return value from Neo ECO remains the completed-operation count used for adaptive measurement.
 
 The generated default cap is `264192` effective co-processors per CPU. This keeps the optimizer safe by default while matching AQE's non-experimental full structure.
+
+Sequential Instant does not introduce a low per-tick operation cap. It starts with a bounded probe wave, derives nanoseconds per completed operation, and repeatedly permits additional waves until the original `maxPatterns`, Provider backpressure, the per-CPU wall-clock budget, or the shared grid wall-clock budget is exhausted. GTCEu and Mekanism therefore receive normal one-pattern pushes instead of one count-scaled aggregate input.
 
 For explicit AQE experimental-core stress testing, set `maxEffectiveCoprocessorsPerCpu = 2147483646`, which is `Integer.MAX_VALUE - 1`. This lets AQE's experimental maximum-value core reach AE2's execution loop while still allowing AE2 to add one execution slot without integer overflow.
 

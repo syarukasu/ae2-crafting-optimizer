@@ -16,8 +16,9 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
- * One-pass planner for the provably linear subset: one pattern per output,
- * one output key per pattern, one concrete alternative per input slot, and no cycles.
+ * 数式だけで証明できる線形レシピを一回の走査で計算する高速Planner。
+ * 出力ごとにPatternが一つ、各入力候補が一つ、循環なし、という条件を外れた時点で
+ * Optional.emptyを返し、通常PlannerまたはAE2標準計算へFallbackする。
  */
 public final class SymbolicCraftingPlanner<K> {
     private static final int MAX_ROOTS_PER_GRAPH = 262_144;

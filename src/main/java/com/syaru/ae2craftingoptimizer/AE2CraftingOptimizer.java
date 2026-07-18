@@ -8,6 +8,7 @@ import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
 import com.syaru.ae2craftingoptimizer.integration.OptionalNativeBatchIntegrations;
 import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
+import com.syaru.ae2craftingoptimizer.integration.OptionalAqeBigCraftingExecution;
 import com.syaru.ae2craftingoptimizer.mekanism.MekanismRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.optimization.BusFuzzySearchCache;
 import com.syaru.ae2craftingoptimizer.optimization.BusTransferSimulationCache;
@@ -44,6 +45,11 @@ import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
+/**
+ * ACOのForgeエントリーポイント。
+ * 登録処理を行った後、サーバー開始・tick・データパック再読込・停止に合わせて
+ * Adapter登録、キャッシュ失効、取引復旧、診断情報の更新を呼び分ける。
+ */
 @Mod(AE2CraftingOptimizer.MODID)
 public final class AE2CraftingOptimizer {
     public static final String MODID = "ae2_crafting_optimizer";
@@ -162,14 +168,17 @@ public final class AE2CraftingOptimizer {
             LOGGER.warn("ACO ignored enablePatternMicroBatching=true. Aggregate processing-pattern pushes can desynchronize AE2 task and waiting-output accounting; AE2's original execution path remains active.");
         }
         LOGGER.info(
-                "ACO legacy transactional pattern batching: compatibility-disabled (configured {}, max {} prepared execution(s), sequential adapter {}, max {} push(es)/transaction, instant dispatch {} ({} ms, max {} transactions), targets {}, adapters {})",
+                "ACO sequential Instant dispatch: {} ({} ms/CPU/tick, probe {} operation(s), max {} operation(s)/measured wave; tick total remains bounded by maxPatterns and the shared grid budget)",
+                ACOConfig.enableInstantPatternDispatch(),
+                ACOConfig.getInstantPatternDispatchTimeBudgetMillis(),
+                ACOConfig.getInstantPatternDispatchProbeOperations(),
+                ACOConfig.getInstantPatternDispatchMaximumWaveOperations());
+        LOGGER.info(
+                "ACO legacy transactional pattern batching: compatibility-disabled (configured {}, max {} prepared execution(s), sequential adapter {}, max {} push(es)/transaction, targets {}, adapters {})",
                 ACOConfig.enableTransactionalPatternBatching(),
                 ACOConfig.getMaxTransactionalPatternBatchExecutions(),
                 ACOConfig.enableSequentialPatternProviderBatchAdapter(),
                 ACOConfig.getMaxSequentialProviderExecutionsPerCall(),
-                ACOConfig.enableInstantPatternDispatch(),
-                ACOConfig.getInstantPatternDispatchTimeBudgetMillis(),
-                ACOConfig.getMaxInstantPatternDispatchTransactions(),
                 ACOConfig.getTransactionalBatchTargetNamespaces(),
                 PatternBatchApi.registeredAdapterIds());
         LOGGER.info("ACO recipe intent fast paths - GTCEu: {}, Mekanism: {}, Create: {}",
@@ -244,7 +253,7 @@ public final class AE2CraftingOptimizer {
     }
 
     private void onRegisterCommands(RegisterCommandsEvent event) {
-        ACOIntentCommands.register(event.getDispatcher());
+        ACOIntentCommands.register(event.getDispatcher(), event.getBuildContext());
     }
 
     private void onServerTick(TickEvent.ServerTickEvent event) {
@@ -257,6 +266,7 @@ public final class AE2CraftingOptimizer {
         }
         RecipeIntentRegistry.cleanupExpired(event.getServer().overworld().getGameTime());
         BatchTransactionRecovery.tick(event.getServer(), event.getServer().overworld().getGameTime());
+        OptionalAqeBigCraftingExecution.tick(event.getServer());
     }
 
     private void onDatapackSync(OnDatapackSyncEvent event) {
@@ -301,6 +311,9 @@ public final class AE2CraftingOptimizer {
         Ae2CraftingShadowValidator.resetDiagnostics();
         Ae2CompiledCraftingGraphCache.clear();
         BigCraftingStatusInbox.clear();
+        OptionalAqeBigCraftingExecution.clear();
+        // AQE側の未送信窓を先に戻してからRegistryを破棄する。順序を逆にすると、
+        // ManagerがHostへ到達できずprepared leaseだけが保存状態へ残る。
         BigCraftingHostRegistry.clear();
         PatternTaskFingerprint.clear();
         PatternProviderRoutingCache.clear();

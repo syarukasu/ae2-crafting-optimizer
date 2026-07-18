@@ -161,6 +161,84 @@ class BigCraftingHostRuntimeTest {
         assertEquals(largeReservation.toByteArray().length, host.estimatedExternalCountBytes());
     }
 
+    @Test
+    void childExecutionBindingSurvivesReloadWithoutDoubleCountingCapacity() {
+        BigCraftingHostRuntime<String> host = host(BigInteger.valueOf(1_000));
+        BigCraftingJob<String> job = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(), "out", BigInteger.ONE, BigInteger.valueOf(500), 12L, 34L);
+        assertTrue(host.submit(job));
+        var lease = host.schedule(1L, 1).get(0);
+        UUID childCpu = UUID.randomUUID();
+
+        // Advanced AEのactive CPU走査が先に子Jobを予約しても、Binding後はBig側だけを数える。
+        host.replaceExternalReservations(Map.of(childCpu, BigInteger.valueOf(500)));
+        assertEquals(BigInteger.valueOf(1_000), host.reserved());
+        host.bindExternalExecution(lease, childCpu, BigInteger.valueOf(500));
+        assertEquals(BigInteger.valueOf(500), host.reserved());
+
+        BigCraftingHostRuntime<String> restored = BigCraftingHostRuntime.load(
+                host.save(), BigInteger.valueOf(1_000), STRINGS, 256, 64, 64, 4L * 1024L * 1024L);
+        assertEquals(1, restored.externalExecutions().size());
+        assertTrue(restored.externalReservations().isEmpty());
+        assertEquals(BigInteger.valueOf(500), restored.reserved());
+
+        assertTrue(restored.resolveExternalExecution(childCpu, true));
+        assertEquals(BigInteger.ZERO, restored.reserved());
+        assertTrue(restored.bigJobIds().isEmpty());
+    }
+
+    @Test
+    void failedChildRollsBackExactlyOnePreparedWindow() {
+        BigCraftingHostRuntime<String> host = host(BigInteger.valueOf(1_000));
+        BigCraftingJob<String> job = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(), "out", BigInteger.valueOf(2), BigInteger.valueOf(500));
+        assertTrue(host.submit(job));
+        var first = host.schedule(1L, 1).get(0);
+        UUID childCpu = UUID.randomUUID();
+        host.bindExternalExecution(first, childCpu, BigInteger.valueOf(500));
+
+        assertTrue(host.resolveExternalExecution(childCpu, false));
+        var replacement = host.schedule(1L, 1).get(0);
+        assertEquals(first.prepared().window(), replacement.prepared().window());
+        assertFalse(first.prepared().transactionId().equals(replacement.prepared().transactionId()));
+    }
+
+    @Test
+    void onlyUnboundPreparedWindowsAreRolledBack() {
+        BigCraftingHostRuntime<String> host = host(BigInteger.valueOf(1_000));
+        BigCraftingJob<String> first = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(), "first", BigInteger.ONE, BigInteger.valueOf(400));
+        BigCraftingJob<String> second = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(), "second", BigInteger.ONE, BigInteger.valueOf(400));
+        assertTrue(host.submit(first));
+        assertTrue(host.submit(second));
+        var leases = host.schedule(2L, 2);
+        host.bindExternalExecution(leases.get(0), UUID.randomUUID(), BigInteger.valueOf(400));
+
+        assertEquals(1, host.rollbackUnboundPreparedExecutions());
+        assertEquals(1, host.unresolvedExecutions().size());
+        assertEquals(
+                leases.get(0).prepared().transactionId(),
+                host.unresolvedExecutions().get(0).prepared().transactionId());
+    }
+
+    @Test
+    void missingBoundChildQuarantinesInsteadOfGuessingItsOutcome() {
+        BigCraftingHostRuntime<String> host = host(BigInteger.valueOf(1_000));
+        BigCraftingJob<String> job = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(), "out", BigInteger.ONE, BigInteger.valueOf(500));
+        assertTrue(host.submit(job));
+        var lease = host.schedule(1L, 1).get(0);
+        UUID childCpu = UUID.randomUUID();
+        host.bindExternalExecution(lease, childCpu, BigInteger.valueOf(500));
+
+        assertTrue(host.quarantineExternalExecution(childCpu));
+        assertEquals(BigInteger.valueOf(500), host.reserved());
+        assertEquals(
+                BigCraftingJob.State.QUARANTINED,
+                host.statusPage(0, 1).jobs().get(0).state());
+    }
+
     private static BigCraftingHostRuntime<String> host(BigInteger capacity) {
         return new BigCraftingHostRuntime<>(
                 capacity, STRINGS, 256, 64, 64, 4L * 1024L * 1024L);

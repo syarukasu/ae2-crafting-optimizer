@@ -32,18 +32,22 @@ AE2 Crafting Optimizer adds conservative recipe-intent fast paths for large AE2 
 
 ## Status
 
-Release `1.3.0` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
-and qualified through Forge client bootstrap and Arclight dedicated-server
-startup on the documented stack. The optional Neo ECO integration is pinned to Neo ECO AE
+Release `1.3.1` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
+and passed the complete automated test suite. P9 startup, recovery, multiplayer,
+and long-running live-world qualification remains operator-run. The optional Neo ECO integration is pinned to Neo ECO AE
 Extension `20.3.x`. ACO uses Mixins against mod internals, so do not assume
 compatibility with another branch or minor series without rebuilding and
 testing it.
 
-Install the same ACO jar on the dedicated server and every client. The authoritative config is the per-world server config:
+Install the same ACO jar on the dedicated server and every client. ACO uses one global Forge common config on each installation:
 
 ```text
-<world>/serverconfig/ae2_crafting_optimizer-server.toml
+config/ae2_crafting_optimizer-common.toml
 ```
+
+Keep the server and client copies aligned. Server-side gameplay behavior uses
+the server copy, while client-only display optimizations use the client copy.
+Legacy `defaultconfigs` and per-world `serverconfig` files are no longer read.
 
 Back up the world before enabling disabled-by-default deep rewrites. See [Configuration](docs/CONFIGURATION.md), [Implementation](docs/IMPLEMENTATION.md), and [Testing](docs/TESTING.md).
 
@@ -52,12 +56,16 @@ long/BigInteger planner, durable GTCEu/Mekanism native batching protocol, fair
 multi-job scheduler, versioned BigInteger CPU-host API, and bounded status
 channel. These are source-complete foundations, not live defaults. Read
 [Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md) before testing them.
+The current source carries the `1.3.1` test-candidate version while P0-P8 are reviewed;
+P9 startup, recovery, multiplayer, and long-running world tests are deliberately
+not claimed by this source revision. See
+[P0-P8 implementation status](docs/P0_P8_IMPLEMENTATION_STATUS.md).
 
 ### Experimental BigInteger Boundary
 
 ACO does not silently convert normal AE2 or Advanced AE CPUs to BigInteger.
 `BigCraftingEngineApi` is an explicit sidecar API for a separately integrating
-CPU add-on. AQE 2.0.0 is the first optional consumer. It keeps large counts in
+CPU add-on. AQE 2.0.1 is the current optional consumer. It keeps large counts in
 `BigInteger`, promotes only after checked-long overflow, gives existing machine
 APIs bounded execution windows, persists a versioned multi-job capacity ledger,
 and sends paged status through a separate strict protocol. The configured bit
@@ -143,7 +151,9 @@ The optimizer can cap the effective per-window pattern push budget for AE2's nor
 
 This feature is active by default because co-processors increase pattern push throughput, not crafting calculation speed. It is the main TPS protection for giant CPUs.
 
-Advanced AE Quantum Computer CPUs use the same effective co-processor cap. The optional integration redirects only the co-processor value read by its server execution loop; it does not wrap menu code, change the displayed value, or invoke Advanced AE crafting methods reflectively.
+Advanced AE Quantum Computer CPUs use the same effective co-processor cap and measured execution-wave boundary. The integration does not wrap menu code, change the displayed value, replace task accounting, or invoke Advanced AE crafting methods reflectively.
+
+Sequential Instant dispatch divides the original AE2 and Advanced AE execution loops into measured waves. Each wave still uses AE2's own one-pattern input extraction, `pushPattern`, energy, task-progress, and waiting-output accounting. A low fixed operation cap is not imposed: waves continue up to the CPU's original `maxPatterns` while the default `4 ms` per-CPU and `8 ms` per-grid budgets have room. Provider rejection or a full target ends the tick immediately.
 
 Neo ECO AE Extension 20.3.x custom ECO CPUs can also join ACO's adaptive per-CPU and shared per-grid execution budgets. ACO caps the values returned by Neo ECO's own normal and fast-path tick-limit methods, then records the actual number of pattern pushes reported by Neo ECO. Neo ECO's scheduler, batch/aggressive fast paths, recipes, storage, CPU statistics, and crafting accounting remain unchanged.
 
@@ -227,6 +237,10 @@ protocol with source, target, and world-journal NBT. It is isolated behind a
 new master and child switches that all default to `false`; it is not part of
 the active 1.2.2 runtime. See
 [Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md).
+
+Normal runtime throughput uses Sequential Instant instead. GTCEu and Mekanism
+inputs are not multiplied into one aggregate stack, so machine slots and tanks
+apply their normal backpressure through AE2.
 
 ### Add-on Machine Optimization
 
@@ -512,12 +526,14 @@ requireSinglePatternProviderTarget = true
 patternMicroBatchTargetNamespaces = ["gtceu", "mekanism"]
 
 [transactionalPatternBatching]
-enableTransactionalPatternBatching = true
+enableTransactionalPatternBatching = false
 maxTransactionalPatternBatchExecutions = 65536
-enableSequentialPatternProviderBatchAdapter = true
+enableSequentialPatternProviderBatchAdapter = false
 maxSequentialProviderExecutionsPerCall = 256
 enableInstantPatternDispatch = true
 instantPatternDispatchTimeBudgetMillis = 4
+instantPatternDispatchProbeOperations = 65536
+instantPatternDispatchMaximumWaveOperations = 65536
 maxInstantPatternDispatchTransactions = 1024
 requireSingleTransactionalBatchTarget = true
 transactionalBatchTargetNamespaces = ["gtceu", "mekanism"]
@@ -610,7 +626,7 @@ Run:
 gradlew.bat clean build
 ```
 
-This branch generates `build/libs/ae2-crafting-optimizer-1.3.0.jar`. Building
+This branch generates `build/libs/ae2-crafting-optimizer-1.3.1.jar`. Building
 it does not authorize deployment or feature enablement before the runtime
 matrix is complete. GitHub Actions runs the same clean build for
 pushes and pull requests.

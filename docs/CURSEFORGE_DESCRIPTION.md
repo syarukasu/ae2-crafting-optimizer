@@ -61,10 +61,10 @@ ACO 1.2.2 unregisters terminal snapshots and craftable caching, storage-watcher 
 
 ### Configuration
 
-ACO uses a per-world Forge server config:
+ACO uses a global Forge common config. Keep the server and client copies aligned:
 
 ```text
-<world>/serverconfig/ae2_crafting_optimizer-server.toml
+config/ae2_crafting_optimizer-common.toml
 ```
 
 Every optimization can be disabled through configuration, and `enableOptimizer = false` disables all ACO behavior for comparison or recovery testing.
@@ -145,10 +145,10 @@ ACO 1.2.2では、端末snapshot/craftable、Storage Watcher、aggregate refresh
 
 ### Config
 
-ACOはワールド単位のForge Server Configを使用します。
+ACOはグローバルなForge Common Configを使用します。サーバー側とクライアント側で同じ設定を使用してください。
 
 ```text
-<ワールド>/serverconfig/ae2_crafting_optimizer-server.toml
+config/ae2_crafting_optimizer-common.toml
 ```
 
 各最適化はConfigで無効化できます。`enableOptimizer = false`にすると、比較試験や復旧確認のためACOの全処理を停止できます。

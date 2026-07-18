@@ -2,10 +2,12 @@
 
 ## Status
 
-The `1.3.0` release contains ACO's opt-in next-generation crafting
-backend. Its pure-Java engine, persistent transaction protocol, native adapter
-boundaries, fair scheduler, BigInteger sidecar runtime, and bounded status
-protocol are implemented and covered by automated tests.
+The `1.3.1` runtime-qualification candidate contains
+ACO's opt-in next-generation crafting backend. Its pure-Java engine, persistent
+transaction protocol, native adapter boundaries, fair scheduler, BigInteger
+sidecar runtime, and bounded status protocol are implemented and covered by
+automated tests. This P0-P8 source revision is not a new release artifact:
+runtime qualification is P9 and is intentionally left to the pack operator.
 
 The deep behavior-changing paths are deliberately **disabled by default**.
 Clean build, Forge client bootstrap, and Arclight dedicated-server startup are
@@ -13,7 +15,7 @@ qualified, but source completion and startup do not replace world-recovery or
 multiplayer qualification. Complete the runtime matrix below on a copied world
 before any experimental child switch is enabled.
 The explicit-host BigInteger API is enabled by default, but it has no effect
-unless a compatible add-on such as AQE 2.0.0 registers a host.
+unless a compatible add-on such as AQE 2.0.1 registers a host.
 
 The code was compiled against these exact integration targets:
 
@@ -45,6 +47,8 @@ enableShadowMode = false
 logShadowMismatches = true
 shadowMaximumPatterns = 262144
 enableCompiledCraftingGraph = false
+enableAuthoritativeCompiledPlanner = false
+enableCheckedAe2CraftingArithmetic = true
 enableTransactionalBatchingV2 = false
 enableGtceuNativeBatching = false
 enableMekanismNativeBatching = false
@@ -57,8 +61,11 @@ batchTransactionJournalMaximumEntries = 16384
 batchTransactionReconciliationIntervalTicks = 20
 nativeBatchMaximumExecutions = 65536
 enableBigIntegerCraftingBackend = true
+enableBigIntegerGameplayExecution = false
 bigIntegerMaximumBits = 256
 bigIntegerExecutionWindow = 65536
+bigIntegerMaximumWindowCalculationsPerTick = 4
+bigIntegerRetryBackoffTicks = 20
 bigIntegerStatusPageEntries = 1024
 bigIntegerRuntimeCountBudgetMiB = 256
 ```
@@ -101,7 +108,7 @@ through normal AE2.
 
 Normal AE2 `CraftingTreeNode`, `CraftingTreeProcess`, and standard CPU NBT stay
 unchanged. A CPU add-on must explicitly consume the ACO API before a BigInteger
-job can become gameplay-visible. AQE 2.0.0 optionally consumes host API v3;
+job can become gameplay-visible. AQE 2.0.1 optionally consumes host API v3;
 neither mod requires the other to load.
 
 ### Transactional batching V2
@@ -136,9 +143,15 @@ STAGED
   resumed from persisted cursors instead of re-pushing the target.
 - `ENERGY_ACCOUNTING` is an explicit uncertainty barrier. If charging throws or
   a recovered receipt stops there, ACO quarantines it instead of charging twice.
-- `EXTRACTING` and per-entry `OUTPUT_ACCOUNTING` are uncertainty barriers. A
-  restart inside either side effect is quarantined instead of reinserting an
-  unknown partial input aggregate or replaying a possibly inserted output.
+- Source receipt schema 3 stores every successful `extract(MODULATE)` amount
+  immediately, in the same CPU NBT owner as the changed crafting inventory.
+  A schema-2 source transaction recovered in `EXTRACTING` restores only that
+  proven partial list. Legacy schema-1 `EXTRACTING` data has no such evidence
+  and remains quarantined rather than guessing.
+- `ENERGY_ACCOUNTING` and per-entry `OUTPUT_ACCOUNTING` remain uncertainty
+  barriers because AE2 15.4.10 provides no idempotent transaction ID for those
+  side effects. Recovery quarantines instead of charging twice or duplicating a
+  waiting output.
 - Malformed state, contradictory receipts, partial native acceptance, or an
   uncertain external call is quarantined and retained for inspection.
 - After the overworld journal reaches a terminal phase, its matching terminal
@@ -159,8 +172,10 @@ deadline, or the first target backpressure signal.
   alternatives that do not collapse to one exact key/count, and conditions
   that GTCEu rejects.
 - Uses GTCEu `ParallelLogic.limitByOutputMerging` to bound aggregate acceptance.
-- Keeps GTCEu responsible for voltage, recipe conditions, duration, energy,
-  machine processing, and final outputs.
+- Verifies the recipe EU tier against the machine's current overclock tier and
+  asks GTCEu to evaluate its recipe conditions before ownership transfer.
+- Keeps GTCEu responsible for actual recipe setup, duration, energy, machine
+  processing, and final outputs.
 - Larger jobs are split into checked execution windows because GTCEu parallel
   fields are `int`.
 
@@ -175,11 +190,14 @@ deadline, or the first target backpressure signal.
 - Keeps Mekanism responsible for energy, tank/slot state, recipe progress,
   output blocking, and machine processing.
 
-Both native adapters perform one aggregate, all-or-zero Pattern Provider push.
-The provider's persisted send buffer owns any remainder. The durable target
-receipt therefore belongs to Pattern Provider logic rather than a GTCEu or
-Mekanism block entity. Unsupported machines and recipes return to AE2 before
-source ownership changes.
+Both native adapters stage one checked aggregate into the Pattern Provider's
+persisted send buffer; they do not interpret a plain `pushPattern == true` as
+proof that every represented execution completed. The provider and its receipt
+own the complete payload before AE2 source accounting begins, and any machine
+backpressure remains in that send buffer. The staging path repeats AE2's target
+Capability, Blocking-mode, and simulated-input preconditions. V2 also rejects a
+provider/target pair across a chunk boundary. Unsupported machines and recipes
+return to AE2 before source ownership changes.
 
 ### Fair dispatch and routing
 
@@ -264,7 +282,8 @@ overwrite. ACO does not reinterpret them as empty state.
 
 ## Automated Verification
 
-`gradlew.bat clean test build` covers:
+The current P0-P8 revision runs `152` source tests. `gradlew.bat clean test
+build` covers:
 
 - checked long arithmetic and overflow promotion;
 - immutable graph generation, deduplication, SCC cycles, stale-generation
@@ -284,8 +303,8 @@ rendering.
 
 ## Runtime Qualification Required Before Enablement
 
-1. Copy the world and keep the installed `1.2.2` jars archived.
-2. Install the same `1.3.0` jar on the dedicated server and every client.
+1. Copy the world and keep the currently deployed jars archived.
+2. Install the same `1.3.1` jar on the dedicated server and every client.
 3. Start with only the experimental master, compiled graph, and Shadow Mode.
 4. Compare possible, impossible, recursive, tag/substitution, container-return,
    fluid, and chemical plans against an ACO-disabled control.

@@ -5,12 +5,103 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import appeng.api.stacks.AEKey;
+import appeng.api.stacks.AEKeyType;
+import appeng.api.stacks.GenericStack;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceipt;
+import java.util.List;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Test;
 
 class BatchSourceReceiptLedgerTest {
+    private static final AEKey TEST_IRON = new TestKey("iron");
+
+    @Test
+    void recordsTheExactAmountExtractedSoFar() {
+        UUID id = UUID.randomUUID();
+        BatchSourceReceiptLedger ledger = new BatchSourceReceiptLedger();
+        ledger.stage(new BatchSourceReceipt(id, BatchSourceReceipt.State.STAGED, 8L, "task", 0, 1L));
+        ledger.advance(id, BatchSourceReceipt.State.EXTRACTING, 0, 2L);
+
+        ledger.recordExtraction(id, new GenericStack(TEST_IRON, 3L), 3L);
+        ledger.recordExtraction(id, new GenericStack(TEST_IRON, 2L), 4L);
+
+        assertEquals(1, ledger.get(id).extractedInputs().size());
+        assertEquals(5L, ledger.get(id).extractedInputs().get(0).amount());
+        ledger.advance(id, BatchSourceReceipt.State.EXTRACTED, 0, 5L);
+        assertEquals(5L, ledger.get(id).extractedInputs().get(0).amount());
+    }
+
+    @Test
+    void extractionAmountsCannotOverflowOrBeRecordedOutsideTheBarrier() {
+        UUID id = UUID.randomUUID();
+        BatchSourceReceiptLedger ledger = new BatchSourceReceiptLedger();
+        ledger.stage(new BatchSourceReceipt(id, BatchSourceReceipt.State.STAGED, 8L, "task", 0, 1L));
+        assertThrows(
+                IllegalStateException.class,
+                () -> ledger.recordExtraction(id, new GenericStack(TEST_IRON, 1L), 1L));
+        ledger.advance(id, BatchSourceReceipt.State.EXTRACTING, 0, 2L);
+        ledger.recordExtraction(id, new GenericStack(TEST_IRON, Long.MAX_VALUE), 3L);
+        assertThrows(
+                ArithmeticException.class,
+                () -> ledger.recordExtraction(id, new GenericStack(TEST_IRON, 1L), 4L));
+        assertEquals(Long.MAX_VALUE, ledger.get(id).extractedInputs().get(0).amount());
+    }
+
+    @Test
+    void loadsLegacyReceiptsWithoutInventingExtractionEvidence() {
+        UUID id = UUID.randomUUID();
+        CompoundTag entry = new CompoundTag();
+        entry.putUUID("id", id);
+        entry.putString("state", BatchSourceReceipt.State.EXTRACTING.name());
+        entry.putLong("executions", 2L);
+        entry.putString("task", "legacy");
+        entry.putInt("accountedOutputs", 0);
+        entry.putLong("updatedTick", 1L);
+        ListTag entries = new ListTag();
+        entries.add(entry);
+        CompoundTag legacy = new CompoundTag();
+        legacy.putInt("schema", 2);
+        legacy.put("entries", entries);
+
+        BatchSourceReceiptLedger restored = new BatchSourceReceiptLedger();
+        restored.load(legacy);
+
+        assertTrue(restored.isHealthy());
+        assertTrue(restored.get(id).extractedInputs().isEmpty());
+    }
+
+    @Test
+    void malformedCurrentExtractionEvidenceFailsClosed() {
+        UUID id = UUID.randomUUID();
+        CompoundTag entry = new CompoundTag();
+        entry.putUUID("id", id);
+        entry.putString("state", BatchSourceReceipt.State.EXTRACTING.name());
+        entry.putLong("executions", 2L);
+        entry.putString("task", "malformed");
+        entry.putInt("accountedOutputs", 0);
+        entry.putLong("updatedTick", 1L);
+        ListTag entries = new ListTag();
+        entries.add(entry);
+        CompoundTag malformed = new CompoundTag();
+        malformed.putInt("schema", 3);
+        malformed.put("entries", entries);
+
+        BatchSourceReceiptLedger restored = new BatchSourceReceiptLedger();
+        restored.load(malformed);
+
+        assertFalse(restored.isHealthy());
+        assertEquals(3, restored.save().getInt("schema"));
+    }
+
     @Test
     void persistsForwardOnlySourceState() {
         UUID id = UUID.randomUUID();
@@ -186,5 +277,51 @@ class BatchSourceReceiptLedgerTest {
         assertFalse(ledger.stage(new BatchSourceReceipt(
                 UUID.randomUUID(), BatchSourceReceipt.State.STAGED, 1L, "new", 0, 1L)));
         assertEquals("keep-me", ledger.save().getString("futureData"));
+    }
+
+    private static final class TestKey extends AEKey {
+        private final ResourceLocation id;
+
+        private TestKey(String path) {
+            this.id = ResourceLocation.fromNamespaceAndPath("aco_test", path);
+        }
+
+        @Override
+        public AEKeyType getType() {
+            return null;
+        }
+
+        @Override
+        public AEKey dropSecondary() {
+            return this;
+        }
+
+        @Override
+        public CompoundTag toTag() {
+            return new CompoundTag();
+        }
+
+        @Override
+        public Object getPrimaryKey() {
+            return id;
+        }
+
+        @Override
+        public ResourceLocation getId() {
+            return id;
+        }
+
+        @Override
+        public void writeToPacket(FriendlyByteBuf buffer) {
+        }
+
+        @Override
+        protected Component computeDisplayName() {
+            return Component.literal(id.toString());
+        }
+
+        @Override
+        public void addDrops(long amount, List<ItemStack> drops, Level level, BlockPos pos) {
+        }
     }
 }

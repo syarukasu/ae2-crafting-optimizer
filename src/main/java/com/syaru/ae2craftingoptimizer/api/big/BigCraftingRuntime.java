@@ -13,8 +13,8 @@ import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 
 /**
- * Versioned CPU-side runtime. Counts stay BigInteger; only bounded execution
- * leases cross into the original long/int machine pipeline.
+ * BigInteger対応CPU一台分のVersion付き実行状態。
+ * 予約量と残量はBigIntegerで保持し、既存のlong/int機械処理へは上限付きLeaseだけを渡す。
  */
 public final class BigCraftingRuntime<K> {
     public static final int SCHEMA_VERSION = 2;
@@ -124,13 +124,29 @@ public final class BigCraftingRuntime<K> {
     }
 
     public synchronized List<ExecutionLease<K>> schedule(long operationBudget) {
-        return ledger.schedule(operationBudget, maximumExecutionsPerWindow).stream()
+        return schedule(operationBudget, Integer.MAX_VALUE);
+    }
+
+    public synchronized List<ExecutionLease<K>> schedule(
+            long operationBudget,
+            int maximumWindows) {
+        return ledger.schedule(
+                        operationBudget, maximumExecutionsPerWindow, maximumWindows)
+                .stream()
                 .map(scheduled -> new ExecutionLease<>(
                         runtimeId,
                         scheduled.job().id(),
                         scheduled.job().requestedKey(),
+                        scheduled.job().reservedCapacity(),
+                        scheduled.job().patternGeneration(),
+                        scheduled.job().recipeGeneration(),
                         scheduled.prepared()))
                 .toList();
+    }
+
+    /** Optional host integrations call this before transferring ownership to an external child job. */
+    public synchronized void validateLease(ExecutionLease<K> lease) {
+        requireOwned(lease);
     }
 
     public synchronized void commit(
@@ -158,9 +174,8 @@ public final class BigCraftingRuntime<K> {
     }
 
     /**
-     * Lists execution leases that survived a save. The integrating CPU host must
-     * reconcile its own durable machine transaction before committing or rolling
-     * back one of these leases.
+     * 保存をまたいで残った実行Leaseを列挙する。
+     * 連携CPUは、自身の機械側永続取引を照合してからLeaseをcommitまたはrollbackする必要がある。
      */
     public synchronized List<RecoveredExecution<K>> unresolvedExecutions() {
         return ledger.jobIds().stream()
@@ -572,11 +587,18 @@ public final class BigCraftingRuntime<K> {
             UUID runtimeId,
             UUID jobId,
             K requestedKey,
+            BigInteger jobReservedCapacity,
+            long patternGeneration,
+            long recipeGeneration,
             BigCraftingJob.PreparedExecution prepared) {
         public ExecutionLease {
             Objects.requireNonNull(runtimeId, "runtimeId");
             Objects.requireNonNull(jobId, "jobId");
             Objects.requireNonNull(requestedKey, "requestedKey");
+            BigCountMath.requireNonNegative(jobReservedCapacity, "jobReservedCapacity");
+            if (patternGeneration < -1L || recipeGeneration < -1L) {
+                throw new IllegalArgumentException("planning generations must be -1 or non-negative");
+            }
             Objects.requireNonNull(prepared, "prepared");
         }
     }

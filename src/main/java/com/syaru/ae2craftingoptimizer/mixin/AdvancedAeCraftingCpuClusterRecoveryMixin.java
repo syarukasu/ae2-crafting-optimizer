@@ -2,7 +2,9 @@ package com.syaru.ae2craftingoptimizer.mixin;
 
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterRecoveryAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
+import com.syaru.ae2craftingoptimizer.access.AdvancedAeClusterExecutionAccess;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPU;
 import org.spongepowered.asm.mixin.Final;
@@ -12,7 +14,8 @@ import org.spongepowered.asm.mixin.Shadow;
 
 @Pseudo
 @Mixin(targets = "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster", remap = false)
-public abstract class AdvancedAeCraftingCpuClusterRecoveryMixin implements CraftingClusterRecoveryAccess {
+public abstract class AdvancedAeCraftingCpuClusterRecoveryMixin
+        implements CraftingClusterRecoveryAccess, AdvancedAeClusterExecutionAccess {
     @Shadow
     @Final
     private HashMap<UUID, AdvCraftingCPU> activeCpus;
@@ -23,5 +26,10 @@ public abstract class AdvancedAeCraftingCpuClusterRecoveryMixin implements Craft
             return null;
         }
         return (CraftingOwnerTransactionAccess) activeCpus.get(ownerId);
+    }
+
+    @Override
+    public Map<UUID, AdvCraftingCPU> aco$getActiveCpuSnapshot() {
+        return Map.copyOf(activeCpus);
     }
 }

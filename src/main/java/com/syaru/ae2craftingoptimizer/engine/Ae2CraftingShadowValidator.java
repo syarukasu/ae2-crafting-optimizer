@@ -68,6 +68,8 @@ public final class Ae2CraftingShadowValidator {
             Set<AEKey> emittable = reference.emittedItems().keySet();
             Map<AEKey, BigInteger> bigInventory = new LinkedHashMap<>();
             capture.inventory().forEach((key, amount) -> bigInventory.put(key, BigInteger.valueOf(amount)));
+            // CraftingCalculationと同じく、完成品自身の在庫は要求充当へ使わない。
+            bigInventory.remove(output);
             var result = new OverflowPromotingCraftingPlanner<AEKey>().plan(
                     capture.snapshot().graph(),
                     output,

@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.transaction;
 
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchCommit;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchPayloadFingerprint;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PreparedPatternBatch;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import java.util.Objects;
@@ -8,6 +9,10 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 
+/**
+ * 一回のNative Batchと永続Journalを結ぶ状態遷移窓口。
+ * TARGET_ACCEPTED後に例外が起きても記録を残し、次回tickまたは再起動後に二重投入せず再照合する。
+ */
 public final class BatchTransactionCoordinator {
     private BatchTransactionCoordinator() {
     }
@@ -70,6 +75,13 @@ public final class BatchTransactionCoordinator {
             BatchTransactionRecord current = journal.get(id);
             if (current == null || commit.acceptedExecutions() != current.offeredExecutions()) {
                 throw new IllegalArgumentException("target acceptance must exactly match the offered execution count");
+            }
+            if (commit.ownershipProof() == null
+                    || !commit.ownershipProof().transactionId().equals(id)
+                    || commit.ownershipProof().executions() != current.offeredExecutions()
+                    || !commit.ownershipProof().payloadDigest().equals(BatchPayloadFingerprint.of(current))) {
+                throw new IllegalArgumentException(
+                        "target acceptance requires a durable ownership proof for the exact transaction");
             }
             journal.transition(
                     id,

@@ -64,7 +64,17 @@ public final class BigCraftingCpuLedger<K> {
     public synchronized List<ScheduledWindow<K>> schedule(
             long operationBudget,
             long maximumExecutionsPerWindow) {
-        if (operationBudget <= 0L || maximumExecutionsPerWindow <= 0L || jobs.isEmpty()) {
+        return schedule(operationBudget, maximumExecutionsPerWindow, Integer.MAX_VALUE);
+    }
+
+    public synchronized List<ScheduledWindow<K>> schedule(
+            long operationBudget,
+            long maximumExecutionsPerWindow,
+            int maximumWindows) {
+        if (operationBudget <= 0L
+                || maximumExecutionsPerWindow <= 0L
+                || maximumWindows <= 0
+                || jobs.isEmpty()) {
             return List.of();
         }
         List<BigCraftingJob<K>> runnable = jobs.values().stream()
@@ -78,7 +88,9 @@ public final class BigCraftingCpuLedger<K> {
         int start = Math.floorMod(roundRobinCursor, runnable.size());
         List<ScheduledWindow<K>> result = new ArrayList<>();
         long remainingBudget = operationBudget;
-        int jobsToVisit = (int) Math.min((long) runnable.size(), remainingBudget);
+        int jobsToVisit = (int) Math.min(
+                (long) maximumWindows,
+                Math.min((long) runnable.size(), remainingBudget));
         int visited = 0;
         while (remainingBudget > 0L && visited < jobsToVisit) {
             int index = (start + visited) % runnable.size();

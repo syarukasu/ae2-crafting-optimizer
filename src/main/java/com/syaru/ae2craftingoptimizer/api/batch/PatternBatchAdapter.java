@@ -3,19 +3,18 @@ package com.syaru.ae2craftingoptimizer.api.batch;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Accepts ownership of one or more complete processing-pattern executions.
+ * 完全なProcessing Patternを一回以上、機械側の所有物として受理するAdapter契約。
  *
- * <p>The adapter contract is deliberately stricter than AE2's
- * {@code ICraftingProvider.pushPattern} return value:</p>
+ * <p>AE2の{@code ICraftingProvider.pushPattern}より厳しい次の条件を持つ。</p>
  *
  * <ul>
- *     <li>Returning zero must not mutate the target or retain any input.</li>
- *     <li>Returning N means exactly N complete executions were durably accepted.</li>
- *     <li>An insertion simulation or partial inventory insertion is not acceptance.</li>
- *     <li>The adapter must never report more than {@code maximumExecutions}.</li>
+ *     <li>0を返す場合、対象を変更せず入力も保持してはならない。</li>
+ *     <li>Nを返す場合、完全なN回分を永続的に受理済みでなければならない。</li>
+ *     <li>挿入Simulationや一部Slotへの挿入だけでは受理とみなさない。</li>
+ *     <li>{@code maximumExecutions}を超える値を返してはならない。</li>
  * </ul>
  *
- * <p>ACO remains responsible for energy, crafting-task progress, and expected-output accounting.</p>
+ * <p>電力、Crafting Task進捗、期待出力の会計はACO側が引き続き担当する。</p>
  */
 public interface PatternBatchAdapter {
     ResourceLocation id();
@@ -25,8 +24,8 @@ public interface PatternBatchAdapter {
     }
 
     /**
-     * Native adapters should keep this false unless they preserve the provider's own multi-side
-     * routing semantics. ACO will otherwise offer them only deterministic single-target contexts.
+     * Provider本来の複数面Routingを完全に維持できるNative Adapterだけtrueを返す。
+     * falseの場合、ACOは対象が一意に決まるContextだけを渡す。
      */
     default boolean supportsMultipleProviderTargets() {
         return false;
@@ -35,9 +34,9 @@ public interface PatternBatchAdapter {
     boolean supports(PatternBatchContext context);
 
     /**
-     * Narrows the number of executions ACO prepares before ownership transfer. Implementations
-     * should expose inexpensive static or queue-capacity limits here to avoid extracting inputs
-     * that will immediately be returned. The result must be between zero and {@code offeredExecutions}.
+     * 所有権移転前にACOが準備する実行数を狭める。
+     * Adapterは安価に判定できる固定上限やQueue空き容量を返し、直後に戻す入力の抽出を避ける。
+     * 戻り値は0以上{@code offeredExecutions}以下でなければならない。
      */
     default long limitExecutions(PatternBatchContext context, long offeredExecutions) {
         return offeredExecutions;

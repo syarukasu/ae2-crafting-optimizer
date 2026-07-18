@@ -4,6 +4,7 @@ import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchBudget;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchContext;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchRecoveryResult;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchPayloadFingerprint;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceipt;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchCommit;
@@ -11,6 +12,7 @@ import com.syaru.ae2craftingoptimizer.api.batch.v2.PreparedPatternBatch;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.TransactionalPatternBatchAdapter;
 import com.syaru.ae2craftingoptimizer.batch.NativePatternBatchSupport;
 import com.syaru.ae2craftingoptimizer.batch.PatternProviderReceiptResolver;
+import com.syaru.ae2craftingoptimizer.batch.PatternProviderBatchEscrow;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord;
 import java.util.UUID;
@@ -18,6 +20,10 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 
+/**
+ * GTCEuのItem・Fluid入力を完全一致でまとめて受理させるAdapter。
+ * Recipe、入力、出力、並列上限を再検証し、全件を原子的に所有できない場合は0件として戻す。
+ */
 public final class GTCEuNativePatternBatchAdapter implements TransactionalPatternBatchAdapter {
     public static final GTCEuNativePatternBatchAdapter INSTANCE = new GTCEuNativePatternBatchAdapter();
     private static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(
@@ -95,40 +101,8 @@ public final class GTCEuNativePatternBatchAdapter implements TransactionalPatter
                         context, recipeId, prepared.offeredExecutions())) {
             return new PatternBatchCommit(0L, "gtceu-revalidation-failed", prepared.adapterData());
         }
-        NativeBatchReceipt existing = store.aco$getNativeBatchReceipt(prepared.transactionId());
-        if (existing != null) {
-            validateExisting(existing, prepared, fingerprint);
-            return switch (existing.state()) {
-                case ACCEPTED -> new PatternBatchCommit(
-                        existing.executions(), receipt(existing), prepared.adapterData());
-                case REJECTED -> new PatternBatchCommit(0L, receipt(existing), prepared.adapterData());
-                case PENDING -> throw new IllegalStateException(
-                        "GTCEu native batch transaction is already pending: " + prepared.transactionId());
-            };
-        }
-
-        long now = context.level().getGameTime();
-        NativeBatchReceipt pending = new NativeBatchReceipt(
-                prepared.transactionId(),
-                NativeBatchReceipt.State.PENDING,
-                prepared.offeredExecutions(),
-                fingerprint,
-                now);
-        if (!store.aco$prepareNativeBatchReceipt(pending)) {
-            return new PatternBatchCommit(0L, "receipt-capacity", prepared.adapterData());
-        }
-        boolean accepted = context.provider().pushPattern(
-                context.pattern(),
-                NativePatternBatchSupport.scaleInputs(context, prepared.offeredExecutions()));
-        NativeBatchReceipt.State state = accepted
-                ? NativeBatchReceipt.State.ACCEPTED
-                : NativeBatchReceipt.State.REJECTED;
-        store.aco$finishNativeBatchReceipt(prepared.transactionId(), state, now);
-        NativeBatchReceipt finished = store.aco$getNativeBatchReceipt(prepared.transactionId());
-        return new PatternBatchCommit(
-                accepted ? prepared.offeredExecutions() : 0L,
-                receipt(finished),
-                prepared.adapterData());
+        return PatternProviderBatchEscrow.stage(
+                context, prepared, fingerprint, "gtceu-provider-escrow-busy");
     }
 
     @Override
@@ -179,7 +153,8 @@ public final class GTCEuNativePatternBatchAdapter implements TransactionalPatter
                     "GTCEu receipt remained pending across a save boundary");
         }
         if (!receipt.patternFingerprint().equals(record.patternFingerprint())
-                || receipt.executions() != record.offeredExecutions()) {
+                || receipt.executions() != record.offeredExecutions()
+                || !receipt.payloadDigest().equals(BatchPayloadFingerprint.of(record))) {
             return new BatchRecoveryResult(
                     BatchRecoveryResult.TargetState.QUARANTINE,
                     0L,
@@ -209,17 +184,4 @@ public final class GTCEuNativePatternBatchAdapter implements TransactionalPatter
         }
     }
 
-    private static void validateExisting(
-            NativeBatchReceipt receipt,
-            PreparedPatternBatch prepared,
-            String fingerprint) {
-        if (receipt.executions() != prepared.offeredExecutions()
-                || !receipt.patternFingerprint().equals(fingerprint)) {
-            throw new IllegalStateException("native batch transaction id was reused with different content");
-        }
-    }
-
-    private static String receipt(NativeBatchReceipt receipt) {
-        return receipt.transactionId() + ":" + receipt.state() + ":" + receipt.executions();
-    }
 }

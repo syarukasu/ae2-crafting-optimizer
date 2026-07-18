@@ -16,7 +16,10 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraftforge.fml.ModList;
 
-/** Fail-fast audit for optional, version-sensitive experimental mixins. */
+/**
+ * 有効化された実験Mixinの対象クラス、Accessor、内部契約を起動時に監査する。
+ * 対応外バージョンで処理を推測して続行せず、原因を列挙してFail-fastする。
+ */
 public final class ExperimentalCompatibilityValidator {
     private ExperimentalCompatibilityValidator() {
     }

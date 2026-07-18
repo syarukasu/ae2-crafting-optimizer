@@ -8,8 +8,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Tick-budgeted DRR scheduler. Each known runnable job receives a reservation
- * before any job can borrow spare operations, preventing call-order starvation.
+ * tick予算付きDeficit Round Robin Scheduler。
+ * 既知の実行可能Jobへ最低枠を予約してから余剰枠を貸すため、呼び出し順や巨大Jobによって
+ * 小さいJobが永久に実行されない状態を防ぐ。
  */
 public final class DeficitRoundRobinScheduler {
     private static final long ACTIVE_WINDOW_TICKS = 1L;

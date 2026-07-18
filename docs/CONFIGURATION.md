@@ -1,12 +1,18 @@
 # Configuration
 
-ACO uses a Forge server config. In a dedicated server or an existing world, edit:
+ACO uses a global Forge common config. Edit this file in both the dedicated
+server and client installation:
 
 ```text
-<world>/serverconfig/ae2_crafting_optimizer-server.toml
+config/ae2_crafting_optimizer-common.toml
 ```
 
-Restart the server after changing optimization settings. Existing config files retain their old values; changing a source-code default does not rewrite an existing world config.
+Restart the game or server after changing optimization settings. Keep both
+copies aligned: server-side gameplay behavior uses the server copy and
+client-only display optimizations use the client copy. Legacy
+`defaultconfigs/ae2_crafting_optimizer-server.toml` and per-world
+`serverconfig/ae2_crafting_optimizer-server.toml` files are no longer read.
+Changing a source-code default does not rewrite an existing common config.
 
 ## Default-Enabled Paths
 
@@ -140,28 +146,33 @@ same ACO jar before an integrating add-on uses status synchronization.
 | `requireSinglePatternProviderTarget` | `true` | Legacy no-op retained for existing config compatibility. |
 | `patternMicroBatchTargetNamespaces` | `["gtceu", "mekanism"]` | Legacy no-op retained for existing config compatibility. |
 
-### Transactional Pattern Batching
+### Sequential Instant Dispatch and Legacy Batch API
 
 The 1.2.0/1.2.1 execution Mixins for this legacy section are unregistered in
-1.2.2. The keys remain readable but cannot intercept standard or Advanced AE
-CPU execution. New durable batching is the separate, default-off V2 section
-above.
+1.2.2. The old transaction keys remain readable but cannot intercept standard
+or Advanced AE CPU execution. `enableInstantPatternDispatch` is independent:
+it time-slices AE2's original `executeCrafting` waves without aggregating
+inputs or replacing AE2 accounting.
 
 | Key | Default | Notes |
 |---|---:|---|
-| `enableTransactionalPatternBatching` | `true` | Compatibility no-op in 1.2.2; no execution Mixin is registered. |
+| `enableTransactionalPatternBatching` | `false` | Compatibility no-op in 1.2.2; no execution Mixin is registered. |
 | `maxTransactionalPatternBatchExecutions` | `65536` | Maximum exact executions prepared for one adapter transaction; the adapter may accept fewer. |
-| `enableSequentialPatternProviderBatchAdapter` | `true` | Enables the conservative built-in adapter that preserves one AE2 push per accepted execution. |
+| `enableSequentialPatternProviderBatchAdapter` | `false` | Legacy adapter switch; it is not connected to CPU execution. |
 | `maxSequentialProviderExecutionsPerCall` | `256` | Bounds original AE2 pushes inside one conservative adapter transaction. |
-| `enableInstantPatternDispatch` | `true` | Continues through ready tasks and batches in the same CPU call; does not make machines zero-tick. |
-| `instantPatternDispatchTimeBudgetMillis` | `4` | Hard wall-clock deadline for one instant-dispatch CPU call. |
-| `maxInstantPatternDispatchTransactions` | `1024` | Hard transaction-count boundary in addition to operation and time limits. |
+| `enableInstantPatternDispatch` | `true` | Runs normal AE2 one-pattern pushes in measured waves until `maxPatterns`, backpressure, or a time budget stops the tick. |
+| `instantPatternDispatchTimeBudgetMillis` | `4` | Per-CPU wall-clock budget per server tick. |
+| `instantPatternDispatchProbeOperations` | `65536` | Cold-start size of one measured wave; this is not a per-tick cap. The first unmeasured wave can exceed the time target. |
+| `instantPatternDispatchMaximumWaveOperations` | `65536` | Maximum size of one measured wave; several waves may run in the same tick. |
+| `maxInstantPatternDispatchTransactions` | `1024` | Experimental V2 aggregate-adapter limit only; it does not limit Sequential Instant. |
 | `requireSingleTransactionalBatchTarget` | `true` | Requires deterministic one-side routing before native-style adapters are considered. |
 | `transactionalBatchTargetNamespaces` | `["gtceu", "mekanism"]` | Limits eligible adjacent machine namespaces. |
 
-These keys do not control V2. They remain only for existing config and API
-compatibility because `pushPattern() == true` alone does not prove complete
-aggregate insertion or N machine recipe executions.
+The legacy transaction keys do not control V2. Sequential Instant deliberately
+uses AE2's original extraction, energy, provider, task, and `waitingFor`
+accounting. GTCEu and Mekanism Native Batch remain separate default-off V2
+experiments because `pushPattern() == true` alone does not prove N complete
+machine executions.
 
 Enable one experimental path at a time and repeat the relevant section in [TESTING.md](TESTING.md).
 

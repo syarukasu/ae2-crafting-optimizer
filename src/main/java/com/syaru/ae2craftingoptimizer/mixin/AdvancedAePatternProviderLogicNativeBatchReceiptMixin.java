@@ -2,11 +2,23 @@ package com.syaru.ae2craftingoptimizer.mixin;
 
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceipt;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchOwnershipProof;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchPayloadFingerprint;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.PreparedPatternBatch;
 import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
 import com.syaru.ae2craftingoptimizer.batch.NativeBatchReceiptLedger;
+import appeng.api.config.Actionable;
+import appeng.api.config.LockCraftingMode;
+import appeng.api.crafting.IPatternDetails;
+import appeng.api.networking.IManagedGridNode;
+import appeng.api.stacks.GenericStack;
+import appeng.api.stacks.AEKey;
 import appeng.api.util.IConfigManager;
+import appeng.helpers.patternprovider.PatternProviderTarget;
 import java.util.Collection;
 import java.util.UUID;
+import java.util.List;
+import java.util.Set;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -35,6 +47,28 @@ public abstract class AdvancedAePatternProviderLogicNativeBatchReceiptMixin
     private AdvPatternProviderLogicHost host;
 
     @Shadow
+    @Final
+    private IManagedGridNode mainNode;
+
+    @Shadow
+    @Final
+    private List<IPatternDetails> patterns;
+
+    @Shadow
+    @Final
+    private List<GenericStack> sendList;
+
+    @Shadow
+    @Final
+    private Set<AEKey> patternInputs;
+
+    @Shadow
+    private Direction sendDirection;
+
+    @Shadow
+    private java.util.HashMap<appeng.api.stacks.AEKey, Direction> directionMap;
+
+    @Shadow
     public abstract void saveChanges();
 
     @Shadow
@@ -42,6 +76,19 @@ public abstract class AdvancedAePatternProviderLogicNativeBatchReceiptMixin
 
     @Shadow
     public abstract boolean isBlocking();
+
+    @Shadow
+    public abstract LockCraftingMode getCraftingLockedReason();
+
+    @Shadow
+    private void onPushPatternSuccess(IPatternDetails pattern) {
+        throw new AssertionError();
+    }
+
+    @Shadow
+    private PatternProviderTarget findAdapter(Direction direction) {
+        throw new AssertionError();
+    }
 
     @Inject(method = "writeToNBT", at = @At("RETURN"), require = 1)
     private void aco$writeNativeBatchReceipts(CompoundTag tag, CallbackInfo ci) {
@@ -108,5 +155,109 @@ public abstract class AdvancedAePatternProviderLogicNativeBatchReceiptMixin
     @Override
     public boolean aco$isProviderBlocking() {
         return isBlocking();
+    }
+
+    @Override
+    public synchronized BatchOwnershipProof aco$stageOwnedBatch(
+            IPatternDetails pattern,
+            Direction providerSide,
+            PreparedPatternBatch prepared,
+            String patternFingerprint,
+            long gameTick) {
+        String payloadDigest = BatchPayloadFingerprint.of(prepared);
+        NativeBatchReceipt existing = aco$nativeBatchReceipts.get(prepared.transactionId());
+        if (existing != null) {
+            validateExistingOwnedReceipt(existing, prepared, patternFingerprint, payloadDigest);
+            return existing.state() == NativeBatchReceipt.State.ACCEPTED
+                    ? ownershipProof(existing)
+                    : null;
+        }
+        if (!sendList.isEmpty()
+                || sendDirection != null
+                || !mainNode.isActive()
+                || !patterns.contains(pattern)
+                || getCraftingLockedReason() != LockCraftingMode.NONE
+                || !host.getTargets().contains(providerSide)
+                || prepared.aggregateInputs().isEmpty()) {
+            return null;
+        }
+        PatternProviderTarget target = findAdapter(providerSide);
+        if (target == null
+                || (isBlocking() && target.containsPatternInput(patternInputs))
+                || !aco$targetAcceptsInputs(target, prepared.aggregateInputs())) {
+            return null;
+        }
+
+        NativeBatchReceipt accepted = new NativeBatchReceipt(
+                prepared.transactionId(),
+                NativeBatchReceipt.State.ACCEPTED,
+                prepared.offeredExecutions(),
+                patternFingerprint,
+                payloadDigest,
+                gameTick);
+        boolean ownershipRecorded = false;
+        try {
+            sendList.addAll(prepared.aggregateInputs());
+            sendDirection = providerSide;
+            directionMap = null;
+            if (!aco$nativeBatchReceipts.acceptOwned(accepted)) {
+                sendList.clear();
+                sendDirection = null;
+                return null;
+            }
+            ownershipRecorded = true;
+            onPushPatternSuccess(pattern);
+            saveChanges();
+            mainNode.ifPresent((grid, node) -> grid.getTickManager().alertDevice(node));
+            return ownershipProof(accepted);
+        } catch (Throwable failure) {
+            if (!ownershipRecorded) {
+                sendList.clear();
+                sendDirection = null;
+                directionMap = null;
+            }
+            saveChanges();
+            throw failure;
+        }
+    }
+
+    @Unique
+    private static void validateExistingOwnedReceipt(
+            NativeBatchReceipt receipt,
+            PreparedPatternBatch prepared,
+            String patternFingerprint,
+            String payloadDigest) {
+        if (receipt.executions() != prepared.offeredExecutions()
+                || !receipt.patternFingerprint().equals(patternFingerprint)
+                || !receipt.payloadDigest().equals(payloadDigest)) {
+            throw new IllegalStateException("native batch transaction id was reused with different content");
+        }
+        if (receipt.state() == NativeBatchReceipt.State.PENDING) {
+            throw new IllegalStateException("native batch receipt is unresolved and cannot be replayed");
+        }
+    }
+
+    @Unique
+    private static BatchOwnershipProof ownershipProof(NativeBatchReceipt receipt) {
+        if (!receipt.hasDurablePayloadProof()) {
+            throw new IllegalStateException("legacy native receipt has no durable payload proof");
+        }
+        return new BatchOwnershipProof(
+                receipt.transactionId(),
+                receipt.executions(),
+                receipt.payloadDigest(),
+                "advanced-ae-pattern-provider-send-buffer-v2");
+    }
+
+    @Unique
+    private static boolean aco$targetAcceptsInputs(
+            PatternProviderTarget target,
+            List<GenericStack> inputs) {
+        for (GenericStack input : inputs) {
+            if (target.insert(input.what(), input.amount(), Actionable.SIMULATE) <= 0L) {
+                return false;
+            }
+        }
+        return true;
     }
 }

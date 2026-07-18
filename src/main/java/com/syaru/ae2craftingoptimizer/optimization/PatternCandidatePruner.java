@@ -32,7 +32,7 @@ public final class PatternCandidatePruner {
                     result.add(pattern);
                 }
             } catch (RuntimeException ignored) {
-                // Add-on patterns may compute metadata lazily. Preserve AE2 behavior if inspection itself fails.
+                // アドオンPatternはmetadataを遅延計算する場合がある。検査自体が失敗したら削らずAE2へ任せる。
                 result.add(pattern);
             }
         }

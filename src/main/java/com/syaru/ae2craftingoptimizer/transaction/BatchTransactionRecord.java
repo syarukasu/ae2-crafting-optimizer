@@ -11,6 +11,10 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 
+/**
+ * Native Batch一件の不変入力、期待出力、現在Phase、送受信Receiptを保持する永続Record。
+ * 更新時は新しいRecordへ置き換え、過去Phaseへ戻る遷移を許可しない。
+ */
 public final class BatchTransactionRecord {
     public static final int SCHEMA_VERSION = 1;
     private static final int MAX_STACK_ENTRIES = 16_384;

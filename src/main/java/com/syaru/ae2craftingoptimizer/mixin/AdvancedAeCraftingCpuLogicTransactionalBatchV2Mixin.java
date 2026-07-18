@@ -10,6 +10,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/**
+ * Advanced AE Quantum Computer向けのV2 Batch入口。
+ * 対象クラスが存在しない環境では@Pseudoにより読み飛ばし、処理不能時はAdvanced AE標準経路へ戻す。
+ */
 @Pseudo
 @Mixin(targets = "net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic", remap = false)
 public abstract class AdvancedAeCraftingCpuLogicTransactionalBatchV2Mixin {

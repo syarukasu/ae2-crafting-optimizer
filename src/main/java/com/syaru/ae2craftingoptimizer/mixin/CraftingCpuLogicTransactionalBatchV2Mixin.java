@@ -10,6 +10,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/**
+ * AE2 CPUのPattern配送直前にV2 Batchを試す入口。
+ * ExecutorがNOT_HANDLEDを返した場合はキャンセルせず、AE2本来のexecuteCraftingをそのまま実行する。
+ */
 @Mixin(value = CraftingCpuLogic.class, remap = false)
 public abstract class CraftingCpuLogicTransactionalBatchV2Mixin {
     @Inject(method = "executeCrafting", at = @At("HEAD"), cancellable = true, require = 0)

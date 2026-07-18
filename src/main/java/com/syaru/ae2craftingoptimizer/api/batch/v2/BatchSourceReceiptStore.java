@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.api.batch.v2;
 
+import appeng.api.stacks.GenericStack;
 import java.util.UUID;
 
 public interface BatchSourceReceiptStore {
@@ -12,6 +13,11 @@ public interface BatchSourceReceiptStore {
     boolean aco$hasUnresolvedBatchSourceReceipt(String taskFingerprint);
 
     boolean aco$stageBatchSourceReceipt(BatchSourceReceipt receipt);
+
+    void aco$recordExtractedBatchSourceInput(
+            UUID transactionId,
+            GenericStack extracted,
+            long updatedTick);
 
     void aco$advanceBatchSourceReceipt(
             UUID transactionId,

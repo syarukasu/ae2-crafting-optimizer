@@ -51,7 +51,7 @@ ACO declares the three add-ons as optional. Their integration classes must not b
 
 ## Safety boundary
 
-The previous prototype adapters multiplied AE2 inputs and called `pushPattern` without consulting GTCEu `ParallelLogic` or Mekanism `CachedRecipe`. Those adapters are not considered native integration and must not be registered. The 1.3.0 V2 adapters replace that prototype boundary: they require an exact typed recipe match, query the verified native operation/output limit, persist an all-or-zero receipt on Pattern Provider logic, and fall back before source mutation when proof is unavailable.
+The previous prototype adapters multiplied AE2 inputs and called `pushPattern` without consulting GTCEu `ParallelLogic` or Mekanism `CachedRecipe`. Those adapters are not considered native integration and must not be registered. The 1.3.1 V2 adapters replace that prototype boundary: they require an exact typed recipe match, query the verified native operation/output limit, persist an all-or-zero receipt on Pattern Provider logic, and fall back before source mutation when proof is unavailable.
 
 A completed adapter must satisfy all of the following:
 

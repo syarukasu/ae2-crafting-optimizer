@@ -54,7 +54,7 @@ public final class PatternIntentCapture {
                 captureSuccessfulPush(providerBlockEntity, collection, pattern, inputHolder);
             }
         } catch (ReflectiveOperationException ignored) {
-            // Advanced AE is optional; a changed provider implementation simply disables intent capture for it.
+            // Advanced AEは任意依存。Provider実装が変わった場合は推測せずIntent取得だけを無効化する。
         }
     }
 

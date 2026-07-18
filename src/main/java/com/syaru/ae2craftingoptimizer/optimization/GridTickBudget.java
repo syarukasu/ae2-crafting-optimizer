@@ -24,9 +24,9 @@ public final class GridTickBudget {
         resetBudgetIfNeeded(currentTick);
         TickableState state = getState(tickable);
 
-        // Buses and processing machines carry persistent progress. Cancelling their scheduled
-        // call can repeatedly move them to AE2's slower queue and starve devices that happen
-        // to be visited late. Their work is bounded at the operation/recipe layer instead.
+        // Busと加工機械は継続中の進捗を持つ。予約tickを取り消すとAE2の低速Queueへ繰り返し
+        // 移され、走査順が遅い装置を飢餓状態にし得るため、ここでは止めない。
+        // これらは操作数・Recipe層の予算で制限する。
         if (isProgressSensitive(tickable)) {
             state.startedAtNanos = System.nanoTime();
             return null;

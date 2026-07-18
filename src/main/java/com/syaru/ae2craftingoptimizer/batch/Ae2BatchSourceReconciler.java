@@ -4,6 +4,8 @@ import appeng.api.config.Actionable;
 import appeng.api.config.PowerMultiplier;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.energy.IEnergyService;
+import appeng.api.stacks.AEKey;
+import appeng.api.stacks.GenericStack;
 import appeng.crafting.inv.ICraftingInventory;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceipt;
@@ -16,6 +18,8 @@ import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
 import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
@@ -54,7 +58,8 @@ public final class Ae2BatchSourceReconciler implements BatchSourceReconciler {
             throw new IllegalStateException("ACO transaction access mixins are missing from the crafting CPU");
         }
         CompoundTag tag = new CompoundTag();
-        tag.putInt("schema", 1);
+        tag.putInt("schema", 2);
+        tag.putBoolean("extractionReceipt", true);
         tag.putString("logicClass", logic.getClass().getName());
         tag.putString("task", PatternTaskFingerprint.of(details));
         tag.putDouble("power", power);
@@ -98,19 +103,43 @@ public final class Ae2BatchSourceReconciler implements BatchSourceReconciler {
         if (receipt.state() == BatchSourceReceipt.State.ROLLED_BACK) {
             return SourceRecoveryResult.COMPLETE;
         }
-        if (receipt.state() == BatchSourceReceipt.State.EXTRACTING) {
-            // Some inputs may already have moved, but the completed aggregate was
-            // never durably recorded. Re-inserting the full aggregate could duplicate.
-            return SourceRecoveryResult.QUARANTINE;
-        }
         if (receipt.state() != BatchSourceReceipt.State.STAGED
+                && receipt.state() != BatchSourceReceipt.State.EXTRACTING
                 && receipt.state() != BatchSourceReceipt.State.EXTRACTED) {
             return SourceRecoveryResult.QUARANTINE;
         }
+
+        List<GenericStack> inputsToRestore;
+        if (receipt.state() == BatchSourceReceipt.State.STAGED) {
+            if (!receipt.extractedInputs().isEmpty()) {
+                return SourceRecoveryResult.QUARANTINE;
+            }
+            inputsToRestore = List.of();
+        } else if (receipt.state() == BatchSourceReceipt.State.EXTRACTING) {
+            // schema 2以降はextract(MODULATE)の実数をCPU Receiptへ逐次保存している。
+            // 旧schemaは一部抽出量を証明できないため、従来どおり隔離する。
+            if (!supportsExtractionReceipt(sourceData)
+                    || !isSubset(receipt.extractedInputs(), record.extractedInputs())) {
+                return SourceRecoveryResult.QUARANTINE;
+            }
+            inputsToRestore = receipt.extractedInputs();
+        } else if (supportsExtractionReceipt(sourceData)) {
+            if (!sameStackTotals(receipt.extractedInputs(), record.extractedInputs())) {
+                return SourceRecoveryResult.QUARANTINE;
+            }
+            inputsToRestore = receipt.extractedInputs();
+        } else {
+            // schema 1のEXTRACTEDは、旧実装が全入力抽出後にだけ到達した永続Barrier。
+            // 旧Receiptには実数一覧がないのでJournalの全量を使う。
+            if (!receipt.extractedInputs().isEmpty()) {
+                return SourceRecoveryResult.QUARANTINE;
+            }
+            inputsToRestore = record.extractedInputs();
+        }
         try {
-            if (receipt.state() == BatchSourceReceipt.State.EXTRACTED) {
+            if (!inputsToRestore.isEmpty()) {
                 ICraftingInventory inventory = inventory(source.logic());
-                for (var stack : record.extractedInputs()) {
+                for (GenericStack stack : inputsToRestore) {
                     inventory.insert(stack.what(), stack.amount(), Actionable.MODULATE);
                 }
             }
@@ -144,6 +173,8 @@ public final class Ae2BatchSourceReconciler implements BatchSourceReconciler {
                 || record.acceptedExecutions() != record.offeredExecutions()
                 || receipt.executions() != record.acceptedExecutions()
                 || !receipt.taskFingerprint().equals(sourceData.getString("task"))
+                || (supportsExtractionReceipt(sourceData)
+                        && !sameStackTotals(receipt.extractedInputs(), record.extractedInputs()))
                 || receipt.accountedOutputs() > record.expectedOutputs().size()
                 || sourceData.getLong("taskProgressBefore") < record.acceptedExecutions()
                 || !Double.isFinite(sourceData.getDouble("power"))
@@ -168,13 +199,13 @@ public final class Ae2BatchSourceReconciler implements BatchSourceReconciler {
                 return SourceRecoveryResult.QUARANTINE;
             }
             if (receipt.state() == BatchSourceReceipt.State.ENERGY_ACCOUNTING) {
-                // The previous call may have charged some or all power before it failed.
-                // Replaying that side effect would risk charging the batch twice.
+                // 失敗前の呼び出しで電力の一部または全部を消費済みかもしれない。
+                // 再実行すると二重課金になるため、自動再生しない。
                 return SourceRecoveryResult.QUARANTINE;
             }
             if (receipt.state() == BatchSourceReceipt.State.OUTPUT_ACCOUNTING) {
-                // The output insertion may have completed before its cursor was
-                // persisted. Replaying it could duplicate an accepted output.
+                // Cursor保存前に出力挿入だけ完了した可能性がある。
+                // 再実行すると受理済み出力を複製し得るため、自動再生しない。
                 return SourceRecoveryResult.QUARANTINE;
             }
 
@@ -327,8 +358,9 @@ public final class Ae2BatchSourceReconciler implements BatchSourceReconciler {
     private static boolean validSourceData(CompoundTag data) {
         String ownerKind = data.getString("ownerKind");
         double power = data.getDouble("power");
+        int schema = data.getInt("schema");
         return data.contains("schema", Tag.TAG_INT)
-                && data.getInt("schema") == 1
+                && (schema == 1 || (schema == 2 && supportsExtractionReceipt(data)))
                 && data.contains("logicClass", Tag.TAG_STRING)
                 && !data.getString("logicClass").isEmpty()
                 && data.contains("task", Tag.TAG_STRING)
@@ -342,6 +374,46 @@ public final class Ae2BatchSourceReconciler implements BatchSourceReconciler {
                 && data.contains("ownerKind", Tag.TAG_STRING)
                 && (ownerKind.equals("ae2")
                         || (ownerKind.equals("advanced_ae") && data.hasUUID("cpuId")));
+    }
+
+    private static boolean supportsExtractionReceipt(CompoundTag data) {
+        return data.getInt("schema") >= 2
+                && data.contains("extractionReceipt", Tag.TAG_BYTE)
+                && data.getBoolean("extractionReceipt");
+    }
+
+    private static boolean sameStackTotals(List<GenericStack> left, List<GenericStack> right) {
+        try {
+            return stackTotals(left).equals(stackTotals(right));
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isSubset(List<GenericStack> partial, List<GenericStack> expected) {
+        try {
+            Map<AEKey, Long> partialTotals = stackTotals(partial);
+            Map<AEKey, Long> expectedTotals = stackTotals(expected);
+            for (Map.Entry<AEKey, Long> entry : partialTotals.entrySet()) {
+                if (entry.getValue() > expectedTotals.getOrDefault(entry.getKey(), 0L)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private static Map<AEKey, Long> stackTotals(List<GenericStack> stacks) {
+        Map<AEKey, Long> totals = new HashMap<>();
+        for (GenericStack stack : stacks) {
+            if (stack == null || stack.amount() <= 0L) {
+                throw new IllegalArgumentException("invalid source extraction stack");
+            }
+            totals.merge(stack.what(), stack.amount(), Math::addExact);
+        }
+        return totals;
     }
 
     private record LocatedSource(

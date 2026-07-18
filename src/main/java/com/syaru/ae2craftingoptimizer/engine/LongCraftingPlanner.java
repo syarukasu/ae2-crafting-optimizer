@@ -10,6 +10,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * 通常規模の注文をchecked long演算で展開するPlanner。
+ * 加算・乗算がlongを超えた場合は値を丸めず例外を返し、上位層にBigIntegerでの再計算を任せる。
+ */
 public final class LongCraftingPlanner<K> {
     private static final int MAX_EXPANDED_REQUESTS = 1_048_576;
 

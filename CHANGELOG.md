@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.1] - 2026-07-18
+
+This is the P0-P8 runtime-qualification candidate. Automated tests and clean
+builds are complete; startup, recovery, multiplayer, and live-world testing are
+P9 and remain the pack operator's responsibility. Experimental behavior-changing
+paths remain disabled by default.
+
+### Changed
+
+- Added exact source-extraction receipts and fail-closed recovery for persistent
+  batch transactions.
+- Hardened Pattern Provider escrow preconditions and exact ownership accounting.
+- Hardened GTCEu and Mekanism native-batch verification with bounded exact
+  matching and conservative fallback to AE2's standard path.
+- Expanded planner, receipt, conservation, overflow, and typed-input tests.
+- Coordinated optional BigInteger host API v3 compatibility with AQE `2.0.1`;
+  neither mod is made mandatory by this integration.
+
 ## [1.3.0] - 2026-07-18
 
 The release artifact was clean-built and qualified through Forge client bootstrap

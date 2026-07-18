@@ -84,10 +84,13 @@ OUTPUTS_ACCOUNTING (at every output cursor)
 OUTPUT_ACCOUNTING (before each individual waiting-output insertion)
 ```
 
+Current schema-2 transactions recovered in `EXTRACTING` must restore exactly
+the partial input list persisted by source receipt schema 3. Legacy schema-1
 `EXTRACTING`, `ENERGY_ACCOUNTING`, and `OUTPUT_ACCOUNTING` must quarantine
-rather than guess whether a side effect completed. A quarantined transaction is
-a deliberate fail-closed result; it must retain enough journal and receipt data
-for inspection and must never resume the same AE2 task through the normal path.
+rather than guess whether an untracked side effect completed. A quarantined
+transaction is a deliberate fail-closed result; it must retain enough journal
+and receipt data for inspection and must never resume the same AE2 task through
+the normal path.
 
 For every failure injection, compare these totals with an ACO-disabled control:
 
@@ -108,7 +111,7 @@ screen, or job that reports complete before its outputs arrive fails the stage.
 ## Manual Runtime Checks
 
 1. Start a Forge 1.20.1 client or dedicated server with AE2 15.4.10.
-2. Confirm `ae2_crafting_optimizer-server.toml` is generated.
+2. Confirm `config/ae2_crafting_optimizer-common.toml` is generated.
 3. Request a small craft, such as a normal furnace-pattern output.
 4. Confirm the craft confirmation screen leaves `Calculating` normally and shows AE2's standard result.
 5. Request a large craft that cannot complete due to missing ingredients.
@@ -162,6 +165,16 @@ screen, or job that reports complete before its outputs arrive fails the stage.
 2. Confirm neither standard AE2 nor Advanced AE CPU execution is intercepted; both use their original 1.2.2 path.
 3. Confirm old API consumers still link, but no legacy transaction commit metric increases.
 4. Qualify the separate, default-off V2 protocol only with the copied-world matrix in [EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md).
+
+## Sequential Instant Dispatch
+
+1. Keep legacy batching and both GTCEu/Mekanism Native Batch switches disabled, then enable `enableInstantPatternDispatch`.
+2. Submit the same large processing craft to a standard AE2 CPU and an Advanced AE Quantum Computer.
+3. Confirm `/aco stats` increases `Sequential Instant` waves and completed operations while both legacy and V2 batch counters remain zero.
+4. Confirm every GTCEu item/fluid and Mekanism item/fluid/chemical output exactly matches the requested amount and the CPU reaches completion.
+5. Fill one target input or output, repeat the order, and confirm the first rejected wave stops dispatch until capacity returns without losing inputs.
+6. Confirm one tick is not capped at 65536 operations: that value bounds one probe/wave only, while actual work is limited by `maxPatterns`, `4 ms` CPU time, and `8 ms` grid time.
+7. Run `/aco stats` and compare `max wave` with Spark MSPT. A single wave may cross the deadline, but no second wave may begin after the CPU or grid budget is exhausted.
 
 Compatibility-disabled sync checks retained in 1.2.2:
 

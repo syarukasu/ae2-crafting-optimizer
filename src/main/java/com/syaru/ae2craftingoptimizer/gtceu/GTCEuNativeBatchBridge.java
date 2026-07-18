@@ -9,6 +9,7 @@ import com.gregtechceu.gtceu.api.capability.recipe.FluidRecipeCapability;
 import com.gregtechceu.gtceu.api.capability.recipe.ItemRecipeCapability;
 import com.gregtechceu.gtceu.api.capability.recipe.RecipeCapability;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
+import com.gregtechceu.gtceu.api.machine.feature.IOverclockMachine;
 import com.gregtechceu.gtceu.api.machine.feature.IRecipeLogicMachine;
 import com.gregtechceu.gtceu.api.recipe.GTRecipe;
 import com.gregtechceu.gtceu.api.recipe.RecipeHelper;
@@ -52,6 +53,16 @@ public final class GTCEuNativeBatchBridge {
 
     @Nullable
     public static Verification verify(PatternBatchContext context, long offeredExecutions) {
+        try {
+            return verifyChecked(context, offeredExecutions);
+        } catch (RuntimeException ignored) {
+            // GTCEuやRecipe Modifierが想定外の状態ならNative経路を使わず、AE2標準配送へ戻す。
+            return null;
+        }
+    }
+
+    @Nullable
+    private static Verification verifyChecked(PatternBatchContext context, long offeredExecutions) {
         if (offeredExecutions <= 0L
                 || !(context.target() instanceof MetaMachineBlockEntity blockEntity)) {
             return null;
@@ -68,6 +79,7 @@ public final class GTCEuNativeBatchBridge {
 
         GTRecipe recipe = findRecipe(machine, snapshot);
         if (recipe == null
+                || !hasSupportedVoltage(machine, recipe)
                 || !RecipeHelper.checkConditions(recipe, machine.getRecipeLogic()).isSuccess()) {
             return null;
         }
@@ -163,6 +175,22 @@ public final class GTCEuNativeBatchBridge {
 
     private static boolean supportedTickInputs(Set<RecipeCapability<?>> capabilities) {
         return capabilities.stream().allMatch(capability -> capability == EURecipeCapability.CAP);
+    }
+
+    private static boolean hasSupportedVoltage(IRecipeLogicMachine machine, GTRecipe recipe) {
+        if (recipe.tickInputs.isEmpty()) {
+            return true;
+        }
+        if (!(machine instanceof IOverclockMachine overclockMachine)) {
+            return false;
+        }
+        try {
+            // 入力をEscrowへ移した後で電圧不足により永久停止しないよう、GTCEu自身の
+            // recipe tier計算と機械の現在OC tierを使って事前に拒否する。
+            return RecipeHelper.getRecipeEUtTier(recipe) <= overclockMachine.getOverclockTier();
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private static boolean deterministicConsumable(Content content) {
