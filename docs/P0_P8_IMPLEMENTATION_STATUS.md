@@ -61,7 +61,7 @@ contains no exact partial-extraction evidence.
 
 ## Automated Result
 
-The P0-P8 source suite currently contains `152` tests with zero failures. It
+The P0-P8 source suite currently contains `153` tests with zero failures. It
 covers pure planning, overflow, 64/128/1024-digit counts, persistence codecs,
 multi-job scheduling, conservation, receipt state machines, malformed payloads,
 and bounded ambiguous matching.

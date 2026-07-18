@@ -13,6 +13,8 @@ final class DeterministicMissingProof<K, P, I> {
 
         Collection<P> patterns(K key);
 
+        boolean canProvePattern(P pattern);
+
         long outputAmountPerExecution(P pattern, K requestedKey);
 
         Collection<I> inputs(P pattern);
@@ -81,6 +83,11 @@ final class DeterministicMissingProof<K, P, I> {
 
             Missing<K> firstBlocker = null;
             for (P pattern : patterns) {
+                if (!graph.canProvePattern(pattern)) {
+                    // 返却物、触媒、再利用工具などを含むPatternは単純な消費量では証明できない。
+                    // 誤ってクラフト不能にするより、AE2の正規Plannerへ必ず戻す。
+                    return Outcome.maybe();
+                }
                 long outputPerExecution = graph.outputAmountPerExecution(pattern, key);
                 if (outputPerExecution <= 0) {
                     return Outcome.maybe();

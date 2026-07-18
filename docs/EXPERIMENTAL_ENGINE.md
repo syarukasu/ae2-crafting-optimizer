@@ -282,7 +282,7 @@ overwrite. ACO does not reinterpret them as empty state.
 
 ## Automated Verification
 
-The current P0-P8 revision runs `152` source tests. `gradlew.bat clean test
+The current P0-P8 revision runs `153` source tests. `gradlew.bat clean test
 build` covers:
 
 - checked long arithmetic and overflow promotion;
