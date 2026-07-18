@@ -13,6 +13,23 @@ import org.junit.jupiter.api.Test;
 
 class BigCraftingJobTest {
     @Test
+    void rootWindowPlanningGenerationsSurvivePersistence() {
+        BigCraftingJob<String> job = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(),
+                "output",
+                BigInteger.TEN.pow(64).subtract(BigInteger.ONE),
+                BigInteger.valueOf(123),
+                456L,
+                789L);
+
+        BigCraftingJob<String> restored = BigCraftingJob.load(job.save(STRINGS, 1024), STRINGS, 1024);
+
+        assertTrue(restored.isRootWindowed());
+        assertEquals(456L, restored.patternGeneration());
+        assertEquals(789L, restored.recipeGeneration());
+        assertEquals(job.requestedAmount(), restored.requestedAmount());
+    }
+    @Test
     void migratesSignedLongJobStateWithoutNarrowing() {
         BigCraftingJob<String> job = BigCraftingJob.fromLong(
                 UUID.randomUUID(),

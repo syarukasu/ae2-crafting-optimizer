@@ -68,7 +68,8 @@ public final class DeterministicCraftingPreflight {
                     verifiedMissing);
         }
 
-        return CompletableFuture.completedFuture(new MissingOnlyCraftingPlan(output, amount, missing.key(), verifiedMissing));
+        return CompletableFuture.completedFuture(
+                MissingOnlyCraftingPlan.create(output, amount, missing.key(), verifiedMissing));
     }
 
     private static final class PreflightGraph

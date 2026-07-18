@@ -148,6 +148,21 @@ public final class CraftingExecutionBudget {
         }
     }
 
+    /** Sequential Instantが次のAE2実行波を開始できるGrid共有残時間を返す。 */
+    public static long remainingSharedBudgetNanos(CraftingService craftingService, long gameTick) {
+        if (!ACOConfig.sharedCraftingExecutionBudget()
+                || craftingService == null
+                || ACOConfig.enableFairCraftingJobScheduler()) {
+            return Long.MAX_VALUE;
+        }
+        long targetNanos = ACOConfig.getSharedCraftingExecutionMillisPerGrid() * 1_000_000L;
+        synchronized (SHARED_STATES) {
+            SharedBudgetState state = SHARED_STATES.computeIfAbsent(craftingService, unused -> new SharedBudgetState());
+            state.beginTick(gameTick);
+            return Math.max(0L, targetNanos - state.consumedNanos);
+        }
+    }
+
     public static void clearAdaptiveState(String reason) {
         synchronized (ADAPTIVE_STATES) {
             ADAPTIVE_STATES.clear();
@@ -155,6 +170,7 @@ public final class CraftingExecutionBudget {
         synchronized (SHARED_STATES) {
             SHARED_STATES.clear();
         }
+        SequentialInstantDispatcher.clear();
         FairCraftingJobScheduler.clear();
         if (ACOConfig.logCraftingExecutionThrottling()) {
             AE2CraftingOptimizer.LOGGER.debug("Cleared AE2 crafting execution adaptive state: {}", reason);
@@ -187,7 +203,7 @@ public final class CraftingExecutionBudget {
         return (int) Math.min(hardCap, nextCap);
     }
 
-    private static long estimatedNanosPerOperation(Object executionOwner) {
+    static long estimatedNanosPerOperation(Object executionOwner) {
         Object key = keyFor(executionOwner);
         synchronized (ADAPTIVE_STATES) {
             AdaptiveState state = ADAPTIVE_STATES.get(key);

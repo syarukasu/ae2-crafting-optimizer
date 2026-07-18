@@ -44,7 +44,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
-/** V2 all-or-zero native batching with a durable target and source receipt protocol. */
+/**
+ * V2 Native Batchを実行する中心処理。
+ * 一つの取引をprepare、機械側受理、AE2側会計、commitの順で進め、送信元と送信先の
+ * Receiptが一致した完全実行数だけを成功として返す。証明不能時はNOT_HANDLEDで元処理へ戻す。
+ */
 public final class TransactionalCraftingExecutorV2 {
     public static final int NOT_HANDLED = -1;
     private static final Set<String> FAILURES_LOGGED =
@@ -67,6 +71,8 @@ public final class TransactionalCraftingExecutorV2 {
                 || level == null) {
             return NOT_HANDLED;
         }
+        // Instantは機械の処理時間を消す機能ではない。同じCPU呼び出し内で複数の安全な取引を
+        // 時間・操作数・取引数の予算内だけ連続して配送する。
         boolean instantDispatch = ACOConfig.enableInstantPatternDispatch();
         int maximumTransactions = instantDispatch
                 ? ACOConfig.getMaxInstantPatternDispatchTransactions()
@@ -76,6 +82,7 @@ public final class TransactionalCraftingExecutorV2 {
                 : Long.MAX_VALUE;
         int acceptedTotal = 0;
         int attempted = 0;
+        int committed = 0;
         while (acceptedTotal < maxPatterns
                 && attempted < maximumTransactions
                 && hasTimeRemaining(deadline)) {
@@ -86,18 +93,31 @@ public final class TransactionalCraftingExecutorV2 {
                     energyService,
                     level);
             if (result == NOT_HANDLED) {
+                recordInstantDispatch(instantDispatch, committed, acceptedTotal);
                 return acceptedTotal == 0 ? NOT_HANDLED : acceptedTotal;
             }
             attempted++;
             if (result <= 0) {
+                recordInstantDispatch(instantDispatch, committed, acceptedTotal);
                 return acceptedTotal == 0 ? result : acceptedTotal;
             }
+            committed++;
             acceptedTotal = Math.addExact(acceptedTotal, result);
             if (!instantDispatch) {
                 break;
             }
         }
+        recordInstantDispatch(instantDispatch, committed, acceptedTotal);
         return acceptedTotal > 0 ? acceptedTotal : 0;
+    }
+
+    private static void recordInstantDispatch(
+            boolean instantDispatch,
+            int transactions,
+            int acceptedExecutions) {
+        if (instantDispatch) {
+            OptimizationMetrics.recordInstantPatternDispatch(transactions, acceptedExecutions);
+        }
     }
 
     private static int tryExecuteSingle(
@@ -238,28 +258,34 @@ public final class TransactionalCraftingExecutorV2 {
 
                 boolean targetAccepted = false;
                 boolean commitStarted = false;
-                BatchExtraction completedExtraction = null;
                 try {
                     owner.aco$markCraftingOwnerDirty();
                     sourceReceipts.aco$advanceBatchSourceReceipt(
                             transactionId, BatchSourceReceipt.State.EXTRACTING, 0, level.getGameTime());
                     owner.aco$markCraftingOwnerDirty();
-                    BatchExtraction extraction = extractBatch(plan, inventory, requested);
-                    if (extraction == null) {
+                    boolean extractionComplete = extractBatch(
+                            plan,
+                            inventory,
+                            requested,
+                            sourceReceipts,
+                            transactionId,
+                            owner,
+                            level.getGameTime());
+                    if (!extractionComplete) {
                         selection.adapter().rollback(selection.context(), prepared);
-                        sourceReceipts.aco$advanceBatchSourceReceipt(
-                                transactionId, BatchSourceReceipt.State.ROLLED_BACK, 0, level.getGameTime());
-                        owner.aco$markCraftingOwnerDirty();
-                        BatchTransactionRecord resolvedRecord = transaction.record();
-                        transaction.rolledBack(level.getGameTime());
-                        forgetResolvedLive(
+                        SourceRecoveryResult rollback = Ae2BatchSourceReconciler.INSTANCE.rollbackPrepared(
+                                serverLevel,
+                                transaction.record());
+                        return finishRollback(
+                                transaction,
+                                rollback,
                                 serverLevel,
                                 selection.adapter(),
                                 selection.context(),
-                                resolvedRecord);
-                        return NOT_HANDLED;
+                                level.getGameTime(),
+                                NOT_HANDLED,
+                                "source inventory changed before extraction completed");
                     }
-                    completedExtraction = extraction;
                     sourceReceipts.aco$advanceBatchSourceReceipt(
                             transactionId, BatchSourceReceipt.State.EXTRACTED, 0, level.getGameTime());
                     owner.aco$markCraftingOwnerDirty();
@@ -323,19 +349,6 @@ public final class TransactionalCraftingExecutorV2 {
                     if (!targetAccepted && !commitStarted) {
                         try {
                             selection.adapter().rollback(selection.context(), prepared);
-                            BatchSourceReceipt current = sourceReceipts.aco$getBatchSourceReceipt(transactionId);
-                            if (completedExtraction != null
-                                    && (current == null
-                                            || current.state() == BatchSourceReceipt.State.STAGED
-                                            || current.state() == BatchSourceReceipt.State.EXTRACTING)) {
-                                safeQuarantine(
-                                        transaction,
-                                        level.getGameTime(),
-                                        "source inputs were extracted but the EXTRACTED receipt was not persisted; "
-                                                + "automatic reinsertion is unsafe");
-                                logFailure(logic.getClass(), failure);
-                                return 0;
-                            }
                             SourceRecoveryResult rollback = Ae2BatchSourceReconciler.INSTANCE.rollbackPrepared(
                                     serverLevel, transaction.record());
                             logFailure(logic.getClass(), failure);
@@ -451,36 +464,37 @@ public final class TransactionalCraftingExecutorV2 {
         return limited;
     }
 
-    @Nullable
-    private static BatchExtraction extractBatch(
+    private static boolean extractBatch(
             ExactPlan plan,
             ICraftingInventory inventory,
-            long executions) {
+            long executions,
+            BatchSourceReceiptStore sourceReceipts,
+            UUID transactionId,
+            CraftingOwnerTransactionAccess owner,
+            long gameTick) {
         KeyCounter[] requested = scaleCounters(plan.inputsPerExecution(), executions);
-        KeyCounter[] extracted = new KeyCounter[requested.length];
-        try {
-            for (int slot = 0; slot < requested.length; slot++) {
-                extracted[slot] = new KeyCounter();
-                for (var input : requested[slot]) {
-                    long amount = input.getLongValue();
-                    if (inventory.extract(input.getKey(), amount, Actionable.SIMULATE) != amount) {
-                        CraftingCpuHelper.reinjectPatternInputs(inventory, extracted);
-                        return null;
-                    }
-                    long actual = inventory.extract(input.getKey(), amount, Actionable.MODULATE);
-                    if (actual > 0L) {
-                        extracted[slot].add(input.getKey(), actual);
-                    }
-                    if (actual != amount) {
-                        throw new IllegalStateException("AE2 inventory changed between simulation and extraction");
-                    }
+        for (KeyCounter slot : requested) {
+            for (var input : slot) {
+                long amount = input.getLongValue();
+                if (inventory.extract(input.getKey(), amount, Actionable.SIMULATE) != amount) {
+                    return false;
+                }
+                long actual = inventory.extract(input.getKey(), amount, Actionable.MODULATE);
+                if (actual > 0L) {
+                    // 実際に抜けた直後、その実数を同じCPU所有者のReceiptへ記録する。
+                    // 以後の失敗ではこの台帳だけを戻すため、予定全量による複製を防げる。
+                    sourceReceipts.aco$recordExtractedBatchSourceInput(
+                            transactionId,
+                            new GenericStack(input.getKey(), actual),
+                            gameTick);
+                    owner.aco$markCraftingOwnerDirty();
+                }
+                if (actual != amount) {
+                    throw new IllegalStateException("AE2 inventory changed between simulation and extraction");
                 }
             }
-            return new BatchExtraction(extracted);
-        } catch (Throwable failure) {
-            CraftingCpuHelper.reinjectPatternInputs(inventory, extracted);
-            throw failure;
         }
+        return true;
     }
 
     private static KeyCounter[] scaleCounters(KeyCounter[] source, long executions) {
@@ -611,9 +625,6 @@ public final class TransactionalCraftingExecutorV2 {
     private record V2Selection(
             TransactionalPatternBatchAdapter adapter,
             PatternBatchContext context) {
-    }
-
-    private record BatchExtraction(KeyCounter[] inputs) {
     }
 
     private record ExactPlan(

@@ -3,7 +3,16 @@ package com.syaru.ae2craftingoptimizer.api.batch.v2;
 import java.util.Objects;
 import net.minecraft.nbt.CompoundTag;
 
-public record PatternBatchCommit(long acceptedExecutions, String receipt, CompoundTag adapterData) {
+public record PatternBatchCommit(
+        long acceptedExecutions,
+        String receipt,
+        CompoundTag adapterData,
+        BatchOwnershipProof ownershipProof) {
+    /** Rejected Batch用の互換Constructor。成功時は必ず所有権証明を明示する。 */
+    public PatternBatchCommit(long acceptedExecutions, String receipt, CompoundTag adapterData) {
+        this(acceptedExecutions, receipt, adapterData, null);
+    }
+
     public PatternBatchCommit {
         if (acceptedExecutions < 0L) {
             throw new IllegalArgumentException("acceptedExecutions must not be negative");
@@ -13,6 +22,14 @@ public record PatternBatchCommit(long acceptedExecutions, String receipt, Compou
             throw new IllegalArgumentException("receipt must not exceed 4096 characters");
         }
         adapterData = Objects.requireNonNull(adapterData, "adapterData").copy();
+        if (acceptedExecutions > 0L) {
+            Objects.requireNonNull(ownershipProof, "accepted batches require a durable ownership proof");
+            if (ownershipProof.executions() != acceptedExecutions) {
+                throw new IllegalArgumentException("ownership proof count differs from accepted executions");
+            }
+        } else if (ownershipProof != null) {
+            throw new IllegalArgumentException("rejected batches must not include an ownership proof");
+        }
     }
 
     @Override

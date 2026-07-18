@@ -92,6 +92,14 @@ public final class PatternProviderBatchEligibility {
             BlockPos providerPos = providerBlockEntity.getBlockPos();
             for (Direction providerSide : targets) {
                 BlockPos targetPos = providerPos.relative(providerSide);
+                // V2ではProvider send bufferを取引Escrowにする。同一ChunkならTargetの
+                // InventoryとProvider Receiptが一つのChunk保存単位に収まり、境界Crashでの
+                // 片側だけ保存される危険を避けられる。
+                if (!enforceLegacyNamespaces
+                        && ((providerPos.getX() >> 4) != (targetPos.getX() >> 4)
+                                || (providerPos.getZ() >> 4) != (targetPos.getZ() >> 4))) {
+                    return null;
+                }
                 BlockEntity target = level.getBlockEntity(targetPos);
                 Direction targetSide = providerSide.getOpposite();
                 if (target == null

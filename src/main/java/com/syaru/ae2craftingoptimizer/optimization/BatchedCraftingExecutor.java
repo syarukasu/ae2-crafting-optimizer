@@ -31,8 +31,8 @@ import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Coordinates exact accepted-execution-count batches without treating aggregate inventory
- * insertion as machine recipe completion.
+ * 機械が正確に受理した実行数だけをまとめて会計する旧Batch実行器。
+ * Inventoryへの一括挿入だけを機械Recipe完了とみなしてはならない。
  */
 public final class BatchedCraftingExecutor {
     public static final int NOT_HANDLED = -1;

@@ -11,6 +11,10 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.saveddata.SavedData;
 
+/**
+ * Overworld SavedDataへ未完了取引を保存する台帳。
+ * 壊れたNBTは黙って捨てずmalformedRecordsへ隔離し、同じ取引IDの再投入を防ぐ証拠として残す。
+ */
 public final class BatchTransactionJournal extends SavedData {
     public static final String DATA_NAME = "ae2_crafting_optimizer_batch_transactions";
     private static final int SCHEMA_VERSION = 1;

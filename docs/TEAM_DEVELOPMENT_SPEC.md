@@ -1,6 +1,6 @@
 # ACO Team Development Specification
 
-この文書は、AE2 Crafting Optimizer（ACO）を複数人で開発するための共通仕様です。安定版の現行基準は `1.3.0` です。深い実験機能は既定で無効とし、有効化前にコピーしたワールドで復旧・ゲーム内試験を行います。
+この文書は、AE2 Crafting Optimizer（ACO）を複数人で開発するための共通仕様です。現行基準は `1.3.1` です。深い実験機能は既定で無効とし、有効化前にコピーしたワールドで復旧・ゲーム内試験を行います。
 
 ## 製品定義
 
@@ -49,7 +49,7 @@
 - 任意連携は `@Pseudo` Mixinまたは反射境界を使用し、対象MOD不在時は適用しません。
 - Mixin全体は `required: false`、個別注入は原則として元処理を壊さないフォールバックを持ちます。
 - 対象バージョン更新時は、クラス名だけでなく対象メソッドの記述子と周辺バイトコードを再確認します。
-- Forge Server Configをワールド単位で使用します。
+- Forge Common Configを使用し、`config/ae2_crafting_optimizer-common.toml`をサーバーとクライアントで揃えます。
 - Configのソース既定値を変更しても、既存ワールドのTOMLは自動更新されない前提で扱います。
 - 公開内部APIは `api` パッケージへ置き、互換性を壊す変更はメジャーまたは明示的な破壊的変更として扱います。
 - 診断値はゲーム状態を変更しない専用カウンタへ記録します。
@@ -283,6 +283,9 @@
 
 ## 実験機能の合格条件
 
+- 通常実行はSequential Instantを使用し、AE2/AdvancedAE本来の一回分の入力抽出、電力、
+  Provider、task進捗、waitingFor会計を変更しません。固定の低いtick回数上限ではなく、
+  maxPatterns、Provider Backpressure、CPU/Grid実時間予算で停止します。
 - V2 Native GTCEu/Mekanism Batchは、完全一致レシピ、上流の実処理上限、Pattern
   Providerの永続send buffer、all-or-zero受領票をすべて確認できる場合だけ実行します。
 - 部分受理、曖昧なターゲット、確率出力、返却物、未対応CapabilityはNative Batch対象にしません。

@@ -27,9 +27,9 @@ ACOはAE2内部へMixinするため、別のAE2系列や未検証バージョン
 
 1.2.2では、Import/Export Bus、IO Port、端末クラフト可能一覧、旧トランザクション実行など、可変ストレージへ触れる独自Mixinを撤去しました。これらの互換Configキーを`true`にしても再有効化されません。
 
-`1.3.0`は、記載した依存関係でクリーンビルド、Forgeクライアント起動、
-Arclight専用サーバー起動まで確認した正式リリースです。深いPlanner、
-ネイティブ一括処理、公平スケジューラは既定で無効のため、実運用で
+`1.3.1`は、記載した依存関係でクリーンビルドと自動テストを完了した
+P0-P8実装版です。起動、復旧、マルチプレイ、長時間ワールド試験は
+運用者が行うP9です。深いPlanner、ネイティブ一括処理、公平スケジューラは既定で無効のため、実運用で
 有効化する前にコピーしたワールドで復旧試験を行ってください。
 
 ## 実験的クラフトエンジン
@@ -44,7 +44,7 @@ Arclight専用サーバー起動まで確認した正式リリースです。深
 [Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md)を参照してください。
 
 BigInteger機能は通常AE2やAdvanced AEのCPUを自動改変しません。
-`BigCraftingEngineApi` v3をCPU追加MODが明示的に所有する方式で、AQE 2.0.0は
+`BigCraftingEngineApi` v3をCPU追加MODが明示的に所有する方式で、AQE 2.0.1は
 最初の任意利用者です。巨大値は
 BigIntegerのまま保存・会計し、既存機械へは上限付きのlong/int実行窓だけを渡します。
 設定したbit上限は、完成ジョブだけでなくPlannerの中間加算・乗算、NBT読込、Packet読込にも
@@ -131,7 +131,7 @@ gradlew.bat clean build
 生成物:
 
 ```text
-build/libs/ae2-crafting-optimizer-1.3.0.jar
+build/libs/ae2-crafting-optimizer-1.3.1.jar
 ```
 
 `-dev`は安定版JARとの取り違えを防ぐための開発用接尾辞です。このJARは

@@ -245,6 +245,20 @@ class BigCraftingRuntimeTest {
         assertNotEquals(first.transactionId(), replacement.transactionId());
     }
 
+    @Test
+    void maximumWindowCountBoundsOneTickEvenWithExcessOperationBudget() {
+        BigCraftingRuntime<String> runtime = new BigCraftingRuntime<>(
+                BigInteger.valueOf(1_000), STRINGS, 128, 64);
+        for (int index = 0; index < 8; index++) {
+            assertTrue(runtime.submit(job(BigInteger.valueOf(64), BigInteger.ONE)));
+        }
+
+        var leases = runtime.schedule(512L, 3);
+
+        assertEquals(3, leases.size());
+        assertEquals(3, leases.stream().map(BigCraftingRuntime.ExecutionLease::jobId).distinct().count());
+    }
+
     private static BigCraftingJob<String> job(BigInteger amount, BigInteger reservation) {
         return new BigCraftingJob<>(
                 UUID.randomUUID(),

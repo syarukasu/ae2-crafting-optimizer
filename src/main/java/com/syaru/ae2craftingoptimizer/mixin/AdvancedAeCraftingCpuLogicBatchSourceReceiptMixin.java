@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.mixin;
 
+import appeng.api.stacks.GenericStack;
 import appeng.crafting.inv.ICraftingInventory;
 import appeng.crafting.inv.ListCraftingInventory;
 import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
@@ -81,6 +82,14 @@ public abstract class AdvancedAeCraftingCpuLogicBatchSourceReceiptMixin
     @Override
     public boolean aco$stageBatchSourceReceipt(BatchSourceReceipt receipt) {
         return aco$batchSourceReceipts.stage(receipt);
+    }
+
+    @Override
+    public void aco$recordExtractedBatchSourceInput(
+            UUID transactionId,
+            GenericStack extracted,
+            long updatedTick) {
+        aco$batchSourceReceipts.recordExtraction(transactionId, extracted, updatedTick);
     }
 
     @Override

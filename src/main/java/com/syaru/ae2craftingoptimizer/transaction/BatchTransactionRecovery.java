@@ -15,6 +15,10 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 
+/**
+ * 未完了Journalをtick予算内で再照合する復旧処理。
+ * Receiptから完了を証明できる取引だけを進め、情報不足や矛盾がある取引は隔離して再実行しない。
+ */
 public final class BatchTransactionRecovery {
     private static final int MAX_RECORDS_PER_PASS = 64;
     private static final Set<UUID> LOGGED_UNRESOLVED = ConcurrentHashMap.newKeySet();

@@ -6,6 +6,10 @@ import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
 
+/**
+ * ACOの設定Schemaと、実行側が使用する型付きgetterを一か所に集約する。
+ * 実験機能は親スイッチと個別スイッチの両方が有効な場合だけtrueを返す。
+ */
 public final class ACOConfig {
     public static final int MAX_SAFE_EFFECTIVE_COPROCESSORS = Integer.MAX_VALUE - 1;
     public static final int DEFAULT_EFFECTIVE_COPROCESSORS_PER_CPU = 264_192;
@@ -130,6 +134,8 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue MAX_SEQUENTIAL_PROVIDER_EXECUTIONS_PER_CALL;
     private static final ForgeConfigSpec.BooleanValue ENABLE_INSTANT_PATTERN_DISPATCH;
     private static final ForgeConfigSpec.IntValue INSTANT_PATTERN_DISPATCH_TIME_BUDGET_MILLIS;
+    private static final ForgeConfigSpec.IntValue INSTANT_PATTERN_DISPATCH_PROBE_OPERATIONS;
+    private static final ForgeConfigSpec.IntValue INSTANT_PATTERN_DISPATCH_MAXIMUM_WAVE_OPERATIONS;
     private static final ForgeConfigSpec.IntValue MAX_INSTANT_PATTERN_DISPATCH_TRANSACTIONS;
     private static final ForgeConfigSpec.BooleanValue REQUIRE_SINGLE_TRANSACTIONAL_BATCH_TARGET;
     private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TRANSACTIONAL_BATCH_TARGET_NAMESPACES;
@@ -156,6 +162,8 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_ENGINE_SHADOW_MISMATCHES;
     private static final ForgeConfigSpec.IntValue CRAFTING_ENGINE_SHADOW_MAXIMUM_PATTERNS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_COMPILED_CRAFTING_GRAPH;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_AUTHORITATIVE_COMPILED_PLANNER;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC;
     private static final ForgeConfigSpec.BooleanValue ENABLE_TRANSACTIONAL_BATCHING_V2;
     private static final ForgeConfigSpec.BooleanValue ENABLE_GTCEU_NATIVE_BATCHING;
     private static final ForgeConfigSpec.BooleanValue ENABLE_MEKANISM_NATIVE_BATCHING;
@@ -168,8 +176,11 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue BATCH_TRANSACTION_RECONCILIATION_INTERVAL_TICKS;
     private static final ForgeConfigSpec.IntValue NATIVE_BATCH_MAXIMUM_EXECUTIONS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_CRAFTING_BACKEND;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_MAXIMUM_BITS;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_EXECUTION_WINDOW;
+    private static final ForgeConfigSpec.IntValue BIG_INTEGER_MAXIMUM_WINDOW_CALCULATIONS_PER_TICK;
+    private static final ForgeConfigSpec.IntValue BIG_INTEGER_RETRY_BACKOFF_TICKS;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_STATUS_PAGE_ENTRIES;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_RUNTIME_COUNT_BUDGET_MIB;
 
@@ -624,26 +635,36 @@ public final class ACOConfig {
                 .comment(
                         "Enable ACO's accepted-execution-count batch API. Only registered adapters may handle a batch; unsupported providers always use AE2's original path.",
                         "The built-in adapter preserves one pushPattern call per accepted execution and never treats aggregate inventory insertion as recipe completion.")
-                .define("enableTransactionalPatternBatching", true);
+                .define("enableTransactionalPatternBatching", false);
         MAX_TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS = builder
                 .comment("Maximum exact processing-pattern executions prepared by one ACO batch transaction. The selected adapter may accept fewer.")
                 .defineInRange("maxTransactionalPatternBatchExecutions", 65_536, 2, 1_048_576);
         ENABLE_SEQUENTIAL_PATTERN_PROVIDER_BATCH_ADAPTER = builder
                 .comment("Enable the conservative built-in Pattern Provider adapter. It returns the exact number of successful one-execution AE2 pushes and stops immediately on provider backpressure.")
-                .define("enableSequentialPatternProviderBatchAdapter", true);
+                .define("enableSequentialPatternProviderBatchAdapter", false);
         MAX_SEQUENTIAL_PROVIDER_EXECUTIONS_PER_CALL = builder
                 .comment("Maximum one-execution pushPattern calls made by the conservative adapter in one transaction. Instant dispatch may run more than one bounded transaction. Native adapters use their own acceptance limits.")
                 .defineInRange("maxSequentialProviderExecutionsPerCall", 256, 1, 65_536);
         ENABLE_INSTANT_PATTERN_DISPATCH = builder
                 .comment(
-                        "Continue dispatching ready processing-pattern batches during the same crafting CPU call instead of returning after the first batch.",
-                        "This is instant dispatch, not zero-tick machine processing. Operation, transaction, and wall-clock budgets still apply.")
+                        "Time-slice AE2's original one-pattern-at-a-time dispatch loop at wave boundaries.",
+                        "No aggregate input stack is created: AE2 remains responsible for extraction, provider backpressure, waiting outputs, energy, and task accounting.")
                 .define("enableInstantPatternDispatch", true);
         INSTANT_PATTERN_DISPATCH_TIME_BUDGET_MILLIS = builder
-                .comment("Hard wall-clock budget for ACO instant pattern dispatch inside one CPU call. Work resumes on the next server tick after this deadline.")
+                .comment("Per-CPU wall-clock budget for sequential Instant dispatch in one server tick. The grid-wide crafting budget may stop it earlier.")
                 .defineInRange("instantPatternDispatchTimeBudgetMillis", 4, 1, 45);
+        INSTANT_PATTERN_DISPATCH_PROBE_OPERATIONS = builder
+                .comment(
+                        "Cold-start wave size before ACO has measured the cost of one normal AE2 pattern push.",
+                        "This limits only one timing wave, not the total number dispatched during the tick.")
+                .defineInRange("instantPatternDispatchProbeOperations", 65_536, 1, 65_536);
+        INSTANT_PATTERN_DISPATCH_MAXIMUM_WAVE_OPERATIONS = builder
+                .comment(
+                        "Maximum operations passed to one measured AE2 execution wave.",
+                        "ACO may run many waves until maxPatterns, provider backpressure, or the CPU/grid time budget is reached.")
+                .defineInRange("instantPatternDispatchMaximumWaveOperations", 65_536, 1, 1_048_576);
         MAX_INSTANT_PATTERN_DISPATCH_TRANSACTIONS = builder
-                .comment("Maximum adapter transactions attempted by one instant-dispatch CPU call, independent of the accepted execution count.")
+                .comment("Maximum experimental V2 aggregate-adapter transactions per call. This does not limit sequential Instant dispatch.")
                 .defineInRange("maxInstantPatternDispatchTransactions", 1024, 1, 65_536);
         REQUIRE_SINGLE_TRANSACTIONAL_BATCH_TARGET = builder
                 .comment("Require one configured Pattern Provider target side before using a transactional batch adapter. This keeps target ownership deterministic.")
@@ -674,8 +695,18 @@ public final class ACOConfig {
                 .comment("Skip Shadow Mode validation above this many patterns to keep diagnostic work bounded.")
                 .defineInRange("shadowMaximumPatterns", 262_144, 1, 1_048_576);
         ENABLE_COMPILED_CRAFTING_GRAPH = builder
-                .comment("Build an immutable, generation-keyed crafting graph for experimental planning. No AE2 result replacement is performed in this version.")
+                .comment("Build an immutable, generation-keyed crafting graph for experimental planning.")
                 .define("enableCompiledCraftingGraph", false);
+        ENABLE_AUTHORITATIVE_COMPILED_PLANNER = builder
+                .comment(
+                        "Use a compiled plan only for the strictly provable single-pattern path. Any ambiguity, generation change, fuzzy input, overflow, or unsupported recipe falls back to AE2.",
+                        "Kept false until the user completes live comparison testing.")
+                .define("enableAuthoritativeCompiledPlanner", false);
+        ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC = builder
+                .comment(
+                        "Reject AE2 tree calculations before unchecked long/double arithmetic can wrap or saturate.",
+                        "This does not make a standard AE2 job BigInteger-capable; oversized work must use execution windows.")
+                .define("enableCheckedAe2CraftingArithmetic", true);
         ENABLE_TRANSACTIONAL_BATCHING_V2 = builder
                 .comment("Use the prepare/commit/account/reconcile transaction protocol. Kept false until recovery testing is complete.")
                 .define("enableTransactionalBatchingV2", false);
@@ -716,6 +747,11 @@ public final class ACOConfig {
                         "Expose ACO's versioned BigInteger host and job backend to explicitly integrated CPU add-ons.",
                         "This does not patch normal AE2 CPUs. It is safe to leave enabled when no compatible host add-on is installed.")
                 .define("enableBigIntegerCraftingBackend", true);
+        ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION = builder
+                .comment(
+                        "Execute explicitly submitted BigInteger root jobs as bounded standard AE2 child jobs on an AQE Quantum Computer.",
+                        "False until phase-9 live testing. Capacity display and ordinary long jobs continue to work while this is false.")
+                .define("enableBigIntegerGameplayExecution", false);
         BIG_INTEGER_MAXIMUM_BITS = builder
                 .comment(
                         "Maximum magnitude stored by the BigInteger backend, in binary bits. 256 bits is about 77 decimal digits.",
@@ -726,6 +762,14 @@ public final class ACOConfig {
                         "Maximum pattern executions exposed to a long/int machine adapter in one BigInteger execution window.",
                         "Larger jobs remain BigInteger counters and are resumed through additional windows.")
                 .defineInRange("bigIntegerExecutionWindow", 65_536, 1, 1_048_576);
+        BIG_INTEGER_MAXIMUM_WINDOW_CALCULATIONS_PER_TICK = builder
+                .comment(
+                        "Maximum new BigInteger child-plan calculations started in one server tick.",
+                        "Each Big job can own at most one unfinished child window, so this does not create an unbounded CPU list.")
+                .defineInRange("bigIntegerMaximumWindowCalculationsPerTick", 4, 1, 64);
+        BIG_INTEGER_RETRY_BACKOFF_TICKS = builder
+                .comment("Backoff after a child plan is missing, rejected, or cancelled before retrying that BigInteger job.")
+                .defineInRange("bigIntegerRetryBackoffTicks", 20, 1, 20 * 60);
         BIG_INTEGER_STATUS_PAGE_ENTRIES = builder
                 .comment("Maximum job summaries carried by one BigInteger crafting-status page.")
                 .defineInRange("bigIntegerStatusPageEntries", 1024, 16, 16_384);
@@ -755,7 +799,12 @@ public final class ACOConfig {
     }
 
     public static void register() {
-        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, SPEC);
+        // サーバー側の最適化とクライアント側の表示設定を、一つの共通Configとして登録する。
+        // ワールドごとのserverconfigには複製せず、各環境のconfigフォルダから読み込む。
+        ModLoadingContext.get().registerConfig(
+                ModConfig.Type.COMMON,
+                SPEC,
+                "ae2_crafting_optimizer-common.toml");
     }
 
     public static boolean enableOptimizer() {
@@ -1265,12 +1314,19 @@ public final class ACOConfig {
     }
 
     public static boolean enableInstantPatternDispatch() {
-        return (enableTransactionalPatternBatching() || enableTransactionalBatchingV2())
-                && ENABLE_INSTANT_PATTERN_DISPATCH.get();
+        return enableOptimizer() && ENABLE_INSTANT_PATTERN_DISPATCH.get();
     }
 
     public static int getInstantPatternDispatchTimeBudgetMillis() {
         return Math.min(45, Math.max(1, INSTANT_PATTERN_DISPATCH_TIME_BUDGET_MILLIS.get()));
+    }
+
+    public static int getInstantPatternDispatchProbeOperations() {
+        return Math.min(65_536, Math.max(1, INSTANT_PATTERN_DISPATCH_PROBE_OPERATIONS.get()));
+    }
+
+    public static int getInstantPatternDispatchMaximumWaveOperations() {
+        return Math.min(1_048_576, Math.max(1, INSTANT_PATTERN_DISPATCH_MAXIMUM_WAVE_OPERATIONS.get()));
     }
 
     public static int getMaxInstantPatternDispatchTransactions() {
@@ -1382,6 +1438,14 @@ public final class ACOConfig {
         return enableExperimentalCraftingEngine() && ENABLE_COMPILED_CRAFTING_GRAPH.get();
     }
 
+    public static boolean enableAuthoritativeCompiledPlanner() {
+        return enableCompiledCraftingGraph() && ENABLE_AUTHORITATIVE_COMPILED_PLANNER.get();
+    }
+
+    public static boolean enableCheckedAe2CraftingArithmetic() {
+        return enableExperimentalCraftingEngine() && ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC.get();
+    }
+
     public static boolean enableTransactionalBatchingV2() {
         return enableExperimentalCraftingEngine()
                 && ENABLE_TRANSACTIONAL_BATCHING_V2.get()
@@ -1432,12 +1496,28 @@ public final class ACOConfig {
         return ENABLE_BIG_INTEGER_CRAFTING_BACKEND.get();
     }
 
+    public static boolean enableBigIntegerGameplayExecution() {
+        return enableExperimentalCraftingEngine()
+                && enableBigIntegerCraftingBackend()
+                && ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION.get();
+    }
+
     public static int getBigIntegerMaximumBits() {
         return Math.min(1_048_576, Math.max(64, BIG_INTEGER_MAXIMUM_BITS.get()));
     }
 
     public static int getBigIntegerExecutionWindow() {
         return Math.min(1_048_576, Math.max(1, BIG_INTEGER_EXECUTION_WINDOW.get()));
+    }
+
+    public static int getBigIntegerMaximumWindowCalculationsPerTick() {
+        return Math.min(
+                64,
+                Math.max(1, BIG_INTEGER_MAXIMUM_WINDOW_CALCULATIONS_PER_TICK.get()));
+    }
+
+    public static int getBigIntegerRetryBackoffTicks() {
+        return Math.min(20 * 60, Math.max(1, BIG_INTEGER_RETRY_BACKOFF_TICKS.get()));
     }
 
     public static int getBigIntegerStatusPageEntries() {

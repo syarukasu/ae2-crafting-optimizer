@@ -9,6 +9,8 @@ import appeng.api.stacks.GenericStack;
 import appeng.crafting.CraftingCalculation;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDiagnostics;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
+import com.syaru.ae2craftingoptimizer.engine.Ae2AuthoritativeCraftingPlanner;
+import appeng.crafting.inv.NetworkCraftingSimulationState;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -33,11 +35,18 @@ public abstract class CraftingCalculationDiagnosticsMixin {
     @Final
     private CalculationStrategy strategy;
 
+    @Shadow
+    @Final
+    private NetworkCraftingSimulationState networkInv;
+
     @Unique
     private long aco$calculationStartedAt;
 
     @Unique
     private Ae2CraftingShadowValidator.Capture aco$shadowCapture;
+
+    @Unique
+    private Ae2AuthoritativeCraftingPlanner.Capture aco$authoritativeCapture;
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void aco$captureGrid(
@@ -48,11 +57,30 @@ public abstract class CraftingCalculationDiagnosticsMixin {
             CalculationStrategy strategy,
             CallbackInfo ci) {
         aco$shadowCapture = Ae2CraftingShadowValidator.capture(level, grid);
+        aco$authoritativeCapture = Ae2AuthoritativeCraftingPlanner.capture(
+                level,
+                grid,
+                requester.getActionSource(),
+                ((NetworkCraftingSimulationStateAccessor) (Object) networkInv).aco$getNetworkSnapshot());
     }
 
     @Inject(method = "run", at = @At("HEAD"))
     private void aco$startCalculationTimer(CallbackInfoReturnable<ICraftingPlan> cir) {
         aco$calculationStartedAt = System.nanoTime();
+    }
+
+    /**
+     * 計画本体だけを高速経路へ差し替える。run()を直接キャンセルすると、AE2が行う
+     * 計算スレッド登録とfinally内の終了通知まで飛ばしてしまうため、ここより外側は必ず
+     * AE2標準の生命周期を通す。
+     */
+    @Inject(method = "computePlan", at = @At("HEAD"), cancellable = true)
+    private void aco$tryAuthoritativePlan(CallbackInfoReturnable<ICraftingPlan> cir) {
+        ICraftingPlan accelerated = Ae2AuthoritativeCraftingPlanner.tryPlan(
+                aco$authoritativeCapture, output, requestedAmount, strategy);
+        if (accelerated != null) {
+            cir.setReturnValue(accelerated);
+        }
     }
 
     @Inject(method = "run", at = @At("RETURN"))

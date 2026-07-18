@@ -6,6 +6,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * まず低コストなlong経路を試し、overflowした注文だけBigInteger経路で最初から再計算する。
+ * 途中まで作ったlong結果は再利用しないため、昇格による二重計上は発生しない。
+ */
 public final class OverflowPromotingCraftingPlanner<K> {
     private final int maximumBits;
 
@@ -61,7 +65,7 @@ public final class OverflowPromotingCraftingPlanner<K> {
                         emittable,
                         guard), false);
             } catch (ArithmeticException overflow) {
-                // Recompute from the immutable snapshot. A partial long calculation is never reused.
+                // 不変SnapshotからBigIntegerで再計算し、途中までのlong計算結果は絶対に混ぜない。
             }
         }
         var symbolicPlan = symbolic.tryPlanBig(

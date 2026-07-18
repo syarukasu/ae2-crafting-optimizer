@@ -10,8 +10,8 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Conservative built-in adapter. It batches extraction and CPU accounting, but preserves one
- * {@code pushPattern} call per accepted execution and stops as soon as AE2 applies backpressure.
+ * 保守的な標準Adapter。入力抽出とCPU会計はまとめるが、受理一回ごとに元の
+ * {@code pushPattern}を一回呼び、AE2がBackpressureを返した時点で停止する。
  */
 public final class SequentialPatternProviderBatchAdapter implements PatternBatchAdapter {
     public static final SequentialPatternProviderBatchAdapter INSTANCE = new SequentialPatternProviderBatchAdapter();

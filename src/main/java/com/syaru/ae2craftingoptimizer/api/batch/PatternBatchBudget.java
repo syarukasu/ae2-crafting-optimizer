@@ -1,11 +1,11 @@
 package com.syaru.ae2craftingoptimizer.api.batch;
 
 /**
- * Immutable operation and wall-clock boundary for one adapter commit.
+ * 一回のAdapter commitに対する不変の操作数・実時間境界。
  *
- * <p>Adapters that perform more than one machine-facing operation must check
- * {@link #canStartAnother(long)} between operations. An atomic native queue submission may use
- * {@link #maximumExecutions()} directly, but must keep its own call bounded.</p>
+ * <p>機械へ複数回操作するAdapterは、各操作の間に{@link #canStartAnother(long)}を確認する。
+ * 原子的なNative Queue投入は{@link #maximumExecutions()}を直接使用できるが、
+ * Adapter自身も一回の呼び出し時間を制限しなければならない。</p>
  */
 public record PatternBatchBudget(long maximumExecutions, long deadlineNanos) {
     public PatternBatchBudget {

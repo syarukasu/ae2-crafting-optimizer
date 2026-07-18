@@ -10,7 +10,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 
 public final class NativeBatchReceiptLedger {
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
     private static final int MAX_RECEIPTS = 256;
     private static final long TERMINAL_RETENTION_TICKS = 12_000L;
     private final Map<UUID, NativeBatchReceipt> receipts = new LinkedHashMap<>();
@@ -39,7 +39,29 @@ public final class NativeBatchReceiptLedger {
         NativeBatchReceipt existing = receipts.get(receipt.transactionId());
         if (existing != null) {
             return existing.executions() == receipt.executions()
-                    && existing.patternFingerprint().equals(receipt.patternFingerprint());
+                    && existing.patternFingerprint().equals(receipt.patternFingerprint())
+                    && existing.payloadDigest().equals(receipt.payloadDigest());
+        }
+        evictExpiredTerminalReceipts(receipt.updatedTick());
+        if (receipts.size() >= MAX_RECEIPTS) {
+            return false;
+        }
+        receipts.put(receipt.transactionId(), receipt);
+        return true;
+    }
+
+    /** Providerの送信Bufferと同じNBT ownerへ、受理済みReceiptを直接登録する。 */
+    public synchronized boolean acceptOwned(NativeBatchReceipt receipt) {
+        if (corrupted) {
+            return false;
+        }
+        if (receipt.state() != NativeBatchReceipt.State.ACCEPTED
+                || !receipt.hasDurablePayloadProof()) {
+            throw new IllegalArgumentException("owned native receipt requires an accepted payload digest");
+        }
+        NativeBatchReceipt existing = receipts.get(receipt.transactionId());
+        if (existing != null) {
+            return existing.equals(receipt);
         }
         evictExpiredTerminalReceipts(receipt.updatedTick());
         if (receipts.size() >= MAX_RECEIPTS) {
@@ -68,6 +90,7 @@ public final class NativeBatchReceiptLedger {
                 state,
                 current.executions(),
                 current.patternFingerprint(),
+                current.payloadDigest(),
                 Math.max(current.updatedTick(), updatedTick)));
     }
 
@@ -97,6 +120,7 @@ public final class NativeBatchReceiptLedger {
             entry.putString("state", receipt.state().name());
             entry.putLong("executions", receipt.executions());
             entry.putString("pattern", receipt.patternFingerprint());
+            entry.putString("payloadDigest", receipt.payloadDigest());
             entry.putLong("updatedTick", receipt.updatedTick());
             entries.add(entry);
         }
@@ -111,7 +135,8 @@ public final class NativeBatchReceiptLedger {
         if (tag.isEmpty()) {
             return;
         }
-        if (tag.getInt("schema") != SCHEMA_VERSION || tag.getBoolean("corrupted")) {
+        int schema = tag.getInt("schema");
+        if ((schema != 1 && schema != SCHEMA_VERSION) || tag.getBoolean("corrupted")) {
             lock(tag);
             return;
         }
@@ -130,6 +155,7 @@ public final class NativeBatchReceiptLedger {
                         NativeBatchReceipt.State.valueOf(entry.getString("state")),
                         entry.getLong("executions"),
                         entry.getString("pattern"),
+                        schema >= 2 ? entry.getString("payloadDigest") : "",
                         entry.getLong("updatedTick"));
                 if (receipts.putIfAbsent(receipt.transactionId(), receipt) != null) {
                     throw new IllegalArgumentException("duplicate native receipt id " + receipt.transactionId());

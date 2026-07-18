@@ -20,7 +20,10 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 import io.netty.buffer.Unpooled;
 
-/** Strict optional-integration channel. Normal AE2 traffic never enters this channel. */
+/**
+ * BigInteger対応Host専用のProtocol Version付き通信Channel。
+ * 通常AE2の通信には介入せず、容量・進捗を上限付きPageへ分割して対応クライアントだけへ送る。
+ */
 public final class BigCraftingNetwork {
     public static final String PROTOCOL = "2";
     private static final AtomicBoolean REGISTERED = new AtomicBoolean();

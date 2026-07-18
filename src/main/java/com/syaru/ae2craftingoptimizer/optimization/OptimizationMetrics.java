@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.optimization;
 
 import java.util.List;
+import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
@@ -27,7 +28,18 @@ public final class OptimizationMetrics {
     private static final LongAdder CRAFTING_ENGINE_SHADOW_MISMATCHES = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_SKIPS = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_OVERFLOWS = new LongAdder();
+    private static final LongAdder NATIVE_BATCH_TRANSACTIONS = new LongAdder();
     private static final Map<String, LongAdder> NATIVE_BATCH_EXECUTIONS = new ConcurrentHashMap<>();
+    private static final LongAdder INSTANT_DISPATCH_CALLS = new LongAdder();
+    private static final LongAdder INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS = new LongAdder();
+    private static final LongAdder INSTANT_DISPATCH_TRANSACTIONS = new LongAdder();
+    private static final LongAdder INSTANT_DISPATCH_EXECUTIONS = new LongAdder();
+    private static final LongAdder SEQUENTIAL_INSTANT_WAVES = new LongAdder();
+    private static final LongAdder SEQUENTIAL_INSTANT_REQUESTED = new LongAdder();
+    private static final LongAdder SEQUENTIAL_INSTANT_COMPLETED = new LongAdder();
+    private static final LongAdder SEQUENTIAL_INSTANT_BUDGET_STOPS = new LongAdder();
+    private static final LongAccumulator SEQUENTIAL_INSTANT_MAX_WAVE_NANOS =
+            new LongAccumulator(Long::max, 0L);
 
     private OptimizationMetrics() {
     }
@@ -94,7 +106,33 @@ public final class OptimizationMetrics {
     }
 
     public static void recordNativePatternBatch(String adapterId, long executions) {
+        NATIVE_BATCH_TRANSACTIONS.increment();
         NATIVE_BATCH_EXECUTIONS.computeIfAbsent(adapterId, ignored -> new LongAdder()).add(executions);
+    }
+
+    /** Instantが一回のCPU呼び出しで実際に何取引を配送したかを記録する。 */
+    public static void recordInstantPatternDispatch(int transactions, int executions) {
+        if (transactions <= 0 || executions <= 0) {
+            return;
+        }
+        INSTANT_DISPATCH_CALLS.increment();
+        if (transactions > 1) {
+            INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS.increment();
+        }
+        INSTANT_DISPATCH_TRANSACTIONS.add(transactions);
+        INSTANT_DISPATCH_EXECUTIONS.add(executions);
+    }
+
+    /** AE2標準会計を使う単発Instantの実測値を記録する。 */
+    public static void recordSequentialInstantWave(int requested, int completed, long elapsedNanos) {
+        SEQUENTIAL_INSTANT_WAVES.increment();
+        SEQUENTIAL_INSTANT_REQUESTED.add(Math.max(0, requested));
+        SEQUENTIAL_INSTANT_COMPLETED.add(Math.max(0, completed));
+        SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.accumulate(Math.max(0L, elapsedNanos));
+    }
+
+    public static void recordSequentialInstantBudgetStop() {
+        SEQUENTIAL_INSTANT_BUDGET_STOPS.increment();
     }
 
     public static List<String> summaryLines() {
@@ -121,7 +159,18 @@ public final class OptimizationMetrics {
                         + " match(es), " + CRAFTING_ENGINE_SHADOW_MISMATCHES.sum()
                         + " mismatch(es), " + CRAFTING_ENGINE_SHADOW_SKIPS.sum()
                         + " skip(s), " + CRAFTING_ENGINE_SHADOW_OVERFLOWS.sum() + " overflow(s)",
-                "Experimental native batch executions: " + NATIVE_BATCH_EXECUTIONS,
+                "Experimental native batch: " + NATIVE_BATCH_TRANSACTIONS.sum()
+                        + " transaction(s), executions by adapter " + NATIVE_BATCH_EXECUTIONS,
+                "Sequential Instant: " + SEQUENTIAL_INSTANT_WAVES.sum()
+                        + " wave(s), " + SEQUENTIAL_INSTANT_COMPLETED.sum()
+                        + "/" + SEQUENTIAL_INSTANT_REQUESTED.sum() + " operation(s), "
+                        + SEQUENTIAL_INSTANT_BUDGET_STOPS.sum() + " budget stop(s), max wave "
+                        + (SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.get() / 1_000L) + " us",
+                "Experimental V2 Instant: " + INSTANT_DISPATCH_CALLS.sum()
+                        + " successful call(s), " + INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS.sum()
+                        + " multi-transaction call(s), " + INSTANT_DISPATCH_TRANSACTIONS.sum()
+                        + " transaction(s), " + INSTANT_DISPATCH_EXECUTIONS.sum()
+                        + " execution(s)",
                 "AE2 Overclock reflection cache: " + reflectionHits + " hit(s), " + reflectionMisses
                         + " miss(es), " + percent(reflectionHits, reflectionMisses) + "% hit rate",
                 "AE2 Overclock upgrade-count cache: " + upgradeHits + " hit(s), " + upgradeMisses
@@ -155,7 +204,17 @@ public final class OptimizationMetrics {
         CRAFTING_ENGINE_SHADOW_MISMATCHES.reset();
         CRAFTING_ENGINE_SHADOW_SKIPS.reset();
         CRAFTING_ENGINE_SHADOW_OVERFLOWS.reset();
+        NATIVE_BATCH_TRANSACTIONS.reset();
         NATIVE_BATCH_EXECUTIONS.clear();
+        INSTANT_DISPATCH_CALLS.reset();
+        INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS.reset();
+        INSTANT_DISPATCH_TRANSACTIONS.reset();
+        INSTANT_DISPATCH_EXECUTIONS.reset();
+        SEQUENTIAL_INSTANT_WAVES.reset();
+        SEQUENTIAL_INSTANT_REQUESTED.reset();
+        SEQUENTIAL_INSTANT_COMPLETED.reset();
+        SEQUENTIAL_INSTANT_BUDGET_STOPS.reset();
+        SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.reset();
     }
 
     private static long percent(long hits, long misses) {

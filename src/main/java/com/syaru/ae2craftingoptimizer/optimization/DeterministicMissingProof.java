@@ -89,8 +89,8 @@ final class DeterministicMissingProof<K, P, I> {
                 long executions = ceilDiv(remaining, outputPerExecution);
                 Outcome<K> patternOutcome = provePatternBlocked(pattern, executions, depth, recursionStack);
                 if (!patternOutcome.blocked) {
-                    // Output patterns are alternatives. One unproven or viable pattern means
-                    // the complete craft must remain on AE2's authoritative planner.
+                    // 同じ出力を作るPatternは代替候補。一つでも未証明または実行可能なら、
+                    // クラフト全体をAE2の正規Plannerへ残す。
                     return Outcome.maybe();
                 }
                 if (firstBlocker == null) {
@@ -137,8 +137,8 @@ final class DeterministicMissingProof<K, P, I> {
                 }
             }
 
-            // Pattern inputs are conjunctive. Proving one input impossible proves
-            // this pattern impossible; other inputs do not need to be expanded.
+            // 一つのPattern内の入力はAND条件。一入力の不足を証明できればPattern全体が
+            // 不可能と分かるため、残り入力を展開する必要はない。
             if (everyAlternativeBlocked && firstAlternativeBlocker != null) {
                 return Outcome.blocked(firstAlternativeBlocker);
             }

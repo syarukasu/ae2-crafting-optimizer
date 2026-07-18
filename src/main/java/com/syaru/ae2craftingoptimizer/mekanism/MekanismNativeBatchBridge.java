@@ -57,6 +57,16 @@ public final class MekanismNativeBatchBridge {
 
     @Nullable
     public static Verification verify(PatternBatchContext context, long offeredExecutions) {
+        try {
+            return verifyChecked(context, offeredExecutions);
+        } catch (RuntimeException ignored) {
+            // 対応外のMekanism機械・Recipe実装では推測せず、AE2標準配送へ戻す。
+            return null;
+        }
+    }
+
+    @Nullable
+    private static Verification verifyChecked(PatternBatchContext context, long offeredExecutions) {
         if (offeredExecutions <= 0L || !(context.target() instanceof IRecipeLookupHandler<?> handler)) {
             return null;
         }

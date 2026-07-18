@@ -119,4 +119,61 @@ class NativeBatchReceiptLedgerTest {
         assertFalse(ledger.isEmpty());
         assertEquals("keep-me", ledger.save().getString("futureData"));
     }
+
+    @Test
+    void acceptedEscrowReceiptPersistsItsExactPayloadDigest() {
+        UUID id = UUID.randomUUID();
+        NativeBatchReceipt accepted = new NativeBatchReceipt(
+                id,
+                NativeBatchReceipt.State.ACCEPTED,
+                65_536L,
+                "pattern",
+                "0123456789abcdef",
+                20L);
+        NativeBatchReceiptLedger ledger = new NativeBatchReceiptLedger();
+
+        assertTrue(ledger.acceptOwned(accepted));
+        assertTrue(ledger.acceptOwned(accepted));
+
+        NativeBatchReceiptLedger restored = new NativeBatchReceiptLedger();
+        restored.load(ledger.save());
+        assertEquals(accepted, restored.get(id));
+        assertTrue(restored.get(id).hasDurablePayloadProof());
+    }
+
+    @Test
+    void acceptedEscrowRejectsSameTransactionWithDifferentPayload() {
+        UUID id = UUID.randomUUID();
+        NativeBatchReceiptLedger ledger = new NativeBatchReceiptLedger();
+        NativeBatchReceipt first = new NativeBatchReceipt(
+                id, NativeBatchReceipt.State.ACCEPTED, 2L, "pattern", "digest-a", 1L);
+        NativeBatchReceipt conflicting = new NativeBatchReceipt(
+                id, NativeBatchReceipt.State.ACCEPTED, 2L, "pattern", "digest-b", 1L);
+
+        assertTrue(ledger.acceptOwned(first));
+        assertFalse(ledger.acceptOwned(conflicting));
+        assertEquals(first, ledger.get(id));
+    }
+
+    @Test
+    void schemaOneReceiptLoadsForQuarantineButCannotProveOwnership() {
+        UUID id = UUID.randomUUID();
+        CompoundTag saved = new CompoundTag();
+        saved.putInt("schema", 1);
+        ListTag entries = new ListTag();
+        CompoundTag entry = new CompoundTag();
+        entry.putUUID("id", id);
+        entry.putString("state", NativeBatchReceipt.State.ACCEPTED.name());
+        entry.putLong("executions", 4L);
+        entry.putString("pattern", "legacy");
+        entry.putLong("updatedTick", 1L);
+        entries.add(entry);
+        saved.put("entries", entries);
+
+        NativeBatchReceiptLedger ledger = new NativeBatchReceiptLedger();
+        ledger.load(saved);
+
+        assertTrue(ledger.isHealthy());
+        assertFalse(ledger.get(id).hasDurablePayloadProof());
+    }
 }

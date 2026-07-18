@@ -5,24 +5,27 @@ import com.syaru.ae2craftingoptimizer.engine.BigCraftingJob;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingKeyCodec;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 
 /**
- * Shared capacity owner for one add-on crafting CPU.
+ * アドオンCPU一台の物理容量を一元管理する。
  *
- * <p>Normal AE2 jobs reserve signed-long amounts through {@link #reserveExternal}, while native
- * BigInteger jobs use the embedded {@link BigCraftingRuntime}. Both paths consume the same physical
- * capacity and therefore cannot oversubscribe each other.</p>
+ * <p>通常AE2 Jobは{@link #reserveExternal}からlong範囲の容量を予約し、BigInteger Jobは
+ * 内部の{@link BigCraftingRuntime}を使用する。両者を同じ台帳から差し引くことで、
+ * 同じ容量を二重に予約することを防ぐ。</p>
  */
 public final class BigCraftingHostRuntime<K> {
-    public static final int SCHEMA_VERSION = 1;
+    public static final int SCHEMA_VERSION = 2;
     public static final int MAX_EXTERNAL_RESERVATIONS = 65_536;
+    public static final int MAX_EXTERNAL_EXECUTIONS = 16_384;
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
 
     private final UUID hostId;
@@ -32,6 +35,8 @@ public final class BigCraftingHostRuntime<K> {
     private final int maximumStatusPageEntries;
     private final long maximumRuntimeCountBytes;
     private final Map<UUID, BigInteger> externalReservations = new LinkedHashMap<>();
+    /** 子AE2 CPUが所有している未確定Execution。Big予約と二重加算しないため同じHostで管理する。 */
+    private final Map<UUID, ExternalExecutionBinding> externalExecutions = new LinkedHashMap<>();
     private BigInteger physicalCapacity;
     private BigInteger externalReserved = BigInteger.ZERO;
     private long externalCountBytes;
@@ -47,6 +52,7 @@ public final class BigCraftingHostRuntime<K> {
         this(
                 UUID.randomUUID(),
                 checkedCapacity(physicalCapacity, maximumBits),
+                Map.of(),
                 Map.of(),
                 new BigCraftingRuntime<>(
                         physicalCapacity,
@@ -66,6 +72,7 @@ public final class BigCraftingHostRuntime<K> {
             UUID hostId,
             BigInteger physicalCapacity,
             Map<UUID, BigInteger> externalReservations,
+            Map<UUID, ExternalExecutionBinding> externalExecutions,
             BigCraftingRuntime<K> bigRuntime,
             BigCraftingKeyCodec<K> keyCodec,
             int maximumBits,
@@ -80,12 +87,11 @@ public final class BigCraftingHostRuntime<K> {
         this.maximumRuntimeCountBytes = maximumRuntimeCountBytes;
         this.physicalCapacity = checkedCapacity(physicalCapacity, maximumBits);
         this.bigRuntime = Objects.requireNonNull(bigRuntime, "bigRuntime");
+        replaceExternalExecutions(externalExecutions);
         replaceExternalReservations(externalReservations);
     }
 
-    /**
-     * Atomically reserves capacity for a normal AE2/Advanced AE job.
-     */
+    /** 通常AE2・Advanced AE Job用の容量を原子的に予約する。 */
     public synchronized boolean reserveExternal(UUID jobId, BigInteger amount) {
         Objects.requireNonNull(jobId, "jobId");
         BigInteger checked = checkedPositive(amount, "external reservation", maximumBits);
@@ -119,15 +125,21 @@ public final class BigCraftingHostRuntime<K> {
     }
 
     /**
-     * Replaces normal-job reservations from the authoritative CPU job map.
+     * CPUが保持する正本Job一覧から、通常Jobの予約状態を丸ごと再構築する。
      *
-     * <p>This method deliberately accepts an overcommitted restored state. Existing work is kept,
-     * available capacity becomes zero, and no new work can be accepted until capacity is restored
-     * or jobs finish.</p>
+     * <p>復元時だけは容量超過状態も受け入れる。既存Jobを消さず、空き容量を0として扱い、
+     * 構造の容量が戻るかJobが完了するまで新規Jobを受理しない。</p>
      */
     public synchronized void replaceExternalReservations(Map<UUID, BigInteger> replacement) {
+        Objects.requireNonNull(replacement, "external reservations");
+        Map<UUID, BigInteger> unmanaged = new LinkedHashMap<>();
+        replacement.forEach((jobId, amount) -> {
+            if (!externalExecutions.containsKey(jobId)) {
+                unmanaged.put(jobId, amount);
+            }
+        });
         CheckedReservations checked = checkedReservations(
-                replacement, maximumBits, maximumRuntimeCountBytes);
+                unmanaged, maximumBits, maximumRuntimeCountBytes);
         BigInteger total = BigInteger.ZERO;
         for (BigInteger amount : checked.values().values()) {
             total = BigCountMath.add(total, amount, "host/externalReserved", maximumBits);
@@ -155,6 +167,102 @@ public final class BigCraftingHostRuntime<K> {
 
     public synchronized List<BigCraftingRuntime.ExecutionLease<K>> schedule(long operationBudget) {
         return bigRuntime.schedule(operationBudget);
+    }
+
+    public synchronized List<BigCraftingRuntime.ExecutionLease<K>> schedule(
+            long operationBudget,
+            int maximumWindows) {
+        return bigRuntime.schedule(operationBudget, maximumWindows);
+    }
+
+    /**
+     * 準備済みBigInteger窓を、同じQuantum Computer内の標準AE2子CPUへ紐付ける。
+     * 以後は子CPUの成功/失敗通知が来るまでBig側の進捗を確定しない。
+     */
+    public synchronized void bindExternalExecution(
+            BigCraftingRuntime.ExecutionLease<K> lease,
+            UUID childCpuId,
+            BigInteger childReservedCapacity) {
+        Objects.requireNonNull(lease, "lease");
+        Objects.requireNonNull(childCpuId, "childCpuId");
+        BigInteger checkedCapacity = checkedPositive(
+                childReservedCapacity, "child execution reservation", maximumBits);
+        bigRuntime.validateLease(lease);
+        if (externalExecutions.size() >= MAX_EXTERNAL_EXECUTIONS
+                || externalExecutions.containsKey(childCpuId)
+                || externalExecutions.values().stream().anyMatch(binding ->
+                        binding.transactionId().equals(lease.prepared().transactionId()))) {
+            throw new IllegalStateException("duplicate or excessive BigInteger child execution binding");
+        }
+        externalExecutions.put(childCpuId, new ExternalExecutionBinding(
+                childCpuId,
+                lease.jobId(),
+                lease.prepared().transactionId(),
+                lease.prepared().patternId(),
+                lease.prepared().window().executions(),
+                checkedCapacity));
+        // 子CPUはBig Jobの予約容量から実行しているため、標準Job予約との二重計上を除く。
+        BigInteger removed = externalReservations.remove(childCpuId);
+        if (removed != null) {
+            externalReserved = externalReserved.subtract(removed);
+            externalCountBytes = Math.subtractExact(
+                    externalCountBytes, BigCountMath.encodedBytes(removed));
+        }
+        rebalanceBigRuntimeCapacity();
+    }
+
+    /** 子AE2 Jobが完了した時だけ、対応するBigInteger窓を確定する。 */
+    public synchronized boolean resolveExternalExecution(UUID childCpuId, boolean successful) {
+        ExternalExecutionBinding binding = externalExecutions.get(
+                Objects.requireNonNull(childCpuId, "childCpuId"));
+        if (binding == null) {
+            return false;
+        }
+        if (successful) {
+            bigRuntime.commitRecovered(
+                    binding.jobId(),
+                    binding.transactionId(),
+                    binding.executions(),
+                    Map.of());
+        } else {
+            bigRuntime.rollbackRecovered(binding.jobId(), binding.transactionId());
+        }
+        externalExecutions.remove(childCpuId);
+        rebalanceBigRuntimeCapacity();
+        return true;
+    }
+
+    /**
+     * 保存済みBindingに対応する子CPUが消えていた場合、成功/失敗を推測せずJobを隔離する。
+     * アイテム複製より停止を選び、管理者がログと保存状態を確認できるようにする。
+     */
+    public synchronized boolean quarantineExternalExecution(UUID childCpuId) {
+        ExternalExecutionBinding binding = externalExecutions.remove(
+                Objects.requireNonNull(childCpuId, "childCpuId"));
+        if (binding == null) {
+            return false;
+        }
+        bigRuntime.cancel(binding.jobId());
+        rebalanceBigRuntimeCapacity();
+        return true;
+    }
+
+    /**
+     * 保存時点で子CPUへ渡っていないprepared窓だけを安全に戻す。
+     * 子CPUへ渡った窓はexternalExecutionsに存在するので、推測でrollbackしない。
+     */
+    public synchronized int rollbackUnboundPreparedExecutions() {
+        Set<UUID> boundTransactions = new LinkedHashSet<>();
+        externalExecutions.values().forEach(binding -> boundTransactions.add(binding.transactionId()));
+        int rolledBack = 0;
+        for (var recovered : List.copyOf(bigRuntime.unresolvedExecutions())) {
+            if (!boundTransactions.contains(recovered.prepared().transactionId())) {
+                bigRuntime.rollbackRecovered(
+                        recovered.jobId(), recovered.prepared().transactionId());
+                rolledBack++;
+            }
+        }
+        return rolledBack;
     }
 
     public synchronized void commit(
@@ -216,6 +324,19 @@ public final class BigCraftingHostRuntime<K> {
             external.add(reservation);
         }
         tag.put("externalReservations", external);
+        ListTag executions = new ListTag();
+        for (ExternalExecutionBinding binding : externalExecutions.values()) {
+            CompoundTag execution = new CompoundTag();
+            execution.putUUID("childCpuId", binding.childCpuId());
+            execution.putUUID("jobId", binding.jobId());
+            execution.putUUID("transactionId", binding.transactionId());
+            execution.putString("taskId", binding.taskId());
+            execution.putLong("executions", binding.executions());
+            putNonNegative(
+                    execution, "reservedCapacity", binding.reservedCapacity(), maximumBits);
+            executions.add(execution);
+        }
+        tag.put("externalExecutions", executions);
         tag.put("bigRuntime", bigRuntime.save());
         return tag;
     }
@@ -229,13 +350,14 @@ public final class BigCraftingHostRuntime<K> {
             int maximumStatusPageEntries,
             long maximumRuntimeCountBytes) {
         Objects.requireNonNull(tag, "tag");
-        if (tag.getInt("schema") != SCHEMA_VERSION
+        int schema = tag.getInt("schema");
+        if ((schema != 1 && schema != SCHEMA_VERSION)
                 || !tag.hasUUID("hostId")
                 || !tag.contains("bigRuntime", Tag.TAG_COMPOUND)
                 || !tag.contains("externalReservations", Tag.TAG_LIST)) {
             throw new IllegalArgumentException("unsupported BigInteger host runtime schema");
         }
-        // Validate the persisted value even though current structure/config is authoritative.
+        // 現在の構造・Configを正とするが、壊れた保存値を見逃さないため永続値も検証する。
         readNonNegative(tag, "physicalCapacity", maximumBits);
         Map<UUID, BigInteger> external = readReservations(tag, maximumBits);
         BigCraftingRuntime<K> runtime = BigCraftingRuntime.load(
@@ -245,10 +367,14 @@ public final class BigCraftingHostRuntime<K> {
                 maximumExecutionsPerWindow,
                 maximumStatusPageEntries,
                 maximumRuntimeCountBytes);
+        Map<UUID, ExternalExecutionBinding> bindings = schema >= 2
+                ? readExternalExecutions(tag, runtime, maximumBits)
+                : Map.of();
         return new BigCraftingHostRuntime<>(
                 tag.getUUID("hostId"),
                 currentPhysicalCapacity,
                 external,
+                bindings,
                 runtime,
                 keyCodec,
                 maximumBits,
@@ -299,6 +425,14 @@ public final class BigCraftingHostRuntime<K> {
         return Map.copyOf(externalReservations);
     }
 
+    public synchronized Map<UUID, ExternalExecutionBinding> externalExecutions() {
+        return Map.copyOf(externalExecutions);
+    }
+
+    public synchronized Set<UUID> managedExternalChildIds() {
+        return Set.copyOf(externalExecutions.keySet());
+    }
+
     public synchronized long estimatedExternalCountBytes() {
         return externalCountBytes;
     }
@@ -320,6 +454,82 @@ public final class BigCraftingHostRuntime<K> {
         if (!bigRuntime.resizeCapacity(replacement)) {
             throw new IllegalStateException("failed to reconcile BigInteger host capacity");
         }
+    }
+
+    private void replaceExternalExecutions(Map<UUID, ExternalExecutionBinding> replacement) {
+        Objects.requireNonNull(replacement, "external executions");
+        if (replacement.size() > MAX_EXTERNAL_EXECUTIONS) {
+            throw new IllegalArgumentException("too many external BigInteger executions");
+        }
+        Set<UUID> transactions = new LinkedHashSet<>();
+        externalExecutions.clear();
+        for (var entry : replacement.entrySet()) {
+            UUID childId = Objects.requireNonNull(entry.getKey(), "child CPU id");
+            ExternalExecutionBinding binding = Objects.requireNonNull(entry.getValue(), "external execution");
+            if (!childId.equals(binding.childCpuId())
+                    || !transactions.add(binding.transactionId())) {
+                throw new IllegalArgumentException("duplicate or malformed external execution binding");
+            }
+            externalExecutions.put(childId, binding);
+        }
+    }
+
+    private static <K> Map<UUID, ExternalExecutionBinding> readExternalExecutions(
+            CompoundTag owner,
+            BigCraftingRuntime<K> runtime,
+            int maximumBits) {
+        if (!owner.contains("externalExecutions", Tag.TAG_LIST)) {
+            throw new IllegalArgumentException("missing external BigInteger execution list");
+        }
+        ListTag list = owner.getList("externalExecutions", Tag.TAG_COMPOUND);
+        Tag raw = owner.get("externalExecutions");
+        if (!(raw instanceof ListTag rawList)
+                || (!rawList.isEmpty() && rawList.getElementType() != Tag.TAG_COMPOUND)
+                || list.size() > MAX_EXTERNAL_EXECUTIONS) {
+            throw new IllegalArgumentException("malformed or oversized external execution list");
+        }
+        Map<UUID, BigCraftingRuntime.RecoveredExecution<K>> recoveredByTransaction =
+                new LinkedHashMap<>();
+        for (var recovered : runtime.unresolvedExecutions()) {
+            recoveredByTransaction.put(recovered.prepared().transactionId(), recovered);
+        }
+        Map<UUID, ExternalExecutionBinding> result = new LinkedHashMap<>();
+        Set<UUID> transactions = new LinkedHashSet<>();
+        for (int index = 0; index < list.size(); index++) {
+            CompoundTag entry = list.getCompound(index);
+            if (!entry.hasUUID("childCpuId")
+                    || !entry.hasUUID("jobId")
+                    || !entry.hasUUID("transactionId")) {
+                throw new IllegalArgumentException("external execution is missing an id");
+            }
+            UUID childId = entry.getUUID("childCpuId");
+            UUID jobId = entry.getUUID("jobId");
+            UUID transactionId = entry.getUUID("transactionId");
+            String taskId = entry.getString("taskId");
+            long executions = entry.getLong("executions");
+            BigInteger reservation = checkedPositive(
+                    readNonNegative(entry, "reservedCapacity", maximumBits),
+                    "child execution reservation",
+                    maximumBits);
+            var recovered = recoveredByTransaction.get(transactionId);
+            if (taskId.isBlank()
+                    || executions <= 0L
+                    || recovered == null
+                    || !recovered.jobId().equals(jobId)
+                    || !recovered.prepared().patternId().equals(taskId)
+                    || recovered.prepared().window().executions() != executions
+                    || !transactions.add(transactionId)
+                    || result.putIfAbsent(childId, new ExternalExecutionBinding(
+                                    childId,
+                                    jobId,
+                                    transactionId,
+                                    taskId,
+                                    executions,
+                                    reservation)) != null) {
+                throw new IllegalArgumentException("external execution does not match its prepared lease");
+            }
+        }
+        return Map.copyOf(result);
     }
 
     private static CheckedReservations checkedReservations(
@@ -432,5 +642,26 @@ public final class BigCraftingHostRuntime<K> {
     private record CheckedReservations(
             Map<UUID, BigInteger> values,
             long encodedCountBytes) {
+    }
+
+    public record ExternalExecutionBinding(
+            UUID childCpuId,
+            UUID jobId,
+            UUID transactionId,
+            String taskId,
+            long executions,
+            BigInteger reservedCapacity) {
+        public ExternalExecutionBinding {
+            Objects.requireNonNull(childCpuId, "childCpuId");
+            Objects.requireNonNull(jobId, "jobId");
+            Objects.requireNonNull(transactionId, "transactionId");
+            if (Objects.requireNonNull(taskId, "taskId").isBlank()) {
+                throw new IllegalArgumentException("taskId must not be blank");
+            }
+            if (executions <= 0L) {
+                throw new IllegalArgumentException("executions must be positive");
+            }
+            Objects.requireNonNull(reservedCapacity, "reservedCapacity");
+        }
     }
 }
