@@ -36,9 +36,9 @@ public abstract class CraftingProviderRefreshCoalescingMixin {
         }
 
         if (!ACOConfig.coalesceCraftingProviderRefreshes()) {
-            if (!ProviderPatternGenerationTracker.shouldRefresh(node)) {
-                ci.cancel();
-            }
+            // refreshNodeCraftingProviderはクラフト索引だけでなく、Pattern Access Terminalへ
+            // Providerのスロット配置変更を通知する。内容が同じでも通知自体は止めない。
+            ProviderPatternGenerationTracker.shouldRefresh(node);
             return;
         }
 
@@ -93,9 +93,10 @@ public abstract class CraftingProviderRefreshCoalescingMixin {
         try {
             CraftingService service = (CraftingService) (Object) this;
             for (IGridNode node : pending) {
-                if (ProviderPatternGenerationTracker.shouldRefresh(node)) {
-                    service.refreshNodeCraftingProvider(node);
-                }
+                // 同一tickの重複だけをまとめ、最終状態のAE2通知は必ず一回通す。
+                // これを省略すると大容量Providerの端末スロットがクライアントとずれる。
+                ProviderPatternGenerationTracker.shouldRefresh(node);
+                service.refreshNodeCraftingProvider(node);
             }
         } finally {
             aco$flushingProviderRefreshes = false;

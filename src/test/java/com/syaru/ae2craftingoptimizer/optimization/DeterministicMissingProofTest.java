@@ -93,6 +93,16 @@ class DeterministicMissingProofTest {
         assertNull(find(graph, "matter", Long.MAX_VALUE));
     }
 
+    @Test
+    void reusableToolPatternAlwaysFallsBackToAe2() {
+        TestGraph graph = new TestGraph();
+        Pattern machine = pattern("machine", 1, input(requirement("diamond_file", 4)));
+        graph.add("machine", machine);
+        graph.unprovablePatterns.add(machine);
+
+        assertNull(find(graph, "machine", 1));
+    }
+
     private static DeterministicMissingProof.Missing<String> find(TestGraph graph, String key, long amount) {
         return DeterministicMissingProof.find(graph, key, amount, 64, 4_096);
     }
@@ -123,6 +133,7 @@ class DeterministicMissingProofTest {
         private final Map<String, Long> available = new HashMap<>();
         private final Map<String, List<Pattern>> patterns = new HashMap<>();
         private final Set<String> emitters = new HashSet<>();
+        private final Set<Pattern> unprovablePatterns = new HashSet<>();
 
         private void add(String key, Pattern pattern) {
             patterns.computeIfAbsent(key, ignored -> new ArrayList<>()).add(pattern);
@@ -141,6 +152,11 @@ class DeterministicMissingProofTest {
         @Override
         public Collection<Pattern> patterns(String key) {
             return patterns.getOrDefault(key, List.of());
+        }
+
+        @Override
+        public boolean canProvePattern(Pattern pattern) {
+            return !unprovablePatterns.contains(pattern);
         }
 
         @Override

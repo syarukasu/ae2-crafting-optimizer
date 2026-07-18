@@ -20,6 +20,17 @@ paths remain disabled by default.
 - Coordinated optional BigInteger host API v3 compatibility with AQE `2.0.1`;
   neither mod is made mandatory by this integration.
 
+### Fixed
+
+- Made deterministic missing-item fast-fail fall back to AE2 whenever a Pattern
+  contains a reusable tool, container return, or catalyst. GTCEu wrenches and
+  files are no longer multiplied as permanently consumed ingredients.
+- Preserved AE2's final crafting-provider refresh notification after same-tick
+  coalescing. Pattern Access Terminal slot layouts now remain synchronized for
+  large providers such as Crazy Pattern Providers.
+- Expanded the automated suite to 153 passing tests with a reusable-tool
+  fallback regression case.
+
 ## [1.3.0] - 2026-07-18
 
 The release artifact was clean-built and qualified through Forge client bootstrap

@@ -37,7 +37,10 @@ public final class DeterministicCraftingPreflight {
             return null;
         }
 
-        PreflightGraph graph = new PreflightGraph(craftingService, grid.getStorageService().getCachedInventory());
+        PreflightGraph graph = new PreflightGraph(
+                craftingService,
+                grid.getStorageService().getCachedInventory(),
+                level);
         DeterministicMissingProof.Missing<AEKey> missing = DeterministicMissingProof.find(
                 graph,
                 output,
@@ -76,11 +79,13 @@ public final class DeterministicCraftingPreflight {
             implements DeterministicMissingProof.Graph<AEKey, IPatternDetails, IPatternDetails.IInput> {
         private final CraftingService craftingService;
         private final KeyCounter available;
+        private final Level level;
 
-        private PreflightGraph(CraftingService craftingService, KeyCounter cachedInventory) {
+        private PreflightGraph(CraftingService craftingService, KeyCounter cachedInventory, Level level) {
             this.craftingService = craftingService;
             this.available = new KeyCounter();
             this.available.addAll(cachedInventory);
+            this.level = level;
         }
 
         @Override
@@ -96,6 +101,28 @@ public final class DeterministicCraftingPreflight {
         @Override
         public Collection<IPatternDetails> patterns(AEKey key) {
             return craftingService.getCraftingFor(key);
+        }
+
+        @Override
+        public boolean canProvePattern(IPatternDetails pattern) {
+            for (IPatternDetails.IInput input : pattern.getInputs()) {
+                GenericStack[] possibleInputs = input.getPossibleInputs();
+                if (possibleInputs == null || possibleInputs.length == 0) {
+                    return false;
+                }
+                for (GenericStack possibleInput : possibleInputs) {
+                    if (possibleInput == null
+                            || possibleInput.what() == null
+                            || possibleInput.amount() <= 0
+                            || !input.isValid(possibleInput.what(), level)
+                            || input.getRemainingKey(possibleInput.what()) != null) {
+                        // GTのレンチやヤスリ、容器、触媒は入力数と実消費数が一致しない。
+                        // ここでは推測せず、返却物を正式に扱うAE2 Plannerへ委譲する。
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
 
         @Override
