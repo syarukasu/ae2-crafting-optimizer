@@ -96,11 +96,27 @@ dependencies {
         compileOnly files(localAdvancedAe)
     } else {
         implementation fg.deobf('appeng:appliedenergistics2-forge:15.4.10')
-        compileOnly(fg.deobf('com.gregtechceu.gtceu:gtceu-1.20.1:7.5.3')) { transitive = false }
-        compileOnly(fg.deobf('com.lowdragmc.ldlib:ldlib-forge-1.20.1:1.0.40.b')) { transitive = false }
-        compileOnly(fg.deobf('mekanism:Mekanism:1.20.1-10.4.16.80')) { transitive = false }
-        compileOnly(fg.deobf('curse.maven:applied-mekanistics-574300:7244744')) { transitive = false }
-        compileOnly(fg.deobf('curse.maven:advancedae-1084104:7939754')) { transitive = false }
+        def gtceuDependency = project.dependencies.create('com.gregtechceu.gtceu:gtceu-1.20.1:7.5.3') {
+            transitive = false
+        }
+        def ldlibDependency = project.dependencies.create('com.lowdragmc.ldlib:ldlib-forge-1.20.1:1.0.40.b') {
+            transitive = false
+        }
+        def mekanismDependency = project.dependencies.create('mekanism:Mekanism:1.20.1-10.4.16.80') {
+            transitive = false
+        }
+        def appliedMekanisticsDependency = project.dependencies.create('curse.maven:applied-mekanistics-574300:7244744') {
+            transitive = false
+        }
+        def advancedAeDependency = project.dependencies.create('curse.maven:advancedae-1084104:7939754') {
+            transitive = false
+        }
+
+        compileOnly fg.deobf(gtceuDependency)
+        compileOnly fg.deobf(ldlibDependency)
+        compileOnly fg.deobf(mekanismDependency)
+        compileOnly fg.deobf(appliedMekanisticsDependency)
+        compileOnly fg.deobf(advancedAeDependency)
     }
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
