@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.2] - 2026-07-18
+
+### Fixed
+
+- Added a client-side safety check that stops AE2 scrollbar Page Up/Down repeat
+  after the physical left mouse button has been released. This prevents Pattern
+  Access Terminal scrolling from continuing when another screen mod consumes
+  the mouse-up event.
+- Kept normal click-and-hold repetition, dragging, mouse-wheel scrolling,
+  crafting logic, item transfer, and server-side accounting unchanged.
+
+### Verification
+
+- Clean Forge build and the complete automated test suite pass on Java 17.
+- The same `1.3.2` jar is required on the server and every client.
+
 ## [1.3.1] - 2026-07-18
 
 This is the P0-P8 runtime-qualification candidate. Automated tests and clean

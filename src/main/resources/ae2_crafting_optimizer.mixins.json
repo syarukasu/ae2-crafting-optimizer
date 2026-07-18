@@ -55,7 +55,9 @@
     "MekanismCachedRecipeAccessor",
     "P2PServiceTopologyDeduplicationMixin"
   ],
-  "client": [],
+  "client": [
+    "Ae2ScrollbarReleaseSafetyMixin"
+  ],
   "injectors": {
     "defaultRequire": 0
   }

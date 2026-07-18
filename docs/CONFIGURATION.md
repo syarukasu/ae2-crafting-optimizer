@@ -140,6 +140,7 @@ same ACO jar before an integrating add-on uses status synchronization.
 | `patternSelectionByAvailability` | `false` | Changes candidate attempt order, but not validity. |
 | `asyncTerminalSearchSort` | `false` | Moves immutable projected search/sort work to a worker and discards stale generations. |
 | `asyncTerminalMinimumEntries` | `2048` | Minimum terminal size for the async path. |
+| `fixStuckAe2ScrollbarRepeat` | `true` | Stops AE2's Page Up/Down repeater when the physical left mouse button has already been released; does not alter normal holding, dragging, or wheel scrolling. |
 | `enableCreateRecipeIntentFastPath` | `false` | Reserved; no Create machine fast path is implemented. |
 | `enablePatternMicroBatching` | `false` | Compatibility-disabled in 1.1.1. `true` is ignored because aggregate acceptance cannot guarantee multiplied recipe outputs. |
 | `maxPatternExecutionsPerMicroBatch` | `65536` | Legacy no-op retained for existing config compatibility. |

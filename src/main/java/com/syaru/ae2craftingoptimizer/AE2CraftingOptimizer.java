@@ -148,12 +148,13 @@ public final class AE2CraftingOptimizer {
                 ACOConfig.getExportBusCraftFailureCooldownTicks(),
                 ACOConfig.getExportBusCraftThrottleCacheSize());
         LOGGER.info(
-                "ACO UEL optimizations: capability cache {}, negative bus simulation cache {}, candidate pruning {}, provider refresh coalescing {}, client terminal coalescing {}",
+                "ACO UEL optimizations: capability cache {}, negative bus simulation cache {}, candidate pruning {}, provider refresh coalescing {}, client terminal coalescing {}, scrollbar release safety {}",
                 ACOConfig.cacheAdjacentCapabilityLookups(),
                 ACOConfig.cacheNegativeBusTransferSimulations(),
                 ACOConfig.pruneInvalidCraftingCandidates(),
                 ACOConfig.coalesceCraftingProviderRefreshes(),
-                ACOConfig.coalesceClientTerminalViewUpdates());
+                ACOConfig.coalesceClientTerminalViewUpdates(),
+                ACOConfig.fixStuckAe2ScrollbarRepeat());
         LOGGER.info("ACO ExtendedAE Circuit Cutter recipe cache: {}, max {} entries",
                 ACOConfig.cacheCircuitCutterRecipes(),
                 ACOConfig.getCircuitCutterRecipeCacheSize());
