@@ -1,5 +1,9 @@
 # AE2 Crafting Optimizer
 
+<p align="center">
+  <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
+</p>
+
 [![Build](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml/badge.svg)](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml)
 [![License: LGPL-3.0-only](https://img.shields.io/badge/License-LGPL--3.0--only-blue.svg)](LICENSE)
 
