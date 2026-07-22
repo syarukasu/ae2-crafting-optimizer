@@ -6,6 +6,7 @@ import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.networking.IGrid;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
+import appeng.api.stacks.KeyCounter;
 import appeng.crafting.CraftingCalculation;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDiagnostics;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
@@ -48,6 +49,9 @@ public abstract class CraftingCalculationDiagnosticsMixin {
     @Unique
     private Ae2AuthoritativeCraftingPlanner.Capture aco$authoritativeCapture;
 
+    @Unique
+    private boolean aco$usedAuthoritativePlan;
+
     @Inject(method = "<init>", at = @At("RETURN"))
     private void aco$captureGrid(
             Level level,
@@ -56,12 +60,20 @@ public abstract class CraftingCalculationDiagnosticsMixin {
             GenericStack output,
             CalculationStrategy strategy,
             CallbackInfo ci) {
-        aco$shadowCapture = Ae2CraftingShadowValidator.capture(level, grid);
+        KeyCounter networkSnapshot =
+                ((NetworkCraftingSimulationStateAccessor) (Object) networkInv).aco$getNetworkSnapshot();
+        var actionSource = requester.getActionSource();
+        aco$shadowCapture = Ae2CraftingShadowValidator.capture(
+                level,
+                grid,
+                actionSource,
+                networkSnapshot,
+                this.output);
         aco$authoritativeCapture = Ae2AuthoritativeCraftingPlanner.capture(
                 level,
                 grid,
-                requester.getActionSource(),
-                ((NetworkCraftingSimulationStateAccessor) (Object) networkInv).aco$getNetworkSnapshot());
+                actionSource,
+                networkSnapshot);
     }
 
     @Inject(method = "run", at = @At("HEAD"))
@@ -78,7 +90,9 @@ public abstract class CraftingCalculationDiagnosticsMixin {
     private void aco$tryAuthoritativePlan(CallbackInfoReturnable<ICraftingPlan> cir) {
         ICraftingPlan accelerated = Ae2AuthoritativeCraftingPlanner.tryPlan(
                 aco$authoritativeCapture, output, requestedAmount, strategy);
+        // Shadow認定済みProgramが結果を返した場合だけAE2計画本体を置き換える。
         if (accelerated != null) {
+            aco$usedAuthoritativePlan = true;
             cir.setReturnValue(accelerated);
         }
     }
@@ -90,7 +104,14 @@ public abstract class CraftingCalculationDiagnosticsMixin {
                 requestedAmount,
                 cir.getReturnValue(),
                 System.nanoTime() - aco$calculationStartedAt);
-        Ae2CraftingShadowValidator.validate(
-                aco$shadowCapture, output, requestedAmount, cir.getReturnValue());
+        // Authoritative結果を自分自身と比較して一致回数を水増しせず、AE2標準結果だけを教材にする。
+        if (!aco$usedAuthoritativePlan) {
+            Ae2CraftingShadowValidator.validate(
+                    aco$shadowCapture,
+                    output,
+                    requestedAmount,
+                    strategy,
+                    cir.getReturnValue());
+        }
     }
 }

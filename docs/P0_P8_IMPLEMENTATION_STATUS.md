@@ -10,11 +10,14 @@ operator; source completion alone is not a release qualification claim.
   and fault-oriented receipt tests.
 - P1: immutable provider-generation and recipe-generation keyed compiled graph,
   bounded SCC analysis, and stale publication rejection.
-- P2: checked-long symbolic planner, checked AE2 tree arithmetic guards,
-  overflow promotion, strict authoritative topology, Shadow Mode, cancellation,
-  and standard-AE2 fallback.
-- P3: bounded BigInteger planning, exact capacity accounting, execution windows,
-  NBT/packet magnitude limits, and optional AQE host API v3 integration.
+- P2: generation-cached primitive-array Root Programs, checked-long symbolic
+  planning, checked AE2 tree arithmetic guards, complete missing aggregation,
+  referenced-key inventory validation, overflow promotion, strict authoritative
+  topology, full-accounting Shadow qualification, cancellation, and standard-AE2
+  fallback.
+- P3: bounded BigInteger planning with an exact `10^16384 - 1` ceiling, exact
+  capacity accounting, execution windows, NBT/packet magnitude limits, and
+  optional AQE host API v3 integration.
 - P4: shared capacity reservation, persisted multiple-job state, bounded
   round-robin leases, stale-generation rejection, child-job binding, and paged
   status synchronization.

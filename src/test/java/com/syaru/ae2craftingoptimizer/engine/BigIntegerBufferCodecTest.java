@@ -43,4 +43,26 @@ class BigIntegerBufferCodecTest {
         assertThrows(IllegalArgumentException.class, () ->
                 BigIntegerBufferCodec.readNonNegative(nonCanonical, 64));
     }
+
+    @Test
+    void acceptsExactDecimalHardMaximumAndRejectsTheNextValue() {
+        BigInteger maximum = BigCountMath.hardMaximumValue();
+        FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+        BigIntegerBufferCodec.writeNonNegative(
+                buffer,
+                maximum,
+                BigCountMath.HARD_MAXIMUM_BITS);
+        assertEquals(
+                maximum,
+                BigIntegerBufferCodec.readNonNegative(
+                        buffer,
+                        BigCountMath.HARD_MAXIMUM_BITS));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> BigIntegerBufferCodec.writeNonNegative(
+                        new FriendlyByteBuf(Unpooled.buffer()),
+                        maximum.add(BigInteger.ONE),
+                        BigCountMath.HARD_MAXIMUM_BITS));
+    }
 }

@@ -15,10 +15,7 @@ public final class BigIntegerNbtCodec {
             BigInteger value,
             int maximumBits) {
         validateMaximum(maximumBits);
-        BigCountMath.requireNonNegative(value, key);
-        if (value.bitLength() > maximumBits) {
-            throw new IllegalArgumentException(key + " exceeds " + maximumBits + " bits");
-        }
+        BigCountMath.requireMaximumBits(value, key, maximumBits);
         tag.putByteArray(key, value.toByteArray());
     }
 
@@ -27,28 +24,26 @@ public final class BigIntegerNbtCodec {
             String key,
             int maximumBits) {
         validateMaximum(maximumBits);
+        // byte array以外の型や欠落値を0として黙認せず、破損保存として拒否する。
         if (!tag.contains(key, Tag.TAG_BYTE_ARRAY)) {
             throw new IllegalArgumentException("missing BigInteger byte array " + key);
         }
         byte[] encoded = tag.getByteArray(key);
         int maximumBytes = Math.addExact(maximumBits, 8) / 8;
+        // 空配列または設定上限を越える保存値はBigInteger生成前に拒否する。
         if (encoded.length == 0 || encoded.length > maximumBytes) {
             throw new IllegalArgumentException("invalid or oversized BigInteger byte array " + key);
         }
         BigInteger value = new BigInteger(encoded);
-        BigCountMath.requireNonNegative(value, key);
+        BigCountMath.requireMaximumBits(value, key, maximumBits);
+        // 冗長な符号byteを含まないcanonical表現だけを受け入れる。
         if (!Arrays.equals(encoded, value.toByteArray())) {
             throw new IllegalArgumentException("non-canonical BigInteger byte array " + key);
-        }
-        if (value.bitLength() > maximumBits) {
-            throw new IllegalArgumentException(key + " exceeds " + maximumBits + " bits");
         }
         return value;
     }
 
     private static void validateMaximum(int maximumBits) {
-        if (maximumBits < 1 || maximumBits > 1_048_576) {
-            throw new IllegalArgumentException("maximumBits must be between 1 and 1048576");
-        }
+        BigCountMath.requireMaximumBits(BigInteger.ZERO, "NBT maximum", maximumBits);
     }
 }

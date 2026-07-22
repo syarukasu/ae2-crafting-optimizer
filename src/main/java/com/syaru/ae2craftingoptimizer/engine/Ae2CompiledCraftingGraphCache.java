@@ -12,6 +12,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.WeakHashMap;
@@ -19,6 +20,8 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
 public final class Ae2CompiledCraftingGraphCache {
+    /** 一世代で保持するルート別Program数の上限。異常な連続要求でも無制限に増やさない。 */
+    private static final int MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT = 262_144;
     private static final Map<ICraftingService, Map<ResourceKey<Level>, Snapshot>> CACHE =
             Collections.synchronizedMap(new WeakHashMap<>());
     private static final AEKeyFilter ALL_KEYS = key -> true;
@@ -72,6 +75,7 @@ public final class Ae2CompiledCraftingGraphCache {
             CACHE.clear();
         }
         SymbolicCraftingPlanner.clearTopologyCache();
+        CompiledRootQualificationRegistry.clear();
     }
 
     private static Snapshot compile(
@@ -118,6 +122,7 @@ public final class Ae2CompiledCraftingGraphCache {
             }
         }
         return new Snapshot(
+                service,
                 CompiledCraftingGraph.compile(generation, compiledById.values()),
                 idByPattern,
                 patternById,
@@ -128,6 +133,7 @@ public final class Ae2CompiledCraftingGraphCache {
     }
 
     public static final class Snapshot {
+        private final ICraftingService service;
         private final CompiledCraftingGraph<AEKey> graph;
         private final IdentityHashMap<IPatternDetails, String> idByPattern;
         private final Map<String, IPatternDetails> patternById;
@@ -135,8 +141,13 @@ public final class Ae2CompiledCraftingGraphCache {
         private final Set<AEKey> incompletelyCompiledOutputs;
         private final Set<AEKey> craftables;
         private final long recipeGeneration;
+        private final Map<AEKey, Optional<CompiledRootProgram<AEKey>>> rootPrograms =
+                new LinkedHashMap<>();
+        private final Map<AEKey, Optional<Ae2StrictCraftingTopology>> strictTopologies =
+                new LinkedHashMap<>();
 
         private Snapshot(
+                ICraftingService service,
                 CompiledCraftingGraph<AEKey> graph,
                 IdentityHashMap<IPatternDetails, String> idByPattern,
                 Map<String, IPatternDetails> patternById,
@@ -144,6 +155,7 @@ public final class Ae2CompiledCraftingGraphCache {
                 Set<AEKey> incompletelyCompiledOutputs,
                 Set<AEKey> craftables,
                 long recipeGeneration) {
+            this.service = service;
             this.graph = graph;
             this.idByPattern = new IdentityHashMap<>(idByPattern);
             this.patternById = Map.copyOf(patternById);
@@ -186,6 +198,65 @@ public final class Ae2CompiledCraftingGraphCache {
 
         public long recipeGeneration() {
             return recipeGeneration;
+        }
+
+        /**
+         * 同じProvider/recipe世代ではルートごとの数式Programを再利用する。
+         * 世代変更時はSnapshotごと破棄されるため、古いPattern参照は残らない。
+         */
+        public Optional<CompiledRootProgram<AEKey>> rootProgram(AEKey root) {
+            synchronized (rootPrograms) {
+                Optional<CompiledRootProgram<AEKey>> cached = rootPrograms.get(root);
+                // 既に成功またはFallbackが確定したルートは、同じ世代中に再探索しない。
+                if (cached != null) {
+                    return cached;
+                }
+            }
+
+            Optional<CompiledRootProgram<AEKey>> compiled = CompiledRootProgram.tryCompile(
+                    graph,
+                    root,
+                    service::canEmitFor);
+            synchronized (rootPrograms) {
+                Optional<CompiledRootProgram<AEKey>> raced = rootPrograms.get(root);
+                // 別計算スレッドが先に登録した場合は、その同一世代Programを採用する。
+                if (raced != null) {
+                    return raced;
+                }
+                // 固定上限へ達した場合は古いルートを一括破棄し、無制限な常駐を防ぐ。
+                if (rootPrograms.size() >= MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT) {
+                    rootPrograms.clear();
+                    strictTopologies.clear();
+                }
+                rootPrograms.put(root, compiled);
+                return compiled;
+            }
+        }
+
+        /** Pattern APIの静的証明も同じ世代中は再利用し、注文ごとは在庫候補だけを再検証する。 */
+        Optional<Ae2StrictCraftingTopology> strictTopology(
+                Level level,
+                IGrid grid,
+                CompiledRootProgram<AEKey> program) {
+            AEKey root = program.root();
+            synchronized (rootPrograms) {
+                Optional<Ae2StrictCraftingTopology> cached = strictTopologies.get(root);
+                // 同じ世代で静的証明済みまたは証明不能なルートは再びPattern APIを走査しない。
+                if (cached != null) {
+                    return cached;
+                }
+            }
+            Optional<Ae2StrictCraftingTopology> compiled = Optional.ofNullable(
+                    Ae2StrictCraftingTopology.compile(level, grid, this, program));
+            synchronized (rootPrograms) {
+                Optional<Ae2StrictCraftingTopology> raced = strictTopologies.get(root);
+                // 別計算スレッドが先に証明を登録した場合は、その結果を使う。
+                if (raced != null) {
+                    return raced;
+                }
+                strictTopologies.put(root, compiled);
+                return compiled;
+            }
         }
     }
 }

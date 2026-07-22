@@ -101,13 +101,15 @@ The AE2 Overclock upgrade-count cache can delay recognition of a card inserted a
 This section is a development foundation and is disabled at both the master and
 behavior-changing child levels. Do not copy these values into a live world until
 the qualification in [EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md) is complete.
-The master accepts only the researched AE2 `15.4.10`; enabled Advanced AE V2 or
-fair scheduling accepts only `1.3.5-1.20.1`.
+The master accepts only the researched AE2 `15.4.10`; enabled Advanced AE V2,
+fair scheduling, or atomic Big-capacity submission accepts only
+`1.3.5-1.20.1`.
 
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `enableExperimentalCraftingEngine` | `false` | Master switch for behavior-changing planner, V2 batching, and fair-scheduler paths. The explicit-host BigInteger API is independent. |
 | `enableShadowMode` | `false` | Diagnostic comparison only; requires the master and compiled graph. |
+| `authoritativeMinimumShadowMatches` | `64` | Complete AE2/ACO accounting matches required for the same generation-keyed root before authoritative use. `0` explicitly bypasses qualification; one mismatch rejects that root until generation change. |
 | `enableCompiledCraftingGraph` | `false` | Builds the immutable generation-keyed graph; unsupported or unproven plans still fall back to AE2. |
 | `enableTransactionalBatchingV2` | `false` | Enables durable prepare/accept/account/reconcile transactions. |
 | `enableGtceuNativeBatching` | `false` | Enables exact all-or-zero GTCEu native batches; requires V2. |
@@ -121,7 +123,8 @@ fair scheduling accepts only `1.3.5-1.20.1`.
 | `batchTransactionReconciliationIntervalTicks` | `20` | Interval for bounded unresolved-transaction recovery scans. |
 | `nativeBatchMaximumExecutions` | `65536` | Checked-long per-transaction hard cap. |
 | `enableBigIntegerCraftingBackend` | `true` | Exposes API v3 to an explicitly integrating CPU add-on; does not patch normal AE2 or Advanced AE CPUs and has no effect without a registered host. |
-| `bigIntegerMaximumBits` | `256` | Maximum non-negative count and planner-intermediate magnitude. Range `64..1048576` binary bits; 256 bits is about 77 decimal digits. |
+| `enableAtomicBigCapacityPlans` | `true` | With the experimental master and compiled graph enabled, safely plans distinct per-key quantities that each fit signed `long` even when their aggregate exceeds it. If exact CPU bytes also exceed `long`, an integrated AQE BigInteger host is required and standard AE2 CPUs remain excluded. |
+| `bigIntegerMaximumBits` | `256` | Maximum non-negative count and planner-intermediate magnitude. Range `64..54427` binary bits; the exact implementation ceiling is `10^16384 - 1`, so setting 54427 bits never permits a 16385-digit value. |
 | `bigIntegerExecutionWindow` | `65536` | Maximum executions exposed to a long/int machine adapter in one window. |
 | `bigIntegerStatusPageEntries` | `1024` | Configured job summaries per status page; hard protocol cap `16384`. |
 | `bigIntegerRuntimeCountBudgetMiB` | `256` | Aggregate encoded-count budget for one BigInteger CPU runtime. Range `32..4096` MiB. |
@@ -134,7 +137,7 @@ same ACO jar before an integrating add-on uses status synchronization.
 | Key | Default | Main risk |
 | --- | --- | --- |
 | `twoStageMissingPreview` | `false` | Changes calculation presentation and has legacy companion flags. |
-| `fastFailMissingCrafts` | `true` | Returns early only for strictly provable deterministic item, fluid, or chemical missing paths. |
+| `fastFailMissingCrafts` | `false` | Opt-in: returns only the first strictly proven blocker and ends AE2's full missing-item calculation for that request. |
 | `cacheSuccessfulCompletedCraftingPlans` | `false` | A successful plan may become stale before submission. |
 | `throttleExportBusCraftRequests` | `false` | Delays repeated failed automatic crafting requests. |
 | `patternSelectionByAvailability` | `false` | Changes candidate attempt order, but not validity. |
