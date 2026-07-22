@@ -38,7 +38,11 @@ world:
 - immutable graph fingerprints, generation invalidation, SCC recursion,
   cancellation, stale result rejection, alternatives, fallback proof flags,
   and randomized acyclic recipe graphs;
-- 64-, 128-, and 1024-decimal-digit BigInteger NBT round trips;
+- 64-, 128-, and 1024-decimal-digit BigInteger NBT round trips, plus the exact
+  16,384-digit planner/NBT/packet ceiling;
+- primitive-array Root Program tests for shared intermediates, complete missing
+  lists, checked overflow promotion, referenced-key-only reads, ambiguous-route
+  fallback, Shadow qualification, and generation-local rejection;
 - capacity reservation, multiple-job rotation, bounded execution windows,
   waiting-output completion, clean cancellation, quarantine retention, long-job
   migration, runtime UUID persistence, and count-memory rejection;

@@ -1,24 +1,20 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
-import appeng.api.config.Actionable;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IGrid;
 import appeng.api.networking.crafting.CalculationStrategy;
 import appeng.api.networking.crafting.ICraftingPlan;
-import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
-import appeng.core.AEConfig;
 import appeng.crafting.CraftingPlan;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
-import java.util.Collections;
-import java.util.IdentityHashMap;
+import java.math.BigInteger;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -27,10 +23,12 @@ import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * AE2標準計算と同じ結果を証明できる線形Patternだけを置き換えるPlanner。
- * 証明条件を一つでも満たせない場合はnullを返し、呼出側がAE2標準経路を実行する。
+ * AE2標準計画とのShadow一致実績があり、厳密に証明できるRoot Programだけを置き換えるPlanner。
+ * 条件を一つでも満たせない場合はnullを返し、呼出側がAE2標準経路を実行する。
  */
 public final class Ae2AuthoritativeCraftingPlanner {
+    /** 64ノードごとに世代と割込みを再検証するためのbit mask。 */
+    private static final int GENERATION_CHECK_INTERVAL_MASK = 63;
     private static final Set<String> LOGGED_FALLBACKS = ConcurrentHashMap.newKeySet();
 
     private Ae2AuthoritativeCraftingPlanner() {
@@ -42,9 +40,11 @@ public final class Ae2AuthoritativeCraftingPlanner {
             IGrid grid,
             IActionSource source,
             KeyCounter networkSnapshot) {
-        if (!ACOConfig.enableAuthoritativeCompiledPlanner()
+        // 高速経路OFF、必要参照欠落、ActionSource欠落時はAE2標準計算だけを使う。
+        if (!planningEnabled()
                 || level == null
                 || grid == null
+                || source == null
                 || networkSnapshot == null) {
             return null;
         }
@@ -52,7 +52,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 level,
                 grid,
                 source,
-                counterMap(networkSnapshot),
+                networkSnapshot,
                 ProviderPatternGenerationTracker.generation(),
                 RecipeGenerationTracker.generation());
     }
@@ -63,7 +63,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
             AEKey output,
             long requestedAmount,
             CalculationStrategy strategy) {
-        if (!ACOConfig.enableAuthoritativeCompiledPlanner()
+        // 無効設定、不正引数、キャンセル済み計算はAE2標準経路へ戻す。
+        if (!planningEnabled()
                 || capture == null
                 || output == null
                 || strategy == null
@@ -74,67 +75,143 @@ public final class Ae2AuthoritativeCraftingPlanner {
 
         try {
             capture.requireCurrentGenerations();
-            Ae2CompiledCraftingGraphCache.Snapshot snapshot =
+            Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot =
                     Ae2CompiledCraftingGraphCache.getOrCompile(capture.grid(), capture.level());
-            StrictTopology topology = StrictTopology.inspect(capture, snapshot, output);
-            if (topology == null) {
+            var optionalProgram = graphSnapshot.rootProgram(output);
+            // 曖昧、循環、複数出力などを含むルートはコンパイルせずAE2へ戻す。
+            if (optionalProgram.isEmpty()) {
+                return null;
+            }
+            CompiledRootProgram<AEKey> program = optionalProgram.get();
+            // 同じ世代のAE2 Shadow結果と十分に一致するまで、Programは観測専用に留める。
+            if (!CompiledRootQualificationRegistry.isQualified(
+                    program,
+                    ACOConfig.getAuthoritativeMinimumShadowMatches())) {
                 return null;
             }
 
-            Map<AEKey, Long> planningInventory = new LinkedHashMap<>(capture.inventory());
-            // AE2は完成品そのものを在庫から取り出さず、必ず要求されたクラフトとして計算する。
-            planningInventory.remove(output);
+            Ae2StrictCraftingTopology topology = graphSnapshot
+                    .strictTopology(capture.level(), capture.grid(), program)
+                    .orElse(null);
+            // 実AE2 Pattern API上の完全一致を証明できない場合はAE2へ戻す。
+            if (topology == null || !topology.acceptsInventory(capture.inventorySnapshot())) {
+                return null;
+            }
+            // Atomic専用運用では、wide演算が不要な通常注文を直ちにAE2へ戻す。
+            if (!ACOConfig.enableAuthoritativeCompiledPlanner()
+                    && !topology.mightRequireWideArithmetic(
+                            output,
+                            BigInteger.valueOf(requestedAmount),
+                            ACOConfig.getBigIntegerMaximumBits())) {
+                return null;
+            }
+
+            CompiledRootProgram.InventorySnapshot<AEKey> planningInventory =
+                    Ae2ReferencedInventory.captureNetworkSnapshot(
+                            program,
+                            capture.inventorySnapshot(),
+                            output);
             PlanningGuard guard = expanded -> {
-                if ((expanded & 63) == 0) {
+                // 64ノードごとに世代変更とスレッド割込みを確認し、古い結果を早めに破棄する。
+                if ((expanded & GENERATION_CHECK_INTERVAL_MASK) == 0) {
                     capture.requireCurrentGenerations();
+                    // 計算キャンセル後は残りノードを処理しない。
                     if (Thread.currentThread().isInterrupted()) {
                         throw new PlanningCancelledException(expanded);
                     }
                 }
             };
-            var planned = new SymbolicCraftingPlanner<AEKey>().tryPlanLong(
-                    snapshot.graph(),
-                    output,
-                    requestedAmount,
+            var promoted = new OverflowPromotingCraftingPlanner<AEKey>(
+                    ACOConfig.getBigIntegerMaximumBits()).plan(
+                    program,
+                    BigInteger.valueOf(requestedAmount),
                     planningInventory,
-                    topology.emittable(),
                     guard);
-            if (planned.isEmpty()) {
+            // Root Program経路以外の結果はAuthoritativeとして採用しない。
+            if (!promoted.provenEquivalent()) {
                 return null;
             }
-            LongCraftingPlan<AEKey> symbolic = planned.get();
+            NormalizedPlan symbolic = normalize(promoted);
+            // 個別AEKey量またはPattern回数がlongを超える計画は標準AE2 Jobへ載せない。
+            if (symbolic == null) {
+                return null;
+            }
+            // CRAFT_LESSの部分成功探索はAE2へ任せ、近似した出力量を返さない。
             if (!symbolic.craftable() && strategy == CalculationStrategy.CRAFT_LESS) {
-                // CRAFT_LESSの部分成功探索はAE2へ任せる。ここで近似すると結果数量が変わる。
                 return null;
             }
 
             Map<IPatternDetails, Long> patternTimes = new LinkedHashMap<>();
-            for (var entry : symbolic.patternExecutions().entrySet()) {
-                IPatternDetails details = snapshot.pattern(entry.getKey());
+            // fingerprint IDを同じ世代Snapshotの実IPatternDetailsへ戻す。
+            for (Map.Entry<String, Long> entry : symbolic.patternExecutions().entrySet()) {
+                IPatternDetails details = graphSnapshot.pattern(entry.getKey());
+                // Pattern参照欠落または0以下の実行回数は破損計画なので採用しない。
                 if (details == null || entry.getValue() <= 0L) {
                     return null;
                 }
                 patternTimes.merge(details, entry.getValue(), Math::addExact);
             }
+            // 設定した計画サイズを超える結果は同期・保存負荷を避けてAE2へ戻す。
             if (patternTimes.size() > ACOConfig.getCraftingEngineShadowMaximumPatterns()) {
                 return null;
             }
 
-            long bytes = topology.calculateExactBytes(
-                    output, requestedAmount, symbolic.patternExecutions());
-            CraftingPlan result = new CraftingPlan(
-                    new GenericStack(output, requestedAmount),
-                    bytes,
-                    !symbolic.craftable(),
-                    false,
-                    keyCounter(symbolic.usedInventory()),
-                    keyCounter(symbolic.emitted()),
-                    keyCounter(symbolic.missing()),
-                    Map.copyOf(patternTimes));
+            BigInteger exactBytes = topology.calculateBigExactBytes(
+                    output,
+                    BigInteger.valueOf(requestedAmount),
+                    symbolic.bigPatternExecutions(),
+                    ACOConfig.getBigIntegerMaximumBits());
+            ICraftingPlan result;
+            // 容量合計だけがlongを超える場合、個別カウンタはlongのままAQE Sidecarへ真値を渡す。
+            if (exactBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
+                // AQE BigInteger host連携が無効なら、標準AE2 CPUへ巨大容量を偽装しない。
+                if (!ACOConfig.enableAtomicBigCapacityPlans()) {
+                    return null;
+                }
+                result = new BigCapacityCraftingPlan(
+                        new GenericStack(output, requestedAmount),
+                        !symbolic.craftable(),
+                        false,
+                        keyCounter(symbolic.usedInventory()),
+                        keyCounter(symbolic.emitted()),
+                        keyCounter(symbolic.missing()),
+                        Map.copyOf(patternTimes),
+                        exactBytes,
+                        capture.patternGeneration(),
+                        capture.recipeGeneration());
+            } else {
+                boolean wideInputAggregate = symbolic.hasAggregatePastLong();
+                // 全集計もlong内なら、通常計画の置換はAuthoritative設定ON時だけ有効にする。
+                if (!wideInputAggregate && !ACOConfig.enableAuthoritativeCompiledPlanner()) {
+                    return null;
+                }
+                // 個別値はlongでも総入力がlongを超える計画は、Atomic設定OFFならAE2へ戻す。
+                if (wideInputAggregate && !ACOConfig.enableAtomicBigCapacityPlans()) {
+                    return null;
+                }
+                result = new CraftingPlan(
+                        new GenericStack(output, requestedAmount),
+                        exactBytes.longValueExact(),
+                        !symbolic.craftable(),
+                        false,
+                        keyCounter(symbolic.usedInventory()),
+                        keyCounter(symbolic.emitted()),
+                        keyCounter(symbolic.missing()),
+                        Map.copyOf(patternTimes));
+            }
 
-            // 非同期計算中に在庫かPatternが変わった結果を返さない。
             capture.requireCurrentGenerations();
-            if (!capture.inventory().equals(snapshotLiveInventory(capture))) {
+            // 計算で参照したキーだけでも在庫が変わっていれば、古い結果を返さない。
+            if (!Ae2ReferencedInventory.matchesLive(
+                    program,
+                    planningInventory,
+                    capture.grid(),
+                    capture.source(),
+                    output)) {
+                return null;
+            }
+            // Emitterまたはファジー候補が変わった場合も、AE2と選択結果がずれるため破棄する。
+            if (!topology.remainsValid(capture.grid())) {
                 return null;
             }
             return result;
@@ -148,8 +225,56 @@ public final class Ae2AuthoritativeCraftingPlanner {
         }
     }
 
+    private static boolean planningEnabled() {
+        return ACOConfig.enableAuthoritativeCompiledPlanner()
+                || ACOConfig.enableAtomicBigCapacityPlans();
+    }
+
+    @Nullable
+    private static NormalizedPlan normalize(
+            OverflowPromotingCraftingPlanner.Result<AEKey> promoted) {
+        try {
+            // long高速経路は容量式用のPattern回数だけBigIntegerへ無損失変換する。
+            if (promoted instanceof OverflowPromotingCraftingPlanner.LongResult<AEKey> result) {
+                LongCraftingPlan<AEKey> plan = result.plan();
+                return new NormalizedPlan(
+                        plan.patternExecutions(),
+                        bigPatternCounter(plan.patternExecutions()),
+                        plan.usedInventory(),
+                        plan.emitted(),
+                        plan.missing());
+            }
+            // overflow昇格後も、AE2へ渡す全個別値がlongへ正確に戻せる場合だけ採用する。
+            if (promoted instanceof OverflowPromotingCraftingPlanner.BigResult<AEKey> result) {
+                BigCraftingPlan<AEKey> plan = result.plan();
+                return new NormalizedPlan(
+                        exactLongCounter(plan.patternExecutions()),
+                        plan.patternExecutions(),
+                        exactLongCounter(plan.usedInventory()),
+                        exactLongCounter(plan.emitted()),
+                        exactLongCounter(plan.missing()));
+            }
+            return null;
+        } catch (ArithmeticException invalidLongBoundary) {
+            return null;
+        }
+    }
+
+    private static <K> Map<K, Long> exactLongCounter(Map<K, BigInteger> counts) {
+        Map<K, Long> result = new LinkedHashMap<>();
+        counts.forEach((key, amount) -> result.put(key, amount.longValueExact()));
+        return Map.copyOf(result);
+    }
+
+    private static Map<String, BigInteger> bigPatternCounter(Map<String, Long> counts) {
+        Map<String, BigInteger> result = new LinkedHashMap<>();
+        counts.forEach((key, amount) -> result.put(key, BigInteger.valueOf(amount)));
+        return Map.copyOf(result);
+    }
+
     private static void logFallbackOnce(AEKey output, Throwable failure) {
         String key = output.getId() + ":" + failure.getClass().getName();
+        // 同じ出力と例外型のFallback理由は一度だけdebugログへ残す。
         if (LOGGED_FALLBACKS.add(key)) {
             AE2CraftingOptimizer.LOGGER.debug(
                     "ACO authoritative planner fell back to AE2 for {}: {}",
@@ -158,37 +283,10 @@ public final class Ae2AuthoritativeCraftingPlanner {
         }
     }
 
-    private static Map<AEKey, Long> snapshotLiveInventory(Capture capture) {
-        KeyCounter current = new KeyCounter();
-        if (capture.source() == null) {
-            return Map.of();
-        }
-        var storage = capture.grid().getStorageService();
-        for (var entry : storage.getCachedInventory()) {
-            long amount = AEConfig.instance().isCraftingSimulatedExtraction()
-                    ? storage.getInventory().extract(
-                            entry.getKey(), entry.getLongValue(), Actionable.SIMULATE, capture.source())
-                    : entry.getLongValue();
-            if (amount > 0L) {
-                current.add(entry.getKey(), amount);
-            }
-        }
-        return counterMap(current);
-    }
-
-    private static Map<AEKey, Long> counterMap(KeyCounter counter) {
-        Map<AEKey, Long> result = new LinkedHashMap<>();
-        for (var entry : counter) {
-            if (entry.getLongValue() > 0L) {
-                CheckedLongMath.merge(result, entry.getKey(), entry.getLongValue(), "authoritative/inventory");
-            }
-        }
-        return Map.copyOf(result);
-    }
-
     private static KeyCounter keyCounter(Map<AEKey, Long> counts) {
         KeyCounter result = new KeyCounter();
         counts.forEach((key, amount) -> {
+            // AE2計画のKeyCounterへ0以下の量を渡さない。
             if (amount <= 0L) {
                 throw new IllegalArgumentException("crafting plan counters must be positive");
             }
@@ -201,13 +299,15 @@ public final class Ae2AuthoritativeCraftingPlanner {
             Level level,
             IGrid grid,
             IActionSource source,
-            Map<AEKey, Long> inventory,
+            KeyCounter inventorySnapshot,
             long patternGeneration,
             long recipeGeneration) {
         public Capture {
             Objects.requireNonNull(level, "level");
             Objects.requireNonNull(grid, "grid");
-            inventory = Map.copyOf(Objects.requireNonNull(inventory, "inventory"));
+            Objects.requireNonNull(source, "source");
+            Objects.requireNonNull(inventorySnapshot, "inventorySnapshot");
+            // 負の世代値はSnapshot識別へ使用できないため拒否する。
             if (patternGeneration < 0L || recipeGeneration < 0L) {
                 throw new IllegalArgumentException("generation values must not be negative");
             }
@@ -216,150 +316,40 @@ public final class Ae2AuthoritativeCraftingPlanner {
         private void requireCurrentGenerations() {
             long currentPattern = ProviderPatternGenerationTracker.generation();
             long currentRecipe = RecipeGenerationTracker.generation();
+            // Providerまたはrecipe世代が変わった計算結果は古いため破棄する。
             if (currentPattern != patternGeneration || currentRecipe != recipeGeneration) {
                 throw new StalePlanningSnapshotException(
-                        new PlanningGenerationSnapshot(patternGeneration, 0L, recipeGeneration), 0);
+                        new PlanningGenerationSnapshot(patternGeneration, 0L, recipeGeneration),
+                        0);
             }
         }
     }
 
-    private static final class StrictTopology {
-        private final Ae2CompiledCraftingGraphCache.Snapshot snapshot;
-        private final Map<AEKey, CompiledPattern<AEKey>> patternByOutput;
-        private final Set<AEKey> emittable;
-
-        private StrictTopology(
-                Ae2CompiledCraftingGraphCache.Snapshot snapshot,
-                Map<AEKey, CompiledPattern<AEKey>> patternByOutput,
-                Set<AEKey> emittable) {
-            this.snapshot = snapshot;
-            this.patternByOutput = Map.copyOf(patternByOutput);
-            this.emittable = Set.copyOf(emittable);
+    private record NormalizedPlan(
+            Map<String, Long> patternExecutions,
+            Map<String, BigInteger> bigPatternExecutions,
+            Map<AEKey, Long> usedInventory,
+            Map<AEKey, Long> emitted,
+            Map<AEKey, Long> missing) {
+        private NormalizedPlan {
+            patternExecutions = Map.copyOf(patternExecutions);
+            bigPatternExecutions = Map.copyOf(bigPatternExecutions);
+            usedInventory = Map.copyOf(usedInventory);
+            emitted = Map.copyOf(emitted);
+            missing = Map.copyOf(missing);
         }
 
-        @Nullable
-        static StrictTopology inspect(
-                Capture capture,
-                Ae2CompiledCraftingGraphCache.Snapshot snapshot,
-                AEKey root) {
-            ICraftingService service = capture.grid().getCraftingService();
-            Map<AEKey, CompiledPattern<AEKey>> selected = new LinkedHashMap<>();
-            Set<AEKey> emitters = new LinkedHashSet<>();
-            Set<AEKey> visitedCrafted = new LinkedHashSet<>();
-            Set<AEKey> stack = new LinkedHashSet<>();
-            if (!inspectNode(
-                    capture,
-                    snapshot,
-                    service,
-                    root,
-                    selected,
-                    emitters,
-                    visitedCrafted,
-                    stack)) {
-                return null;
-            }
-            return new StrictTopology(snapshot, selected, emitters);
+        private boolean craftable() {
+            return missing.isEmpty();
         }
 
-        private static boolean inspectNode(
-                Capture capture,
-                Ae2CompiledCraftingGraphCache.Snapshot snapshot,
-                ICraftingService service,
-                AEKey key,
-                Map<AEKey, CompiledPattern<AEKey>> selected,
-                Set<AEKey> emitters,
-                Set<AEKey> visitedCrafted,
-                Set<AEKey> stack) {
-            if (Thread.currentThread().isInterrupted() || snapshot.graph().isCyclic(key)) {
-                return false;
-            }
-            if (service.canEmitFor(key)) {
-                emitters.add(key);
-                return true;
-            }
-            if (snapshot.graph().patternsFor(key).isEmpty()) {
-                return !snapshot.isIncompletelyCompiled(key)
-                        && snapshot.registeredPatternCount(key) == 0;
-            }
-            if (!snapshot.hasExactlyOneFullyCompiledPattern(key)
-                    || !visitedCrafted.add(key)
-                    || !stack.add(key)) {
-                return false;
-            }
-            CompiledPattern<AEKey> pattern = snapshot.graph().patternsFor(key).get(0);
-            if (pattern.outputs().size() != 1 || pattern.outputAmount(key) <= 0L) {
-                return false;
-            }
-            IPatternDetails details = snapshot.pattern(pattern.id());
-            if (details == null || details.getInputs().length != pattern.inputs().size()) {
-                return false;
-            }
-            selected.put(key, pattern);
-            for (int slot = 0; slot < pattern.inputs().size(); slot++) {
-                var compiledInput = pattern.inputs().get(slot);
-                var realInput = details.getInputs()[slot];
-                if (compiledInput.alternatives().size() != 1
-                        || realInput.getPossibleInputs().length != 1) {
-                    return false;
-                }
-                AEKey inputKey = compiledInput.alternatives().get(0).key();
-                if (!realInput.isValid(inputKey, capture.level())
-                        || hasFuzzyInventoryAlternative(capture.inventory().keySet(), inputKey, realInput, capture.level())) {
-                    return false;
-                }
-                if (service.getCraftingFor(inputKey).isEmpty()) {
-                    AEKey fuzzy = service.getFuzzyCraftable(
-                            inputKey, candidate -> realInput.isValid(candidate, capture.level()));
-                    if (fuzzy != null && !fuzzy.equals(inputKey)) {
-                        return false;
-                    }
-                }
-                if (!inspectNode(
-                        capture,
-                        snapshot,
-                        service,
-                        inputKey,
-                        selected,
-                        emitters,
-                        visitedCrafted,
-                        stack)) {
-                    return false;
-                }
-            }
-            stack.remove(key);
-            return true;
-        }
-
-        private static boolean hasFuzzyInventoryAlternative(
-                Set<AEKey> inventoryKeys,
-                AEKey expected,
-                IPatternDetails.IInput input,
-                Level level) {
-            AEKey expectedPrimary = expected.dropSecondary();
-            for (AEKey candidate : inventoryKeys) {
-                if (!candidate.equals(expected)
-                        && candidate.dropSecondary().equals(expectedPrimary)
-                        && input.isValid(candidate, level)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        Set<AEKey> emittable() {
-            return emittable;
-        }
-
-        long calculateExactBytes(
-                AEKey root,
-                long requestedAmount,
-                Map<String, Long> executions) {
-            return ExactCraftingByteCounter.calculate(
-                    root,
-                    requestedAmount,
-                    patternByOutput,
-                    executions,
-                    key -> key.getType().getAmountPerByte());
+        private boolean hasAggregatePastLong() {
+            return CheckedLongMath.sumExceedsLong(
+                            patternExecutions,
+                            "authoritative/pattern-total")
+                    || CheckedLongMath.sumExceedsLong(
+                            List.of(usedInventory, emitted, missing),
+                            "authoritative/input-total");
         }
     }
 }

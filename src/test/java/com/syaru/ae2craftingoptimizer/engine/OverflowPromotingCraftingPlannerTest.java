@@ -72,6 +72,19 @@ class OverflowPromotingCraftingPlannerTest {
         assertFalse(result.provenEquivalent());
     }
 
+    @Test
+    void deterministicProgramDoesNotInspectUnreferencedInventoryEntries() {
+        BigInteger outsideConfiguredLimit = BigInteger.ONE.shiftLeft(300);
+        var result = new OverflowPromotingCraftingPlanner<String>(256).plan(
+                graph(1L),
+                "output",
+                BigInteger.ONE,
+                Map.of("unrelated", outsideConfiguredLimit));
+
+        assertTrue(result.provenEquivalent());
+        assertTrue(result.craftable());
+    }
+
     private static CompiledCraftingGraph<String> graph(long inputAmount) {
         CompiledPattern<String> output = new CompiledPattern<>(
                 "output",

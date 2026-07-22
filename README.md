@@ -36,7 +36,7 @@ AE2 Crafting Optimizer adds conservative recipe-intent fast paths for large AE2 
 
 ## Status
 
-Release `1.3.2` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
+Release `1.4.0` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
 and passed the complete automated test suite. P9 startup, recovery, multiplayer,
 and long-running live-world qualification remains operator-run. The optional Neo ECO integration is pinned to Neo ECO AE
 Extension `20.3.x`. ACO uses Mixins against mod internals, so do not assume
@@ -60,7 +60,7 @@ long/BigInteger planner, durable GTCEu/Mekanism native batching protocol, fair
 multi-job scheduler, versioned BigInteger CPU-host API, and bounded status
 channel. These are source-complete foundations, not live defaults. Read
 [Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md) before testing them.
-The current source carries the `1.3.2` maintenance version while P0-P8 are reviewed;
+The current source carries the `1.4.0` minor version while P0-P8 are reviewed;
 P9 startup, recovery, multiplayer, and long-running world tests are deliberately
 not claimed by this source revision. See
 [P0-P8 implementation status](docs/P0_P8_IMPLEMENTATION_STATUS.md).
@@ -74,7 +74,23 @@ CPU add-on. AQE 2.0.1 is the current optional consumer. It keeps large counts in
 APIs bounded execution windows, persists a versioned multi-job capacity ledger,
 and sends paged status through a separate strict protocol. The configured bit
 limit is enforced during intermediate planning arithmetic, runtime accounting,
-NBT decode, and packet decode.
+NBT decode, and packet decode. The exact implementation ceiling is
+`10^16384 - 1`; values with 16,385 decimal digits are rejected even when they
+share the boundary bit length.
+
+For deterministic roots, ACO now compiles the reachable Pattern DAG once per
+provider/recipe generation into primitive-indexed arrays. Runtime work is
+proportional to the number of reached recipe nodes rather than the requested
+quantity, captures only referenced inventory keys, and restarts with
+`BigInteger` only after checked-long overflow. Complete Shadow accounting must
+match AE2 64 times by default before that root can become authoritative.
+
+With the experimental master enabled, `enableAtomicBigCapacityPlans` also covers
+the narrower standard-GUI case where every distinct AEKey and Pattern count fits
+signed `long`, but their aggregate does not. ACO keeps each counter exact, uses
+BigInteger only for checked aggregate calculation, and stores an over-`long` CPU
+capacity reservation in an integrated AQE host. Standard AE2 CPUs cannot accept
+that Big-capacity facade.
 
 The host API is enabled by default because it has no effect until an explicitly
 integrated CPU registers a host. The compiled planner, native batching, fair
@@ -351,9 +367,9 @@ cacheSuccessfulCompletedCraftingPlans = false
 completedCraftingPlanCacheSize = 1024
 completedCraftingPlanCacheTtlTicks = 40
 
-# Only returns an early missing-only result when the deterministic
-# preflight can prove the request cannot complete. Ambiguous paths fall back to AE2.
-fastFailMissingCrafts = true
+# Experimental opt-in. Returns the first strictly proven blocker immediately,
+# ending AE2's full missing-item calculation for that request.
+fastFailMissingCrafts = false
 minimumRequestedAmountForFastFail = 1
 deterministicPreflightMaxDepth = 64
 deterministicPreflightMaxNodes = 4096
@@ -632,7 +648,7 @@ Run:
 gradlew.bat clean build
 ```
 
-This branch generates `build/libs/ae2-crafting-optimizer-1.3.2.jar`. Building
+This branch generates `build/libs/ae2-crafting-optimizer-1.4.0.jar`. Building
 it does not authorize deployment or feature enablement before the runtime
 matrix is complete. GitHub Actions runs the same clean build for
 pushes and pull requests.

@@ -1,7 +1,9 @@
 package com.syaru.ae2craftingoptimizer.api.big;
 
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingJob;
+import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerBufferCodec;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -22,8 +24,10 @@ public final class BigCraftingStatusPageCodec<K> {
             int maximumBits,
             int maximumPageEntries) {
         this.keyCodec = Objects.requireNonNull(keyCodec, "keyCodec");
-        if (maximumBits < 64 || maximumBits > 1_048_576) {
-            throw new IllegalArgumentException("maximumBits must be between 64 and 1048576");
+        BigCountMath.requireMaximumBits(BigInteger.ZERO, "status maximum", maximumBits);
+        // Status protocolは最低でも64bitの通常AE2量を表現できる設定だけを受け入れる。
+        if (maximumBits < 64) {
+            throw new IllegalArgumentException("maximumBits must be at least 64");
         }
         if (maximumPageEntries < 1 || maximumPageEntries > HARD_MAXIMUM_PAGE_ENTRIES) {
             throw new IllegalArgumentException("maximumPageEntries is outside the packet safety bound");

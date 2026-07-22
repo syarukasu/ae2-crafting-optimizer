@@ -24,7 +24,9 @@ public final class ProviderPatternGenerationTracker {
     }
 
     public static boolean shouldRefresh(IGridNode node) {
+        // 重複抑制をOFFにしてもCompiled Graphの失効世代は必ず進める。
         if (!ACOConfig.trackProviderPatternGenerations()) {
+            advanceGeneration();
             return true;
         }
         Snapshot current = snapshot(node);
@@ -34,7 +36,7 @@ public final class ProviderPatternGenerationTracker {
                 return false;
             }
         }
-        GENERATION.updateAndGet(value -> value == Long.MAX_VALUE ? 1L : value + 1L);
+        advanceGeneration();
         return true;
     }
 
@@ -51,7 +53,7 @@ public final class ProviderPatternGenerationTracker {
         synchronized (SNAPSHOTS) {
             SNAPSHOTS.remove(node);
         }
-        GENERATION.updateAndGet(value -> value == Long.MAX_VALUE ? 1L : value + 1L);
+        advanceGeneration();
     }
 
     public static long generation() {
@@ -62,6 +64,10 @@ public final class ProviderPatternGenerationTracker {
         synchronized (SNAPSHOTS) {
             SNAPSHOTS.clear();
         }
+        advanceGeneration();
+    }
+
+    private static void advanceGeneration() {
         GENERATION.updateAndGet(value -> value == Long.MAX_VALUE ? 1L : value + 1L);
     }
 

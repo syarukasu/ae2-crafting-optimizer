@@ -29,6 +29,15 @@ class CraftingPlannerPropertyTest {
 
             LongCraftingPlan<String> longPlan = new LongCraftingPlanner<String>().plan(
                     graph, "k" + (nodes - 1), requested, inventory);
+            CompiledRootProgram<String> program = CompiledRootProgram.tryCompile(
+                            graph,
+                            "k" + (nodes - 1),
+                            ignored -> false)
+                    .orElseThrow();
+            LongCraftingPlan<String> compiledPlan = program.planLong(
+                    requested,
+                    program.captureLongInventory(key -> inventory.getOrDefault(key, 0L)),
+                    PlanningGuard.none());
             BigCraftingPlan<String> bigPlan = new BigCraftingPlanner<String>().plan(
                     graph,
                     "k" + (nodes - 1),
@@ -38,6 +47,10 @@ class CraftingPlannerPropertyTest {
             assertEquals(toBig(longPlan.patternExecutions()), bigPlan.patternExecutions());
             assertEquals(toBig(longPlan.usedInventory()), bigPlan.usedInventory());
             assertEquals(toBig(longPlan.missing()), bigPlan.missing());
+            assertEquals(longPlan.patternExecutions(), compiledPlan.patternExecutions());
+            assertEquals(longPlan.usedInventory(), compiledPlan.usedInventory());
+            assertEquals(longPlan.emitted(), compiledPlan.emitted());
+            assertEquals(longPlan.missing(), compiledPlan.missing());
         }
     }
 

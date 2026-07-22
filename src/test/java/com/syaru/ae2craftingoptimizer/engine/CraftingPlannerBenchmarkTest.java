@@ -18,19 +18,25 @@ class CraftingPlannerBenchmarkTest {
             patterns.add(new CompiledPattern<>(
                     "p" + index,
                     List.of(new CompiledPattern.InputSlot<>(List.of(
-                            new CompiledPattern.Stack<>("k" + (index - 1), 9L)))),
+                            new CompiledPattern.Stack<>("k" + (index - 1), 1L)))),
                     Map.of("k" + index, 1L),
                     false));
         }
         CompiledCraftingGraph<String> graph = CompiledCraftingGraph.compile(1L, patterns);
+        CompiledRootProgram<String> program = CompiledRootProgram.tryCompile(
+                        graph,
+                        "k1000",
+                        ignored -> false)
+                .orElseThrow();
+        var inventory = program.captureLongInventory(ignored -> 0L);
 
         BigCraftingPlan<String> plan = assertTimeout(
                 Duration.ofSeconds(2),
-                () -> new BigCraftingPlanner<String>().plan(
-                        graph,
-                        "k1000",
-                        BigInteger.TEN.pow(1023),
-                        Map.of("k0", BigInteger.TEN.pow(2048))));
+                () -> program.planBig(
+                        BigInteger.TEN.pow(BigCountMath.HARD_MAXIMUM_DECIMAL_DIGITS - 1),
+                        inventory,
+                        PlanningGuard.none(),
+                        BigCountMath.HARD_MAXIMUM_BITS));
         assertEquals(1_001, plan.expandedRequests());
     }
 }
