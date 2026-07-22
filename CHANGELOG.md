@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-07-23
+
+### Added
+
+- Added optional AppliedE `0.14.3` and AppliedE TPS Fix `0.14.7-fix2`
+  compatibility without bundling or directly linking either implementation.
+- Added AppliedE fallback and dynamic-provider counters to `/aco stats`.
+
+### Fixed
+
+- Kept AppliedE `TransmutationPattern` routes on AE2's authoritative crafting
+  tree so AppliedE can create and remove its request-sized temporary patterns.
+- Avoided enumerating every EMC transmutation pattern merely to deduplicate an
+  EMC Module provider refresh. Same-tick duplicate notifications remain
+  coalesced, while the final refresh and ACO generation invalidation are kept.
+- Prevented Shadow and BigInteger compiled planning from treating an excluded
+  dynamic AppliedE pattern as an ordinary missing leaf.
+- Excluded completed plans containing AppliedE temporary patterns from ACO's
+  completed-plan cache so every request runs AppliedE's registration lifecycle.
+
 ## [1.4.0] - 2026-07-22
 
 ### Added
@@ -345,7 +365,8 @@ planner and native-batch rewrites remain opt-in and disabled by default.
 - Deterministic fast-fail, grid tick deferral, IO-bus caps, fuzzy bus caching, and successful-plan reuse are disabled by default.
 - Advanced AE Quantum Computer execution logic is not mixed into by the conservative 1.0.0 build.
 
-[Unreleased]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.3.2...v1.4.0
 [1.1.1]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/beta_1.0.0...v1.1.0
