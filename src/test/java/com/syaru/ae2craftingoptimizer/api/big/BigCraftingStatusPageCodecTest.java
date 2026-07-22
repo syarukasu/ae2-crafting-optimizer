@@ -73,7 +73,7 @@ class BigCraftingStatusPageCodecTest {
 
     @Test
     void rejectsAByteOversizedPageEvenWhenItsEntryCountIsValid() {
-        BigInteger huge = BigInteger.ONE.shiftLeft(1_048_575);
+        BigInteger huge = com.syaru.ae2craftingoptimizer.engine.BigCountMath.hardMaximumValue();
         var hugeSummary = new BigCraftingStatusPage.JobSummary<>(
                 UUID.randomUUID(),
                 "key",
@@ -85,25 +85,20 @@ class BigCraftingStatusPageCodecTest {
                 1,
                 BigCraftingJob.State.RUNNING,
                 false);
+        int entriesNeededToExceedOneMiB = 64;
+        var summaries = java.util.Collections.nCopies(entriesNeededToExceedOneMiB, hugeSummary);
         var page = new BigCraftingStatusPage<>(
                 UUID.randomUUID(),
                 huge,
                 BigInteger.ZERO,
                 huge,
-                2,
+                entriesNeededToExceedOneMiB,
                 0,
-                List.of(hugeSummary, new BigCraftingStatusPage.JobSummary<>(
-                        UUID.randomUUID(),
-                        "key2",
-                        huge,
-                        BigInteger.ZERO,
-                        huge,
-                        huge,
-                        1,
-                        1,
-                        BigCraftingJob.State.RUNNING,
-                        false)));
-        var codec = new BigCraftingStatusPageCodec<String>(STRINGS, 1_048_576, 2);
+                summaries);
+        var codec = new BigCraftingStatusPageCodec<String>(
+                STRINGS,
+                com.syaru.ae2craftingoptimizer.engine.BigCountMath.HARD_MAXIMUM_BITS,
+                entriesNeededToExceedOneMiB);
 
         assertThrows(
                 BigCraftingStatusPageCodec.PacketTooLargeException.class,

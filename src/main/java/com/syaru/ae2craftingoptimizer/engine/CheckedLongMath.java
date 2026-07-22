@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -50,6 +51,31 @@ public final class CheckedLongMath {
             return;
         }
         target.put(key, add(target.getOrDefault(key, 0L), amount, context));
+    }
+
+    /** 各要素をlongのまま保ちながら、要素間の合計だけがlong範囲を超えるか判定する。 */
+    public static boolean sumExceedsLong(Map<?, Long> counts, String context) {
+        return sumExceedsLong(List.of(counts), context);
+    }
+
+    /** 複数の排他的なカウンタを一つの合計として、加算せずにlong境界判定する。 */
+    public static boolean sumExceedsLong(
+            Iterable<? extends Map<?, Long>> counters,
+            String context) {
+        Objects.requireNonNull(counters, "counters");
+        long remaining = Long.MAX_VALUE;
+        // 加算そのものを行わず残量から比較し、境界判定中のoverflowを避ける。
+        for (Map<?, Long> counts : counters) {
+            Objects.requireNonNull(counts, "counts");
+            for (long amount : counts.values()) {
+                requireNonNegative(amount, context);
+                if (amount > remaining) {
+                    return true;
+                }
+                remaining -= amount;
+            }
+        }
+        return false;
     }
 
     public static long requireNonNegative(long value, String context) {

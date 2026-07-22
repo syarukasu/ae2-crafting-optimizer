@@ -125,6 +125,48 @@ public final class BigCraftingHostRuntime<K> {
     }
 
     /**
+     * AE2がLong.MAX_VALUEとして登録した標準子Jobを、真のBigInteger容量へ原子的に昇格する。
+     * Job本体の各カウントはlongのままで、容量予約だけをSidecarの正確な値へ置き換える。
+     */
+    public synchronized boolean promoteExternalReservation(
+            UUID jobId,
+            BigInteger exactAmount) {
+        Objects.requireNonNull(jobId, "jobId");
+        BigInteger checked = checkedPositive(exactAmount, "promoted external reservation", maximumBits);
+        BigInteger previous = externalReservations.get(jobId);
+        // AdvancedAEが先に作成した互換予約が存在しないJobは、別Jobとの取り違えを防ぐため拒否する。
+        if (previous == null || externalExecutions.containsKey(jobId)) {
+            return false;
+        }
+        // BigInteger昇格対象は、AE2へ見せたLong.MAX_VALUEより真の容量が大きいJobだけに限定する。
+        if (!previous.equals(LONG_MAX) || checked.compareTo(LONG_MAX) <= 0) {
+            return false;
+        }
+
+        BigInteger reservedWithoutPrevious = reserved().subtract(previous);
+        BigInteger availableForReplacement = physicalCapacity.subtract(reservedWithoutPrevious);
+        long previousBytes = BigCountMath.encodedBytes(previous);
+        long replacementBytes = BigCountMath.encodedBytes(checked);
+        long projectedCountBytes = Math.addExact(
+                Math.subtractExact(externalCountBytes, previousBytes), replacementBytes);
+        // 真の容量または保存用カウント予算を超える場合は、既存予約を一切変更せず失敗する。
+        if (availableForReplacement.compareTo(checked) < 0
+                || projectedCountBytes > maximumRuntimeCountBytes) {
+            return false;
+        }
+
+        externalReservations.put(jobId, checked);
+        externalReserved = BigCountMath.add(
+                externalReserved.subtract(previous),
+                checked,
+                "host/externalReserved",
+                maximumBits);
+        externalCountBytes = projectedCountBytes;
+        rebalanceBigRuntimeCapacity();
+        return true;
+    }
+
+    /**
      * CPUが保持する正本Job一覧から、通常Jobの予約状態を丸ごと再構築する。
      *
      * <p>復元時だけは容量超過状態も受け入れる。既存Jobを消さず、空き容量を0として扱い、
@@ -134,8 +176,15 @@ public final class BigCraftingHostRuntime<K> {
         Objects.requireNonNull(replacement, "external reservations");
         Map<UUID, BigInteger> unmanaged = new LinkedHashMap<>();
         replacement.forEach((jobId, amount) -> {
+            BigInteger current = externalReservations.get(jobId);
+            // CPU NBTは互換値Long.MAX_VALUEしか持たない。Sidecarに真値があれば再計算・再起動後も維持する。
+            BigInteger authoritative = current != null
+                            && current.compareTo(LONG_MAX) > 0
+                            && LONG_MAX.equals(amount)
+                    ? current
+                    : amount;
             if (!externalExecutions.containsKey(jobId)) {
-                unmanaged.put(jobId, amount);
+                unmanaged.put(jobId, authoritative);
             }
         });
         CheckedReservations checked = checkedReservations(

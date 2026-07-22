@@ -6,7 +6,8 @@ import net.minecraft.network.FriendlyByteBuf;
 
 public final class BigIntegerBufferCodec {
     public static final int PROTOCOL_VERSION = 1;
-    public static final int HARD_MAXIMUM_BYTES = 131_073;
+    /** 16,384桁の正数と符号byteを格納できる最大packet長。 */
+    public static final int HARD_MAXIMUM_BYTES = (BigCountMath.HARD_MAXIMUM_BITS + Byte.SIZE) / Byte.SIZE;
 
     private BigIntegerBufferCodec() {
     }
@@ -15,12 +16,10 @@ public final class BigIntegerBufferCodec {
             FriendlyByteBuf buffer,
             BigInteger value,
             int maximumBits) {
-        BigCountMath.requireNonNegative(value, "packet/value");
         validateMaximum(maximumBits);
-        if (value.bitLength() > maximumBits) {
-            throw new IllegalArgumentException("BigInteger packet value exceeds " + maximumBits + " bits");
-        }
+        BigCountMath.requireMaximumBits(value, "packet/value", maximumBits);
         byte[] encoded = value.toByteArray();
+        // 設定値とは別の固定byte上限でも、巨大packetの確保を防ぐ。
         if (encoded.length > HARD_MAXIMUM_BYTES) {
             throw new IllegalArgumentException("BigInteger packet value exceeds hard byte cap");
         }
@@ -32,23 +31,23 @@ public final class BigIntegerBufferCodec {
         validateMaximum(maximumBits);
         int length = buffer.readVarInt();
         int maximumBytes = Math.addExact(maximumBits, 8) / 8;
+        // 負数、空配列、設定上限、実装上限のいずれかに反する長さは読み込まない。
         if (length < 1 || length > maximumBytes || length > HARD_MAXIMUM_BYTES) {
             throw new IllegalArgumentException("invalid BigInteger packet length " + length);
         }
         byte[] encoded = new byte[length];
         buffer.readBytes(encoded);
         BigInteger value = new BigInteger(encoded);
-        BigCountMath.requireNonNegative(value, "packet/value");
+        BigCountMath.requireMaximumBits(value, "packet/value", maximumBits);
+        // 同じ数値を複数のbyte列で表せないよう、BigInteger標準のcanonical表現だけを受け入れる。
         if (!Arrays.equals(encoded, value.toByteArray())) {
             throw new IllegalArgumentException("non-canonical BigInteger packet value");
-        }
-        if (value.bitLength() > maximumBits) {
-            throw new IllegalArgumentException("BigInteger packet value exceeds " + maximumBits + " bits");
         }
         return value;
     }
 
     public static void requireProtocol(int remoteVersion) {
+        // 異なるpacket schema同士を誤読しないよう、protocol不一致は明示的に拒否する。
         if (remoteVersion != PROTOCOL_VERSION) {
             throw new IllegalStateException(
                     "ACO BigInteger protocol mismatch: local " + PROTOCOL_VERSION + ", remote " + remoteVersion);
@@ -56,8 +55,6 @@ public final class BigIntegerBufferCodec {
     }
 
     private static void validateMaximum(int maximumBits) {
-        if (maximumBits < 1 || maximumBits > 1_048_576) {
-            throw new IllegalArgumentException("maximumBits must be between 1 and 1048576");
-        }
+        BigCountMath.requireMaximumBits(BigInteger.ZERO, "packet maximum", maximumBits);
     }
 }
