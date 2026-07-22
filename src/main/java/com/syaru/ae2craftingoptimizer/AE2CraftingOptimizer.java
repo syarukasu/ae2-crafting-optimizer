@@ -7,6 +7,7 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
 import com.syaru.ae2craftingoptimizer.integration.OptionalNativeBatchIntegrations;
+import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
 import com.syaru.ae2craftingoptimizer.integration.OptionalAqeBigCraftingExecution;
 import com.syaru.ae2craftingoptimizer.mekanism.MekanismRecipeIntentFastPath;
@@ -130,6 +131,7 @@ public final class AE2CraftingOptimizer {
                 "ACO Neo ECO AE integration: detected {}, execution budget {}",
                 container.getModInfo().getVersion(),
                 ACOConfig.throttleNeoEcoAeExecution()));
+        AppliedECompatibility.logDetectedVersion();
         LOGGER.info("ACO grid tick budget: {}, defer {}, budget {} ms/tick, slow threshold {} us, backoff {} ticks",
                 ACOConfig.enableGridTickBudget(),
                 ACOConfig.deferHeavyGridTickables(),

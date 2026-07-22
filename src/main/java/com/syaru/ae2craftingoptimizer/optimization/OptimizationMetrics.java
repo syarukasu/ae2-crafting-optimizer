@@ -28,6 +28,9 @@ public final class OptimizationMetrics {
     private static final LongAdder CRAFTING_ENGINE_SHADOW_MISMATCHES = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_SKIPS = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_OVERFLOWS = new LongAdder();
+    private static final LongAdder APPLIED_E_PATTERN_FALLBACKS = new LongAdder();
+    private static final LongAdder APPLIED_E_DYNAMIC_PROVIDER_REFRESHES = new LongAdder();
+    private static final LongAdder APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES = new LongAdder();
     private static final LongAdder NATIVE_BATCH_TRANSACTIONS = new LongAdder();
     private static final Map<String, LongAdder> NATIVE_BATCH_EXECUTIONS = new ConcurrentHashMap<>();
     private static final LongAdder INSTANT_DISPATCH_CALLS = new LongAdder();
@@ -105,6 +108,18 @@ public final class OptimizationMetrics {
         CRAFTING_ENGINE_SHADOW_OVERFLOWS.increment();
     }
 
+    public static void recordAppliedEPatternFallback() {
+        APPLIED_E_PATTERN_FALLBACKS.increment();
+    }
+
+    public static void recordAppliedEDynamicProviderRefresh() {
+        APPLIED_E_DYNAMIC_PROVIDER_REFRESHES.increment();
+    }
+
+    public static void recordAppliedECompletedPlanCacheBypass() {
+        APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES.increment();
+    }
+
     public static void recordNativePatternBatch(String adapterId, long executions) {
         NATIVE_BATCH_TRANSACTIONS.increment();
         NATIVE_BATCH_EXECUTIONS.computeIfAbsent(adapterId, ignored -> new LongAdder()).add(executions);
@@ -159,6 +174,10 @@ public final class OptimizationMetrics {
                         + " match(es), " + CRAFTING_ENGINE_SHADOW_MISMATCHES.sum()
                         + " mismatch(es), " + CRAFTING_ENGINE_SHADOW_SKIPS.sum()
                         + " skip(s), " + CRAFTING_ENGINE_SHADOW_OVERFLOWS.sum() + " overflow(s)",
+                "AppliedE compatibility: " + APPLIED_E_PATTERN_FALLBACKS.sum()
+                        + " dynamic pattern fallback(s), " + APPLIED_E_DYNAMIC_PROVIDER_REFRESHES.sum()
+                        + " provider refresh(es) preserved, " + APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES.sum()
+                        + " completed plan cache bypass(es)",
                 "Experimental native batch: " + NATIVE_BATCH_TRANSACTIONS.sum()
                         + " transaction(s), executions by adapter " + NATIVE_BATCH_EXECUTIONS,
                 "Sequential Instant: " + SEQUENTIAL_INSTANT_WAVES.sum()
@@ -204,6 +223,9 @@ public final class OptimizationMetrics {
         CRAFTING_ENGINE_SHADOW_MISMATCHES.reset();
         CRAFTING_ENGINE_SHADOW_SKIPS.reset();
         CRAFTING_ENGINE_SHADOW_OVERFLOWS.reset();
+        APPLIED_E_PATTERN_FALLBACKS.reset();
+        APPLIED_E_DYNAMIC_PROVIDER_REFRESHES.reset();
+        APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES.reset();
         NATIVE_BATCH_TRANSACTIONS.reset();
         NATIVE_BATCH_EXECUTIONS.clear();
         INSTANT_DISPATCH_CALLS.reset();

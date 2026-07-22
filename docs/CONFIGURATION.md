@@ -26,6 +26,9 @@ Changing a source-code default does not rewrite an existing common config.
 | Execution | `adaptiveCraftingExecutionBudget` | `true` | Adjusts the active CPU budget toward the configured tick-time target. |
 | Execution | `sharedCraftingExecutionBudget` | `true` | Bounds combined supported CPU pattern-push time on one ME grid. |
 | Neo ECO compatibility | `throttleNeoEcoAeExecution` | `true` | Adds Neo ECO 20.3.x custom CPUs to ACO's adaptive and shared execution budgets when installed. |
+| AppliedE compatibility | `enableAppliedECompatibility` | `true` | Enables conservative support for AppliedE and AppliedE TPS Fix without changing EMC accounting. |
+| AppliedE compatibility | `forceAe2PlannerForTransmutationPatterns` | `true` | Leaves request-sized transmutation-pattern creation and cleanup on AppliedE's AE2 crafting-tree hooks. |
+| AppliedE compatibility | `treatAppliedEProviderAsDynamic` | `true` | Preserves each final EMC Module refresh without scanning all known EMC patterns for equality. |
 | Deep master | `enableDeepAe2RewriteFlags` | `true` | Master switch for the deep sub-options below. |
 | Deep topology | `p2pTopologyChangeOnlyRecheck` | `true` | Deduplicates equivalent P2P notifications in a short window. |
 | Deep fluid | `fluidPatternRework` | `true` | Uses an exact single-fluid input fast path and falls back for ambiguous cases. |
@@ -204,6 +207,12 @@ minimumSharedOperationsPerCpu = 1
 [compatibility.neoEcoAe]
 # Active only when Neo ECO AE Extension 20.3.x is present.
 throttleNeoEcoAeExecution = true
+
+[compatibility.appliedE]
+# Active only when AppliedE or AppliedE TPS Fix is present.
+enableAppliedECompatibility = true
+forceAe2PlannerForTransmutationPatterns = true
+treatAppliedEProviderAsDynamic = true
 ```
 
 ACO does not lower the CPU's displayed storage or co-processor count. It limits how much of AE2's pattern-push execution loop one CPU may spend in a server tick. Raising the maximum can increase throughput and MSPT together.
