@@ -38,7 +38,8 @@ integration. Enabling the experimental master also requires AE2 exactly
 
 ## Configuration
 
-Every behavior-changing switch is false by default:
+The master is false by default. The atomic boundary child switch is true but
+remains inert until both that master and the compiled graph are explicitly enabled:
 
 ```toml
 [experimentalCraftingEngine]
@@ -46,6 +47,7 @@ enableExperimentalCraftingEngine = false
 enableShadowMode = false
 logShadowMismatches = true
 shadowMaximumPatterns = 262144
+authoritativeMinimumShadowMatches = 64
 enableCompiledCraftingGraph = false
 enableAuthoritativeCompiledPlanner = false
 enableCheckedAe2CraftingArithmetic = true
@@ -61,6 +63,7 @@ batchTransactionJournalMaximumEntries = 16384
 batchTransactionReconciliationIntervalTicks = 20
 nativeBatchMaximumExecutions = 65536
 enableBigIntegerCraftingBackend = true
+enableAtomicBigCapacityPlans = true
 enableBigIntegerGameplayExecution = false
 bigIntegerMaximumBits = 256
 bigIntegerExecutionWindow = 65536
@@ -87,9 +90,14 @@ through normal AE2.
 - An iterative two-pass strongly connected component pass identifies recursive
   recipe groups without recursive Java stack growth.
 - Graph size is hard-bounded to `1,048,576` patterns.
-- Per-calculation inventory snapshots, memoized deterministic topologies,
-  aggregated per-node demand, cancellation tokens, and provider/recipe
-  generation guards prevent stale work from being applied.
+- Each deterministic root is compiled once per provider/recipe generation into
+  `CompiledRootProgram`: key, Pattern, output, and input-edge arrays in
+  topological order. Shared intermediates are aggregated before one expansion.
+- Calculation inventory capture and final revalidation read only keys referenced
+  by that root. Fuzzy checks use `KeyCounter.findFuzzy` instead of rebuilding a
+  full ME inventory Map.
+- Cancellation tokens and provider/recipe generation guards prevent stale work
+  from being applied.
 
 ### Long and BigInteger planning
 
@@ -99,17 +107,38 @@ through normal AE2.
   planning, rather than only when the finished job is submitted.
 - Deterministic symbolic plans scale with distinct graph nodes rather than the
   requested item count.
+- The normal path uses primitive `long[]` demand, execution, used, emitted, and
+  missing arrays. A checked overflow discards that partial run and restarts the
+  same immutable program with `BigInteger[]`.
+- Missing calculation visits every reachable terminal and reports the complete
+  aggregated missing list; it does not stop at the first blocker.
 - Only arithmetic overflow promotes a calculation to `BigInteger`.
 - Ambiguous alternatives, substitutions, container returns, unsupported keys,
   or an unprovable result are marked `provenEquivalent = false` and fall back to
   AE2. They are eligible for diagnostics, never authoritative execution.
-- Shadow Mode compares a completed AE2 result with the experimental result and
-  records bounded diagnostics. It never submits or mutates the AE2 plan.
+- Shadow Mode compares Pattern executions, used inventory, emitted inputs,
+  missing inputs, final output, and simulation state with the completed AE2
+  result. It never submits or mutates that AE2 plan.
+- A root must match 64 times by default before authoritative use. One mismatch
+  rejects only that generation's program; Pattern/recipe changes create a new
+  unqualified program. `authoritativeMinimumShadowMatches = 0` is the explicit
+  operator bypass.
+- All planner, runtime, NBT, and packet magnitudes share the exact hard ceiling
+  `10^16384 - 1` (16,384 decimal digits, 54,427 bits at the boundary).
 
 Normal AE2 `CraftingTreeNode`, `CraftingTreeProcess`, and standard CPU NBT stay
 unchanged. A CPU add-on must explicitly consume the ACO API before a BigInteger
 job can become gameplay-visible. AQE 2.0.1 optionally consumes host API v3;
 neither mod requires the other to load.
+
+`enableAtomicBigCapacityPlans` is narrower than the root-job window executor.
+It accepts only deterministic plans whose individual AEKey quantities and
+Pattern execution counts still fit signed `long`. Distinct inputs whose combined
+amount exceeds `Long.MAX_VALUE` retain separate exact counters and a checked
+capacity calculation. If the aggregate CPU-byte sum also exceeds
+`Long.MAX_VALUE`, ACO stores the exact reservation in AQE's BigInteger host
+sidecar. Any per-key overflow, ambiguous recipe, generation change, or non-AQE
+CPU for a Big-capacity plan fails closed.
 
 ### Transactional batching V2
 
@@ -288,7 +317,8 @@ build` covers:
 - checked long arithmetic and overflow promotion;
 - immutable graph generation, deduplication, SCC cycles, stale-generation
   rejection, cancellation, symbolic proof/fallback, and randomized DAGs;
-- a 1,000-recipe/1,024-digit planner benchmark with graph-bounded expansion;
+- a 1,000-recipe/16,384-digit-boundary planner benchmark with graph-bounded
+  expansion;
 - BigInteger capacity, inventory, plan, job, execution-window, NBT, packet,
   paging, memory-budget, migration, cancellation, and output completion;
 - source/target receipt state machines, malformed payload fail-closed behavior,

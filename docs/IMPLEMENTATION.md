@@ -20,14 +20,21 @@ The compiled planning layer consists of:
 
 - `CompiledCraftingGraph`, immutable pattern nodes, output indexes, and SCC data;
 - `GenerationAwareGraphCache` and `Ae2CompiledCraftingGraphCache`, which publish
-  a graph only if the provider generation remains unchanged;
+  a graph only if the provider generation remains unchanged, then retain one
+  `CompiledRootProgram` per requested output and generation;
+- `CompiledRootProgram`, which flattens the deterministic root DAG into key,
+  Pattern, output, and input-edge arrays and evaluates each reachable node once;
 - `LongCraftingPlanner`, `BigCraftingPlanner`, and
   `OverflowPromotingCraftingPlanner`, which keep small jobs on checked `long`
-  arithmetic and promote only overflowed deterministic plans;
+  arithmetic and restart only overflowed deterministic plans on the same
+  immutable root program with `BigInteger` arrays;
 - `CompiledPlanningSession`, `PlanningGuard`, and generation/cancellation tokens,
   which share one inventory snapshot and discard stale work;
-- `Ae2CraftingShadowValidator`, which compares only after AE2 has produced its
-  authoritative result.
+- `Ae2ReferencedInventory`, which captures and revalidates only root-referenced
+  AE keys rather than copying and rescanning the complete ME inventory;
+- `Ae2CraftingShadowValidator` and `CompiledRootQualificationRegistry`, which
+  compare complete accounting only after AE2 has produced its authoritative
+  result and require 64 matches by default before replacement.
 
 V2 execution uses Accessor Mixin contracts instead of field-name reflection:
 
@@ -60,8 +67,19 @@ patch. It creates a versioned `BigCraftingRuntime`, reserves BigInteger capacity
 schedules bounded execution windows, persists jobs, and emits bounded status
 pages. AQE or another CPU add-on must explicitly own that runtime and its GUI;
 normal AE2 and Advanced AE continue to expose their original long-based jobs.
+
+`BigCapacityCraftingPlan` handles a narrower interoperable boundary: all AEKey
+quantities and Pattern execution counts remain exact signed `long` values, while
+aggregate demand and CPU-byte arithmetic are evaluated with `BigInteger`. When
+the exact byte reservation exceeds `Long.MAX_VALUE`, Advanced AE first creates
+its normal child CPU with a saturated compatibility value; ACO then atomically
+replaces that reservation in the AQE host ledger with the exact value. A failed
+promotion cancels the child through Advanced AE before it can run. Reconciliation
+and NBT reload preserve the exact sidecar value until that CPU disappears.
 Configured bit limits are enforced during intermediate planner arithmetic as
 well as runtime submission, NBT decode, and packet decode.
+The implementation also applies an exact global maximum of `10^16384 - 1`, so
+the boundary bit length cannot admit a value with 16,385 decimal digits.
 
 ## Mixins
 
@@ -216,7 +234,7 @@ Storage cache invalidation and crafting provider invalidation clear the complete
 
 ## Deterministic Missing Fast-Fail
 
-The fast-fail path is enabled by default. It only runs for `CalculationStrategy.REPORT_MISSING_ITEMS` and requests at least `minimumRequestedAmountForFastFail` (default `1`). Item, fluid, and chemical keys use the same generic AEKey proof path.
+The fast-fail path is disabled by default. When explicitly enabled, it only runs for `CalculationStrategy.REPORT_MISSING_ITEMS` and requests at least `minimumRequestedAmountForFastFail` (default `1`). Item, fluid, and chemical keys use the same generic AEKey proof path.
 
 It recursively follows only strict deterministic pattern paths:
 
@@ -232,7 +250,7 @@ If any condition is not met, the preflight returns control to AE2's normal solve
 
 When a raw missing ingredient is found, the optimizer verifies the missing stack against AE2's live `MEStorage.extract(..., Actionable.SIMULATE, ...)` before returning a missing-only `ICraftingPlan`.
 
-This path never returns a successful plan. It only answers "this request cannot complete because this one ingredient is missing".
+This path never returns a successful plan. It only answers "this request cannot complete because this one ingredient is missing" and intentionally ends AE2's full missing-item calculation for that request. It is therefore an opt-in diagnostic shortcut, not the normal player-facing path.
 
 ## Pattern Lookup Cache
 

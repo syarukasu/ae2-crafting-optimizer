@@ -6,6 +6,7 @@ import com.syaru.ae2craftingoptimizer.access.CraftingJobTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
+import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
 import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
@@ -31,9 +32,20 @@ public final class ExperimentalCompatibilityValidator {
         List<String> failures = new ArrayList<>();
         requireExactVersion(failures, "ae2", "15.4.10");
         if ((ACOConfig.enableTransactionalBatchingV2()
-                        || ACOConfig.enableFairCraftingJobScheduler())
+                        || ACOConfig.enableFairCraftingJobScheduler()
+                        || ACOConfig.enableAtomicBigCapacityPlans())
                 && ModList.get().isLoaded("advanced_ae")) {
             requireExactVersion(failures, "advanced_ae", "1.3.5-1.20.1");
+        }
+        // Wide計画を有効にする時は、受理側と拒否側の両境界Mixinを起動時に証明する。
+        if (ACOConfig.enableAtomicBigCapacityPlans()) {
+            require(failures, "appeng.me.cluster.implementations.CraftingCPUCluster",
+                    BigCapacityPlanBoundaryAccess.class);
+            // Advanced AEが存在する時だけ、AQE用の正確な容量予約境界も適用済みか確認する。
+            if (ModList.get().isLoaded("advanced_ae")) {
+                require(failures, "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster",
+                        BigCapacityPlanBoundaryAccess.class);
+            }
         }
         if (ACOConfig.enableTransactionalBatchingV2()) {
             require(failures, "appeng.crafting.execution.CraftingCpuLogic",

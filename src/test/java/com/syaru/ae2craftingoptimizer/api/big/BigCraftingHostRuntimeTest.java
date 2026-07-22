@@ -162,6 +162,62 @@ class BigCraftingHostRuntimeTest {
     }
 
     @Test
+    void promotedCapacityReservationSurvivesReconcileAndReload() {
+        BigInteger exact = BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO);
+        BigInteger capacity = exact.add(BigInteger.valueOf(1_000L));
+        UUID cpuId = UUID.randomUUID();
+        BigCraftingHostRuntime<String> host = host(capacity);
+
+        // Advanced AEは最初に互換用Long.MAX_VALUEを登録し、成功後にACOが真値へ昇格する。
+        host.replaceExternalReservations(Map.of(cpuId, BigInteger.valueOf(Long.MAX_VALUE)));
+        assertTrue(host.promoteExternalReservation(cpuId, exact));
+        assertEquals(exact, host.externalReserved());
+
+        // CPU本体の再走査は互換値しか返さないため、既存Sidecar真値を正本として維持する。
+        host.replaceExternalReservations(Map.of(cpuId, BigInteger.valueOf(Long.MAX_VALUE)));
+        assertEquals(Map.of(cpuId, exact), host.externalReservations());
+
+        BigCraftingHostRuntime<String> restored = BigCraftingHostRuntime.load(
+                host.save(), capacity, STRINGS, 256, 64, 64, 4L * 1024L * 1024L);
+        assertEquals(Map.of(cpuId, exact), restored.externalReservations());
+        assertEquals(exact, restored.reserved());
+
+        // CPUが完了して正本一覧から消えた時だけ、BigInteger予約も解放する。
+        restored.replaceExternalReservations(Map.of());
+        assertEquals(BigInteger.ZERO, restored.reserved());
+        assertEquals(capacity, restored.available());
+    }
+
+    @Test
+    void failedCapacityPromotionLeavesFacadeReservationUntouched() {
+        BigInteger facade = BigInteger.valueOf(Long.MAX_VALUE);
+        BigInteger capacity = facade.add(BigInteger.TEN);
+        BigInteger tooLarge = facade.multiply(BigInteger.TWO);
+        UUID cpuId = UUID.randomUUID();
+        BigCraftingHostRuntime<String> host = host(capacity);
+        host.replaceExternalReservations(Map.of(cpuId, facade));
+
+        assertFalse(host.promoteExternalReservation(cpuId, tooLarge));
+        assertEquals(Map.of(cpuId, facade), host.externalReservations());
+        assertEquals(facade, host.reserved());
+    }
+
+    @Test
+    void capacityPromotionDoesNotAlterNativeBigJobReservation() {
+        BigInteger exact = BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO);
+        BigInteger nativeReservation = BigInteger.valueOf(400L);
+        BigCraftingHostRuntime<String> host = host(exact.add(BigInteger.valueOf(1_000L)));
+        assertTrue(host.submit(job(nativeReservation)));
+        UUID cpuId = UUID.randomUUID();
+        host.replaceExternalReservations(Map.of(cpuId, BigInteger.valueOf(Long.MAX_VALUE)));
+
+        assertTrue(host.promoteExternalReservation(cpuId, exact));
+        assertEquals(exact, host.externalReserved());
+        assertEquals(nativeReservation, host.bigReserved());
+        assertEquals(exact.add(nativeReservation), host.reserved());
+    }
+
+    @Test
     void childExecutionBindingSurvivesReloadWithoutDoubleCountingCapacity() {
         BigCraftingHostRuntime<String> host = host(BigInteger.valueOf(1_000));
         BigCraftingJob<String> job = BigCraftingJob.rootWindowed(

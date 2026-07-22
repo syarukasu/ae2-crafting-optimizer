@@ -37,4 +37,28 @@ class BigIntegerNbtCodecTest {
         assertThrows(IllegalArgumentException.class, () ->
                 BigIntegerNbtCodec.getNonNegative(tag, "value", 128));
     }
+
+    @Test
+    void acceptsExactDecimalHardMaximumAndRejectsTheNextValue() {
+        CompoundTag tag = new CompoundTag();
+        BigInteger maximum = BigCountMath.hardMaximumValue();
+        BigIntegerNbtCodec.putNonNegative(
+                tag,
+                "value",
+                maximum,
+                BigCountMath.HARD_MAXIMUM_BITS);
+        assertEquals(
+                maximum,
+                BigIntegerNbtCodec.getNonNegative(
+                        tag,
+                        "value",
+                        BigCountMath.HARD_MAXIMUM_BITS));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> BigIntegerNbtCodec.putNonNegative(
+                        tag,
+                        "value",
+                        maximum.add(BigInteger.ONE),
+                        BigCountMath.HARD_MAXIMUM_BITS));
+    }
 }

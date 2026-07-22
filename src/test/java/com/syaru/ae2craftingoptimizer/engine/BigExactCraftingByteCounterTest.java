@@ -62,6 +62,65 @@ class BigExactCraftingByteCounterTest {
                 128));
     }
 
+    @Test
+    void keepsTwoDistinctLongMaximumChemicalInputsExact() {
+        CompiledPattern<String> root = new CompiledPattern<>(
+                "pressurized_reaction",
+                List.of(
+                        new CompiledPattern.InputSlot<>(List.of(
+                                new CompiledPattern.Stack<>("gas_a", Long.MAX_VALUE))),
+                        new CompiledPattern.InputSlot<>(List.of(
+                                new CompiledPattern.Stack<>("gas_b", Long.MAX_VALUE)))),
+                Map.of("result", 1L),
+                true);
+        Map<String, CompiledPattern<String>> patterns = Map.of("result", root);
+        Map<String, BigInteger> executions = Map.of("pressurized_reaction", BigInteger.ONE);
+
+        BigInteger exact = BigExactCraftingByteCounter.calculate(
+                "result",
+                BigInteger.ONE,
+                patterns,
+                executions,
+                ignored -> 8L,
+                256);
+
+        // 二種類は別Keyなので各Long.MAX_VALUEを保持できるが、容量合計はlongを超える。
+        assertEquals(
+                BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)
+                        .add(BigInteger.valueOf(26L)),
+                exact);
+        assertThrows(ArithmeticException.class, () -> ExactCraftingByteCounter.calculate(
+                "result",
+                1L,
+                patterns,
+                Map.of("pressurized_reaction", 1L),
+                ignored -> 8L));
+    }
+
+    @Test
+    void appliesAppliedMekanisticsChemicalByteScaleWithoutPrecisionLoss() {
+        CompiledPattern<String> root = new CompiledPattern<>(
+                "chemical_process",
+                List.of(
+                        new CompiledPattern.InputSlot<>(List.of(
+                                new CompiledPattern.Stack<>("gas_a", Long.MAX_VALUE))),
+                        new CompiledPattern.InputSlot<>(List.of(
+                                new CompiledPattern.Stack<>("gas_b", Long.MAX_VALUE)))),
+                Map.of("result", 1L),
+                true);
+
+        // Applied Mekanistics 1.4.3は化学物質を8000 mB/byteで換算する。
+        BigInteger exact = BigExactCraftingByteCounter.calculate(
+                "result",
+                BigInteger.ONE,
+                Map.of("result", root),
+                Map.of("chemical_process", BigInteger.ONE),
+                key -> key.startsWith("gas_") ? 8_000L : 8L,
+                256);
+
+        assertEquals(new BigInteger("18446744073709578"), exact);
+    }
+
     private static CompiledPattern<String> pattern(
             String id,
             String input,

@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.config;
 
+import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
 import java.util.List;
 import java.util.Locale;
 import net.minecraftforge.common.ForgeConfigSpec;
@@ -13,6 +14,10 @@ import net.minecraftforge.fml.config.ModConfig;
 public final class ACOConfig {
     public static final int MAX_SAFE_EFFECTIVE_COPROCESSORS = Integer.MAX_VALUE - 1;
     public static final int DEFAULT_EFFECTIVE_COPROCESSORS_PER_CPU = 264_192;
+    /** Authoritative採用前に同じ世代のRoot Programへ要求する連続Shadow一致数。 */
+    private static final int DEFAULT_AUTHORITATIVE_SHADOW_MATCHES = 64;
+    /** 設定ミスで永遠に採用されない状態を作らないための一致回数上限。 */
+    private static final int MAXIMUM_AUTHORITATIVE_SHADOW_MATCHES = 1_048_576;
     private static final ForgeConfigSpec SPEC;
     private static final ForgeConfigSpec.BooleanValue ENABLE_OPTIMIZER;
     private static final ForgeConfigSpec.BooleanValue TWO_STAGE_MISSING_PREVIEW;
@@ -162,6 +167,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue ENABLE_CRAFTING_ENGINE_SHADOW_MODE;
     private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_ENGINE_SHADOW_MISMATCHES;
     private static final ForgeConfigSpec.IntValue CRAFTING_ENGINE_SHADOW_MAXIMUM_PATTERNS;
+    private static final ForgeConfigSpec.IntValue AUTHORITATIVE_MINIMUM_SHADOW_MATCHES;
     private static final ForgeConfigSpec.BooleanValue ENABLE_COMPILED_CRAFTING_GRAPH;
     private static final ForgeConfigSpec.BooleanValue ENABLE_AUTHORITATIVE_COMPILED_PLANNER;
     private static final ForgeConfigSpec.BooleanValue ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC;
@@ -177,6 +183,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue BATCH_TRANSACTION_RECONCILIATION_INTERVAL_TICKS;
     private static final ForgeConfigSpec.IntValue NATIVE_BATCH_MAXIMUM_EXECUTIONS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_CRAFTING_BACKEND;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_ATOMIC_BIG_CAPACITY_PLANS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_MAXIMUM_BITS;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_EXECUTION_WINDOW;
@@ -257,8 +264,10 @@ public final class ACOConfig {
                 .comment("Time-to-live for completed crafting plan cache entries, in server ticks. Storage or crafting topology invalidation clears this earlier.")
                 .defineInRange("completedCraftingPlanCacheTtlTicks", 40, 1, 20 * 60);
         FAST_FAIL_MISSING_CRAFTS = builder
-                .comment("For REPORT_MISSING_ITEMS requests, return an immediate missing-only plan only when the optimizer can prove the craft is impossible through a strict deterministic preflight. Item, fluid, and chemical keys use the same proof path. Successful or ambiguous crafts still use AE2's normal solver.")
-                .define("fastFailMissingCrafts", true);
+                .comment(
+                        "Experimental opt-in: for REPORT_MISSING_ITEMS requests, return an immediate missing-only plan when a strict deterministic preflight proves the craft is impossible.",
+                        "This deliberately ends AE2's full calculation after the first proven blocker, so it is disabled by default. Item, fluid, and chemical keys use the same proof path.")
+                .define("fastFailMissingCrafts", false);
         MINIMUM_REQUESTED_AMOUNT_FOR_FAST_FAIL = builder
                 .comment("Do not run deterministic missing preflight below this requested amount.")
                 .defineInRange("minimumRequestedAmountForFastFail", 1L, 1L, Long.MAX_VALUE);
@@ -698,6 +707,15 @@ public final class ACOConfig {
         CRAFTING_ENGINE_SHADOW_MAXIMUM_PATTERNS = builder
                 .comment("Skip Shadow Mode validation above this many patterns to keep diagnostic work bounded.")
                 .defineInRange("shadowMaximumPatterns", 262_144, 1, 1_048_576);
+        AUTHORITATIVE_MINIMUM_SHADOW_MATCHES = builder
+                .comment(
+                        "Required matching AE2 Shadow comparisons for the same generation-keyed root program before it may become authoritative.",
+                        "Set to 0 only to explicitly bypass qualification. One mismatch rejects that root until its Pattern or recipe generation changes.")
+                .defineInRange(
+                        "authoritativeMinimumShadowMatches",
+                        DEFAULT_AUTHORITATIVE_SHADOW_MATCHES,
+                        0,
+                        MAXIMUM_AUTHORITATIVE_SHADOW_MATCHES);
         ENABLE_COMPILED_CRAFTING_GRAPH = builder
                 .comment("Build an immutable, generation-keyed crafting graph for experimental planning.")
                 .define("enableCompiledCraftingGraph", false);
@@ -751,6 +769,11 @@ public final class ACOConfig {
                         "Expose ACO's versioned BigInteger host and job backend to explicitly integrated CPU add-ons.",
                         "This does not patch normal AE2 CPUs. It is safe to leave enabled when no compatible host add-on is installed.")
                 .define("enableBigIntegerCraftingBackend", true);
+        ENABLE_ATOMIC_BIG_CAPACITY_PLANS = builder
+                .comment(
+                        "Safely calculate plans whose individual AEKey and Pattern counts fit signed long, but whose aggregate input or exact CPU-byte cost exceeds Long.MAX_VALUE.",
+                        "Aggregate-input-only plans keep exact per-key long counters. Big CPU-byte plans additionally require an integrated AQE BigInteger host. Any individual count above signed long is never accepted.")
+                .define("enableAtomicBigCapacityPlans", true);
         ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION = builder
                 .comment(
                         "Execute explicitly submitted BigInteger root jobs as bounded standard AE2 child jobs on an AQE Quantum Computer.",
@@ -759,8 +782,8 @@ public final class ACOConfig {
         BIG_INTEGER_MAXIMUM_BITS = builder
                 .comment(
                         "Maximum magnitude stored by the BigInteger backend, in binary bits. 256 bits is about 77 decimal digits.",
-                        "The hard implementation range is 64..1048576 bits; larger values are rejected before NBT or packet allocation.")
-                .defineInRange("bigIntegerMaximumBits", 256, 64, 1_048_576);
+                        "The hard implementation maximum is 16384 decimal digits (currently 54427 bits). Values above 10^16384-1 are rejected exactly before NBT or packet allocation.")
+                .defineInRange("bigIntegerMaximumBits", 256, 64, BigCountMath.HARD_MAXIMUM_BITS);
         BIG_INTEGER_EXECUTION_WINDOW = builder
                 .comment(
                         "Maximum pattern executions exposed to a long/int machine adapter in one BigInteger execution window.",
@@ -1442,6 +1465,12 @@ public final class ACOConfig {
         return Math.min(1_048_576, Math.max(1, CRAFTING_ENGINE_SHADOW_MAXIMUM_PATTERNS.get()));
     }
 
+    public static int getAuthoritativeMinimumShadowMatches() {
+        return Math.min(
+                MAXIMUM_AUTHORITATIVE_SHADOW_MATCHES,
+                Math.max(0, AUTHORITATIVE_MINIMUM_SHADOW_MATCHES.get()));
+    }
+
     public static boolean enableCompiledCraftingGraph() {
         return enableExperimentalCraftingEngine() && ENABLE_COMPILED_CRAFTING_GRAPH.get();
     }
@@ -1504,14 +1533,20 @@ public final class ACOConfig {
         return ENABLE_BIG_INTEGER_CRAFTING_BACKEND.get();
     }
 
+    public static boolean enableAtomicBigCapacityPlans() {
+        return enableCompiledCraftingGraph()
+                && enableBigIntegerCraftingBackend()
+                && ENABLE_ATOMIC_BIG_CAPACITY_PLANS.get();
+    }
+
     public static boolean enableBigIntegerGameplayExecution() {
-        return enableExperimentalCraftingEngine()
+        return enableCompiledCraftingGraph()
                 && enableBigIntegerCraftingBackend()
                 && ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION.get();
     }
 
     public static int getBigIntegerMaximumBits() {
-        return Math.min(1_048_576, Math.max(64, BIG_INTEGER_MAXIMUM_BITS.get()));
+        return Math.min(BigCountMath.HARD_MAXIMUM_BITS, Math.max(64, BIG_INTEGER_MAXIMUM_BITS.get()));
     }
 
     public static int getBigIntegerExecutionWindow() {

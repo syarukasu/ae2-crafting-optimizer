@@ -506,8 +506,10 @@ public final class BigCraftingRuntime<K> {
             int maximumExecutionsPerWindow,
             int maximumStatusPageEntries,
             long maximumRuntimeCountBytes) {
-        if (maximumBits < 64 || maximumBits > 1_048_576) {
-            throw new IllegalArgumentException("maximumBits must be between 64 and 1048576");
+        BigCountMath.requireMaximumBits(BigInteger.ZERO, "runtime maximum", maximumBits);
+        // Runtimeは通常AE2のsigned long境界も包含するため、64bit未満の設定を拒否する。
+        if (maximumBits < 64) {
+            throw new IllegalArgumentException("maximumBits must be at least 64");
         }
         if (maximumExecutionsPerWindow < 1 || maximumExecutionsPerWindow > 1_048_576) {
             throw new IllegalArgumentException(

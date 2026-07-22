@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Added
+
+- Added exact wide-aggregate planning for deterministic recipes whose distinct
+  item, fluid, or chemical counters each fit signed `long` while their combined
+  amount exceeds it.
+- Added AQE BigInteger capacity-sidecar submission for plans whose exact AE2 CPU
+  byte cost exceeds `Long.MAX_VALUE`, including atomic reservation promotion,
+  restart persistence, standard-CPU rejection, and fail-fast Mixin validation.
+- Added generation-cached `CompiledRootProgram` arrays. Deterministic roots now
+  evaluate each reachable recipe once with primitive `long[]` demand counters,
+  then restart the same program with `BigInteger[]` only after checked overflow.
+- Added complete missing-leaf aggregation, referenced-key-only inventory capture
+  and revalidation, shared-intermediate DAG support, and conservative fallback
+  for alternatives, fuzzy inputs, returns, byproducts, emitters, and cycles.
+- Added per-generation Shadow qualification. The complete Pattern, inventory,
+  emitter, missing, output, and simulation accounts must match AE2 64 times by
+  default; one mismatch rejects that root until its generation changes.
+- Added an exact BigInteger implementation ceiling of `10^16384 - 1`.
+
+### Changed
+
+- Restored deterministic missing fast-fail to its documented opt-in default.
+  The shortcut intentionally returns the first proven blocker and ends AE2's
+  full missing-item calculation, so normal player-facing requests now keep
+  AE2's complete calculation unless the option is explicitly enabled.
+- Replaced full ME inventory Map snapshots and end-of-calculation full rescans
+  in compiled planning with indexed reads of only the keys used by that root.
+
 ## [1.3.2] - 2026-07-18
 
 ### Fixed
