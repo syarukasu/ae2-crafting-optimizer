@@ -48,6 +48,7 @@ condition for the checked BigInteger path:
 ```toml
 [experimentalCraftingEngine]
 enableAqeBigCraftingProfile = true
+enableLongRootCraftAmounts = true
 enableExperimentalCraftingEngine = false
 enableShadowMode = true
 logShadowMismatches = true
@@ -302,10 +303,10 @@ It does not automatically patch standard AE2 or Advanced AE CPUs.
 
 ### Status synchronization
 
-BigInteger status uses a separate strict Forge channel. It does not alter AE2's
-normal packets.
+BigInteger status and the optional long root-order messages use a separate
+strict Forge channel. They do not alter AE2's normal packets.
 
-- Forge channel protocol: `2`; status payload protocol: `1`. Both sides must
+- Forge channel protocol: `3`; status payload protocol: `1`. Both sides must
   have the matching ACO release when status synchronization is used.
 - Status is paged and defaults to at most `1,024` jobs per page.
 - One packet is hard-capped at `1 MiB` and `16,384` entries.

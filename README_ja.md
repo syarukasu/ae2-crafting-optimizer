@@ -54,6 +54,24 @@ BigIntegerのまま保存・会計し、既存機械へは上限付きのlong/in
 適用されます。実験マスターはAE2 `15.4.10`へfail-fast固定され、Advanced AEおよび
 GTCEu/Mekanism連携も文書に記載した実測対象バージョンだけを受け付けます。
 
+## longルート注文
+
+AE2 15.4.10のクラフト計算APIは`long`量を受け取れますが、数量入力画面、
+確認Packet、確認Menuは`int`に制限されています。
+`enableLongRootCraftAmounts = true`では、この入力境界だけを次のように拡張します。
+
+- `1`から`Integer.MAX_VALUE`まではAE2本来の
+  `ConfirmAutoCraftPacket(int, ...)`とMenu処理をそのまま使用
+- `Integer.MAX_VALUE + 1`から`Long.MAX_VALUE`まではACO専用Packetと
+  Menuのlong Sidecarを使用
+- サーバー側で現在のMenu型とcontainer IDを再確認してから、
+  AE2本来の`beginCraftingCalculation(..., long, ...)`を呼出し
+- `=`による在庫差引き、Shift Auto Start、再計算、キャンセル、戻る操作を維持
+- signed long範囲外の値は折返さず拒否
+
+これは通常AE2 CPUの容量を増やす機能でも、BigIntegerのGUI入力でもありません。
+実際の計画を受理できる容量と実行処理は、明示連携したAQE Hostなど対応CPU側が担当します。
+
 ## 主な機能
 
 - 同じネットワーク・要求元・出力・個数・計算方式の重複クラフト計算を一本化
@@ -67,6 +85,7 @@ GTCEu/Mekanism連携も文書に記載した実測対象バージョンだけを
 - ExtendedAE組立マトリックスのスレッド集計・稼働数集計・Crafter経路・同一tick状態通知のキャッシュ
 - クラフト計算内メモ、Provider内容世代、回路スライサー負結果を含む非破壊のAE2-UEL/GTNH型最適化
 - PATなどAE2端末でmouse-upが欠落した時に、スクロールのPage Up/Down反復を物理ボタン状態から停止する安全弁
+- 既存int注文を変更せず、`Long.MAX_VALUE`までを直接入力できるlongルート注文経路
 - 遅いクラフト計算の診断ログ
 
 AE2が最終的なクラフト計算、ジョブ投入、ストレージ操作を担当し続けます。ACOの高速経路が候補を確定できない場合は元のAE2・機械MOD処理へ戻ります。

@@ -33,7 +33,10 @@ This project remains independently installable from Advanced Quantum Engineering
 
 Advanced Quantum Engineering upgrades Quantum Computer hardware.
 
-AE2 Crafting Optimizer adds conservative recipe-intent fast paths for large AE2 processing lines. It does not touch AE2's craft planning confirmation screen.
+AE2 Crafting Optimizer adds conservative recipe-intent fast paths for large
+AE2 processing lines. It also provides an optional, separate root-order path
+above `Integer.MAX_VALUE`; every amount through the int boundary continues to
+use AE2's original confirmation packet and menu path.
 
 ## Status
 
@@ -111,6 +114,28 @@ fail-fast pinned to AE2 `15.4.10`; version-sensitive
 Advanced AE and native machine bridges are likewise accepted only at their
 documented tested versions.
 
+### Long Root Craft Amounts
+
+AE2 15.4.10 already exposes
+`beginCraftingCalculation(..., long amount, ...)`, but its amount screen,
+confirmation packet, and confirmation menu narrow the root order to `int`.
+With `enableLongRootCraftAmounts = true`, ACO extends only the amount-entry
+boundary:
+
+- `1..Integer.MAX_VALUE` uses AE2's unchanged
+  `ConfirmAutoCraftPacket(int, ...)` path.
+- `Integer.MAX_VALUE + 1..Long.MAX_VALUE` uses ACO's versioned C2S packet and a
+  `long` sidecar in the two crafting menus.
+- The server revalidates the active menu and container ID before starting the
+  normal AE2 `beginCraftingCalculation(..., long, ...)`.
+- Exact-amount (`=`), auto-start, replan, cancel, and back navigation preserve
+  their AE2 meaning.
+- Values outside signed `long` are rejected exactly instead of being wrapped.
+
+This does not make a standard AE2 CPU large enough to accept the plan and does
+not add BigInteger GUI input. A compatible CPU, such as an explicitly
+integrated AQE host, remains responsible for capacity and execution.
+
 ## Goals
 
 - Reduce repeated machine-side recipe discovery after AE2 Pattern Providers push known processing patterns.
@@ -128,7 +153,10 @@ This is the measurement layer. It does not change AE2 behavior.
 
 ### Conservative Craft Planning
 
-The current build does not inject into AE2's Craft Confirm menu or replace `CraftingTreeNode`.
+The current build does not replace `CraftingTreeNode` or AE2's normal int
+confirmation path. Its optional long root-order bridge changes only the amount
+transport above `Integer.MAX_VALUE` and calls AE2's existing long calculation
+API.
 
 Craft planning, missing-item calculation, and recipe validity stay authoritative
 in AE2. Active optional paths only reorder candidates or cache validated,
