@@ -168,6 +168,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue SLOW_CRAFT_CALCULATION_MILLIS;
     private static final ForgeConfigSpec.BooleanValue LOG_CACHE_STATISTICS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_AQE_BIG_CRAFTING_PROFILE;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_LONG_ROOT_CRAFT_AMOUNTS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_EXPERIMENTAL_CRAFTING_ENGINE;
     private static final ForgeConfigSpec.BooleanValue ENABLE_CRAFTING_ENGINE_SHADOW_MODE;
     private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_ENGINE_SHADOW_MISMATCHES;
@@ -719,6 +720,11 @@ public final class ACOConfig {
                         "Enable only the AQE BigInteger calculation and execution path when Advanced AE and Advanced Quantum Engineering are installed.",
                         "This does not enable Native Batch, bus rewrites, terminal rewrites, or normal-AE2 authoritative replacement.")
                 .define("enableAqeBigCraftingProfile", true);
+        ENABLE_LONG_ROOT_CRAFT_AMOUNTS = builder
+                .comment(
+                        "Allow the AE2 craft-amount screen to submit root amounts from Integer.MAX_VALUE + 1 through Long.MAX_VALUE.",
+                        "Amounts at or below Integer.MAX_VALUE keep AE2's original packet and menu path. Disable this to restore the original int-only screen.")
+                .define("enableLongRootCraftAmounts", true);
         ENABLE_EXPERIMENTAL_CRAFTING_ENGINE = builder
                 .comment(
                         "Master switch for ACO's next-generation compiled planner, native machine batching, fair scheduler, and persistent transaction journal.",
@@ -1503,6 +1509,10 @@ public final class ACOConfig {
                 && ENABLE_AQE_BIG_CRAFTING_PROFILE.get()
                 && ModList.get().isLoaded("advanced_ae")
                 && ModList.get().isLoaded("advanced_quantum_engineering");
+    }
+
+    public static boolean enableLongRootCraftAmounts() {
+        return enableOptimizer() && ENABLE_LONG_ROOT_CRAFT_AMOUNTS.get();
     }
 
     public static boolean enableCraftingEngineShadowMode() {

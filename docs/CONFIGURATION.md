@@ -113,6 +113,7 @@ fair scheduling, or atomic Big-capacity submission accepts only
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `enableAqeBigCraftingProfile` | `true` | Enables only the strict compiled/checked/BigInteger path when both Advanced AE and AQE are loaded. It does nothing in unrelated installations. |
+| `enableLongRootCraftAmounts` | `true` | Keeps AE2's original path through `Integer.MAX_VALUE` and adds a separate, server-validated input path through `Long.MAX_VALUE`. Disabling it restores AE2's int-only amount screen. |
 | `enableExperimentalCraftingEngine` | `false` | Master switch for behavior-changing planner, V2 batching, and fair-scheduler paths. The explicit-host BigInteger API is independent. |
 | `enableShadowMode` | `true` | Diagnostic comparison for compiled roots. It runs under the AQE profile or the experimental master. |
 | `authoritativeMinimumShadowMatches` | `64` | Complete AE2/ACO accounting matches required for the same generation-keyed root before authoritative use. `0` explicitly bypasses qualification; one mismatch rejects that root until generation change. |
@@ -140,7 +141,8 @@ fair scheduling, or atomic Big-capacity submission accepts only
 No empty scheduler, receipt, or BigInteger job NBT is written while these paths
 remain unused. Each persisted root records its recipe-specific window limit,
 process epoch, and compiled-program fingerprint for restart validation.
-BigInteger status uses Forge channel protocol `2` and payload
+BigInteger status and long root-order transport use Forge channel protocol `3`;
+the status payload remains
 protocol `1`, with a hard `1 MiB` packet cap. Server and clients must use the
 same ACO jar before an integrating add-on uses status synchronization.
 

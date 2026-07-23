@@ -23,6 +23,8 @@
     "CraftingCalculationDiagnosticsMixin",
     "CraftingCalculationCheckedMathMixin",
     "CraftingCalculationMemoLifecycleMixin",
+    "CraftAmountMenuLongAmountMixin",
+    "CraftConfirmMenuLongAmountMixin",
     "CraftingCpuHelperFluidFastPathMixin",
     "CraftingCpuLogicExecutionBudgetMixin",
     "CraftingCpuLogicBatchSourceReceiptMixin",
@@ -58,7 +60,9 @@
     "P2PServiceTopologyDeduplicationMixin"
   ],
   "client": [
-    "Ae2ScrollbarReleaseSafetyMixin"
+    "Ae2ScrollbarReleaseSafetyMixin",
+    "CraftAmountScreenLongAmountMixin",
+    "NumberEntryWidgetAccessor"
   ],
   "injectors": {
     "defaultRequire": 0

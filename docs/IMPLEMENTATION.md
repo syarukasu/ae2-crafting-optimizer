@@ -136,8 +136,64 @@ well as runtime submission, NBT decode, and packet decode.
 The implementation also applies an exact global maximum of `10^16384 - 1`, so
 the boundary bit length cannot admit a value with 16,385 decimal digits.
 
+## Long Root Amount Boundary
+
+AE2 15.4.10's `NumberEntryWidget` and
+`ICraftingService.beginCraftingCalculation` can represent signed `long`, while
+`CraftAmountScreen`, `ConfirmAutoCraftPacket`, `CraftAmountMenu`, and the
+`CraftConfirmMenu.amount` field narrow the root order to `int`.
+
+ACO keeps the two routes separate:
+
+```text
+amount <= Integer.MAX_VALUE
+  -> unchanged CraftAmountScreen.confirm()
+  -> unchanged ConfirmAutoCraftPacket(int, ...)
+  -> unchanged CraftAmountMenu.confirm(int, ...)
+
+amount > Integer.MAX_VALUE
+  -> exact BigDecimal-to-long client validation
+  -> ACO LongCraftAmountRequestMessage(containerId, long, flags)
+  -> server validates active CraftAmountMenu and containerId
+  -> LongCraftConfirmMenuBridge
+  -> unchanged ICraftingService.beginCraftingCalculation(..., long, ...)
+```
+
+`CraftAmountScreenLongAmountMixin` only cancels `confirm()` for invalid input or
+an amount above the int boundary. It leaves every valid int amount to the
+original method. `NumberEntryWidgetAccessor` reads the existing text and
+locale-aware decimal formatter so ACO can use `longValueExact()` rather than
+AE2's wrapping `longValue()` conversion at this enlarged boundary.
+
+`CraftAmountMenuLongAmountMixin` keeps the root key and performs the existing
+exact-amount (`=`) inventory subtraction with non-negative checked-long
+arithmetic. `CraftConfirmMenuLongAmountMixin` stores the true amount in a
+sidecar; the original int field contains only the compatibility sentinel
+`Integer.MAX_VALUE`. Replan and back actions are intercepted only while that
+sidecar is above the int boundary. Back navigation sends a separate
+container-ID-scoped state message because an `ItemStack` cannot carry the
+long amount.
+
+The C2S handler validates configuration, positive extended range, current menu
+type, and container ID on the server thread. A stale packet never starts a
+calculation. The upper bound is `Long.MAX_VALUE`; BigInteger GUI input is not
+part of this route.
+
+Adding these messages changes ACO's Forge channel protocol from `2` to `3`.
+Client and server must use the same build. The status-page payload codec remains
+version `1`.
+
 ## Mixins
 
+- `CraftAmountScreenLongAmountMixin`
+  - Extends only the amount widget's accepted maximum and exact validation.
+  - Sends the ACO request only above `Integer.MAX_VALUE`.
+- `CraftAmountMenuLongAmountMixin`
+  - Revalidates the server menu and preserves exact-amount inventory subtraction.
+  - Opens the normal AE2 confirmation menu and invokes its long bridge.
+- `CraftConfirmMenuLongAmountMixin`
+  - Keeps the true root amount in a long sidecar for plan, replan, and back.
+  - Calls AE2's existing long calculation API without changing job submission.
 - `CraftingCalculationDiagnosticsMixin`
   - Times `CraftingCalculation.run`.
   - Logs only calculations slower than `slowCraftCalculationMillis`.
@@ -358,7 +414,7 @@ The optimizer caps only the effective co-processor value seen by AE2's normal cr
 
 This feature is enabled by default because it is the direct TPS protection for giant CPUs: the CPU can remain large, but it cannot spend an unbounded amount of one server tick pushing patterns.
 
-Advanced AE Quantum Computer execution receives the same hard effective co-processor cap and Sequential Instant wave controller. Its public original `executeCrafting` method still performs all extraction, Provider, energy, task, and waiting-output accounting; ACO only chooses the maximum size of the next measured wave. No menu class is touched and no reflective execution call is used.
+Advanced AE Quantum Computer execution receives the same hard effective co-processor cap and Sequential Instant wave controller. Its public original `executeCrafting` method still performs all extraction, Provider, energy, task, and waiting-output accounting; ACO only chooses the maximum size of the next measured wave. This execution-budget feature does not touch a menu class or use a reflective execution call.
 
 Neo ECO AE Extension 20.3.x uses a separate `ECOCraftingCPULogic`, so the standard AE2 redirect cannot see it. ACO injects only at Neo ECO's two existing limit-return methods and around its existing `executeCrafting(...)` call. The lower of Neo ECO's own limit and ACO's limit wins. The actual return value from Neo ECO remains the completed-operation count used for adaptive measurement.
 
