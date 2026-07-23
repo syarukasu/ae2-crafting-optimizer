@@ -1,6 +1,6 @@
 # P0-P8 Implementation Status
 
-This document describes the ACO `1.3.1` runtime-qualification candidate. P9
+This document describes the ACO `1.4.1` development runtime-qualification candidate. P9
 startup and gameplay qualification is performed separately by the pack
 operator; source completion alone is not a release qualification claim.
 
@@ -16,7 +16,8 @@ operator; source completion alone is not a release qualification claim.
   topology, full-accounting Shadow qualification, cancellation, and standard-AE2
   fallback.
 - P3: bounded BigInteger planning with an exact `10^16384 - 1` ceiling, exact
-  capacity accounting, execution windows, NBT/packet magnitude limits, and
+  capacity accounting, deterministic per-recipe execution windows, exact
+  parent plans for individual long overflow, NBT/packet magnitude limits, and
   optional AQE host API v3 integration.
 - P4: shared capacity reservation, persisted multiple-job state, bounded
   round-robin leases, stale-generation rejection, child-job binding, and paged
@@ -49,7 +50,13 @@ operator; source completion alone is not a release qualification claim.
   disable only the fast/native path and return to AE2.
 - The maximum default transaction and BigInteger execution window is `65,536`.
   CPU, grid, transaction, and wall-time budgets still apply.
-- All behavior-changing experimental switches remain false by default.
+- The AQE-only profile is true by default but activates only when Advanced AE
+  and AQE are both loaded. It enables checked compiled planning and BigInteger
+  execution, while general authoritative replacement and native batching remain
+  false.
+- Parent-owned child windows are excluded from duplicate capacity charging.
+- Restart recovery compares a persisted normalized program fingerprint instead
+  of trusting process-local generation numbers.
 
 ## Deliberate Fail-closed Boundaries
 
@@ -64,7 +71,7 @@ contains no exact partial-extraction evidence.
 
 ## Automated Result
 
-The P0-P8 source suite currently contains `153` tests with zero failures. It
+The P0-P8 source suite currently contains `183` tests with zero failures. It
 covers pure planning, overflow, 64/128/1024-digit counts, persistence codecs,
 multi-job scheduling, conservation, receipt state machines, malformed payloads,
 and bounded ambiguous matching.

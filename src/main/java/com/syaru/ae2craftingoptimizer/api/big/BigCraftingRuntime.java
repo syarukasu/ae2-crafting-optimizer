@@ -140,6 +140,8 @@ public final class BigCraftingRuntime<K> {
                         scheduled.job().reservedCapacity(),
                         scheduled.job().patternGeneration(),
                         scheduled.job().recipeGeneration(),
+                        scheduled.job().planningEpoch(),
+                        scheduled.job().programFingerprint(),
                         scheduled.prepared()))
                 .toList();
     }
@@ -592,6 +594,8 @@ public final class BigCraftingRuntime<K> {
             BigInteger jobReservedCapacity,
             long patternGeneration,
             long recipeGeneration,
+            String planningEpoch,
+            String programFingerprint,
             BigCraftingJob.PreparedExecution prepared) {
         public ExecutionLease {
             Objects.requireNonNull(runtimeId, "runtimeId");
@@ -600,6 +604,13 @@ public final class BigCraftingRuntime<K> {
             BigCountMath.requireNonNegative(jobReservedCapacity, "jobReservedCapacity");
             if (patternGeneration < -1L || recipeGeneration < -1L) {
                 throw new IllegalArgumentException("planning generations must be -1 or non-negative");
+            }
+            Objects.requireNonNull(planningEpoch, "planningEpoch");
+            Objects.requireNonNull(programFingerprint, "programFingerprint");
+            // 再起動検証用メタデータは片方だけを持たない。
+            if (planningEpoch.isEmpty() != programFingerprint.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "planning epoch and program fingerprint must both be present or absent");
             }
             Objects.requireNonNull(prepared, "prepared");
         }

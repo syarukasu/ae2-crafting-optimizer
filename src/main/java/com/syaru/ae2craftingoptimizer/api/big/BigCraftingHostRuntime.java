@@ -490,6 +490,14 @@ public final class BigCraftingHostRuntime<K> {
         return bigRuntime.jobIds();
     }
 
+    public synchronized int bigJobCount() {
+        return bigRuntime.jobIds().size();
+    }
+
+    public synchronized int managedChildJobCount() {
+        return externalExecutions.size();
+    }
+
     public int maximumBits() {
         return maximumBits;
     }

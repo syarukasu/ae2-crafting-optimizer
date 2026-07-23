@@ -11,7 +11,11 @@ import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRuntime;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingRuntime;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2BigCraftingPlanFactory;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
+import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingJob;
+import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
+import com.syaru.ae2craftingoptimizer.engine.PlanningRuntimeEpoch;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
@@ -362,10 +366,13 @@ public final class AqeBigCraftingExecutionManager {
         private boolean validPlan(
                 BigCraftingRuntime.ExecutionLease<AEKey> lease,
                 ICraftingPlan plan) {
+            BigInteger childReserved = exactChildCapacity(plan);
             if (plan == null
+                    || plan instanceof BigIntegerCraftingPlan
                     || plan.simulation()
                     || plan.bytes() <= 0L
-                    || BigInteger.valueOf(plan.bytes()).compareTo(lease.jobReservedCapacity()) > 0
+                    || childReserved == null
+                    || childReserved.compareTo(lease.jobReservedCapacity()) > 0
                     || plan.finalOutput() == null
                     || !lease.requestedKey().equals(plan.finalOutput().what())
                     || plan.finalOutput().amount() != lease.prepared().window().executions()
@@ -379,9 +386,15 @@ public final class AqeBigCraftingExecutionManager {
                 BigCraftingRuntime.ExecutionLease<AEKey> lease,
                 ICraftingPlan plan) {
             Map<UUID, AdvCraftingCPU> before = activeCpus(cluster);
+            BigInteger childReserved = exactChildCapacity(plan);
+            // validPlan後も真値を再取得し、容量メタデータを失ったPlanをAdvanced AEへ渡さない。
+            if (childReserved == null) {
+                throw new IllegalStateException("child plan lost its exact capacity metadata");
+            }
             var result = AqeBigCraftingExecutionContext.withAllowance(
                     cluster,
                     plan.bytes(),
+                    childReserved,
                     () -> cluster.submitJob(
                             cluster.getGrid(), plan, cluster.getSrc(), null));
             Map<UUID, AdvCraftingCPU> after = activeCpus(cluster);
@@ -407,8 +420,9 @@ public final class AqeBigCraftingExecutionManager {
             }
             UUID childId = added.iterator().next();
             try {
+                // 親Jobの予約内にある正確な子容量をBindingへ移し、通常予約との二重計上を除く。
                 host.bindExternalExecution(
-                        lease, childId, BigInteger.valueOf(plan.bytes()));
+                        lease, childId, childReserved);
             } catch (RuntimeException failure) {
                 cluster.cancelJob(childId);
                 host.rollback(lease);
@@ -418,6 +432,18 @@ public final class AqeBigCraftingExecutionManager {
             }
             cluster.recalculateRemainingStorage();
             cluster.markDirty();
+        }
+
+        private BigInteger exactChildCapacity(ICraftingPlan plan) {
+            // 容量だけlongを超える子PlanはSidecarの真値をBindingへ保存する。
+            if (plan instanceof BigCapacityCraftingPlan bigCapacityPlan) {
+                return bigCapacityPlan.exactBytes();
+            }
+            // 個別カウンタまでlongを超える親Planは、子Windowとして再帰提出しない。
+            if (plan instanceof BigIntegerCraftingPlan || plan == null || plan.bytes() <= 0L) {
+                return null;
+            }
+            return BigInteger.valueOf(plan.bytes());
         }
 
         private void failCalculation(PendingCalculation calculation, String reason) {
@@ -440,11 +466,34 @@ public final class AqeBigCraftingExecutionManager {
         }
 
         private boolean isStale(BigCraftingRuntime.ExecutionLease<AEKey> lease) {
-            return (lease.patternGeneration() >= 0L
-                            && lease.patternGeneration()
-                                    != ProviderPatternGenerationTracker.generation())
-                    || (lease.recipeGeneration() >= 0L
-                            && lease.recipeGeneration() != RecipeGenerationTracker.generation());
+            long currentPatternGeneration = ProviderPatternGenerationTracker.generation();
+            long currentRecipeGeneration = RecipeGenerationTracker.generation();
+            // 同一JVM内では世代番号が正本なので、Patternまたはrecipe変更を即時失効させる。
+            if (PlanningRuntimeEpoch.current().equals(lease.planningEpoch())) {
+                return lease.patternGeneration() < 0L
+                        || lease.recipeGeneration() < 0L
+                        || lease.patternGeneration() != currentPatternGeneration
+                        || lease.recipeGeneration() != currentRecipeGeneration;
+            }
+            // 旧Schemaには再起動後の同一性証明がないため、推測でJobを継続しない。
+            if (lease.planningEpoch().isEmpty() || lease.programFingerprint().isEmpty()) {
+                return true;
+            }
+            try {
+                var snapshot = Ae2CompiledCraftingGraphCache.getOrCompile(
+                        cluster.getGrid(), cluster.getLevel());
+                var currentProgram = snapshot.rootProgram(lease.requestedKey()).orElse(null);
+                /*
+                 * 再起動で世代番号だけが変わった場合は、正規化Fingerprintが完全一致する
+                 * 同じ決定的Programだけを継続する。FingerprintはProgram単位でキャッシュされる。
+                 */
+                return currentProgram == null
+                        || !lease.programFingerprint().equals(
+                                Ae2BigCraftingPlanFactory.programFingerprint(currentProgram));
+            } catch (RuntimeException invalidCurrentGraph) {
+                // 再構築不能・世代競合時はJobを進めず、呼出側が安全に取消する。
+                return true;
+            }
         }
 
         private boolean cancel(UUID jobId) {

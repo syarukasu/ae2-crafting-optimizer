@@ -207,7 +207,7 @@ final class Ae2StrictCraftingTopology {
         return WideArithmeticPreflight.requiresWideArithmetic(
                 root,
                 requestedAmount,
-                program.patternsByOutput(),
+                program,
                 key -> key.getType().getAmountPerByte(),
                 maximumBits);
     }

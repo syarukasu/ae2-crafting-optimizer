@@ -37,7 +37,7 @@ The integration uses only AE2 interfaces and exact class-name guards. AppliedE
 is neither a hard dependency nor a compile-time dependency, and ACO never reads
 or mutates EMC, knowledge, provider output queues, or temporary-pattern state.
 
-## 1.3.1 Implementation Boundary
+## 1.4.1 Implementation Boundary
 
 The development backend is additive. It does not replace AE2's standard
 `CraftingTreeNode`, standard job NBT, terminal packets, or mutable storage paths.
@@ -61,7 +61,7 @@ The compiled planning layer consists of:
   AE keys rather than copying and rescanning the complete ME inventory;
 - `Ae2CraftingShadowValidator` and `CompiledRootQualificationRegistry`, which
   compare complete accounting only after AE2 has produced its authoritative
-  result and require 64 matches by default before replacement.
+  result and require 64 matches by default before ordinary replacement.
 
 V2 execution uses Accessor Mixin contracts instead of field-name reflection:
 
@@ -94,6 +94,34 @@ patch. It creates a versioned `BigCraftingRuntime`, reserves BigInteger capacity
 schedules bounded execution windows, persists jobs, and emits bounded status
 pages. AQE or another CPU add-on must explicitly own that runtime and its GUI;
 normal AE2 and Advanced AE continue to expose their original long-based jobs.
+
+When both Advanced AE and AQE are loaded, the AQE profile permits two exact
+wide-plan forms:
+
+- `BigCapacityCraftingPlan` when every individual counter fits `long` but the
+  exact CPU byte reservation does not;
+- `BigIntegerCraftingPlan` when at least one AEKey or Pattern execution counter
+  itself exceeds `long`.
+
+The latter is a parent-only object. Standard AE2 CPUs reject it, while the
+Advanced AE boundary atomically transfers its exact `BigCraftingJob` to the
+registered AQE host. The parent is never flattened into a saturated execution
+map. `Ae2BigCraftingPlanFactory` instead plans empty-inventory child candidates
+and uses a bounded binary search to find the largest completed-root window whose
+Pattern, used, emitted, and missing counters all convert with
+`longValueExact()`. That recipe-specific limit is persisted with every job.
+
+Child jobs consume capacity already reserved by the parent. The submission
+thread carries both Advanced AE's long-compatible allowance and the exact
+BigInteger child reservation; the ordinary reservation is removed as soon as
+the child CPU is bound to its parent transaction. This prevents transient
+double charging without granting capacity to unrelated submissions.
+
+Provider and recipe generation numbers are process-local. Job schema 5 stores a
+process epoch and a normalized SHA-256 fingerprint of the deterministic AEKey
+program. A change during the same process invalidates immediately. After a
+restart, ACO recompiles the root and resumes only if its fingerprint exactly
+matches; legacy jobs without this proof fail closed.
 
 `BigCapacityCraftingPlan` handles a narrower interoperable boundary: all AEKey
 quantities and Pattern execution counts remain exact signed `long` values, while

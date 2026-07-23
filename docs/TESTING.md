@@ -45,7 +45,8 @@ world:
   fallback, Shadow qualification, and generation-local rejection;
 - capacity reservation, multiple-job rotation, bounded execution windows,
   waiting-output completion, clean cancellation, quarantine retention, long-job
-  migration, runtime UUID persistence, and count-memory rejection;
+  migration, runtime UUID persistence, per-recipe window persistence,
+  parent-owned child allowance isolation, and count-memory rejection;
 - status page round trips, protocol validation, malformed/trailing packet
   rejection, entry bounds, magnitude bounds, and packet-size bounds;
 - V2 source/target receipt transitions, explicit extraction, energy, and
@@ -96,7 +97,7 @@ one child feature at a time.
 | 3 | GTCEu adapter | Exact item/fluid recipes conserve inputs, outputs, task progress, waiting state, and energy through block, power, chunk, and restart failures. |
 | 4 | Mekanism adapter | Repeat Stage 3 for item, fluid, gas, infusion, pigment, slurry, and factory processes. |
 | 5 | Fair scheduler | At least three jobs and two CPU implementations all progress under operation and elapsed-time pressure. |
-| 6 | BigInteger API consumer | Long boundary, 64/128/1024-digit counts, multiple jobs, cancellation, restart, chunk reload, structure reform, and paged status all remain exact. |
+| 6 | BigInteger API consumer | Long boundary, 64/128/1024-digit counts, multiple jobs, exact parent/child reservation accounting, cancellation, restart fingerprint validation, chunk reload, structure reform, and paged status all remain exact. |
 
 For V2, kill the copied server independently while each source state is current:
 

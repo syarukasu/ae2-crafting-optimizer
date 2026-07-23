@@ -83,13 +83,6 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 return null;
             }
             CompiledRootProgram<AEKey> program = optionalProgram.get();
-            // 同じ世代のAE2 Shadow結果と十分に一致するまで、Programは観測専用に留める。
-            if (!CompiledRootQualificationRegistry.isQualified(
-                    program,
-                    ACOConfig.getAuthoritativeMinimumShadowMatches())) {
-                return null;
-            }
-
             Ae2StrictCraftingTopology topology = graphSnapshot
                     .strictTopology(capture.level(), capture.grid(), program)
                     .orElse(null);
@@ -97,12 +90,25 @@ public final class Ae2AuthoritativeCraftingPlanner {
             if (topology == null || !topology.acceptsInventory(capture.inventorySnapshot())) {
                 return null;
             }
+            boolean wideArithmeticRequired = topology.mightRequireWideArithmetic(
+                    output,
+                    BigInteger.valueOf(requestedAmount),
+                    ACOConfig.getBigIntegerMaximumBits());
+            boolean shadowQualified = CompiledRootQualificationRegistry.isQualified(
+                    program,
+                    ACOConfig.getAuthoritativeMinimumShadowMatches());
+            /*
+             * 通常計画は同世代のAE2 Shadow一致を必須にする。
+             * AE2自身が完走できないlong超過計画だけは、設定で許可した場合に限り、
+             * 厳密Topology・世代・参照在庫の証明をShadowの代わりに使う。
+             */
+            if (!shadowQualified
+                    && (!wideArithmeticRequired
+                            || ACOConfig.requireAqeBigPlanShadowQualification())) {
+                return null;
+            }
             // Atomic専用運用では、wide演算が不要な通常注文を直ちにAE2へ戻す。
-            if (!ACOConfig.enableAuthoritativeCompiledPlanner()
-                    && !topology.mightRequireWideArithmetic(
-                            output,
-                            BigInteger.valueOf(requestedAmount),
-                            ACOConfig.getBigIntegerMaximumBits())) {
+            if (!ACOConfig.enableAuthoritativeCompiledPlanner() && !wideArithmeticRequired) {
                 return null;
             }
 
@@ -132,72 +138,35 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 return null;
             }
             NormalizedPlan symbolic = normalize(promoted);
-            // 個別AEKey量またはPattern回数がlongを超える計画は標準AE2 Jobへ載せない。
-            if (symbolic == null) {
-                return null;
-            }
-            // CRAFT_LESSの部分成功探索はAE2へ任せ、近似した出力量を返さない。
-            if (!symbolic.craftable() && strategy == CalculationStrategy.CRAFT_LESS) {
-                return null;
-            }
-
-            Map<IPatternDetails, Long> patternTimes = new LinkedHashMap<>();
-            // fingerprint IDを同じ世代Snapshotの実IPatternDetailsへ戻す。
-            for (Map.Entry<String, Long> entry : symbolic.patternExecutions().entrySet()) {
-                IPatternDetails details = graphSnapshot.pattern(entry.getKey());
-                // Pattern参照欠落または0以下の実行回数は破損計画なので採用しない。
-                if (details == null || entry.getValue() <= 0L) {
-                    return null;
-                }
-                patternTimes.merge(details, entry.getValue(), Math::addExact);
-            }
-            // 設定した計画サイズを超える結果は同期・保存負荷を避けてAE2へ戻す。
-            if (patternTimes.size() > ACOConfig.getCraftingEngineShadowMaximumPatterns()) {
-                return null;
-            }
-
-            BigInteger exactBytes = topology.calculateBigExactBytes(
-                    output,
-                    BigInteger.valueOf(requestedAmount),
-                    symbolic.bigPatternExecutions(),
-                    ACOConfig.getBigIntegerMaximumBits());
             ICraftingPlan result;
-            // 容量合計だけがlongを超える場合、個別カウンタはlongのままAQE Sidecarへ真値を渡す。
-            if (exactBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
-                // AQE BigInteger host連携が無効なら、標準AE2 CPUへ巨大容量を偽装しない。
-                if (!ACOConfig.enableAtomicBigCapacityPlans()) {
+            // 個別値がlongを超える場合、標準AE2 Jobへ丸めずAQE専用のBig親Jobを作る。
+            if (symbolic == null) {
+                result = createBigIntegerParentPlan(
+                        capture,
+                        graphSnapshot,
+                        program,
+                        topology,
+                        output,
+                        requestedAmount,
+                        strategy,
+                        promoted);
+                // 厳格な親Jobへ変換できない経路は、値を近似せずAE2本来の計算へ戻す。
+                if (result == null) {
                     return null;
                 }
-                result = new BigCapacityCraftingPlan(
-                        new GenericStack(output, requestedAmount),
-                        !symbolic.craftable(),
-                        false,
-                        keyCounter(symbolic.usedInventory()),
-                        keyCounter(symbolic.emitted()),
-                        keyCounter(symbolic.missing()),
-                        Map.copyOf(patternTimes),
-                        exactBytes,
-                        capture.patternGeneration(),
-                        capture.recipeGeneration());
             } else {
-                boolean wideInputAggregate = symbolic.hasAggregatePastLong();
-                // 全集計もlong内なら、通常計画の置換はAuthoritative設定ON時だけ有効にする。
-                if (!wideInputAggregate && !ACOConfig.enableAuthoritativeCompiledPlanner()) {
+                result = createLongFacadePlan(
+                        capture,
+                        graphSnapshot,
+                        topology,
+                        output,
+                        requestedAmount,
+                        strategy,
+                        symbolic);
+                // AtomicまたはAuthoritative設定で採用できない通常計画はAE2へ戻す。
+                if (result == null) {
                     return null;
                 }
-                // 個別値はlongでも総入力がlongを超える計画は、Atomic設定OFFならAE2へ戻す。
-                if (wideInputAggregate && !ACOConfig.enableAtomicBigCapacityPlans()) {
-                    return null;
-                }
-                result = new CraftingPlan(
-                        new GenericStack(output, requestedAmount),
-                        exactBytes.longValueExact(),
-                        !symbolic.craftable(),
-                        false,
-                        keyCounter(symbolic.usedInventory()),
-                        keyCounter(symbolic.emitted()),
-                        keyCounter(symbolic.missing()),
-                        Map.copyOf(patternTimes));
             }
 
             capture.requireCurrentGenerations();
@@ -223,6 +192,142 @@ public final class Ae2AuthoritativeCraftingPlanner {
             logFallbackOnce(output, failure);
             return null;
         }
+    }
+
+    @Nullable
+    private static ICraftingPlan createBigIntegerParentPlan(
+            Capture capture,
+            Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot,
+            CompiledRootProgram<AEKey> program,
+            Ae2StrictCraftingTopology topology,
+            AEKey output,
+            long requestedAmount,
+            CalculationStrategy strategy,
+            OverflowPromotingCraftingPlanner.Result<AEKey> promoted) {
+        // 個別long超過はBigInteger Plannerの正確な結果からだけ親Jobへ変換する。
+        if (!(promoted instanceof OverflowPromotingCraftingPlanner.BigResult<AEKey> bigResult)
+                || !ACOConfig.enableBigIntegerGameplayExecution()) {
+            return null;
+        }
+        BigCraftingPlan<AEKey> exactPlan = bigResult.plan();
+        // CRAFT_LESSはAE2固有の部分成功探索を持つため、ACOが近似した結果へ置き換えない。
+        if (!exactPlan.craftable() && strategy == CalculationStrategy.CRAFT_LESS) {
+            return null;
+        }
+
+        Map<IPatternDetails, BigInteger> exactPatternTimes = new LinkedHashMap<>();
+        // fingerprint IDを同じ世代Snapshot内の実Patternへ一対一で戻す。
+        for (Map.Entry<String, BigInteger> entry : exactPlan.patternExecutions().entrySet()) {
+            IPatternDetails details = graphSnapshot.pattern(entry.getKey());
+            // 欠損Patternまたは0回以下は永続親Jobへ載せない。
+            if (details == null || entry.getValue().signum() <= 0) {
+                return null;
+            }
+            exactPatternTimes.merge(details, entry.getValue(), BigInteger::add);
+        }
+        // 画面同期と保存のPattern種類数を既存の設定上限内へ保つ。
+        if (exactPatternTimes.size() > ACOConfig.getCraftingEngineShadowMaximumPatterns()) {
+            return null;
+        }
+
+        BigInteger requested = BigInteger.valueOf(requestedAmount);
+        BigInteger exactBytes = topology.calculateBigExactBytes(
+                output,
+                requested,
+                exactPlan.patternExecutions(),
+                ACOConfig.getBigIntegerMaximumBits());
+        Ae2BigCraftingPlanFactory.PreparedBigRootPlan prepared =
+                Ae2BigCraftingPlanFactory.prepareCompiledRoot(
+                        output,
+                        requested,
+                        exactPlan,
+                        exactBytes,
+                        program,
+                        capture.patternGeneration(),
+                        capture.recipeGeneration(),
+                        ACOConfig.getBigIntegerMaximumBits());
+        // 一回分すらAE2互換Windowへ写せない計画は提出可能Planとして返さない。
+        if (prepared == null) {
+            return null;
+        }
+        return new BigIntegerCraftingPlan(
+                new GenericStack(output, requestedAmount),
+                exactPlan,
+                exactPatternTimes,
+                prepared);
+    }
+
+    @Nullable
+    private static ICraftingPlan createLongFacadePlan(
+            Capture capture,
+            Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot,
+            Ae2StrictCraftingTopology topology,
+            AEKey output,
+            long requestedAmount,
+            CalculationStrategy strategy,
+            NormalizedPlan symbolic) {
+        // CRAFT_LESSの部分成功探索はAE2へ任せ、近似した出力量を返さない。
+        if (!symbolic.craftable() && strategy == CalculationStrategy.CRAFT_LESS) {
+            return null;
+        }
+
+        Map<IPatternDetails, Long> patternTimes = new LinkedHashMap<>();
+        // fingerprint IDを同じ世代Snapshotの実IPatternDetailsへ戻す。
+        for (Map.Entry<String, Long> entry : symbolic.patternExecutions().entrySet()) {
+            IPatternDetails details = graphSnapshot.pattern(entry.getKey());
+            // Pattern参照欠落または0以下の実行回数は破損計画なので採用しない。
+            if (details == null || entry.getValue() <= 0L) {
+                return null;
+            }
+            patternTimes.merge(details, entry.getValue(), Math::addExact);
+        }
+        // 設定した計画サイズを超える結果は同期・保存負荷を避けてAE2へ戻す。
+        if (patternTimes.size() > ACOConfig.getCraftingEngineShadowMaximumPatterns()) {
+            return null;
+        }
+
+        BigInteger exactBytes = topology.calculateBigExactBytes(
+                output,
+                BigInteger.valueOf(requestedAmount),
+                symbolic.bigPatternExecutions(),
+                ACOConfig.getBigIntegerMaximumBits());
+        // 容量合計だけがlongを超える場合、個別カウンタはlongのままAQE Sidecarへ真値を渡す。
+        if (exactBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
+            // AQE BigInteger host連携が無効なら、標準AE2 CPUへ巨大容量を偽装しない。
+            if (!ACOConfig.enableAtomicBigCapacityPlans()) {
+                return null;
+            }
+            return new BigCapacityCraftingPlan(
+                    new GenericStack(output, requestedAmount),
+                    !symbolic.craftable(),
+                    false,
+                    keyCounter(symbolic.usedInventory()),
+                    keyCounter(symbolic.emitted()),
+                    keyCounter(symbolic.missing()),
+                    Map.copyOf(patternTimes),
+                    exactBytes,
+                    capture.patternGeneration(),
+                    capture.recipeGeneration());
+        }
+
+        boolean wideInputAggregate = symbolic.hasAggregatePastLong();
+        // 全集計もlong内なら、通常計画の置換はAuthoritative設定ON時だけ有効にする。
+        if (!wideInputAggregate && !ACOConfig.enableAuthoritativeCompiledPlanner()) {
+            return null;
+        }
+        // 個別値はlongでも総入力がlongを超える計画は、Atomic設定OFFならAE2へ戻す。
+        if (wideInputAggregate && !ACOConfig.enableAtomicBigCapacityPlans()) {
+            return null;
+        }
+        return new CraftingPlan(
+                new GenericStack(output, requestedAmount),
+                exactBytes.longValueExact(),
+                !symbolic.craftable(),
+                false,
+                keyCounter(symbolic.usedInventory()),
+                keyCounter(symbolic.emitted()),
+                keyCounter(symbolic.missing()),
+                Map.copyOf(patternTimes));
     }
 
     private static boolean planningEnabled() {
