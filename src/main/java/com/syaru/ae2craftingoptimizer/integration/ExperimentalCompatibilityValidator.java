@@ -26,7 +26,9 @@ public final class ExperimentalCompatibilityValidator {
     }
 
     public static void validateEnabledFeatures() {
-        if (!ACOConfig.enableExperimentalCraftingEngine()) {
+        // Experimental全体またはAQE専用経路のどちらも無効なら、深いMixin契約の監査は不要。
+        if (!ACOConfig.enableExperimentalCraftingEngine()
+                && !ACOConfig.enableAqeBigCraftingProfile()) {
             return;
         }
         List<String> failures = new ArrayList<>();

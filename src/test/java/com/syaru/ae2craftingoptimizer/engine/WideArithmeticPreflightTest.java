@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class WideArithmeticPreflightTest {
@@ -52,6 +53,41 @@ class WideArithmeticPreflightTest {
                 "result",
                 BigInteger.valueOf(1_000L),
                 Map.of("result", root),
+                ignored -> 8L,
+                256));
+    }
+
+    @Test
+    void detectsWideDemandAfterTwoBranchesConvergeOnOneIntermediate() {
+        long halfPastSignedLong = (Long.MAX_VALUE / 2L) + 1L;
+        CompiledPattern<String> root = pattern(
+                "root",
+                List.of(stack("branch_a", 1L), stack("branch_b", 1L)),
+                "result");
+        CompiledPattern<String> branchA = pattern(
+                "branch_a",
+                List.of(stack("shared", halfPastSignedLong)),
+                "branch_a");
+        CompiledPattern<String> branchB = pattern(
+                "branch_b",
+                List.of(stack("shared", halfPastSignedLong)),
+                "branch_b");
+        CompiledPattern<String> shared = pattern(
+                "shared",
+                List.of(stack("raw", 1L)),
+                "shared");
+        CompiledCraftingGraph<String> graph =
+                CompiledCraftingGraph.compile(1L, List.of(root, branchA, branchB, shared));
+        CompiledRootProgram<String> program = CompiledRootProgram.tryCompile(
+                        graph,
+                        "result",
+                        Set.of()::contains)
+                .orElseThrow();
+
+        assertTrue(WideArithmeticPreflight.requiresWideArithmetic(
+                "result",
+                BigInteger.ONE,
+                program,
                 ignored -> 8L,
                 256));
     }

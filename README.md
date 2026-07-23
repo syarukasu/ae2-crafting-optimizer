@@ -56,10 +56,13 @@ Legacy `defaultconfigs` and per-world `serverconfig` files are no longer read.
 
 Back up the world before enabling disabled-by-default deep rewrites. See [Configuration](docs/CONFIGURATION.md), [Implementation](docs/IMPLEMENTATION.md), and [Testing](docs/TESTING.md).
 
-The development tree also contains a disabled next-generation checked
-long/BigInteger planner, durable GTCEu/Mekanism native batching protocol, fair
-multi-job scheduler, versioned BigInteger CPU-host API, and bounded status
-channel. These are source-complete foundations, not live defaults. Read
+The development tree also contains a checked long/BigInteger planner, durable
+GTCEu/Mekanism native batching protocol, fair multi-job scheduler, versioned
+BigInteger CPU-host API, and bounded status channel. The AQE-only planning and
+execution profile is enabled by default only when both Advanced AE and Advanced
+Quantum Engineering are installed. Native machine batching, general
+authoritative plan replacement, and unrelated deep rewrites remain disabled.
+Read
 [Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md) before testing them.
 The current source carries the `1.4.1` patch version while P0-P8 are reviewed;
 P9 startup, recovery, multiplayer, and long-running world tests are deliberately
@@ -70,7 +73,7 @@ not claimed by this source revision. See
 
 ACO does not silently convert normal AE2 or Advanced AE CPUs to BigInteger.
 `BigCraftingEngineApi` is an explicit sidecar API for a separately integrating
-CPU add-on. AQE 2.0.1 is the current optional consumer. It keeps large counts in
+CPU add-on. AQE 2.1.2 is the current optional consumer. It keeps large counts in
 `BigInteger`, promotes only after checked-long overflow, gives existing machine
 APIs bounded execution windows, persists a versioned multi-job capacity ledger,
 and sends paged status through a separate strict protocol. The configured bit
@@ -83,10 +86,14 @@ For deterministic roots, ACO now compiles the reachable Pattern DAG once per
 provider/recipe generation into primitive-indexed arrays. Runtime work is
 proportional to the number of reached recipe nodes rather than the requested
 quantity, captures only referenced inventory keys, and restarts with
-`BigInteger` only after checked-long overflow. Complete Shadow accounting must
-match AE2 64 times by default before that root can become authoritative.
+`BigInteger` only after checked-long overflow. Ordinary authoritative
+replacement still requires 64 complete Shadow matches by default. A true
+long-overflow AQE plan cannot complete in AE2 for comparison, so its default
+qualification instead requires a strict deterministic topology, current
+provider/recipe generations, and referenced-inventory revalidation.
 
-With the experimental master enabled, `enableAtomicBigCapacityPlans` also covers
+With the AQE profile or experimental master enabled,
+`enableAtomicBigCapacityPlans` also covers
 the narrower standard-GUI case where every distinct AEKey and Pattern count fits
 signed `long`, but their aggregate does not. ACO keeps each counter exact, uses
 BigInteger only for checked aggregate calculation, and stores an over-`long` CPU
@@ -94,8 +101,10 @@ capacity reservation in an integrated AQE host. Standard AE2 CPUs cannot accept
 that Big-capacity facade.
 
 The host API is enabled by default because it has no effect until an explicitly
-integrated CPU registers a host. The compiled planner, native batching, fair
-scheduler, and other behavior-changing engine switches remain default-off.
+integrated CPU registers a host. The AQE profile enables only the compiled
+graph, Shadow observation, checked arithmetic, exact wide-plan boundary, and
+windowed BigInteger execution. Native batching, general authoritative
+replacement, and unrelated behavior-changing switches remain default-off.
 Complete the documented copied-world recovery matrix before enabling those
 deep rewrites on a production world. The experimental master is
 fail-fast pinned to AE2 `15.4.10`; version-sensitive

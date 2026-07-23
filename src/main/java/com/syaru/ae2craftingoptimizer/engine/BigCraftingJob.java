@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -14,7 +15,7 @@ import net.minecraft.nbt.Tag;
  * 保存上の残量はBigIntegerのまま維持し、機械へ渡す時だけ上限付きlong実行Windowとして貸し出す。
  */
 public final class BigCraftingJob<K> {
-    public static final int SCHEMA_VERSION = 3;
+    public static final int SCHEMA_VERSION = 5;
     public static final long MAX_EXECUTIONS_PER_WINDOW = 1_048_576L;
     /**
      * BigInteger注文を標準AE2 Jobへ分割する時だけ使う予約済みTask ID。
@@ -22,6 +23,8 @@ public final class BigCraftingJob<K> {
      */
     public static final String ROOT_WINDOW_TASK_ID = "aco:root-window-v1";
     private static final int MAX_ENTRIES = 1_048_576;
+    /** SHA-256と将来の接頭辞を十分収めつつ、不正NBTによる巨大文字列を拒否する。 */
+    private static final int MAX_PLANNING_METADATA_LENGTH = 128;
 
     private final UUID id;
     private final K requestedKey;
@@ -29,6 +32,9 @@ public final class BigCraftingJob<K> {
     private final BigInteger reservedCapacity;
     private final long patternGeneration;
     private final long recipeGeneration;
+    private final long maximumExecutionsPerWindow;
+    private final String planningEpoch;
+    private final String programFingerprint;
     private final Map<String, BigCraftingTaskProgress> tasks;
     private final BigCraftingInventory<K> waitingFor;
     private BigInteger remainingExecutionTotal;
@@ -54,7 +60,10 @@ public final class BigCraftingJob<K> {
                 State.PLANNED,
                 null,
                 -1L,
-                -1L);
+                -1L,
+                MAX_EXECUTIONS_PER_WINDOW,
+                "",
+                "");
     }
 
     /**
@@ -67,7 +76,13 @@ public final class BigCraftingJob<K> {
             BigInteger requestedAmount,
             BigInteger reservedCapacity) {
         return rootWindowed(
-                id, requestedKey, requestedAmount, reservedCapacity, -1L, -1L);
+                id,
+                requestedKey,
+                requestedAmount,
+                reservedCapacity,
+                -1L,
+                -1L,
+                MAX_EXECUTIONS_PER_WINDOW);
     }
 
     public static <K> BigCraftingJob<K> rootWindowed(
@@ -77,6 +92,48 @@ public final class BigCraftingJob<K> {
             BigInteger reservedCapacity,
             long patternGeneration,
             long recipeGeneration) {
+        return rootWindowed(
+                id,
+                requestedKey,
+                requestedAmount,
+                reservedCapacity,
+                patternGeneration,
+                recipeGeneration,
+                MAX_EXECUTIONS_PER_WINDOW,
+                "",
+                "");
+    }
+
+    public static <K> BigCraftingJob<K> rootWindowed(
+            UUID id,
+            K requestedKey,
+            BigInteger requestedAmount,
+            BigInteger reservedCapacity,
+            long patternGeneration,
+            long recipeGeneration,
+            long maximumExecutionsPerWindow) {
+        return rootWindowed(
+                id,
+                requestedKey,
+                requestedAmount,
+                reservedCapacity,
+                patternGeneration,
+                recipeGeneration,
+                maximumExecutionsPerWindow,
+                "",
+                "");
+    }
+
+    public static <K> BigCraftingJob<K> rootWindowed(
+            UUID id,
+            K requestedKey,
+            BigInteger requestedAmount,
+            BigInteger reservedCapacity,
+            long patternGeneration,
+            long recipeGeneration,
+            long maximumExecutionsPerWindow,
+            String planningEpoch,
+            String programFingerprint) {
         if (patternGeneration < -1L || recipeGeneration < -1L) {
             throw new IllegalArgumentException("planning generations must be -1 or non-negative");
         }
@@ -90,7 +147,10 @@ public final class BigCraftingJob<K> {
                 State.PLANNED,
                 null,
                 patternGeneration,
-                recipeGeneration);
+                recipeGeneration,
+                maximumExecutionsPerWindow,
+                planningEpoch,
+                programFingerprint);
     }
 
     /** Lossless migration entry point for an add-on's existing signed-long job state. */
@@ -128,7 +188,10 @@ public final class BigCraftingJob<K> {
                 State.PLANNED,
                 null,
                 -1L,
-                -1L);
+                -1L,
+                MAX_EXECUTIONS_PER_WINDOW,
+                "",
+                "");
     }
 
     private BigCraftingJob(
@@ -141,7 +204,10 @@ public final class BigCraftingJob<K> {
             State state,
             PreparedExecution preparedExecution,
             long patternGeneration,
-            long recipeGeneration) {
+            long recipeGeneration,
+            long maximumExecutionsPerWindow,
+            String planningEpoch,
+            String programFingerprint) {
         this.id = Objects.requireNonNull(id, "id");
         this.requestedKey = Objects.requireNonNull(requestedKey, "requestedKey");
         this.requestedAmount = positive(requestedAmount, "requestedAmount");
@@ -151,6 +217,20 @@ public final class BigCraftingJob<K> {
         }
         this.patternGeneration = patternGeneration;
         this.recipeGeneration = recipeGeneration;
+        if (maximumExecutionsPerWindow <= 0L
+                || maximumExecutionsPerWindow > MAX_EXECUTIONS_PER_WINDOW) {
+            throw new IllegalArgumentException(
+                    "maximumExecutionsPerWindow must be between 1 and "
+                            + MAX_EXECUTIONS_PER_WINDOW);
+        }
+        this.maximumExecutionsPerWindow = maximumExecutionsPerWindow;
+        this.planningEpoch = planningMetadata(planningEpoch, "planningEpoch");
+        this.programFingerprint = planningMetadata(programFingerprint, "programFingerprint");
+        // 再起動時の構造再検証には両方が必要なので、片方だけの保存状態を許可しない。
+        if (this.planningEpoch.isEmpty() != this.programFingerprint.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "planning epoch and program fingerprint must both be present or absent");
+        }
         this.tasks = new LinkedHashMap<>(Objects.requireNonNull(tasks, "tasks"));
         if (this.tasks.size() > MAX_ENTRIES) {
             throw new IllegalArgumentException("too many BigInteger crafting tasks");
@@ -160,6 +240,8 @@ public final class BigCraftingJob<K> {
         long taskBytes = Math.addExact(
                 BigCountMath.encodedBytes(this.requestedAmount),
                 BigCountMath.encodedBytes(this.reservedCapacity));
+        taskBytes = Math.addExact(taskBytes, utf8Length(this.planningEpoch));
+        taskBytes = Math.addExact(taskBytes, utf8Length(this.programFingerprint));
         for (BigCraftingTaskProgress task : this.tasks.values()) {
             taskBytes = Math.addExact(taskBytes, BigCountMath.encodedBytes(task.total()));
             taskBytes = Math.addExact(taskBytes, BigCountMath.encodedBytes(task.completed()));
@@ -190,7 +272,9 @@ public final class BigCraftingJob<K> {
             throw new IllegalStateException("pattern task is complete: " + patternId);
         }
         state = State.RUNNING;
-        preparedExecution = new PreparedExecution(UUID.randomUUID(), patternId, task.nextWindow(maximumExecutions));
+        long effectiveMaximum = Math.min(maximumExecutions, maximumExecutionsPerWindow);
+        preparedExecution = new PreparedExecution(
+                UUID.randomUUID(), patternId, task.nextWindow(effectiveMaximum));
         return preparedExecution;
     }
 
@@ -270,6 +354,9 @@ public final class BigCraftingJob<K> {
         tag.putString("state", state.name());
         tag.putLong("patternGeneration", patternGeneration);
         tag.putLong("recipeGeneration", recipeGeneration);
+        tag.putLong("maximumExecutionsPerWindow", maximumExecutionsPerWindow);
+        tag.putString("planningEpoch", planningEpoch);
+        tag.putString("programFingerprint", programFingerprint);
         if (preparedExecution != null) {
             CompoundTag prepared = new CompoundTag();
             prepared.putUUID("transaction", preparedExecution.transactionId());
@@ -324,7 +411,13 @@ public final class BigCraftingJob<K> {
         K requestedKey = Objects.requireNonNull(codec.decode(tag.getCompound("requestedKey")), "requestedKey");
         State state = parseState(tag.getString("state"));
         PreparedExecution prepared = schema >= 2 ? readPrepared(tag, maximumBits) : null;
-        validatePrepared(tasks, prepared);
+        long maximumExecutionsPerWindow = schema >= 4
+                ? tag.getLong("maximumExecutionsPerWindow")
+                : MAX_EXECUTIONS_PER_WINDOW;
+        String planningEpoch = schema >= 5 ? tag.getString("planningEpoch") : "";
+        String programFingerprint = schema >= 5 ? tag.getString("programFingerprint") : "";
+        validateWindowLimit(maximumExecutionsPerWindow);
+        validatePrepared(tasks, prepared, maximumExecutionsPerWindow);
         Map<K, BigInteger> waitingFor = readCounts(tag, "waitingFor", codec, maximumBits);
         validateLoadedState(tasks, waitingFor, state, prepared);
         return new BigCraftingJob<>(
@@ -337,7 +430,10 @@ public final class BigCraftingJob<K> {
                 state,
                 prepared,
                 schema >= 3 ? tag.getLong("patternGeneration") : -1L,
-                schema >= 3 ? tag.getLong("recipeGeneration") : -1L);
+                schema >= 3 ? tag.getLong("recipeGeneration") : -1L,
+                maximumExecutionsPerWindow,
+                planningEpoch,
+                programFingerprint);
     }
 
     public UUID id() {
@@ -362,6 +458,18 @@ public final class BigCraftingJob<K> {
 
     public long recipeGeneration() {
         return recipeGeneration;
+    }
+
+    public long maximumExecutionsPerWindow() {
+        return maximumExecutionsPerWindow;
+    }
+
+    public String planningEpoch() {
+        return planningEpoch;
+    }
+
+    public String programFingerprint() {
+        return programFingerprint;
     }
 
     public synchronized State state() {
@@ -573,9 +681,14 @@ public final class BigCraftingJob<K> {
 
     private static void validatePrepared(
             Map<String, BigCraftingTaskProgress> tasks,
-            PreparedExecution prepared) {
+            PreparedExecution prepared,
+            long maximumExecutionsPerWindow) {
         if (prepared == null) {
             return;
+        }
+        if (prepared.window().executions() > maximumExecutionsPerWindow) {
+            throw new IllegalArgumentException(
+                    "prepared execution exceeds the saved job window limit");
         }
         BigCraftingTaskProgress task = tasks.get(prepared.patternId());
         if (task == null || !task.completed().equals(prepared.window().offset())) {
@@ -589,6 +702,26 @@ public final class BigCraftingJob<K> {
                 || !expectedRemaining.equals(prepared.window().remainingAfter())) {
             throw new IllegalArgumentException("prepared execution has inconsistent bounds");
         }
+    }
+
+    private static void validateWindowLimit(long maximumExecutionsPerWindow) {
+        if (maximumExecutionsPerWindow <= 0L
+                || maximumExecutionsPerWindow > MAX_EXECUTIONS_PER_WINDOW) {
+            throw new IllegalArgumentException(
+                    "invalid BigInteger job execution-window limit");
+        }
+    }
+
+    private static String planningMetadata(String value, String name) {
+        String checked = Objects.requireNonNull(value, name);
+        if (checked.length() > MAX_PLANNING_METADATA_LENGTH) {
+            throw new IllegalArgumentException(name + " exceeds the saved metadata limit");
+        }
+        return checked;
+    }
+
+    private static long utf8Length(String value) {
+        return value.getBytes(StandardCharsets.UTF_8).length;
     }
 
     private static <K> void validateLoadedState(

@@ -1,6 +1,6 @@
 # ACO Team Development Specification
 
-この文書は、AE2 Crafting Optimizer（ACO）を複数人で開発するための共通仕様です。現行基準は `1.3.1` です。深い実験機能は既定で無効とし、有効化前にコピーしたワールドで復旧・ゲーム内試験を行います。
+この文書は、AE2 Crafting Optimizer（ACO）を複数人で開発するための共通仕様です。現行基準は `1.4.1` 開発ブランチです。AQE専用のchecked/BigInteger経路以外の深い実験機能は既定で無効とし、有効化前にコピーしたワールドで復旧・ゲーム内試験を行います。
 
 ## 製品定義
 
