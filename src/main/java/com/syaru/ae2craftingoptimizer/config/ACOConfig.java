@@ -59,6 +59,9 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue MINIMUM_SHARED_OPERATIONS_PER_CPU;
     private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_EXECUTION_THROTTLING;
     private static final ForgeConfigSpec.BooleanValue THROTTLE_NEO_ECO_AE_EXECUTION;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_APPLIED_E_COMPATIBILITY;
+    private static final ForgeConfigSpec.BooleanValue FORCE_AE2_PLANNER_FOR_APPLIED_E_PATTERNS;
+    private static final ForgeConfigSpec.BooleanValue TREAT_APPLIED_E_PROVIDER_AS_DYNAMIC;
     private static final ForgeConfigSpec.BooleanValue ENABLE_GRID_TICK_BUDGET;
     private static final ForgeConfigSpec.BooleanValue DEFER_HEAVY_GRID_TICKABLES;
     private static final ForgeConfigSpec.IntValue GRID_TICK_BUDGET_MILLIS_PER_SERVER_TICK;
@@ -328,6 +331,23 @@ public final class ACOConfig {
         builder.pop();
 
         builder.push("compatibility");
+        builder.push("appliedE");
+        ENABLE_APPLIED_E_COMPATIBILITY = builder
+                .comment(
+                        "Enable conservative compatibility for AppliedE and AppliedE TPS Fix.",
+                        "ACO does not replace EMC accounting or AppliedE's temporary-pattern lifecycle.")
+                .define("enableAppliedECompatibility", true);
+        FORCE_AE2_PLANNER_FOR_APPLIED_E_PATTERNS = builder
+                .comment(
+                        "Keep AppliedE TransmutationPattern routes on AE2's original planner.",
+                        "AppliedE creates request-sized temporary patterns inside AE2's crafting tree, so compiling them as fixed recipes would bypass required lifecycle hooks.")
+                .define("forceAe2PlannerForTransmutationPatterns", true);
+        TREAT_APPLIED_E_PROVIDER_AS_DYNAMIC = builder
+                .comment(
+                        "Treat AppliedE's EMC Module as a dynamic crafting provider.",
+                        "Repeated same-tick notifications are still coalesced, but ACO does not enumerate every EMC pattern merely to decide whether the final refresh may be discarded.")
+                .define("treatAppliedEProviderAsDynamic", true);
+        builder.pop();
         builder.push("neoEcoAe");
         THROTTLE_NEO_ECO_AE_EXECUTION = builder
                 .comment(
@@ -1013,6 +1033,18 @@ public final class ACOConfig {
 
     public static boolean throttleNeoEcoAeExecution() {
         return throttleCraftingExecution() && THROTTLE_NEO_ECO_AE_EXECUTION.get();
+    }
+
+    public static boolean enableAppliedECompatibility() {
+        return enableOptimizer() && ENABLE_APPLIED_E_COMPATIBILITY.get();
+    }
+
+    public static boolean forceAe2PlannerForAppliedEPatterns() {
+        return enableAppliedECompatibility() && FORCE_AE2_PLANNER_FOR_APPLIED_E_PATTERNS.get();
+    }
+
+    public static boolean treatAppliedEProviderAsDynamic() {
+        return enableAppliedECompatibility() && TREAT_APPLIED_E_PROVIDER_AS_DYNAMIC.get();
     }
 
     public static boolean enableGridTickBudget() {

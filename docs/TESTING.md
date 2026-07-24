@@ -60,6 +60,30 @@ An automated pass is necessary but not sufficient. Tests do not instantiate
 real GTCEu/Mekanism machines, transformed Forge classes, an Arclight server, or
 a multiplayer client.
 
+## AppliedE Compatibility Matrix
+
+Run the matrix separately with original AppliedE `0.14.3` and AppliedE TPS Fix
+`0.14.7-fix2`; never install both because they use the same mod ID.
+
+1. Install the selected AppliedE build and its ProjectE requirements on the
+   dedicated server and every client.
+2. Confirm startup reports `ACO AppliedE compatibility: detected ...` without a
+   missing-class or Mixin error.
+3. Add and remove an EMC Module, change the owning player's knowledge, and run a
+   datapack reload. Confirm the terminal craftable set updates each time.
+4. Request one known EMC item, then a large quantity of it. Confirm AppliedE
+   consumes the exact EMC, creates the exact output, and the AE2 CPU finishes.
+5. Cancel from the confirmation screen and cancel a submitted job. Confirm no
+   temporary transmutation pattern remains craftable afterward.
+6. Enable the experimental Compiled Graph, Shadow, authoritative, atomic
+   capacity, and BigInteger host paths. Repeat the request and confirm AppliedE
+   still uses AE2's original calculation rather than an ACO compiled plan.
+7. Run `/aco stats`. `AppliedE compatibility` fallback and provider-refresh
+   counters must increase; Shadow mismatch count must not increase solely from
+   the excluded transmutation route.
+8. Restart and repeat with the other AppliedE implementation. Compare EMC,
+   outputs, CPU completion, and craftable visibility with an ACO-disabled run.
+
 ## Experimental Runtime Matrix
 
 Do not combine the rows on the first pass. Begin from a copied world and enable

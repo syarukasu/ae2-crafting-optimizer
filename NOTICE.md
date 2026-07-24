@@ -35,6 +35,23 @@ Specific public design references include:
 
 ACO is not a port or fork of AE2-UEL. No AE2 or AE2-UEL source files, textures, models, translations, or binaries are vendored in this repository. ACO contains independently implemented compatibility and optimization code for Forge 1.20.1 and falls back to the installed mods' original behavior when its optional fast paths cannot validate a candidate.
 
+## AppliedE Compatibility Research
+
+ACO 1.4.1 contains an independently implemented optional compatibility boundary
+for AppliedE's dynamic EMC crafting patterns. No AppliedE source, asset, or
+binary is copied or bundled.
+
+- Original project: https://github.com/62832/AppliedE
+- Source-reviewed release: `0.14.3`
+- Performance fork: https://github.com/BOLTMAGIC/AppliedE
+- Source-reviewed fork release: `0.14.7-fix2`
+- Repository license at time of review: GNU Lesser General Public License v3.0
+
+Both implementations retain ownership of EMC accounting, player knowledge,
+temporary transmutation-pattern creation, output insertion, and lifecycle
+cleanup. ACO only recognizes their shared public class boundary and returns
+those patterns to AE2's original crafting planner.
+
 ## Neo ECO AE Extension
 
 ACO 1.1.1 includes an independently implemented optional compatibility Mixin for Neo ECO AE Extension 20.3.x. The published 20.3.0 artifact is used only as a `compileOnly` target to validate class and method signatures. It is not bundled or redistributed by ACO.

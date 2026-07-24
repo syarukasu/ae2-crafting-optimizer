@@ -10,6 +10,33 @@ fair scheduler, and BigInteger CPU sidecar API are documented separately in
 behavior-changing switches remain disabled, and they are not part of the active
 1.2.2 behavior described below.
 
+## AppliedE Compatibility Boundary
+
+AppliedE `0.14.3` and AppliedE TPS Fix `0.14.7-fix2` use the same mod ID and
+shared implementation names. Their `TransmutationPattern` is not a fixed AE2
+recipe: AppliedE replaces it inside `CraftingTreeNode` with a request-sized
+temporary pattern, publishes that pattern through its `KnowledgeService`, and
+removes it after completion or cancellation.
+
+ACO therefore applies three conservative rules when `appliede` is present:
+
+1. `TransmutationPattern` is marked incompletely compiled before its inputs are
+   fingerprinted, so Compiled, Shadow, authoritative, atomic-capacity, and
+   BigInteger planning all return to AE2.
+2. A root touching that excluded output is rejected before Shadow evaluation.
+   The excluded recipe cannot be misread as an ordinary missing terminal.
+3. `EMCModulePart` is treated as a dynamic provider. Same-tick requests are
+   still coalesced by node identity, but the final request is always delivered
+   and advances ACO's provider generation without enumerating every known EMC
+   pattern for equality.
+4. A completed plan containing `TransmutationPattern` is never retained in
+   ACO's completed-plan cache. A later request must run AppliedE's temporary
+   registration lifecycle again.
+
+The integration uses only AE2 interfaces and exact class-name guards. AppliedE
+is neither a hard dependency nor a compile-time dependency, and ACO never reads
+or mutates EMC, knowledge, provider output queues, or temporary-pattern state.
+
 ## 1.3.1 Implementation Boundary
 
 The development backend is additive. It does not replace AE2's standard
