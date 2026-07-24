@@ -20,7 +20,10 @@ class BigCraftingJobTest {
                 BigInteger.TEN.pow(64).subtract(BigInteger.ONE),
                 BigInteger.valueOf(123),
                 456L,
-                789L);
+                789L,
+                65_536L,
+                "runtime-epoch",
+                "0123456789abcdef");
 
         BigCraftingJob<String> restored = BigCraftingJob.load(job.save(STRINGS, 1024), STRINGS, 1024);
 
@@ -28,7 +31,32 @@ class BigCraftingJobTest {
         assertEquals(456L, restored.patternGeneration());
         assertEquals(789L, restored.recipeGeneration());
         assertEquals(job.requestedAmount(), restored.requestedAmount());
+        assertEquals("runtime-epoch", restored.planningEpoch());
+        assertEquals("0123456789abcdef", restored.programFingerprint());
     }
+
+    @Test
+    void recipeSpecificWindowLimitSurvivesPersistenceAndCapsDispatch() {
+        long safeRecipeWindow = 3L;
+        BigCraftingJob<String> job = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(),
+                "output",
+                BigInteger.valueOf(100L),
+                BigInteger.valueOf(1_000L),
+                12L,
+                34L,
+                safeRecipeWindow);
+
+        BigCraftingJob<String> restored =
+                BigCraftingJob.load(job.save(STRINGS, 1024), STRINGS, 1024);
+        BigCraftingJob.PreparedExecution prepared = restored.prepareWindow(
+                BigCraftingJob.ROOT_WINDOW_TASK_ID,
+                BigCraftingJob.MAX_EXECUTIONS_PER_WINDOW);
+
+        assertEquals(safeRecipeWindow, restored.maximumExecutionsPerWindow());
+        assertEquals(safeRecipeWindow, prepared.window().executions());
+    }
+
     @Test
     void migratesSignedLongJobStateWithoutNarrowing() {
         BigCraftingJob<String> job = BigCraftingJob.fromLong(

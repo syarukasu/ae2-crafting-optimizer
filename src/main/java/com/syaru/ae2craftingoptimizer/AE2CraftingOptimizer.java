@@ -210,8 +210,9 @@ public final class AE2CraftingOptimizer {
                 ACOConfig.coalesceAssemblerMatrixStatusUpdates());
         logDeepRewriteFlags();
         LOGGER.info(
-                "ACO experimental crafting engine: {} (shadow {}, compiled graph {}, transaction V2 {}, GT native {}, Mekanism native {}, fair scheduler {}, persistent journal {})",
+                "ACO experimental crafting engine: {} (AQE profile {}, shadow {}, compiled graph {}, transaction V2 {}, GT native {}, Mekanism native {}, fair scheduler {}, persistent journal {})",
                 ACOConfig.enableExperimentalCraftingEngine(),
+                ACOConfig.enableAqeBigCraftingProfile(),
                 ACOConfig.enableCraftingEngineShadowMode(),
                 ACOConfig.enableCompiledCraftingGraph(),
                 ACOConfig.enableTransactionalBatchingV2(),
@@ -220,8 +221,10 @@ public final class AE2CraftingOptimizer {
                 ACOConfig.enableFairCraftingJobScheduler(),
                 ACOConfig.persistBatchTransactionJournal());
         LOGGER.info(
-                "ACO BigInteger backend: {} (API {}, protocol {}, max {} bits, execution window {}, status page {}, count budget {} MiB)",
+                "ACO BigInteger backend: {} (atomic plans {}, gameplay execution {}, API {}, protocol {}, max {} bits, execution window {}, status page {}, count budget {} MiB)",
                 ACOConfig.enableBigIntegerCraftingBackend(),
+                ACOConfig.enableAtomicBigCapacityPlans(),
+                ACOConfig.enableBigIntegerGameplayExecution(),
                 com.syaru.ae2craftingoptimizer.api.big.BigCraftingEngineApi.API_VERSION,
                 BigCraftingNetwork.PROTOCOL,
                 ACOConfig.getBigIntegerMaximumBits(),

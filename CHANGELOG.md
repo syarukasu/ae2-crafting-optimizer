@@ -4,6 +4,41 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added an AQE-only BigInteger profile. It activates only when both Advanced AE
+  and Advanced Quantum Engineering are loaded, leaving unrelated AE2 and
+  Advanced AE installations on their existing defaults.
+- Added exact parent plans for deterministic crafts whose per-key or per-pattern
+  counts exceed signed `long`. The parent retains `BigInteger` accounting and
+  submits only recipe-specific, checked-long child windows to Advanced AE.
+- Persisted each BigInteger root's safe child-window limit, process epoch, and
+  canonical compiled-program fingerprint. Unchanged jobs can be verified after
+  restart without trusting process-local generation numbers.
+- Added AQE host job counts to the optional API so AQE can display standard and
+  BigInteger jobs without counting managed child windows twice.
+
+### Changed
+
+- Enabled compiled graph construction, Shadow observation, checked arithmetic,
+  atomic wide-capacity plans, and BigInteger gameplay execution by default only
+  inside the AQE profile. General authoritative plan replacement and native
+  GTCEu/Mekanism batching remain disabled.
+- True long-overflow roots may use strict topology, current-generation, and
+  referenced-inventory proof without first accumulating an impossible AE2
+  Shadow comparison. Administrators can restore mandatory Shadow qualification
+  with `requireAqeBigPlanShadowQualification`.
+
+### Fixed
+
+- Prevented a BigInteger parent job's child window from being charged twice
+  while Advanced AE creates its temporary logical CPU.
+- Derived and persisted the maximum safe execution window per recipe, preventing
+  a globally configured `65,536` wave from overflowing an individual item,
+  fluid, chemical, or pattern counter.
+- Preserved converging shared-intermediate demand during wide-arithmetic
+  preflight instead of replacing an earlier branch's execution count.
+
 ## [1.4.1] - 2026-07-23
 
 ### Added

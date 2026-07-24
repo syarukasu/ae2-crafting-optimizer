@@ -9,6 +9,7 @@ import appeng.crafting.execution.CraftingSubmitResult;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
+import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -26,7 +27,8 @@ public abstract class CraftingCpuClusterBigCapacityGuardMixin
             ICraftingRequester requester,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
         // Long.MAXは真の容量ではないため、対応Sidecarを持たない標準CPUでは実行しない。
-        if (plan instanceof BigCapacityCraftingPlan) {
+        if (plan instanceof BigCapacityCraftingPlan
+                || plan instanceof BigIntegerCraftingPlan) {
             cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
         }
     }
