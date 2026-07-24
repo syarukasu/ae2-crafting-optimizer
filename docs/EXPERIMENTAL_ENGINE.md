@@ -70,6 +70,7 @@ batchTransactionJournalMaximumEntries = 16384
 batchTransactionReconciliationIntervalTicks = 20
 nativeBatchMaximumExecutions = 65536
 enableBigIntegerCraftingBackend = true
+enableExactBigIntegerInventorySnapshots = true
 enableAtomicBigCapacityPlans = true
 enableBigIntegerGameplayExecution = true
 bigIntegerMaximumBits = 256
@@ -143,14 +144,16 @@ unchanged. A CPU add-on must explicitly consume the ACO API before a BigInteger
 job can become gameplay-visible. AQE 2.1.2 optionally consumes host API v3;
 neither mod requires the other to load.
 
-`enableAtomicBigCapacityPlans` handles the capacity-only overflow case.
-It accepts only deterministic plans whose individual AEKey quantities and
-Pattern execution counts still fit signed `long`. Distinct inputs whose combined
-amount exceeds `Long.MAX_VALUE` retain separate exact counters and a checked
-capacity calculation. If the aggregate CPU-byte sum also exceeds
-`Long.MAX_VALUE`, ACO stores the exact reservation in AQE's BigInteger host
-sidecar. Any per-key overflow, ambiguous recipe, generation change, or non-AQE
-CPU for a Big-capacity plan fails closed. When one individual AEKey or Pattern
+`enableAtomicBigCapacityPlans` handles both individual and aggregate overflow.
+`enableExactBigIntegerInventorySnapshots` separates AE2's saturated
+`KeyCounter` facade from an exact identity sidecar while `NetworkStorage`
+collects mounted inventories. ExtendedAE Plus Infinity BigInteger Cells expose
+their private per-key BigInteger map through an optional ACO accessor; the
+third-party JAR is not modified and remains optional. Unknown or incomplete
+adapters make the authoritative planner fall back.
+
+Distinct inputs whose combined amount exceeds `Long.MAX_VALUE` retain separate
+exact counters and a checked capacity calculation. If one AEKey or Pattern
 counter also exceeds `long`, `BigIntegerCraftingPlan` transfers an exact parent
 job to AQE. A binary search derives the largest root window whose individual
 child counters remain losslessly convertible to signed `long`; that limit is

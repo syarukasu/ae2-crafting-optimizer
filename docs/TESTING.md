@@ -52,6 +52,9 @@ world:
 - int/long root-order boundary selection, exact `Long.MAX_VALUE` item and fluid
   unit conversion, out-of-range rejection, and checked existing-stock
   subtraction;
+- one-key inventory aggregation at `Long.MAX_VALUE + 1`, saturated non-negative
+  AE2 facades, exact ExtendedAE Plus BigInteger cell capture, and a deterministic
+  plan satisfied by stock above signed `long`;
 - V2 source/target receipt transitions, explicit extraction, energy, and
   per-output uncertainty barriers, rollback, bounded stale replay evidence,
   malformed-schema locking, and output cursors;

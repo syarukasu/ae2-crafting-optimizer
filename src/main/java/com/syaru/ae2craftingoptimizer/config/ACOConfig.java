@@ -190,6 +190,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue BATCH_TRANSACTION_RECONCILIATION_INTERVAL_TICKS;
     private static final ForgeConfigSpec.IntValue NATIVE_BATCH_MAXIMUM_EXECUTIONS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_CRAFTING_BACKEND;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_ATOMIC_BIG_CAPACITY_PLANS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_MAXIMUM_BITS;
@@ -808,10 +809,15 @@ public final class ACOConfig {
                         "Expose ACO's versioned BigInteger host and job backend to explicitly integrated CPU add-ons.",
                         "This does not patch normal AE2 CPUs. It is safe to leave enabled when no compatible host add-on is installed.")
                 .define("enableBigIntegerCraftingBackend", true);
+        ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS = builder
+                .comment(
+                        "Capture exact per-key BigInteger stock from supported storage add-ons while exposing a saturated long facade to AE2.",
+                        "This prevents KeyCounter overflow and allows ACO planning to use ExtendedAE Plus Infinity BigInteger Cell amounts above Long.MAX_VALUE.")
+                .define("enableExactBigIntegerInventorySnapshots", true);
         ENABLE_ATOMIC_BIG_CAPACITY_PLANS = builder
                 .comment(
-                        "Safely calculate plans whose individual AEKey and Pattern counts fit signed long, but whose aggregate input or exact CPU-byte cost exceeds Long.MAX_VALUE.",
-                        "Aggregate-input-only plans keep exact per-key long counters. Big CPU-byte plans additionally require an integrated AQE BigInteger host. Any individual count above signed long is never accepted.")
+                        "Safely calculate plans whose individual or aggregate AEKey counts, Pattern counts, or exact CPU-byte cost exceed Long.MAX_VALUE.",
+                        "Counts above signed long require an exact supported inventory snapshot and an integrated AQE BigInteger host; unsupported paths fall back without approximation.")
                 .define("enableAtomicBigCapacityPlans", true);
         ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION = builder
                 .comment(
@@ -1599,6 +1605,11 @@ public final class ACOConfig {
 
     public static boolean enableBigIntegerCraftingBackend() {
         return ENABLE_BIG_INTEGER_CRAFTING_BACKEND.get();
+    }
+
+    public static boolean enableExactBigIntegerInventorySnapshots() {
+        return enableBigIntegerCraftingBackend()
+                && ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS.get();
     }
 
     public static boolean enableAtomicBigCapacityPlans() {

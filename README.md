@@ -40,7 +40,7 @@ use AE2's original confirmation packet and menu path.
 
 ## Status
 
-Release `1.4.1` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
+Release `1.5.0` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
 and passed the complete automated test suite. P9 startup, recovery, multiplayer,
 and long-running live-world qualification remains operator-run. The optional Neo ECO integration is pinned to Neo ECO AE
 Extension `20.3.x`. ACO uses Mixins against mod internals, so do not assume
@@ -67,7 +67,7 @@ Quantum Engineering are installed. Native machine batching, general
 authoritative plan replacement, and unrelated deep rewrites remain disabled.
 Read
 [Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md) before testing them.
-The current source carries the `1.4.1` patch version while P0-P8 are reviewed;
+The current source carries the `1.5.0` version while P0-P8 are reviewed;
 P9 startup, recovery, multiplayer, and long-running world tests are deliberately
 not claimed by this source revision. See
 [P0-P8 implementation status](docs/P0_P8_IMPLEMENTATION_STATUS.md).
@@ -97,11 +97,14 @@ provider/recipe generations, and referenced-inventory revalidation.
 
 With the AQE profile or experimental master enabled,
 `enableAtomicBigCapacityPlans` also covers
-the narrower standard-GUI case where every distinct AEKey and Pattern count fits
-signed `long`, but their aggregate does not. ACO keeps each counter exact, uses
-BigInteger only for checked aggregate calculation, and stores an over-`long` CPU
-capacity reservation in an integrated AQE host. Standard AE2 CPUs cannot accept
-that Big-capacity facade.
+both aggregate overflow and deterministic plans where one AEKey or Pattern count
+exceeds signed `long`. `enableExactBigIntegerInventorySnapshots` keeps AE2's
+public `KeyCounter` saturated at `Long.MAX_VALUE` while an identity sidecar
+retains the exact per-key amount. ExtendedAE Plus Infinity BigInteger Cells are
+detected through an optional accessor; the dependency is not required. Unknown
+or incomplete exact-storage adapters fail back instead of treating a clamped
+value as exact. Standard AE2 CPUs cannot accept the resulting Big-capacity
+facade.
 
 The host API is enabled by default because it has no effect until an explicitly
 integrated CPU registers a host. The AQE profile enables only the compiled
@@ -694,7 +697,7 @@ Run:
 gradlew.bat clean build
 ```
 
-This branch generates `build/libs/ae2-crafting-optimizer-1.4.1.jar`. Building
+This branch generates `build/libs/ae2-crafting-optimizer-1.5.0.jar`. Building
 it does not authorize deployment or feature enablement before the runtime
 matrix is complete. GitHub Actions runs the same clean build for
 pushes and pull requests.

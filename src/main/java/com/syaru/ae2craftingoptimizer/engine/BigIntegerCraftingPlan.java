@@ -1,7 +1,6 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import appeng.api.crafting.IPatternDetails;
-import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
@@ -19,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Facadeは実行や容量会計には使用せず、Advanced AE提出境界で{@link #preparedRoot()}を
  * ACO Hostへ原子的に移譲する。通常AE2 CPUは専用Mixinで必ず拒否する。</p>
  */
-public final class BigIntegerCraftingPlan implements ICraftingPlan {
+public final class BigIntegerCraftingPlan implements WideCraftingPlan {
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
 
     private final GenericStack finalOutput;

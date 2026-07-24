@@ -131,7 +131,8 @@ fair scheduling, or atomic Big-capacity submission accepts only
 | `batchTransactionReconciliationIntervalTicks` | `20` | Interval for bounded unresolved-transaction recovery scans. |
 | `nativeBatchMaximumExecutions` | `65536` | Checked-long per-transaction hard cap. |
 | `enableBigIntegerCraftingBackend` | `true` | Exposes API v3 to an explicitly integrating CPU add-on; does not patch normal AE2 or Advanced AE CPUs and has no effect without a registered host. |
-| `enableAtomicBigCapacityPlans` | `true` | With the AQE profile or experimental master, safely plans deterministic aggregate overflow. Exact capacity is reserved by the AQE host; standard AE2 CPUs remain excluded. |
+| `enableExactBigIntegerInventorySnapshots` | `true` | Safely saturates AE2's long inventory facade and retains exact per-key amounts from supported storage add-ons. ExtendedAE Plus Infinity BigInteger Cells are supported without a hard dependency. |
+| `enableAtomicBigCapacityPlans` | `true` | With the AQE profile or experimental master, safely plans deterministic individual or aggregate overflow when exact stock is available. Exact capacity is reserved by the AQE host; standard AE2 CPUs remain excluded. |
 | `enableBigIntegerGameplayExecution` | `true` | Lets a registered AQE host own an exact BigInteger parent job and execute recipe-specific checked-long child windows. It does not enable native GTCEu/Mekanism batching. |
 | `bigIntegerMaximumBits` | `256` | Maximum non-negative count and planner-intermediate magnitude. Range `64..54427` binary bits; the exact implementation ceiling is `10^16384 - 1`, so setting 54427 bits never permits a 16385-digit value. |
 | `bigIntegerExecutionWindow` | `65536` | Maximum executions exposed to a long/int machine adapter in one window. |
