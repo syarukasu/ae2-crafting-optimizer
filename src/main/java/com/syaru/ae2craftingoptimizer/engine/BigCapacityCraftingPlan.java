@@ -1,7 +1,6 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import appeng.api.crafting.IPatternDetails;
-import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
@@ -16,7 +15,7 @@ import java.util.Objects;
  * {@link Long#MAX_VALUE}を返す。AQE Quantum Computerは{@link #exactBytes()}をSidecarへ
  * 予約し、互換値を容量会計の正本として使用しない。</p>
  */
-public final class BigCapacityCraftingPlan implements ICraftingPlan {
+public final class BigCapacityCraftingPlan implements WideCraftingPlan {
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
 
     private final GenericStack finalOutput;

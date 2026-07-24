@@ -107,6 +107,35 @@ public final class OverflowPromotingCraftingPlanner<K> {
                 true);
     }
 
+    /** 正確なBigInteger在庫Snapshotを使い、収まる注文だけlong高速経路へ落とす。 */
+    public Result<K> plan(
+            CompiledRootProgram<K> program,
+            BigInteger requestedAmount,
+            CompiledRootProgram.BigInventorySnapshot<K> inventory,
+            PlanningGuard guard) {
+        Objects.requireNonNull(program, "program");
+        BigCountMath.requireMaximumBits(requestedAmount, "request", maximumBits);
+        Objects.requireNonNull(inventory, "inventory");
+        Objects.requireNonNull(guard, "guard");
+        // 注文と全参照在庫がsigned long内なら、従来の低割当配列経路を優先する。
+        if (requestedAmount.bitLength() <= SIGNED_LONG_MAGNITUDE_BITS
+                && program.inventoryFitsSignedLong(inventory)) {
+            try {
+                return new LongResult<>(
+                        program.planLong(
+                                requestedAmount.longValueExact(),
+                                program.narrowInventory(inventory),
+                                guard),
+                        true);
+            } catch (CountOverflowException overflow) {
+                // 需要展開だけがoverflowした場合は、不変BigInteger Snapshotから最初から再計算する。
+            }
+        }
+        return new BigResult<>(
+                program.planBig(requestedAmount, inventory, guard, maximumBits),
+                true);
+    }
+
     public Result<K> plan(
             CompiledCraftingGraph<K> graph,
             K requestedKey,

@@ -112,11 +112,25 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 return null;
             }
 
-            CompiledRootProgram.InventorySnapshot<AEKey> planningInventory =
-                    Ae2ReferencedInventory.captureNetworkSnapshot(
+            BigKeyCounterSidecars.Snapshot inventoryMetadata =
+                    BigKeyCounterSidecars.snapshot(capture.inventorySnapshot()).orElse(null);
+            // Adapter失敗を含む不完全Snapshotは、飽和値から不足数を推測せずAE2へ戻す。
+            if (inventoryMetadata != null && !inventoryMetadata.complete()) {
+                return null;
+            }
+            CompiledRootProgram.BigInventorySnapshot<AEKey> exactPlanningInventory =
+                    Ae2ReferencedInventory.captureExactNetworkSnapshot(
                             program,
                             capture.inventorySnapshot(),
                             output);
+            CompiledRootProgram.InventorySnapshot<AEKey> planningInventory = null;
+            // 正確なSidecarが無い通常AE2環境だけ、従来のlong Snapshotを使用する。
+            if (exactPlanningInventory == null) {
+                planningInventory = Ae2ReferencedInventory.captureNetworkSnapshot(
+                        program,
+                        capture.inventorySnapshot(),
+                        output);
+            }
             PlanningGuard guard = expanded -> {
                 // 64ノードごとに世代変更とスレッド割込みを確認し、古い結果を早めに破棄する。
                 if ((expanded & GENERATION_CHECK_INTERVAL_MASK) == 0) {
@@ -127,12 +141,20 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     }
                 }
             };
-            var promoted = new OverflowPromotingCraftingPlanner<AEKey>(
-                    ACOConfig.getBigIntegerMaximumBits()).plan(
-                    program,
-                    BigInteger.valueOf(requestedAmount),
-                    planningInventory,
-                    guard);
+            OverflowPromotingCraftingPlanner<AEKey> planner =
+                    new OverflowPromotingCraftingPlanner<>(
+                            ACOConfig.getBigIntegerMaximumBits());
+            var promoted = exactPlanningInventory != null
+                    ? planner.plan(
+                            program,
+                            BigInteger.valueOf(requestedAmount),
+                            exactPlanningInventory,
+                            guard)
+                    : planner.plan(
+                            program,
+                            BigInteger.valueOf(requestedAmount),
+                            planningInventory,
+                            guard);
             // Root Program経路以外の結果はAuthoritativeとして採用しない。
             if (!promoted.provenEquivalent()) {
                 return null;
@@ -171,12 +193,20 @@ public final class Ae2AuthoritativeCraftingPlanner {
 
             capture.requireCurrentGenerations();
             // 計算で参照したキーだけでも在庫が変わっていれば、古い結果を返さない。
-            if (!Ae2ReferencedInventory.matchesLive(
-                    program,
-                    planningInventory,
-                    capture.grid(),
-                    capture.source(),
-                    output)) {
+            boolean inventoryStillMatches = exactPlanningInventory != null
+                    ? Ae2ReferencedInventory.matchesLive(
+                            program,
+                            exactPlanningInventory,
+                            capture.grid(),
+                            capture.source(),
+                            output)
+                    : Ae2ReferencedInventory.matchesLive(
+                            program,
+                            planningInventory,
+                            capture.grid(),
+                            capture.source(),
+                            output);
+            if (!inventoryStillMatches) {
                 return null;
             }
             // Emitterまたはファジー候補が変わった場合も、AE2と選択結果がずれるため破棄する。
@@ -250,11 +280,13 @@ public final class Ae2AuthoritativeCraftingPlanner {
         if (prepared == null) {
             return null;
         }
-        return new BigIntegerCraftingPlan(
+        BigIntegerCraftingPlan metadata = new BigIntegerCraftingPlan(
                 new GenericStack(output, requestedAmount),
                 exactPlan,
                 exactPatternTimes,
                 prepared);
+        // AE2と周辺アドオンへは必ず最終実装CraftingPlanを返し、BigInteger真値はSidecarへ置く。
+        return Ae2CraftingPlanSidecars.expose(metadata);
     }
 
     @Nullable
@@ -297,7 +329,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
             if (!ACOConfig.enableAtomicBigCapacityPlans()) {
                 return null;
             }
-            return new BigCapacityCraftingPlan(
+            BigCapacityCraftingPlan metadata = new BigCapacityCraftingPlan(
                     new GenericStack(output, requestedAmount),
                     !symbolic.craftable(),
                     false,
@@ -308,6 +340,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     exactBytes,
                     capture.patternGeneration(),
                     capture.recipeGeneration());
+            // 容量だけlong超過する場合も、外部へ独自ICraftingPlan実装を露出しない。
+            return Ae2CraftingPlanSidecars.expose(metadata);
         }
 
         boolean wideInputAggregate = symbolic.hasAggregatePastLong();
