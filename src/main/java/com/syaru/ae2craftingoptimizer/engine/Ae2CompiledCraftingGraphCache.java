@@ -5,6 +5,8 @@ import appeng.api.networking.IGrid;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
 import appeng.api.storage.AEKeyFilter;
+import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -99,6 +101,13 @@ public final class Ae2CompiledCraftingGraphCache {
                     if (existingId == null || !compiledById.containsKey(existingId)) {
                         incompletelyCompiledOutputs.add(key);
                     }
+                    continue;
+                }
+                if (AppliedECompatibility.requiresAe2Planner(details)) {
+                    // AppliedEはAE2 CraftingTreeNode内で注文量専用の一時Patternへ置き換える。
+                    // 固定レシピとしてコンパイルすると、その生成・削除処理を迂回してしまう。
+                    incompletelyCompiledOutputs.add(key);
+                    OptimizationMetrics.recordAppliedEPatternFallback();
                     continue;
                 }
                 String id = Ae2CompiledPatternFactory.fingerprint(details);
@@ -217,6 +226,10 @@ public final class Ae2CompiledCraftingGraphCache {
                     graph,
                     root,
                     service::canEmitFor);
+            if (compiled.isPresent() && touchesIncompletePattern(compiled.get())) {
+                // 未コンパイルPatternを終端素材と誤認したShadow計算も作らず、直ちにAE2へ戻す。
+                compiled = Optional.empty();
+            }
             synchronized (rootPrograms) {
                 Optional<CompiledRootProgram<AEKey>> raced = rootPrograms.get(root);
                 // 別計算スレッドが先に登録した場合は、その同一世代Programを採用する。
@@ -231,6 +244,16 @@ public final class Ae2CompiledCraftingGraphCache {
                 rootPrograms.put(root, compiled);
                 return compiled;
             }
+        }
+
+        private boolean touchesIncompletePattern(CompiledRootProgram<AEKey> program) {
+            // Rootから到達する全キーを一巡し、除外済みPattern出力への依存を検出する。
+            for (int node = 0; node < program.nodeCount(); node++) {
+                if (incompletelyCompiledOutputs.contains(program.keyAt(node))) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /** Pattern APIの静的証明も同じ世代中は再利用し、注文ごとは在庫候補だけを再検証する。 */

@@ -25,6 +25,7 @@ This mod does not modify recipes, crafting rules, storage behavior, or Quantum C
 - Optional intent fast paths for GTCEu Modern and Mekanism
 - Experimental Mekanism native batching additionally requires Applied Mekanistics `1.4.3`
 - Optional execution-budget integration for Neo ECO AE Extension 20.3.x
+- Optional compatibility for AppliedE `0.14.3` and AppliedE TPS Fix `0.14.7-fix2`
 - Designed to coexist with Advanced AE and Advanced Quantum Engineering
 - Intended for large automation packs such as Astral Mekanism
 
@@ -36,7 +37,7 @@ AE2 Crafting Optimizer adds conservative recipe-intent fast paths for large AE2 
 
 ## Status
 
-Release `1.4.0` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
+Release `1.4.1` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
 and passed the complete automated test suite. P9 startup, recovery, multiplayer,
 and long-running live-world qualification remains operator-run. The optional Neo ECO integration is pinned to Neo ECO AE
 Extension `20.3.x`. ACO uses Mixins against mod internals, so do not assume
@@ -60,7 +61,7 @@ long/BigInteger planner, durable GTCEu/Mekanism native batching protocol, fair
 multi-job scheduler, versioned BigInteger CPU-host API, and bounded status
 channel. These are source-complete foundations, not live defaults. Read
 [Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md) before testing them.
-The current source carries the `1.4.0` minor version while P0-P8 are reviewed;
+The current source carries the `1.4.1` patch version while P0-P8 are reviewed;
 P9 startup, recovery, multiplayer, and long-running world tests are deliberately
 not claimed by this source revision. See
 [P0-P8 implementation status](docs/P0_P8_IMPLEMENTATION_STATUS.md).
@@ -314,6 +315,8 @@ Optional integrations and coexistence targets:
 - ExtendedAE tickable class hints
 - Advanced AE
 - Neo ECO AE Extension 20.3.x
+- AppliedE 0.14.3
+- AppliedE TPS Fix 0.14.7-fix2
 - Advanced Quantum Engineering
 - EMI
 - JEI
@@ -324,7 +327,7 @@ Optional integrations and coexistence targets:
 
 No Bukkit or Paper APIs are used.
 
-Only AE2 is a hard runtime dependency. GTCEu, Mekanism, Advanced AE, and Neo ECO hooks use optional pseudo-Mixins with non-fatal injection requirements; when an optional mod is absent, its target is not applied. Neo ECO 20.3.0 is a compile-only signature target and is not bundled in the ACO jar.
+Only AE2 is a hard runtime dependency. GTCEu, Mekanism, Advanced AE, and Neo ECO hooks use optional pseudo-Mixins with non-fatal injection requirements; when an optional mod is absent, its target is not applied. AppliedE compatibility uses the shared public AE2 Pattern interfaces and exact implementation-name guards, so neither AppliedE implementation is linked or bundled. Neo ECO 20.3.0 is a compile-only signature target and is not bundled in the ACO jar.
 
 ## Configuration
 
@@ -592,6 +595,12 @@ logCacheStatistics = false
 [compatibility.neoEcoAe]
 # Applies only when Neo ECO AE Extension 20.3.x is installed.
 throttleNeoEcoAeExecution = true
+
+[compatibility.appliedE]
+# AppliedE keeps ownership of EMC accounting and request-sized temporary patterns.
+enableAppliedECompatibility = true
+forceAe2PlannerForTransmutationPatterns = true
+treatAppliedEProviderAsDynamic = true
 ```
 
 Recipe intent diagnostics:
@@ -648,7 +657,7 @@ Run:
 gradlew.bat clean build
 ```
 
-This branch generates `build/libs/ae2-crafting-optimizer-1.4.0.jar`. Building
+This branch generates `build/libs/ae2-crafting-optimizer-1.4.1.jar`. Building
 it does not authorize deployment or feature enablement before the runtime
 matrix is complete. GitHub Actions runs the same clean build for
 pushes and pull requests.

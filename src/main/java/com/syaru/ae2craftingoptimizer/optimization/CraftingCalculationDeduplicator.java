@@ -7,6 +7,7 @@ import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -171,6 +172,12 @@ public final class CraftingCalculationDeduplicator {
 
     private static boolean isCompletedPlanCacheable(ICraftingPlan plan) {
         if (plan == null) {
+            return false;
+        }
+
+        if (AppliedECompatibility.requiresFreshCalculation(plan)) {
+            // 一時Patternを再利用するとKnowledgeServiceへの追加処理を通らないため保持しない。
+            OptimizationMetrics.recordAppliedECompletedPlanCacheBypass();
             return false;
         }
 

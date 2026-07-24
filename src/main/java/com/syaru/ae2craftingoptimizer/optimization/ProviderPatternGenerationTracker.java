@@ -6,6 +6,7 @@ import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -29,7 +30,18 @@ public final class ProviderPatternGenerationTracker {
             advanceGeneration();
             return true;
         }
-        Snapshot current = snapshot(node);
+        ICraftingProvider provider = node.getService(ICraftingProvider.class);
+        if (AppliedECompatibility.isDynamicProvider(provider)) {
+            // AppliedE本家はこの比較で全既知アイテムのEMCを再取得する。
+            // 同一tick通知は呼出側のSetでまとめ、最終通知は無条件でAE2へ渡す。
+            synchronized (SNAPSHOTS) {
+                SNAPSHOTS.put(node, Snapshot.DYNAMIC);
+            }
+            OptimizationMetrics.recordAppliedEDynamicProviderRefresh();
+            advanceGeneration();
+            return true;
+        }
+        Snapshot current = snapshot(provider);
         synchronized (SNAPSHOTS) {
             Snapshot previous = SNAPSHOTS.put(node, current);
             if (current.equals(previous)) {
@@ -44,8 +56,13 @@ public final class ProviderPatternGenerationTracker {
         if (!ACOConfig.trackProviderPatternGenerations()) {
             return;
         }
+        ICraftingProvider provider = node.getService(ICraftingProvider.class);
         synchronized (SNAPSHOTS) {
-            SNAPSHOTS.put(node, snapshot(node));
+            SNAPSHOTS.put(
+                    node,
+                    AppliedECompatibility.isDynamicProvider(provider)
+                            ? Snapshot.DYNAMIC
+                            : snapshot(provider));
         }
     }
 
@@ -71,8 +88,7 @@ public final class ProviderPatternGenerationTracker {
         GENERATION.updateAndGet(value -> value == Long.MAX_VALUE ? 1L : value + 1L);
     }
 
-    private static Snapshot snapshot(IGridNode node) {
-        ICraftingProvider provider = node.getService(ICraftingProvider.class);
+    private static Snapshot snapshot(ICraftingProvider provider) {
         if (provider == null) {
             return Snapshot.EMPTY;
         }
@@ -86,6 +102,7 @@ public final class ProviderPatternGenerationTracker {
 
     private record Snapshot(int priority, List<PatternSnapshot> patterns, Set<AEKey> emitables) {
         private static final Snapshot EMPTY = new Snapshot(0, List.of(), Set.of());
+        private static final Snapshot DYNAMIC = new Snapshot(Integer.MIN_VALUE, List.of(), Set.of());
     }
 
     private record PatternSnapshot(
