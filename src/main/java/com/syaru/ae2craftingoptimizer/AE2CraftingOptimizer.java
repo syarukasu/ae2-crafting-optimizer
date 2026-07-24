@@ -221,6 +221,10 @@ public final class AE2CraftingOptimizer {
                 ACOConfig.enableFairCraftingJobScheduler(),
                 ACOConfig.persistBatchTransactionJournal());
         LOGGER.info(
+                "ACO long root craft amount input: {} (existing AE2 int path remains authoritative through {})",
+                ACOConfig.enableLongRootCraftAmounts(),
+                Integer.MAX_VALUE);
+        LOGGER.info(
                 "ACO BigInteger backend: {} (atomic plans {}, gameplay execution {}, API {}, protocol {}, max {} bits, execution window {}, status page {}, count budget {} MiB)",
                 ACOConfig.enableBigIntegerCraftingBackend(),
                 ACOConfig.enableAtomicBigCapacityPlans(),

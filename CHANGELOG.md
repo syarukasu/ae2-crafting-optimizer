@@ -6,6 +6,12 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- Added a separate long root-order input path from
+  `Integer.MAX_VALUE + 1` through `Long.MAX_VALUE` while preserving AE2's
+  original int packet and menu path.
+- Added exact amount parsing, server-side menu/container validation, long
+  replan/back state, and boundary tests for item, fluid, and chemical display
+  units.
 - Added an AQE-only BigInteger profile. It activates only when both Advanced AE
   and Advanced Quantum Engineering are loaded, leaving unrelated AE2 and
   Advanced AE installations on their existing defaults.
@@ -20,6 +26,9 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- Updated ACO's strict Forge channel from protocol `2` to `3` for the new
+  long-order C2S request and S2C amount restoration messages. The BigInteger
+  status payload protocol remains `1`.
 - Enabled compiled graph construction, Shadow observation, checked arithmetic,
   atomic wide-capacity plans, and BigInteger gameplay execution by default only
   inside the AQE profile. General authoritative plan replacement and native
@@ -31,6 +40,8 @@ All notable changes to this project are documented here.
 
 ### Fixed
 
+- Prevented enlarged amount expressions above signed long from wrapping through
+  `BigDecimal.longValue()` into an unrelated positive order.
 - Prevented a BigInteger parent job's child window from being charged twice
   while Advanced AE creates its temporary logical CPU.
 - Derived and persisted the maximum safe execution window per recipe, preventing

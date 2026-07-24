@@ -49,6 +49,9 @@ world:
   parent-owned child allowance isolation, and count-memory rejection;
 - status page round trips, protocol validation, malformed/trailing packet
   rejection, entry bounds, magnitude bounds, and packet-size bounds;
+- int/long root-order boundary selection, exact `Long.MAX_VALUE` item and fluid
+  unit conversion, out-of-range rejection, and checked existing-stock
+  subtraction;
 - V2 source/target receipt transitions, explicit extraction, energy, and
   per-output uncertainty barriers, rollback, bounded stale replay evidence,
   malformed-schema locking, and output cursors;
@@ -60,6 +63,35 @@ world:
 An automated pass is necessary but not sufficient. Tests do not instantiate
 real GTCEu/Mekanism machines, transformed Forge classes, an Arclight server, or
 a multiplayer client.
+
+## Long Root Amount Runtime Matrix
+
+Install the same ACO build on the server and every client, leave
+`enableLongRootCraftAmounts = true`, and use a copied test world.
+
+1. Enter `2147483647` for an ordinary craft. Confirm the request behaves exactly
+   like ACO-disabled AE2 and reaches the confirmation screen.
+2. Enter `2147483648`. Confirm it reaches the confirmation screen without
+   becoming negative, zero, or `2147483647`.
+3. Enter `9223372036854775807`. Confirm the requested output in the plan remains
+   exactly `Long.MAX_VALUE`.
+4. For a fluid or chemical root, enter `9223372036854775.807` in a `1000`-unit
+   display. Confirm the internal requested amount is exactly `Long.MAX_VALUE`.
+5. Enter `9223372036854775808` and a short expression above signed long. Confirm
+   the Next button remains inactive and no request packet starts a calculation.
+6. Repeat step 3 with `=9223372036854775807` while the network holds zero, one,
+   and the full requested amount. Confirm the calculated amounts are
+   `Long.MAX_VALUE`, `Long.MAX_VALUE - 1`, and zero respectively.
+7. Use Replan, Back, and Shift Auto Start. Confirm Replan retains the long
+   amount, Back restores it in the input field, and Auto Start submits only the
+   server-confirmed plan.
+8. Close or replace the amount screen immediately after pressing Next. Confirm
+   the stale container-ID packet does not affect the newly opened menu.
+9. Set `enableLongRootCraftAmounts = false` on both sides and restart. Confirm
+   the input returns to the AE2 int maximum and all normal int crafts still
+   work.
+10. Test once with mismatched client/server ACO builds. Confirm Forge rejects
+    the protocol mismatch at connection instead of accepting an unknown packet.
 
 ## AppliedE Compatibility Matrix
 
@@ -233,6 +265,7 @@ enableOptimizer = false
 Expected:
 
 - No preliminary missing preview behavior.
+- No long root-order input; AE2's original int maximum and packet path are restored.
 - No storage watcher throttling.
 - No active calculation de-duplication.
 - No completed-plan cache.
