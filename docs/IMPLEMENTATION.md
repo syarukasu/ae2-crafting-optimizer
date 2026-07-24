@@ -103,6 +103,15 @@ wide-plan forms:
 - `BigIntegerCraftingPlan` when at least one AEKey or Pattern execution counter
   itself exceeds `long`.
 
+`NetworkStorageBigIntegerSnapshotMixin` obtains every mounted storage
+contribution separately. It adds an exact BigInteger value to
+`BigKeyCounterSidecars` and independently saturates AE2's public `KeyCounter`,
+so repeated mounts cannot wrap the visible amount negative. The optional
+`ExtendedAePlusBigIntegerCellInventoryAccessor` reads exact per-key values from
+Infinity BigInteger Cells without a compile-time or load-time dependency.
+`NetworkCraftingSimulationStateBigIntegerSnapshotMixin` then copies only keys
+accepted by AE2's normal simulation into the crafting snapshot.
+
 The latter is a parent-only object. Standard AE2 CPUs reject it, while the
 Advanced AE boundary atomically transfers its exact `BigCraftingJob` to the
 registered AQE host. The parent is never flattened into a saturated execution

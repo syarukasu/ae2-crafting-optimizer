@@ -11,6 +11,7 @@ import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRuntime;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingRuntime;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2BigCraftingPlanFactory;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingJob;
@@ -368,7 +369,7 @@ public final class AqeBigCraftingExecutionManager {
                 ICraftingPlan plan) {
             BigInteger childReserved = exactChildCapacity(plan);
             if (plan == null
-                    || plan instanceof BigIntegerCraftingPlan
+                    || Ae2CraftingPlanSidecars.bigInteger(plan).isPresent()
                     || plan.simulation()
                     || plan.bytes() <= 0L
                     || childReserved == null
@@ -436,11 +437,15 @@ public final class AqeBigCraftingExecutionManager {
 
         private BigInteger exactChildCapacity(ICraftingPlan plan) {
             // 容量だけlongを超える子PlanはSidecarの真値をBindingへ保存する。
-            if (plan instanceof BigCapacityCraftingPlan bigCapacityPlan) {
+            BigCapacityCraftingPlan bigCapacityPlan =
+                    Ae2CraftingPlanSidecars.bigCapacity(plan).orElse(null);
+            if (bigCapacityPlan != null) {
                 return bigCapacityPlan.exactBytes();
             }
             // 個別カウンタまでlongを超える親Planは、子Windowとして再帰提出しない。
-            if (plan instanceof BigIntegerCraftingPlan || plan == null || plan.bytes() <= 0L) {
+            if (plan == null
+                    || Ae2CraftingPlanSidecars.bigInteger(plan).isPresent()
+                    || plan.bytes() <= 0L) {
                 return null;
             }
             return BigInteger.valueOf(plan.bytes());

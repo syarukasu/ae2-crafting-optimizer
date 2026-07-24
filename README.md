@@ -97,11 +97,14 @@ provider/recipe generations, and referenced-inventory revalidation.
 
 With the AQE profile or experimental master enabled,
 `enableAtomicBigCapacityPlans` also covers
-the narrower standard-GUI case where every distinct AEKey and Pattern count fits
-signed `long`, but their aggregate does not. ACO keeps each counter exact, uses
-BigInteger only for checked aggregate calculation, and stores an over-`long` CPU
-capacity reservation in an integrated AQE host. Standard AE2 CPUs cannot accept
-that Big-capacity facade.
+both aggregate overflow and deterministic plans where one AEKey or Pattern count
+exceeds signed `long`. `enableExactBigIntegerInventorySnapshots` keeps AE2's
+public `KeyCounter` saturated at `Long.MAX_VALUE` while an identity sidecar
+retains the exact per-key amount. ExtendedAE Plus Infinity BigInteger Cells are
+detected through an optional accessor; the dependency is not required. Unknown
+or incomplete exact-storage adapters fail back instead of treating a clamped
+value as exact. Standard AE2 CPUs cannot accept the resulting Big-capacity
+facade.
 
 The host API is enabled by default because it has no effect until an explicitly
 integrated CPU registers a host. The AQE profile enables only the compiled
