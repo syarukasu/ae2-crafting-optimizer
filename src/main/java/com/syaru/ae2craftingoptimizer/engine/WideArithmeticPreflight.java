@@ -13,6 +13,49 @@ final class WideArithmeticPreflight {
     private WideArithmeticPreflight() {
     }
 
+    /**
+     * 配列化済みRoot Programを一巡し、個別値・総量・CPU byteのどこかがlongを超えるか調べる。
+     * 在庫0を使うため、実在庫で途中停止する計画以上の安全な上限になる。
+     */
+    static <K> boolean requiresWideArithmetic(
+            K root,
+            BigInteger requestedAmount,
+            CompiledRootProgram<K> program,
+            ToLongFunction<K> amountPerByte,
+            int maximumBits) {
+        Objects.requireNonNull(root, "root");
+        Objects.requireNonNull(program, "program");
+        Objects.requireNonNull(amountPerByte, "amountPerByte");
+        CompiledRootProgram.BigInventorySnapshot<K> emptyInventory =
+                program.captureBigInventory(ignored -> BigInteger.ZERO, maximumBits);
+        BigCraftingPlan<K> fullPlan = program.planBig(
+                requestedAmount,
+                emptyInventory,
+                PlanningGuard.none(),
+                maximumBits);
+        // Pattern回数または各AEKey量が個別にlongを超える場合はWide計画が必須になる。
+        if (containsValuePastLong(fullPlan.patternExecutions())
+                || containsValuePastLong(fullPlan.usedInventory())
+                || containsValuePastLong(fullPlan.emitted())
+                || containsValuePastLong(fullPlan.missing())) {
+            return true;
+        }
+        // 個別値が収まっても、複数キーの合計がlongを超える計画はAE2内部集計を保護する。
+        if (sumExceedsLong(fullPlan.usedInventory())
+                || sumExceedsLong(fullPlan.emitted())
+                || sumExceedsLong(fullPlan.missing())) {
+            return true;
+        }
+        BigInteger bytes = BigExactCraftingByteCounter.calculate(
+                root,
+                requestedAmount,
+                program.patternsByOutput(),
+                fullPlan.patternExecutions(),
+                amountPerByte,
+                maximumBits);
+        return bytes.compareTo(LONG_MAX) > 0;
+    }
+
     static <K> boolean requiresWideArithmetic(
             K root,
             BigInteger requestedAmount,
@@ -58,7 +101,8 @@ final class WideArithmeticPreflight {
                         "wide-preflight/executions/" + pattern.id()),
                 "wide-preflight/executions/" + pattern.id(),
                 maximumBits);
-        executions.put(pattern.id(), executionCount);
+        // 合流するDAGでは同じPatternへ複数経路から到達するため、最後の経路で上書きしない。
+        executions.merge(pattern.id(), executionCount, BigInteger::add);
 
         BigInteger total = BigInteger.ZERO;
         // 各入力を全量クラフトする上限需要を辿り、在庫で途中停止する実計画以上の安全な上限を作る。
@@ -77,5 +121,29 @@ final class WideArithmeticPreflight {
                     maximumBits);
         }
         return total;
+    }
+
+    private static boolean containsValuePastLong(Map<?, BigInteger> counts) {
+        // 個別カウンタをAE2のlong APIへ無損失変換できるかだけを確認する。
+        for (BigInteger amount : counts.values()) {
+            // 一つでも上限を超えればBigInteger経路へ切り替える。
+            if (amount.compareTo(LONG_MAX) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean sumExceedsLong(Map<?, BigInteger> counts) {
+        BigInteger total = BigInteger.ZERO;
+        // 加算自体もBigIntegerで行い、preflight中にlong overflowを起こさない。
+        for (BigInteger amount : counts.values()) {
+            total = total.add(amount);
+            // 上限を超えた時点で残りを走査せずWide判定を確定する。
+            if (total.compareTo(LONG_MAX) > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 }

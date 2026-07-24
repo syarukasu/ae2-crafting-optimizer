@@ -4,6 +4,7 @@ import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
 import java.util.List;
 import java.util.Locale;
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
 
@@ -166,11 +167,13 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue LOG_SLOW_CRAFT_CALCULATIONS;
     private static final ForgeConfigSpec.IntValue SLOW_CRAFT_CALCULATION_MILLIS;
     private static final ForgeConfigSpec.BooleanValue LOG_CACHE_STATISTICS;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_AQE_BIG_CRAFTING_PROFILE;
     private static final ForgeConfigSpec.BooleanValue ENABLE_EXPERIMENTAL_CRAFTING_ENGINE;
     private static final ForgeConfigSpec.BooleanValue ENABLE_CRAFTING_ENGINE_SHADOW_MODE;
     private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_ENGINE_SHADOW_MISMATCHES;
     private static final ForgeConfigSpec.IntValue CRAFTING_ENGINE_SHADOW_MAXIMUM_PATTERNS;
     private static final ForgeConfigSpec.IntValue AUTHORITATIVE_MINIMUM_SHADOW_MATCHES;
+    private static final ForgeConfigSpec.BooleanValue REQUIRE_AQE_BIG_PLAN_SHADOW_QUALIFICATION;
     private static final ForgeConfigSpec.BooleanValue ENABLE_COMPILED_CRAFTING_GRAPH;
     private static final ForgeConfigSpec.BooleanValue ENABLE_AUTHORITATIVE_COMPILED_PLANNER;
     private static final ForgeConfigSpec.BooleanValue ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC;
@@ -711,6 +714,11 @@ public final class ACOConfig {
         builder.pop();
 
         builder.push("experimentalCraftingEngine");
+        ENABLE_AQE_BIG_CRAFTING_PROFILE = builder
+                .comment(
+                        "Enable only the AQE BigInteger calculation and execution path when Advanced AE and Advanced Quantum Engineering are installed.",
+                        "This does not enable Native Batch, bus rewrites, terminal rewrites, or normal-AE2 authoritative replacement.")
+                .define("enableAqeBigCraftingProfile", true);
         ENABLE_EXPERIMENTAL_CRAFTING_ENGINE = builder
                 .comment(
                         "Master switch for ACO's next-generation compiled planner, native machine batching, fair scheduler, and persistent transaction journal.",
@@ -719,8 +727,8 @@ public final class ACOConfig {
         ENABLE_CRAFTING_ENGINE_SHADOW_MODE = builder
                 .comment(
                         "Compare the compiled long planner with completed AE2 plans without replacing or modifying AE2's result.",
-                        "Requires enableExperimentalCraftingEngine. Shadow mismatches only update diagnostics.")
-                .define("enableShadowMode", false);
+                        "Requires the AQE profile or enableExperimentalCraftingEngine. Shadow mismatches only update diagnostics.")
+                .define("enableShadowMode", true);
         LOG_CRAFTING_ENGINE_SHADOW_MISMATCHES = builder
                 .comment("Log the first bounded set of Shadow Mode differences. Disabled engine means no comparison or logging.")
                 .define("logShadowMismatches", true);
@@ -736,9 +744,14 @@ public final class ACOConfig {
                         DEFAULT_AUTHORITATIVE_SHADOW_MATCHES,
                         0,
                         MAXIMUM_AUTHORITATIVE_SHADOW_MATCHES);
+        REQUIRE_AQE_BIG_PLAN_SHADOW_QUALIFICATION = builder
+                .comment(
+                        "Require prior matching AE2 Shadow calculations before accepting an otherwise strictly proven AQE BigInteger plan.",
+                        "Disabled by default because a true long-overflow request cannot itself complete in AE2 for comparison.")
+                .define("requireAqeBigPlanShadowQualification", false);
         ENABLE_COMPILED_CRAFTING_GRAPH = builder
                 .comment("Build an immutable, generation-keyed crafting graph for experimental planning.")
-                .define("enableCompiledCraftingGraph", false);
+                .define("enableCompiledCraftingGraph", true);
         ENABLE_AUTHORITATIVE_COMPILED_PLANNER = builder
                 .comment(
                         "Use a compiled plan only for the strictly provable single-pattern path. Any ambiguity, generation change, fuzzy input, overflow, or unsupported recipe falls back to AE2.",
@@ -798,7 +811,7 @@ public final class ACOConfig {
                 .comment(
                         "Execute explicitly submitted BigInteger root jobs as bounded standard AE2 child jobs on an AQE Quantum Computer.",
                         "False until phase-9 live testing. Capacity display and ordinary long jobs continue to work while this is false.")
-                .define("enableBigIntegerGameplayExecution", false);
+                .define("enableBigIntegerGameplayExecution", true);
         BIG_INTEGER_MAXIMUM_BITS = builder
                 .comment(
                         "Maximum magnitude stored by the BigInteger backend, in binary bits. 256 bits is about 77 decimal digits.",
@@ -1485,6 +1498,13 @@ public final class ACOConfig {
         return enableOptimizer() && ENABLE_EXPERIMENTAL_CRAFTING_ENGINE.get();
     }
 
+    public static boolean enableAqeBigCraftingProfile() {
+        return enableOptimizer()
+                && ENABLE_AQE_BIG_CRAFTING_PROFILE.get()
+                && ModList.get().isLoaded("advanced_ae")
+                && ModList.get().isLoaded("advanced_quantum_engineering");
+    }
+
     public static boolean enableCraftingEngineShadowMode() {
         return enableCompiledCraftingGraph() && ENABLE_CRAFTING_ENGINE_SHADOW_MODE.get();
     }
@@ -1503,8 +1523,13 @@ public final class ACOConfig {
                 Math.max(0, AUTHORITATIVE_MINIMUM_SHADOW_MATCHES.get()));
     }
 
+    public static boolean requireAqeBigPlanShadowQualification() {
+        return REQUIRE_AQE_BIG_PLAN_SHADOW_QUALIFICATION.get();
+    }
+
     public static boolean enableCompiledCraftingGraph() {
-        return enableExperimentalCraftingEngine() && ENABLE_COMPILED_CRAFTING_GRAPH.get();
+        return ENABLE_COMPILED_CRAFTING_GRAPH.get()
+                && (enableExperimentalCraftingEngine() || enableAqeBigCraftingProfile());
     }
 
     public static boolean enableAuthoritativeCompiledPlanner() {
@@ -1512,7 +1537,8 @@ public final class ACOConfig {
     }
 
     public static boolean enableCheckedAe2CraftingArithmetic() {
-        return enableExperimentalCraftingEngine() && ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC.get();
+        return ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC.get()
+                && (enableExperimentalCraftingEngine() || enableAqeBigCraftingProfile());
     }
 
     public static boolean enableTransactionalBatchingV2() {

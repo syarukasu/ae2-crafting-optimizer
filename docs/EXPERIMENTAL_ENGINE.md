@@ -2,20 +2,24 @@
 
 ## Status
 
-The `1.3.1` runtime-qualification candidate contains
+The `1.4.1` development branch contains
 ACO's opt-in next-generation crafting backend. Its pure-Java engine, persistent
 transaction protocol, native adapter boundaries, fair scheduler, BigInteger
 sidecar runtime, and bounded status protocol are implemented and covered by
 automated tests. This P0-P8 source revision is not a new release artifact:
 runtime qualification is P9 and is intentionally left to the pack operator.
 
-The deep behavior-changing paths are deliberately **disabled by default**.
+General deep behavior-changing paths are deliberately **disabled by default**.
+The narrow AQE profile is enabled only when Advanced AE and Advanced Quantum
+Engineering are both loaded. It activates compiled observation, checked
+arithmetic, exact wide-capacity planning, and BigInteger execution windows,
+without enabling native machine batches or general AE2 plan replacement.
 Clean build, Forge client bootstrap, and Arclight dedicated-server startup are
 qualified, but source completion and startup do not replace world-recovery or
 multiplayer qualification. Complete the runtime matrix below on a copied world
 before any experimental child switch is enabled.
 The explicit-host BigInteger API is enabled by default, but it has no effect
-unless a compatible add-on such as AQE 2.0.1 registers a host.
+unless a compatible add-on such as AQE 2.1.2 registers a host.
 
 The code was compiled against these exact integration targets:
 
@@ -38,17 +42,19 @@ integration. Enabling the experimental master also requires AE2 exactly
 
 ## Configuration
 
-The master is false by default. The atomic boundary child switch is true but
-remains inert until both that master and the compiled graph are explicitly enabled:
+The master remains false. The AQE-only profile supplies the narrow activation
+condition for the checked BigInteger path:
 
 ```toml
 [experimentalCraftingEngine]
+enableAqeBigCraftingProfile = true
 enableExperimentalCraftingEngine = false
-enableShadowMode = false
+enableShadowMode = true
 logShadowMismatches = true
 shadowMaximumPatterns = 262144
 authoritativeMinimumShadowMatches = 64
-enableCompiledCraftingGraph = false
+requireAqeBigPlanShadowQualification = false
+enableCompiledCraftingGraph = true
 enableAuthoritativeCompiledPlanner = false
 enableCheckedAe2CraftingArithmetic = true
 enableTransactionalBatchingV2 = false
@@ -64,7 +70,7 @@ batchTransactionReconciliationIntervalTicks = 20
 nativeBatchMaximumExecutions = 65536
 enableBigIntegerCraftingBackend = true
 enableAtomicBigCapacityPlans = true
-enableBigIntegerGameplayExecution = false
+enableBigIntegerGameplayExecution = true
 bigIntegerMaximumBits = 256
 bigIntegerExecutionWindow = 65536
 bigIntegerMaximumWindowCalculationsPerTick = 4
@@ -123,22 +129,31 @@ through normal AE2.
   rejects only that generation's program; Pattern/recipe changes create a new
   unqualified program. `authoritativeMinimumShadowMatches = 0` is the explicit
   operator bypass.
+- True long-overflow AQE roots cannot produce an equivalent completed AE2 plan
+  for prior comparison. Unless
+  `requireAqeBigPlanShadowQualification = true`, they instead require the strict
+  single-pattern topology proof, current provider/recipe generations, exact
+  referenced-inventory revalidation, and a registered AQE host.
 - All planner, runtime, NBT, and packet magnitudes share the exact hard ceiling
   `10^16384 - 1` (16,384 decimal digits, 54,427 bits at the boundary).
 
 Normal AE2 `CraftingTreeNode`, `CraftingTreeProcess`, and standard CPU NBT stay
 unchanged. A CPU add-on must explicitly consume the ACO API before a BigInteger
-job can become gameplay-visible. AQE 2.0.1 optionally consumes host API v3;
+job can become gameplay-visible. AQE 2.1.2 optionally consumes host API v3;
 neither mod requires the other to load.
 
-`enableAtomicBigCapacityPlans` is narrower than the root-job window executor.
+`enableAtomicBigCapacityPlans` handles the capacity-only overflow case.
 It accepts only deterministic plans whose individual AEKey quantities and
 Pattern execution counts still fit signed `long`. Distinct inputs whose combined
 amount exceeds `Long.MAX_VALUE` retain separate exact counters and a checked
 capacity calculation. If the aggregate CPU-byte sum also exceeds
 `Long.MAX_VALUE`, ACO stores the exact reservation in AQE's BigInteger host
 sidecar. Any per-key overflow, ambiguous recipe, generation change, or non-AQE
-CPU for a Big-capacity plan fails closed.
+CPU for a Big-capacity plan fails closed. When one individual AEKey or Pattern
+counter also exceeds `long`, `BigIntegerCraftingPlan` transfers an exact parent
+job to AQE. A binary search derives the largest root window whose individual
+child counters remain losslessly convertible to signed `long`; that limit is
+persisted with the job and can be as small as one execution.
 
 ### Transactional batching V2
 
@@ -246,6 +261,8 @@ It does not automatically patch standard AE2 or Advanced AE CPUs.
 - One shared host reconciles external signed-long job reservations and native
   BigInteger jobs against the same physical capacity.
 - Runtime NBT schema: `2`, including a persistent runtime UUID.
+- Job NBT schema: `5`, including the recipe-specific window limit, process
+  epoch, and normalized compiled-program fingerprint.
 - Count types: requested, reserved, remaining, waiting, emitted, and missing
   values remain `BigInteger`.
 - Small values retain a checked long planning fast path.
@@ -269,6 +286,10 @@ It does not automatically patch standard AE2 or Advanced AE CPUs.
   The integrating host must reconcile its durable target receipt and call
   `commitRecovered` or `rollbackRecovered`; unresolved leases are never scheduled
   a second time.
+- Process-local provider/recipe generation numbers are never trusted across a
+  restart. The same process invalidates changed generations immediately; a new
+  process resumes only when the current deterministic program fingerprint
+  exactly matches the saved one. Legacy jobs without that proof fail closed.
 - A compatibility facade saturates capacity/used values at `Long.MAX_VALUE`
   only for APIs that cannot represent larger values. Exact conversions use
   `longValueExact()`.
@@ -311,7 +332,7 @@ overwrite. ACO does not reinterpret them as empty state.
 
 ## Automated Verification
 
-The current P0-P8 revision runs `153` source tests. `gradlew.bat clean test
+The current P0-P8 revision runs `183` source tests. `gradlew.bat clean test
 build` covers:
 
 - checked long arithmetic and overflow promotion;
@@ -334,7 +355,7 @@ rendering.
 ## Runtime Qualification Required Before Enablement
 
 1. Copy the world and keep the currently deployed jars archived.
-2. Install the same `1.3.1` jar on the dedicated server and every client.
+2. Install the same `1.4.1` development jar on the dedicated server and every client.
 3. Start with only the experimental master, compiled graph, and Shadow Mode.
 4. Compare possible, impossible, recursive, tag/substitution, container-return,
    fluid, and chemical plans against an ACO-disabled control.
