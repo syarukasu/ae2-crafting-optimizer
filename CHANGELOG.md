@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-24
+
 ### Added
 
 - Added a separate long root-order input path from
@@ -411,7 +413,8 @@ planner and native-batch rewrites remain opt-in and disabled by default.
 - Deterministic fast-fail, grid tick deferral, IO-bus caps, fuzzy bus caching, and successful-plan reuse are disabled by default.
 - Advanced AE Quantum Computer execution logic is not mixed into by the conservative 1.0.0 build.
 
-[Unreleased]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.3.2...v1.4.0
 [1.1.1]: https://github.com/syarukasu/ae2-crafting-optimizer/compare/v1.1.0...v1.1.1
