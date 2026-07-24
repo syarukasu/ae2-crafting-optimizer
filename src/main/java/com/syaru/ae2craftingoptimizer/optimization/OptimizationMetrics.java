@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.optimization;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
@@ -42,6 +43,14 @@ public final class OptimizationMetrics {
     private static final LongAdder SEQUENTIAL_INSTANT_COMPLETED = new LongAdder();
     private static final LongAdder SEQUENTIAL_INSTANT_BUDGET_STOPS = new LongAdder();
     private static final LongAccumulator SEQUENTIAL_INSTANT_MAX_WAVE_NANOS =
+            new LongAccumulator(Long::max, 0L);
+    private static final LongAdder CRAFTING_ISLAND_CACHE_HITS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_CACHE_MISSES = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_WAVES = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_PATTERNS = new LongAdder();
+    private static final LongAccumulator CRAFTING_ISLAND_LOGICAL_EXECUTIONS =
+            new LongAccumulator(OptimizationMetrics::saturatedAdd, 0L);
+    private static final LongAccumulator CRAFTING_ISLAND_MAX_WAVE_NANOS =
             new LongAccumulator(Long::max, 0L);
 
     private OptimizationMetrics() {
@@ -150,6 +159,27 @@ public final class OptimizationMetrics {
         SEQUENTIAL_INSTANT_BUDGET_STOPS.increment();
     }
 
+    public static void recordCraftingIslandCache(boolean hit) {
+        // 一回の参照をhit/missどちらか一方へだけ加算する。
+        (hit ? CRAFTING_ISLAND_CACHE_HITS : CRAFTING_ISLAND_CACHE_MISSES).increment();
+    }
+
+    public static void recordCraftingIslandWave(
+            int patterns,
+            BigInteger logicalExecutions,
+            long elapsedNanos) {
+        CRAFTING_ISLAND_WAVES.increment();
+        CRAFTING_ISLAND_PATTERNS.add(Math.max(0, patterns));
+        // LongAdderへ入らない巨大論理回数はwrapせずLong.MAX_VALUEへ診断表示だけを飽和させる。
+        long boundedExecutions = logicalExecutions.signum() < 0
+                ? 0L
+                : logicalExecutions.bitLength() > Long.SIZE - 1
+                        ? Long.MAX_VALUE
+                        : logicalExecutions.longValueExact();
+        CRAFTING_ISLAND_LOGICAL_EXECUTIONS.accumulate(boundedExecutions);
+        CRAFTING_ISLAND_MAX_WAVE_NANOS.accumulate(Math.max(0L, elapsedNanos));
+    }
+
     public static List<String> summaryLines() {
         long gtHits = GT_CANDIDATE_CACHE_HITS.sum();
         long gtMisses = GT_CANDIDATE_CACHE_MISSES.sum();
@@ -185,6 +215,13 @@ public final class OptimizationMetrics {
                         + "/" + SEQUENTIAL_INSTANT_REQUESTED.sum() + " operation(s), "
                         + SEQUENTIAL_INSTANT_BUDGET_STOPS.sum() + " budget stop(s), max wave "
                         + (SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.get() / 1_000L) + " us",
+                "Compiled Crafting Islands: " + CRAFTING_ISLAND_WAVES.sum()
+                        + " wave(s), " + CRAFTING_ISLAND_PATTERNS.sum()
+                        + " pattern(s), " + CRAFTING_ISLAND_LOGICAL_EXECUTIONS.get()
+                        + " logical execution(s), cache " + CRAFTING_ISLAND_CACHE_HITS.sum()
+                        + " hit(s)/" + CRAFTING_ISLAND_CACHE_MISSES.sum()
+                        + " miss(es), max wave "
+                        + (CRAFTING_ISLAND_MAX_WAVE_NANOS.get() / 1_000L) + " us",
                 "Experimental V2 Instant: " + INSTANT_DISPATCH_CALLS.sum()
                         + " successful call(s), " + INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS.sum()
                         + " multi-transaction call(s), " + INSTANT_DISPATCH_TRANSACTIONS.sum()
@@ -237,10 +274,21 @@ public final class OptimizationMetrics {
         SEQUENTIAL_INSTANT_COMPLETED.reset();
         SEQUENTIAL_INSTANT_BUDGET_STOPS.reset();
         SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.reset();
+        CRAFTING_ISLAND_CACHE_HITS.reset();
+        CRAFTING_ISLAND_CACHE_MISSES.reset();
+        CRAFTING_ISLAND_WAVES.reset();
+        CRAFTING_ISLAND_PATTERNS.reset();
+        CRAFTING_ISLAND_LOGICAL_EXECUTIONS.reset();
+        CRAFTING_ISLAND_MAX_WAVE_NANOS.reset();
     }
 
     private static long percent(long hits, long misses) {
         long total = hits + misses;
         return total == 0L ? 0L : Math.round(hits * 100.0D / total);
+    }
+
+    private static long saturatedAdd(long left, long right) {
+        // 診断カウンタ自身がwrapしないよう、残量を超える加算はLong.MAX_VALUEで固定する。
+        return right > Long.MAX_VALUE - left ? Long.MAX_VALUE : left + right;
     }
 }

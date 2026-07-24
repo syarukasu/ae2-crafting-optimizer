@@ -25,6 +25,7 @@ import com.syaru.ae2craftingoptimizer.optimization.NativeBatchTargetGuard;
 import com.syaru.ae2craftingoptimizer.optimization.MethodHandleInvocationCache;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingIslandExecutor;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusInbox;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRegistry;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
@@ -290,6 +291,7 @@ public final class AE2CraftingOptimizer {
         CircuitCutterRecipeCache.clear();
         ProviderPatternGenerationTracker.clear();
         Ae2CompiledCraftingGraphCache.clear();
+        Ae2CraftingIslandExecutor.clearCompilationCache();
         BigCraftingStatusInbox.clear();
         PatternTaskFingerprint.clear();
         PatternProviderRoutingCache.clear();
@@ -320,6 +322,7 @@ public final class AE2CraftingOptimizer {
         OptimizationMetrics.reset();
         Ae2CraftingShadowValidator.resetDiagnostics();
         Ae2CompiledCraftingGraphCache.clear();
+        Ae2CraftingIslandExecutor.clearCompilationCache();
         BigCraftingStatusInbox.clear();
         OptionalAqeBigCraftingExecution.clear();
         // AQE側の未送信窓を先に戻してからRegistryを破棄する。順序を逆にすると、

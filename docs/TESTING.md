@@ -240,6 +240,39 @@ screen, or job that reports complete before its outputs arrive fails the stage.
 6. Confirm one tick is not capped at 65536 operations: that value bounds one probe/wave only, while actual work is limited by `maxPatterns`, `4 ms` CPU time, and `8 ms` grid time.
 7. Run `/aco stats` and compare `max wave` with Spark MSPT. A single wave may cross the deadline, but no second wave may begin after the CPU or grid budget is exhausted.
 
+## Compiled Crafting Islands
+
+1. Install the explicit backend under test, currently AAC 1.0.0 with Neo ECO
+   20.3.0, on both client and server.
+2. Set `enableCompiledCraftingIslands = true` under
+   `[experimentalCraftingEngine]` and restart both sides.
+3. Submit a deterministic 1k-to-256M ordinary crafting-table chain with all raw
+   inputs available. Compare exact raw consumption and final output against an
+   island-disabled run.
+4. Submit 100,000,000 final outputs and record cold-cache and warm-cache
+   calculation/execution time, TPS, MSPT, allocation, and power draw.
+5. Confirm intermediate components inside the connected island are not
+   materialized in ME storage.
+6. Move one middle Pattern to a normal provider outside the AAC structure.
+   Confirm the island remains on Neo ECO/AE2's original route.
+7. Replace one middle step with a processing Pattern. Confirm ACO creates
+   independent crafting islands on each side and does not wait for the entire
+   tree before executing a ready side.
+8. Remove a boundary input. Confirm that island waits while unrelated Neo ECO
+   machine Patterns continue normally.
+9. Test substitutions, duplicate producers, cycles, NBT, durability, remaining
+   items, fluids, chemicals, and custom recipe classes. Confirm no island input
+   changes and the original path handles the Job.
+10. Test distinct boundary keys and final output at exactly `Long.MAX_VALUE`.
+   Confirm no negative, zero, wrapped, or clamped counter appears.
+11. Force `waitingFor + amount` and `inFlight + amount` above
+    `Long.MAX_VALUE`. Confirm the island refuses commit before extracting input.
+12. Cancel while an island waits, unload/reload its chunks, and restart the
+    server before and after completion. Confirm no loss, duplication, stuck
+    Task, or stale cached island.
+13. Disable the switch and restart. Confirm Neo ECO's existing normal/vector
+    paths produce the same result without any island attempt.
+
 Compatibility-disabled sync checks retained in 1.2.2:
 
 1. Set the retained terminal, watcher, aggregate refresh, range, and client coalescing keys to `true`, restart, and confirm ACO still leaves AE2's original terminal and storage synchronization paths active because the related Mixins are unregistered.

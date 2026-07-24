@@ -4,6 +4,34 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-07-25
+
+### Added
+
+- Added default-off Compiled Crafting Islands for optional atomic CPU backends.
+  Exact connected crafting-table segments are reduced to checked BigInteger
+  boundary deltas without materializing internal intermediates.
+- Added weak Job compilation reuse, iterative cycle detection, independent
+  machine-boundary partitioning, reversible output staging, exact input/power
+  rollback, live provider-ownership revalidation, one-shot status notification,
+  and fail-closed output verification.
+- Added the `CraftingIslandExecutionOwner` and `CraftingIslandRuntime` optional
+  backend contracts. ACO remains inert when no backend implements them.
+- Added unit coverage for net-delta accounting, machine-boundary components,
+  cycles, duplicate producers, configured bit limits, deep non-recursive
+  chains, and distinct signed-long-maximum boundary keys.
+- Added the small `VectorBatchExecutionOwner` integration API for external
+  crafting engines that account for a large deterministic batch as one atomic
+  operation.
+
+### Changed
+
+- Neo ECO execution budgeting now measures declared vector batches by actual
+  batch work and elapsed time instead of treating every logical craft as an
+  independent Pattern push.
+- Standard AE2 and standard Neo ECO execution paths keep their existing
+  per-operation limits.
+
 ## [1.5.0] - 2026-07-24
 
 ### Added

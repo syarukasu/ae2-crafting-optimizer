@@ -119,6 +119,9 @@ fair scheduling, or atomic Big-capacity submission accepts only
 | `authoritativeMinimumShadowMatches` | `64` | Complete AE2/ACO accounting matches required for the same generation-keyed root before authoritative use. `0` explicitly bypasses qualification; one mismatch rejects that root until generation change. |
 | `requireAqeBigPlanShadowQualification` | `false` | When true, even strict long-overflow AQE plans require prior Shadow matches. The default uses strict topology, generation, and referenced-inventory proof because AE2 cannot complete a true overflow request for comparison. |
 | `enableCompiledCraftingGraph` | `true` | Builds the immutable generation-keyed graph only while the AQE profile or experimental master is active; unsupported or unproven plans still fall back to AE2. |
+| `enableCompiledCraftingIslands` | `false` | Independently enables atomic net-delta execution for ready connected islands of two or more exact ordinary crafting-table Patterns. It requires an explicit backend such as AAC and otherwise does nothing. |
+| `maximumCompiledCraftingIslandPatterns` | `4096` | Maximum live Job Patterns inspected before the island compiler falls back. Range `2..1048576`. |
+| `logCompiledCraftingIslands` | `true` | Logs each unique backend/stage/exception failure once while the island feature is enabled. Successful waves are not logged. |
 | `enableTransactionalBatchingV2` | `false` | Enables durable prepare/accept/account/reconcile transactions. |
 | `enableGtceuNativeBatching` | `false` | Enables exact all-or-zero GTCEu native batches; requires V2. |
 | `enableMekanismNativeBatching` | `false` | Enables exact item/fluid/chemical Mekanism native batches; requires V2. |
@@ -146,6 +149,13 @@ BigInteger status and long root-order transport use Forge channel protocol `3`;
 the status payload remains
 protocol `1`, with a hard `1 MiB` packet cap. Server and clients must use the
 same ACO jar before an integrating add-on uses status synchronization.
+
+Compiled Crafting Islands are separate from the authoritative planner and V2
+machine batching. They operate only on an already accepted live Job and only
+through an explicit atomic CPU backend. Processing Patterns, fluid/chemical
+keys, substitutions, multiple producers, cycles, NBT, durability, remaining
+items, and custom recipe implementations remain on the original execution
+path.
 
 | Key | Default | Main risk |
 | --- | --- | --- |

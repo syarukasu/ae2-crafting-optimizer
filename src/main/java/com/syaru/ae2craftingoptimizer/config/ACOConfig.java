@@ -177,6 +177,9 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue REQUIRE_AQE_BIG_PLAN_SHADOW_QUALIFICATION;
     private static final ForgeConfigSpec.BooleanValue ENABLE_COMPILED_CRAFTING_GRAPH;
     private static final ForgeConfigSpec.BooleanValue ENABLE_AUTHORITATIVE_COMPILED_PLANNER;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_COMPILED_CRAFTING_ISLANDS;
+    private static final ForgeConfigSpec.IntValue MAXIMUM_COMPILED_CRAFTING_ISLAND_PATTERNS;
+    private static final ForgeConfigSpec.BooleanValue LOG_COMPILED_CRAFTING_ISLANDS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC;
     private static final ForgeConfigSpec.BooleanValue ENABLE_TRANSACTIONAL_BATCHING_V2;
     private static final ForgeConfigSpec.BooleanValue ENABLE_GTCEU_NATIVE_BATCHING;
@@ -764,6 +767,26 @@ public final class ACOConfig {
                         "Use a compiled plan only for the strictly provable single-pattern path. Any ambiguity, generation change, fuzzy input, overflow, or unsupported recipe falls back to AE2.",
                         "Kept false until the user completes live comparison testing.")
                 .define("enableAuthoritativeCompiledPlanner", false);
+        ENABLE_COMPILED_CRAFTING_ISLANDS = builder
+                .comment(
+                        "Collapse a ready chain of two or more exact ordinary crafting-table patterns into one atomic boundary transaction.",
+                        "Processing patterns, fluids, chemicals, substitutions, NBT, durability, container returns, cycles, and ambiguous producers always remain on the original AE2/Neo ECO path.",
+                        "This switch is independent from the authoritative planner and only runs when an optional execution backend such as AAC explicitly supplies atomic capacity.",
+                        "Kept false until live inventory, cancellation, restart, and TPS tests are complete.")
+                .define("enableCompiledCraftingIslands", false);
+        MAXIMUM_COMPILED_CRAFTING_ISLAND_PATTERNS = builder
+                .comment(
+                        "Maximum live job patterns inspected by the crafting-island compiler.",
+                        "Jobs above this limit fall back before allocating adjacency tables.")
+                .defineInRange(
+                        "maximumCompiledCraftingIslandPatterns",
+                        4096,
+                        2,
+                        1_048_576);
+        LOG_COMPILED_CRAFTING_ISLANDS = builder
+                .comment(
+                        "Log each unique crafting-island failure once. Successful waves are not logged per execution.")
+                .define("logCompiledCraftingIslands", true);
         ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC = builder
                 .comment(
                         "Reject AE2 tree calculations before unchecked long/double arithmetic can wrap or saturate.",
@@ -1550,6 +1573,20 @@ public final class ACOConfig {
 
     public static boolean enableAuthoritativeCompiledPlanner() {
         return enableCompiledCraftingGraph() && ENABLE_AUTHORITATIVE_COMPILED_PLANNER.get();
+    }
+
+    public static boolean enableCompiledCraftingIslands() {
+        return enableOptimizer() && ENABLE_COMPILED_CRAFTING_ISLANDS.get();
+    }
+
+    public static int getMaximumCompiledCraftingIslandPatterns() {
+        return Math.min(
+                1_048_576,
+                Math.max(2, MAXIMUM_COMPILED_CRAFTING_ISLAND_PATTERNS.get()));
+    }
+
+    public static boolean logCompiledCraftingIslands() {
+        return enableCompiledCraftingIslands() && LOG_COMPILED_CRAFTING_ISLANDS.get();
     }
 
     public static boolean enableCheckedAe2CraftingArithmetic() {
