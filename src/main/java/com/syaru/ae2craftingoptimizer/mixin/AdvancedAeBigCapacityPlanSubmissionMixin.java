@@ -10,6 +10,7 @@ import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRegistry;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext;
@@ -53,12 +54,16 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
             ICraftingRequester requester,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
         // 個別カウンタもlongを超える計画は、Advanced AE Jobを作らずBig親Jobへ移譲する。
-        if (plan instanceof BigIntegerCraftingPlan bigIntegerPlan) {
+        BigIntegerCraftingPlan bigIntegerPlan =
+                Ae2CraftingPlanSidecars.bigInteger(plan).orElse(null);
+        if (bigIntegerPlan != null) {
             aco$submitBigIntegerParent(bigIntegerPlan, requester, cir);
             return;
         }
         // 通常AE2計画には一切介入せず、Big容量マーカーだけを対象にする。
-        if (!(plan instanceof BigCapacityCraftingPlan bigPlan)) {
+        BigCapacityCraftingPlan bigPlan =
+                Ae2CraftingPlanSidecars.bigCapacity(plan).orElse(null);
+        if (bigPlan == null) {
             return;
         }
         // 実験機能OFF、Missing計画、古いPattern世代は入力を抜く前に拒否する。
@@ -99,7 +104,9 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
             ICraftingRequester requester,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
         // 通常計画のRETURNではThreadLocalにも容量台帳にも触れない。
-        if (!(plan instanceof BigCapacityCraftingPlan bigPlan)) {
+        BigCapacityCraftingPlan bigPlan =
+                Ae2CraftingPlanSidecars.bigCapacity(plan).orElse(null);
+        if (bigPlan == null) {
             return;
         }
         SubmissionAttempt attempt = ACO_SUBMISSION.get();

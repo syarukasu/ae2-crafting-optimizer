@@ -336,6 +336,53 @@ public final class CompiledRootProgram<K> {
         return true;
     }
 
+    /** BigInteger計画終了時に、参照キーの正確な在庫量だけを再検証する。 */
+    public boolean inventoryMatches(
+            BigInventorySnapshot<K> snapshot,
+            Function<? super K, BigInteger> amountReader,
+            int maximumBits) {
+        requireSnapshot(snapshot);
+        Objects.requireNonNull(amountReader, "amountReader");
+        // 無関係なME在庫は走査せず、コンパイル済みルートが読んだキーだけを比較する。
+        for (int index = 0; index < keys.size(); index++) {
+            BigInteger current = BigCountMath.requireMaximumBits(
+                    Objects.requireNonNull(
+                            amountReader.apply(keys.get(index)),
+                            "inventory amount"),
+                    "compiled-root/big-live-inventory/" + index,
+                    maximumBits);
+            // 一つでも変化した場合は、古いBigInteger計画を提出しない。
+            if (!current.equals(snapshot.amountAt(index))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** BigInteger Snapshotの全参照値がsigned longへ無損失変換できるかを返す。 */
+    boolean inventoryFitsSignedLong(BigInventorySnapshot<K> snapshot) {
+        requireSnapshot(snapshot);
+        // 通常在庫だけならlong高速経路を維持し、BigInteger配列演算を避ける。
+        for (int index = 0; index < keys.size(); index++) {
+            // signed longの正数範囲を越える最初のキーでBigInteger経路を選択する。
+            if (snapshot.amountAt(index).bitLength() > Long.SIZE - 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 検証済みBigInteger Snapshotをlong高速経路用Snapshotへ無損失変換する。 */
+    InventorySnapshot<K> narrowInventory(BigInventorySnapshot<K> snapshot) {
+        requireSnapshot(snapshot);
+        long[] amounts = new long[keys.size()];
+        // 呼出側のfits判定後もlongValueExactを使い、将来の変更で暗黙wrapを起こさない。
+        for (int index = 0; index < keys.size(); index++) {
+            amounts[index] = snapshot.amountAt(index).longValueExact();
+        }
+        return new InventorySnapshot<>(this, amounts);
+    }
+
     /** checked longだけで配列プログラムを一巡する高速経路。 */
     public LongCraftingPlan<K> planLong(
             long requestedAmount,
@@ -682,6 +729,10 @@ public final class CompiledRootProgram<K> {
 
         private BigInteger[] copyAmounts() {
             return amounts.clone();
+        }
+
+        private BigInteger amountAt(int index) {
+            return amounts[index];
         }
 
         public int size() {
