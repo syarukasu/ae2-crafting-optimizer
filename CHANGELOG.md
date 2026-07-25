@@ -4,6 +4,31 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-07-25
+
+### Added
+
+- Added an exact BigInteger sidecar for the AE2 crafting confirmation screen,
+  including used bytes and per-key stored, missing, and craft amounts.
+- Added compact and full BigInteger amount formatting without saturating at
+  signed `long`.
+- Added regression coverage for values above `10^64` and the AQE-aligned hard
+  implementation limit.
+
+### Changed
+
+- Aligned the default gameplay BigInteger limit with AQE's 16,384-decimal-digit
+  implementation ceiling instead of imposing a separate `10^64` ACO limit.
+- Updated ACO's strict Forge channel from protocol `3` to `4` for the exact
+  crafting-plan summary message.
+
+### Fixed
+
+- Prevented wide crafting confirmation rows and used-byte totals from appearing
+  clamped to `Long.MAX_VALUE`.
+- Kept AE2's compatibility summary safely saturated while rendering exact
+  BigInteger values from the bounded ACO sidecar.
+
 ## [1.5.1] - 2026-07-25
 
 ### Added

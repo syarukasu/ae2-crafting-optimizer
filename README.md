@@ -67,7 +67,7 @@ Quantum Engineering are installed. Native machine batching, general
 authoritative plan replacement, and unrelated deep rewrites remain disabled.
 Read
 [Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md) before testing them.
-The current source carries the `1.5.0` version while P0-P8 are reviewed;
+The current source carries the `1.5.2` version while P0-P8 are reviewed;
 P9 startup, recovery, multiplayer, and long-running world tests are deliberately
 not claimed by this source revision. See
 [P0-P8 implementation status](docs/P0_P8_IMPLEMENTATION_STATUS.md).
@@ -737,7 +737,7 @@ Run:
 gradlew.bat clean build
 ```
 
-This branch generates `build/libs/ae2-crafting-optimizer-1.5.0.jar`. Building
+This branch generates `build/libs/ae2-crafting-optimizer-1.5.2.jar`. Building
 it does not authorize deployment or feature enablement before the runtime
 matrix is complete. GitHub Actions runs the same clean build for
 pushes and pull requests.

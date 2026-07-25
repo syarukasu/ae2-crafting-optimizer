@@ -849,9 +849,13 @@ public final class ACOConfig {
                 .define("enableBigIntegerGameplayExecution", true);
         BIG_INTEGER_MAXIMUM_BITS = builder
                 .comment(
-                        "Maximum magnitude stored by the BigInteger backend, in binary bits. 256 bits is about 77 decimal digits.",
-                        "The hard implementation maximum is 16384 decimal digits (currently 54427 bits). Values above 10^16384-1 are rejected exactly before NBT or packet allocation.")
-                .defineInRange("bigIntegerMaximumBits", 256, 64, BigCountMath.HARD_MAXIMUM_BITS);
+                        "Maximum magnitude stored by the gameplay BigInteger backend, in binary bits.",
+                        "Bounded by the same 16,384-decimal-digit implementation ceiling used by AQE. Values above the configured limit are rejected before NBT, packet, or planner allocation.")
+                .defineInRange(
+                        "bigIntegerMaximumBits",
+                        BigCountMath.HARD_MAXIMUM_BITS,
+                        64,
+                        BigCountMath.HARD_MAXIMUM_BITS);
         BIG_INTEGER_EXECUTION_WINDOW = builder
                 .comment(
                         "Maximum pattern executions exposed to a long/int machine adapter in one BigInteger execution window.",
@@ -1662,7 +1666,9 @@ public final class ACOConfig {
     }
 
     public static int getBigIntegerMaximumBits() {
-        return Math.min(BigCountMath.HARD_MAXIMUM_BITS, Math.max(64, BIG_INTEGER_MAXIMUM_BITS.get()));
+        return Math.min(
+                BigCountMath.HARD_MAXIMUM_BITS,
+                Math.max(64, BIG_INTEGER_MAXIMUM_BITS.get()));
     }
 
     public static int getBigIntegerExecutionWindow() {
