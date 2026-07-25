@@ -7,10 +7,16 @@ import com.syaru.ae2craftingoptimizer.api.big.AeKeyBigCraftingPacketCodec;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusInbox;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusPage;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusPageCodec;
+import com.syaru.ae2craftingoptimizer.client.BigCraftingPlanClientStore;
 import com.syaru.ae2craftingoptimizer.client.LongCraftAmountClientHandler;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountMenuBridge;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountRules;
+import com.syaru.ae2craftingoptimizer.engine.BigCraftingPlanSummary;
+import com.syaru.ae2craftingoptimizer.engine.BigIntegerBufferCodec;
+import java.math.BigInteger;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -31,14 +37,16 @@ import io.netty.buffer.Unpooled;
  * AE2本来のPacket IDやCodecは変更せず、ACO同士だけがこの別Channelを使用する。
  */
 public final class BigCraftingNetwork {
-    /** Statusだけだったprotocol 2へlong量の双方向Messageを追加したため、互換番号を更新する。 */
-    public static final String PROTOCOL = "3";
+    /** Craft確認画面のBigInteger Summaryを追加したため、互換番号を更新する。 */
+    public static final String PROTOCOL = "4";
     /** 既存BigInteger Status PageのMessage ID。 */
     private static final int STATUS_PAGE_MESSAGE_ID = 0;
     /** Integer.MAX_VALUE超過量をサーバーへ送るMessage ID。 */
     private static final int LONG_CRAFT_AMOUNT_REQUEST_MESSAGE_ID = 1;
     /** 戻る画面へlong初期値を復元するMessage ID。 */
     private static final int LONG_CRAFT_AMOUNT_STATE_MESSAGE_ID = 2;
+    /** Craft確認画面へ正確なBigInteger容量と個別数量を送るMessage ID。 */
+    private static final int EXACT_CRAFTING_PLAN_SUMMARY_MESSAGE_ID = 3;
     private static final AtomicBoolean REGISTERED = new AtomicBoolean();
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(AE2CraftingOptimizer.MODID, "big_crafting"),
@@ -74,6 +82,13 @@ public final class BigCraftingNetwork {
                 LongCraftAmountStateMessage::encode,
                 LongCraftAmountStateMessage::decode,
                 LongCraftAmountStateMessage::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(
+                EXACT_CRAFTING_PLAN_SUMMARY_MESSAGE_ID,
+                ExactCraftingPlanSummaryMessage.class,
+                ExactCraftingPlanSummaryMessage::encode,
+                ExactCraftingPlanSummaryMessage::decode,
+                ExactCraftingPlanSummaryMessage::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 
@@ -129,6 +144,28 @@ public final class BigCraftingNetwork {
         CHANNEL.send(
                 PacketDistributor.PLAYER.with(() -> player),
                 new LongCraftAmountStateMessage(containerId, amount));
+    }
+
+    public static void sendExactCraftingPlanSummary(
+            ServerPlayer player,
+            int containerId,
+            BigCraftingPlanSummary summary) {
+        Map<AEKey, BigCraftingPlanSummary.Entry> entries =
+                summary == null ? Map.of() : summary.exactDisplayEntries();
+        int maximumEntries = ACOConfig.getBigIntegerStatusPageEntries();
+        if (entries.size() > maximumEntries) {
+            throw new IllegalArgumentException(
+                    "Craft confirmation has " + entries.size()
+                            + " exact rows, above configured packet cap " + maximumEntries);
+        }
+        CHANNEL.send(
+                PacketDistributor.PLAYER.with(() -> player),
+                summary == null
+                        ? ExactCraftingPlanSummaryMessage.clear(containerId)
+                        : ExactCraftingPlanSummaryMessage.present(
+                                containerId,
+                                summary.usedBytes(),
+                                entries));
     }
 
     private record StatusPageMessage(BigCraftingStatusPage<AEKey> page) {
@@ -241,6 +278,129 @@ public final class BigCraftingNetwork {
                     () -> () -> LongCraftAmountClientHandler.accept(
                             message.containerId(),
                             message.amount())));
+            context.setPacketHandled(true);
+        }
+    }
+
+    /**
+     * AE2本来のCraftConfirmPlanPacketは互換long値を運び、このSidecarが正確値だけを補う。
+     */
+    private record ExactCraftingPlanSummaryMessage(
+            int containerId,
+            boolean present,
+            BigInteger usedBytes,
+            Map<AEKey, BigCraftingPlanSummary.Entry> entries) {
+        private ExactCraftingPlanSummaryMessage {
+            if (containerId < 0) {
+                throw new IllegalArgumentException("containerId must be non-negative");
+            }
+            if (present) {
+                java.util.Objects.requireNonNull(usedBytes, "usedBytes");
+                entries = Map.copyOf(new LinkedHashMap<>(
+                        java.util.Objects.requireNonNull(entries, "entries")));
+            } else {
+                usedBytes = BigInteger.ZERO;
+                entries = Map.of();
+            }
+        }
+
+        private static ExactCraftingPlanSummaryMessage present(
+                int containerId,
+                BigInteger usedBytes,
+                Map<AEKey, BigCraftingPlanSummary.Entry> entries) {
+            return new ExactCraftingPlanSummaryMessage(
+                    containerId,
+                    true,
+                    usedBytes,
+                    entries);
+        }
+
+        private static ExactCraftingPlanSummaryMessage clear(int containerId) {
+            return new ExactCraftingPlanSummaryMessage(
+                    containerId,
+                    false,
+                    BigInteger.ZERO,
+                    Map.of());
+        }
+
+        private static void encode(
+                ExactCraftingPlanSummaryMessage message,
+                FriendlyByteBuf buffer) {
+            int maximumBits = ACOConfig.getBigIntegerMaximumBits();
+            buffer.writeVarInt(message.containerId());
+            buffer.writeBoolean(message.present());
+            if (!message.present()) {
+                return;
+            }
+
+            BigIntegerBufferCodec.writeNonNegative(
+                    buffer, message.usedBytes(), maximumBits);
+            buffer.writeVarInt(message.entries().size());
+            message.entries().forEach((key, entry) -> {
+                AeKeyBigCraftingPacketCodec.INSTANCE.write(buffer, key);
+                BigIntegerBufferCodec.writeNonNegative(
+                        buffer, entry.stored(), maximumBits);
+                BigIntegerBufferCodec.writeNonNegative(
+                        buffer, entry.missing(), maximumBits);
+                BigIntegerBufferCodec.writeNonNegative(
+                        buffer, entry.craft(), maximumBits);
+            });
+        }
+
+        private static ExactCraftingPlanSummaryMessage decode(FriendlyByteBuf buffer) {
+            int containerId = buffer.readVarInt();
+            boolean present = buffer.readBoolean();
+            if (!present) {
+                return clear(containerId);
+            }
+
+            int maximumBits = ACOConfig.getBigIntegerMaximumBits();
+            BigInteger usedBytes =
+                    BigIntegerBufferCodec.readNonNegative(buffer, maximumBits);
+            int entryCount = buffer.readVarInt();
+            int maximumEntries = ACOConfig.getBigIntegerStatusPageEntries();
+            if (entryCount < 0 || entryCount > maximumEntries) {
+                throw new IllegalArgumentException(
+                        "invalid exact craft summary entry count " + entryCount);
+            }
+
+            Map<AEKey, BigCraftingPlanSummary.Entry> entries =
+                    new LinkedHashMap<>(entryCount);
+            for (int index = 0; index < entryCount; index++) {
+                AEKey key = AeKeyBigCraftingPacketCodec.INSTANCE.read(buffer);
+                if (key == null) {
+                    throw new IllegalArgumentException(
+                            "unknown AEKey in exact craft summary");
+                }
+                BigCraftingPlanSummary.Entry entry =
+                        new BigCraftingPlanSummary.Entry(
+                                BigIntegerBufferCodec.readNonNegative(buffer, maximumBits),
+                                BigIntegerBufferCodec.readNonNegative(buffer, maximumBits),
+                                BigIntegerBufferCodec.readNonNegative(buffer, maximumBits));
+                if (entries.put(key, entry) != null) {
+                    throw new IllegalArgumentException(
+                            "duplicate AEKey in exact craft summary: " + key.getId());
+                }
+            }
+            return present(containerId, usedBytes, entries);
+        }
+
+        private static void handle(
+                ExactCraftingPlanSummaryMessage message,
+                Supplier<NetworkEvent.Context> contextSupplier) {
+            NetworkEvent.Context context = contextSupplier.get();
+            context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(
+                    Dist.CLIENT,
+                    () -> () -> {
+                        if (message.present()) {
+                            BigCraftingPlanClientStore.accept(
+                                    message.containerId(),
+                                    message.usedBytes(),
+                                    message.entries());
+                        } else {
+                            BigCraftingPlanClientStore.clear(message.containerId());
+                        }
+                    }));
             context.setPacketHandled(true);
         }
     }

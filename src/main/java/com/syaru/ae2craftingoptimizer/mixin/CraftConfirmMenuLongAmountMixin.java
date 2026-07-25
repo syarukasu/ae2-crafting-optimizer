@@ -14,6 +14,8 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountMenuBridge;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountRules;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftConfirmMenuBridge;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
+import com.syaru.ae2craftingoptimizer.engine.BigCraftingPlanSummary;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
 import java.util.Objects;
 import java.util.concurrent.Future;
@@ -50,6 +52,14 @@ public abstract class CraftConfirmMenuLongAmountMixin
     /** int互換フィールドとは別に保持する、実際のルート注文量。 */
     @Unique
     private long aco$longRootAmount;
+
+    /** 最後にCraft確認用BigInteger Sidecarを送った計画。 */
+    @Unique
+    private ICraftingPlan aco$lastSummaryPlanSent;
+
+    /** null計画に対するclear packetも一度だけ送るための状態。 */
+    @Unique
+    private boolean aco$summaryStateSent;
 
     @Inject(method = "planJob", at = @At("HEAD"), require = 1)
     private void aco$clearLongSidecarForNormalPlan(
@@ -173,6 +183,38 @@ public abstract class CraftConfirmMenuLongAmountMixin
                 "ACO could not restore a long craft amount because CraftAmountMenu did not expose the required bridge");
         menu.getHost().returnToMainMenu(menu.getPlayer(), menu);
         ci.cancel();
+    }
+
+    @Inject(method = "m_38946_", at = @At("RETURN"), require = 1)
+    private void aco$syncExactCraftingPlanSummary(CallbackInfo ci) {
+        CraftConfirmMenu menu = (CraftConfirmMenu) (Object) this;
+        if (menu.isClientSide()
+                || !(menu.getPlayer() instanceof ServerPlayer serverPlayer)
+                || (this.aco$summaryStateSent
+                        && this.aco$lastSummaryPlanSent == this.result)) {
+            return;
+        }
+
+        try {
+            BigCraftingPlanSummary summary = Ae2CraftingPlanSidecars.metadata(this.result)
+                    .map(BigCraftingPlanSummary::from)
+                    .orElse(null);
+            BigCraftingNetwork.sendExactCraftingPlanSummary(
+                    serverPlayer,
+                    menu.containerId,
+                    summary);
+        } catch (RuntimeException exception) {
+            // 表示Sidecarの失敗でクラフトMenu自体を落とさず、古いClient表示だけは消す。
+            AE2CraftingOptimizer.LOGGER.error(
+                    "ACO could not synchronize exact Crafting Plan summary",
+                    exception);
+            BigCraftingNetwork.sendExactCraftingPlanSummary(
+                    serverPlayer,
+                    menu.containerId,
+                    null);
+        }
+        this.aco$lastSummaryPlanSent = this.result;
+        this.aco$summaryStateSent = true;
     }
 
     @Override
