@@ -390,6 +390,7 @@ Optional integrations and coexistence targets:
 - Neo ECO AE Extension 20.3.x
 - AppliedE 0.14.3
 - AppliedE TPS Fix 0.14.7-fix2
+- AE2 Crafting Tree 1.1.1
 - Advanced Quantum Engineering
 - EMI
 - JEI
@@ -400,7 +401,7 @@ Optional integrations and coexistence targets:
 
 No Bukkit or Paper APIs are used.
 
-Only AE2 is a hard runtime dependency. GTCEu, Mekanism, Advanced AE, and Neo ECO hooks use optional pseudo-Mixins with non-fatal injection requirements; when an optional mod is absent, its target is not applied. AppliedE compatibility uses the shared public AE2 Pattern interfaces and exact implementation-name guards, so neither AppliedE implementation is linked or bundled. Neo ECO 20.3.0 is a compile-only signature target and is not bundled in the ACO jar.
+Only AE2 is a hard runtime dependency. GTCEu, Mekanism, Advanced AE, and Neo ECO hooks use optional pseudo-Mixins with non-fatal injection requirements; when an optional mod is absent, its target is not applied. AppliedE compatibility uses the shared public AE2 Pattern interfaces and exact implementation-name guards, so neither AppliedE implementation is linked or bundled. For wide crafting-plan summaries, the optional AE2 Crafting Tree bridge restores the same `RecipeHelper` initialization that its normal `fromJob` tail injection performs. Neo ECO 20.3.0 and AE2 Crafting Tree are not bundled in the ACO jar.
 
 ## Configuration
 

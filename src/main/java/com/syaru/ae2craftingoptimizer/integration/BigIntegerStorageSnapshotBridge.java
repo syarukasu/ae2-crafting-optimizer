@@ -6,6 +6,7 @@ import appeng.api.storage.MEStorage;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
+import com.syaru.ae2craftingoptimizer.mixin.DelegatingMEInventoryAccessor;
 import com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventoryAccessor;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
@@ -19,6 +20,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class BigIntegerStorageSnapshotBridge {
     private static final String EXTENDED_AE_PLUS_BIG_CELL =
             "com.extendedae_plus.api.storage.InfinityBigIntegerCellInventory";
+    /** 通常のDriveWatcherは一段だが、アドオンの委譲層を含めても無限循環しない上限。 */
+    private static final int MAXIMUM_DELEGATE_DEPTH = 16;
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
     private static final AtomicBoolean LOGGED_ADAPTER_FAILURE = new AtomicBoolean();
     private static final ThreadLocal<ArrayDeque<KeyCounter>> TEMPORARY_COUNTERS =
@@ -74,14 +77,22 @@ public final class BigIntegerStorageSnapshotBridge {
             return nested;
         }
 
-        // Optional Mixinが適用されたInfinityBigIntegerCellだけ、内部BigInteger Mapを読む。
-        if (storage instanceof ExtendedAePlusBigIntegerCellInventoryAccessor accessor) {
+        MEStorage exactStorage = unwrapDelegates(storage);
+        // DriveWatcher等の内側にあるInfinityBigIntegerCellから、正確な内部Mapを読む。
+        if (exactStorage
+                instanceof ExtendedAePlusBigIntegerCellInventoryAccessor accessor) {
             try {
                 Map<AEKey, BigInteger> copy = new LinkedHashMap<>();
-                // セル内部Mapは可変なので、同一tick中の変更から計画Snapshotを隔離する。
+                /*
+                 * セル内部Mapは可変なので複製する。委譲Storageがpartition等で隠したキーは
+                 * facadeContributionに存在しないため、BigInteger側だけ復活させない。
+                 */
                 for (Map.Entry<AEKey, BigInteger> entry :
                         accessor.aco$getExactStoredAmounts().entrySet()) {
-                    copy.put(entry.getKey(), entry.getValue());
+                    // 0以外のFacadeが存在するキーだけが、このmountから実際に公開されている。
+                    if (facadeContribution.get(entry.getKey()) != 0L) {
+                        copy.put(entry.getKey(), entry.getValue());
+                    }
                 }
                 return new BigKeyCounterSidecars.Snapshot(copy, true);
             } catch (RuntimeException | LinkageError failure) {
@@ -93,7 +104,7 @@ public final class BigIntegerStorageSnapshotBridge {
         }
 
         // 対象クラスなのにAccessorが無い場合は、丸め値を正確値として採用しない。
-        if (storage.getClass().getName().equals(EXTENDED_AE_PLUS_BIG_CELL)) {
+        if (isExtendedAePlusBigCell(exactStorage)) {
             logAdapterFailure(new IllegalStateException(
                     "ExtendedAE Plus BigInteger cell accessor was not applied"));
             return new BigKeyCounterSidecars.Snapshot(
@@ -101,6 +112,40 @@ public final class BigIntegerStorageSnapshotBridge {
                     false);
         }
         return BigKeyCounterSidecars.fromFacade(facadeContribution);
+    }
+
+    private static MEStorage unwrapDelegates(MEStorage storage) {
+        MEStorage current = storage;
+        // AE2やアドオンの委譲Storageだけを上限付きで辿り、任意Reflectionは使用しない。
+        for (int depth = 0; depth < MAXIMUM_DELEGATE_DEPTH; depth++) {
+            // BigIntegerセル本体へ到達したら、それ以上委譲先を探さない。
+            if (current instanceof ExtendedAePlusBigIntegerCellInventoryAccessor) {
+                return current;
+            }
+            // AE2標準DelegatingMEInventory以外は、安全に内部Storageを取得できないため停止する。
+            if (!(current instanceof DelegatingMEInventoryAccessor delegating)) {
+                return current;
+            }
+            MEStorage next = delegating.aco$getDelegateStorage();
+            // nullや自己参照は破損委譲として停止し、Facade経路へFallbackする。
+            if (next == null || next == current) {
+                return current;
+            }
+            current = next;
+        }
+        return current;
+    }
+
+    private static boolean isExtendedAePlusBigCell(MEStorage storage) {
+        Class<?> type = storage.getClass();
+        // Accessor適用失敗時も、サブクラスを含む実セル型だけを明確な連携失敗として扱う。
+        while (type != null) {
+            if (type.getName().equals(EXTENDED_AE_PLUS_BIG_CELL)) {
+                return true;
+            }
+            type = type.getSuperclass();
+        }
+        return false;
     }
 
     private static void mergeSaturatedFacade(

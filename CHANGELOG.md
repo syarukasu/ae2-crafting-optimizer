@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-07-25
+
+### Fixed
+
+- Restored AE2 Crafting Tree data initialization for ACO wide and BigInteger
+  crafting-plan summaries. AE2CT no longer serializes a null `RecipeHelper`
+  when ACO safely bypasses AE2's signed-long summary aggregation.
+- Kept standard AE2 plans and AE2CT-absent installations on their original
+  execution paths.
+- Preserved exact ExtendedAE Plus BigInteger stock through AE2 `DriveWatcher`
+  and other standard delegating storage wrappers instead of treating
+  `Long.MAX_VALUE` as the real available amount.
+
 ## [1.5.2] - 2026-07-25
 
 ### Added
