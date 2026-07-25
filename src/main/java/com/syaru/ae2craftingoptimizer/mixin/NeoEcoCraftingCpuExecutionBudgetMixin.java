@@ -2,6 +2,8 @@ package com.syaru.ae2craftingoptimizer.mixin;
 
 import appeng.api.networking.energy.IEnergyService;
 import appeng.me.service.CraftingService;
+import com.syaru.ae2craftingoptimizer.api.execution.CraftingIslandExecutionOwner;
+import com.syaru.ae2craftingoptimizer.api.execution.VectorBatchExecutionOwner;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget;
 import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
@@ -20,10 +22,16 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
     private CraftingService aco$neoEcoCraftingService;
 
     @Unique
+    private IEnergyService aco$neoEcoEnergyService;
+
+    @Unique
     private int aco$neoEcoRequestedOperations;
 
     @Unique
     private long aco$neoEcoExecutionStartedAt;
+
+    @Unique
+    private boolean aco$neoEcoVectorBatch;
 
     @Inject(
             method = "tickCraftingLogic(Lappeng/api/networking/energy/IEnergyService;Lappeng/me/service/CraftingService;)V",
@@ -34,12 +42,46 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
             IEnergyService energyService,
             CraftingService craftingService,
             CallbackInfo callbackInfo) {
-        if (!ACOConfig.throttleNeoEcoAeExecution()) {
-            return;
-        }
         aco$neoEcoCraftingService = craftingService;
+        aco$neoEcoEnergyService = energyService;
         aco$neoEcoRequestedOperations = 0;
         aco$neoEcoExecutionStartedAt = 0L;
+        aco$neoEcoVectorBatch = false;
+    }
+
+    @Inject(
+            method = "executeCrafting(IILappeng/me/service/CraftingService;Lappeng/api/networking/energy/IEnergyService;Lnet/minecraft/world/level/Level;Lcn/dancingsnow/neoecoae/api/me/ECOCraftingCPULogic$FastPathBatchBudget;)I",
+            at = @At("HEAD"),
+            cancellable = true,
+            remap = false,
+            require = 0)
+    private void aco$tryCompiledCraftingIsland(
+            CallbackInfoReturnable<Integer> callbackInfo) {
+        // 個別スイッチOFFではNeo ECOの既存Vector/slow pathだけを実行する。
+        if (!ACOConfig.enableCompiledCraftingIslands()) {
+            return;
+        }
+        // AACなどが明示実装した原子バックエンド以外へ島会計を適用しない。
+        if (!(this instanceof CraftingIslandExecutionOwner owner)) {
+            return;
+        }
+        CraftingService craftingService = aco$neoEcoCraftingService;
+        IEnergyService energyService = aco$neoEcoEnergyService;
+        // tick入口を通らない未知の呼出しでは必要サービスがないため元処理へ戻す。
+        if (craftingService == null || energyService == null) {
+            return;
+        }
+        // 0予算でもAPIへ正の参考値を渡す。島のPattern上限は別Configで固定する。
+        int executionBudgetHint = Math.max(1, aco$neoEcoRequestedOperations);
+        int result = owner.acoTryExecuteCompiledCraftingIsland(
+                executionBudgetHint,
+                craftingService,
+                energyService);
+        // NOT_HANDLED以外は一つの原子WaveとしてNeo ECO本体の同じtick配送を置き換える。
+        if (result != CraftingIslandExecutionOwner.NOT_HANDLED) {
+            aco$neoEcoVectorBatch = result > 0;
+            callbackInfo.setReturnValue(result);
+        }
     }
 
     @Inject(
@@ -49,7 +91,7 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
             remap = false,
             require = 0)
     private void aco$limitNeoEcoSlowPath(CallbackInfoReturnable<Integer> callbackInfo) {
-        aco$applyNeoEcoBudget(callbackInfo);
+        aco$applyNeoEcoBudget(callbackInfo, false);
     }
 
     @Inject(
@@ -59,7 +101,7 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
             remap = false,
             require = 0)
     private void aco$limitNeoEcoFastPath(CallbackInfoReturnable<Integer> callbackInfo) {
-        aco$applyNeoEcoBudget(callbackInfo);
+        aco$applyNeoEcoBudget(callbackInfo, true);
     }
 
     @Inject(
@@ -85,7 +127,10 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
         }
 
         long elapsedNanos = System.nanoTime() - startedAt;
-        int completedOperations = Math.max(0, callbackInfo.getReturnValueI());
+        // Vector Batchは論理クラフト個数ではなく、実際に行った一回のBatch処理として学習する。
+        int completedOperations = aco$neoEcoVectorBatch
+                ? (callbackInfo.getReturnValueI() > 0 ? 1 : 0)
+                : Math.max(0, callbackInfo.getReturnValueI());
         CraftingExecutionBudget.recordExecution(
                 this,
                 aco$neoEcoRequestedOperations,
@@ -109,17 +154,37 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
             CraftingService craftingService,
             CallbackInfo callbackInfo) {
         aco$neoEcoCraftingService = null;
+        aco$neoEcoEnergyService = null;
         aco$neoEcoExecutionStartedAt = 0L;
+        aco$neoEcoVectorBatch = false;
     }
 
     @Unique
-    private void aco$applyNeoEcoBudget(CallbackInfoReturnable<Integer> callbackInfo) {
+    private void aco$applyNeoEcoBudget(
+            CallbackInfoReturnable<Integer> callbackInfo,
+            boolean fastPath) {
         if (!ACOConfig.throttleNeoEcoAeExecution()) {
             return;
         }
 
         int originalOperations = callbackInfo.getReturnValueI();
         if (originalOperations <= 0) {
+            return;
+        }
+
+        // 原子的Vector Batchを宣言した外部設備だけ、論理個数ではなく実時間で予算管理する。
+        if (fastPath
+                && this instanceof VectorBatchExecutionOwner vectorOwner
+                && vectorOwner.acoSupportsVectorBatchExecution()) {
+            // 大量個数を一つの不変Batchで処理する設備では、個数を通常push予算で切らない。
+            // ただしGridの時間予算を既に消費したtickでは一件だけに縮退し、次tickへ公平に譲る。
+            long remainingNanos = CraftingExecutionBudget.remainingSharedBudgetNanos(
+                    aco$neoEcoCraftingService,
+                    ServerTickClock.currentTick());
+            int vectorLimit = remainingNanos <= 0L ? 1 : originalOperations;
+            aco$neoEcoRequestedOperations = Math.max(aco$neoEcoRequestedOperations, 1);
+            aco$neoEcoVectorBatch = true;
+            callbackInfo.setReturnValue(vectorLimit);
             return;
         }
 

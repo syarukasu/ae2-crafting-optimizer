@@ -303,7 +303,8 @@ version `1`.
   - Caps the return values of Neo ECO's own `getOperationLimit()` and `effectiveFastPathTickLimit()` methods through ACO's existing adaptive per-CPU and shared per-grid budgets.
   - Measures `executeCrafting(...)` and records Neo ECO's returned pattern-push count, so later ticks use measured cost rather than a guessed operation cost.
   - Uses ACO's server tick clock, shared with the standard AE2 execution wrapper, so both CPU implementations debit the same `CraftingService` budget in one tick.
-  - Does not replace Neo ECO's normal, batch, or aggressive fast path; does not alter recipes, storage, CPU statistics, energy accounting, simulated crafts, status batching, or job persistence.
+  - With Compiled Crafting Islands disabled or no explicit backend present, it does not replace Neo ECO's normal, batch, or aggressive fast path.
+  - With the island switch and an explicit backend enabled, it permits one proven atomic island wave to replace the corresponding original `executeCrafting` pass; every unsupported or waiting case returns `NOT_HANDLED`.
   - Is absent at runtime when `neoecoae` is not installed. Neo ECO 20.3.0 is present only as a compile-time signature target and is not bundled.
 - `CraftingCpuLogicTransactionalBatchV2Mixin` / `AdvancedAeCraftingCpuLogicTransactionalBatchV2Mixin`
   - Are isolated behind the default-off experimental master and V2 switches.
@@ -426,6 +427,46 @@ This feature is enabled by default because it is the direct TPS protection for g
 Advanced AE Quantum Computer execution receives the same hard effective co-processor cap and Sequential Instant wave controller. Its public original `executeCrafting` method still performs all extraction, Provider, energy, task, and waiting-output accounting; ACO only chooses the maximum size of the next measured wave. This execution-budget feature does not touch a menu class or use a reflective execution call.
 
 Neo ECO AE Extension 20.3.x uses a separate `ECOCraftingCPULogic`, so the standard AE2 redirect cannot see it. ACO injects only at Neo ECO's two existing limit-return methods and around its existing `executeCrafting(...)` call. The lower of Neo ECO's own limit and ACO's limit wins. The actual return value from Neo ECO remains the completed-operation count used for adaptive measurement.
+
+### Compiled Crafting Islands
+
+`Ae2CraftingIslandCompiler` reads the already accepted live Job and admits only
+exact `AECraftingPattern` instances backed by ordinary vanilla
+`ShapedRecipe`/`ShapelessRecipe` implementations. It rejects substitutions,
+fluid substitution, multiple outputs, multiple candidates, remaining items,
+NBT/capability state, durability, duplicate producers, cycles, and invalid
+counts.
+
+`CompiledCraftingIsland` builds producer/dependent adjacency once, detects
+cycles with iterative Kahn traversal, divides safe Patterns into connected
+components, and computes each component's produced, consumed, internal,
+boundary-input, and boundary-output maps with checked `BigInteger` arithmetic.
+Processing Patterns are omitted from the graph and therefore become natural
+boundaries. Components with one Pattern remain on the existing vector path.
+
+`CraftingIslandCompilationCache` weakly keys the compiled result by live Job.
+It reuses a waiting island only while recipe generation and every included Task
+count remain unchanged. A changed Task invalidates and recompiles the entry;
+the cache does not retain the Job after its CPU releases it.
+
+`Ae2CraftingIslandExecutor` performs:
+
+1. task, provider ownership, capacity, complete-input, complete-output, energy,
+   Job, and backend preflight;
+2. exact input extraction and power charge;
+3. reversible task removal and reversible staging of all boundary outputs;
+4. one full status notification, internal elapsed-work accounting, and
+   boundary delivery through the backend's original CPU insert path.
+
+Before delivery, a failure unstages outputs, restores Task order and progress,
+returns the exact extracted inputs, and refunds charged power. After delivery
+starts, a mismatch suspends the Job instead of allowing original execution to
+repeat uncertain work.
+
+ACO owns all qualification, graph, arithmetic, transaction ordering, and
+fallback behavior. The backend owns only structure capacity, power constants,
+live Pattern-provider ownership, and version-specific Job/inventory/output
+calls.
 
 The generated default cap is `264192` effective co-processors per CPU. This keeps the optimizer safe by default while matching AQE's non-experimental full structure.
 

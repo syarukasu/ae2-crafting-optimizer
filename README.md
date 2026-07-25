@@ -218,6 +218,39 @@ Sequential Instant dispatch divides the original AE2 and Advanced AE execution l
 
 Neo ECO AE Extension 20.3.x custom ECO CPUs can also join ACO's adaptive per-CPU and shared per-grid execution budgets. ACO caps the values returned by Neo ECO's own normal and fast-path tick-limit methods, then records the actual number of pattern pushes reported by Neo ECO. Neo ECO's scheduler, batch/aggressive fast paths, recipes, storage, CPU statistics, and crafting accounting remain unchanged.
 
+### Compiled Crafting Islands
+
+ACO can optionally collapse a connected segment of two or more deterministic
+ordinary crafting-table Patterns into one atomic boundary transaction. It
+computes all quantities with `BigInteger`, consumes only the segment's net raw
+inputs, materializes only net boundary outputs, and does not create its internal
+intermediate items.
+
+Processing Patterns are barriers, not a whole-tree wait condition. The compiler
+partitions crafting-table work on each side of a machine into independent
+islands and executes the first island whose complete boundary inputs are
+already present. Unrelated Neo ECO machine work continues through its original
+path while another island waits.
+
+This optimization is owned by ACO. An optional backend such as Advanced
+Assembly Computing supplies only formed hardware capacity, power cost, and
+version-specific CPU accounting. The feature does nothing when no backend
+implements `CraftingIslandExecutionOwner`.
+
+The backend must also prove that it currently provides every Pattern in the
+candidate island. A hardware structure elsewhere on the same Grid cannot
+silently claim Patterns owned only by another assembler or provider.
+
+Eligibility is deliberately narrow: exact vanilla shaped/shapeless item
+recipes, one producer per output, no substitutions, cycles, fluids, chemicals,
+NBT, durability, remaining items, or custom recipe classes. Task or recipe
+generation changes invalidate the cached island. Any ambiguity, per-key signed
+long overflow, partial output acceptance, or failed preflight falls back before
+inputs are changed.
+
+The switch defaults to false until live cancellation, restart, inventory, and
+TPS qualification is complete.
+
 This is intended for CrazyAE-class hardware numbers: the CPU can be huge, but server tick time remains bounded.
 
 ### Adaptive Execution Budget
@@ -631,6 +664,13 @@ logRecipeIntentRegistryEvictions = false
 logSlowCraftCalculations = true
 slowCraftCalculationMillis = 500
 logCacheStatistics = false
+
+[experimentalCraftingEngine]
+# Independent from the experimental planner master. Requires an explicit
+# atomic execution backend such as AAC.
+enableCompiledCraftingIslands = false
+maximumCompiledCraftingIslandPatterns = 4096
+logCompiledCraftingIslands = true
 
 [compatibility.neoEcoAe]
 # Applies only when Neo ECO AE Extension 20.3.x is installed.
