@@ -13,6 +13,7 @@ import com.syaru.ae2craftingoptimizer.api.execution.CraftingIslandRuntime;
 import com.syaru.ae2craftingoptimizer.api.execution.CraftingIslandStateUncertainException;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics.CraftingIslandDecision;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,6 +69,7 @@ public final class Ae2CraftingIslandExecutor {
         if (jobIdentity == null || tasks == null || tasks.isEmpty()) {
             return CraftingIslandExecutionOwner.NOT_HANDLED;
         }
+        OptimizationMetrics.recordCraftingIslandAttempt();
 
         long executionStartedAt = System.nanoTime();
         try {
@@ -80,12 +82,16 @@ public final class Ae2CraftingIslandExecutor {
                     RecipeGenerationTracker.generation());
             // 証明不能Jobは一部だけを触らず、Neo ECO本来のPattern配送へ戻す。
             if (compiled.isEmpty()) {
+                OptimizationMetrics.recordCraftingIslandDecision(
+                        CraftingIslandDecision.COMPILE_REJECTED);
                 return CraftingIslandExecutionOwner.NOT_HANDLED;
             }
             List<CompiledCraftingIsland<AEKey, IPatternDetails>> islands =
                     compiled.get();
             // 安全な二段以上の島が無いJobは既存単一Pattern Vector経路へ戻す。
             if (islands.isEmpty()) {
+                OptimizationMetrics.recordCraftingIslandDecision(
+                        CraftingIslandDecision.COMPILE_REJECTED);
                 return CraftingIslandExecutionOwner.NOT_HANDLED;
             }
 
@@ -93,29 +99,47 @@ public final class Ae2CraftingIslandExecutor {
             for (CompiledCraftingIsland<AEKey, IPatternDetails> island : islands) {
                 // 現在のAE2在庫APIへ全差分を正確に渡せない島は通常Window実行へ戻す。
                 if (!island.fitsSignedLongRuntime()) {
+                    OptimizationMetrics.recordCraftingIslandDecision(
+                            CraftingIslandDecision.CAPACITY_WAIT);
+                    continue;
+                }
+                // Task回数がprepare時のコンパイル値と一致しない古い島は破棄する。
+                if (!tasksStillMatch(island, tasks)) {
+                    OptimizationMetrics.recordCraftingIslandDecision(
+                            CraftingIslandDecision.STALE_TASK);
+                    continue;
+                }
+                ICraftingInventory inventory = runtime.acoIslandInventory();
+                // 全境界入力が現在CPU在庫へ揃うまで、この島は待機する。
+                if (inventory == null || !hasAllInputs(island, inventory)) {
+                    OptimizationMetrics.recordCraftingIslandDecision(
+                            CraftingIslandDecision.INPUT_WAIT);
+                    continue;
+                }
+                // 入力待ち中はBackend/Provider走査を省き、実行候補になった島だけ設備へ束縛する。
+                if (!bindBackend(island, runtime)) {
+                    OptimizationMetrics.recordCraftingIslandDecision(
+                            CraftingIslandDecision.BACKEND_UNAVAILABLE);
                     continue;
                 }
                 long capacity = runtime.acoIslandRootExecutionCapacity();
                 // 形成済み設備がない、またはsink回数が一Wave容量を超える島は扱わない。
                 if (capacity <= 0L
                         || island.sinkExecutions().compareTo(BigInteger.valueOf(capacity)) > 0) {
+                    OptimizationMetrics.recordCraftingIslandDecision(
+                            CraftingIslandDecision.CAPACITY_WAIT);
                     continue;
                 }
-                // Task回数がprepare時のコンパイル値と一致しない古い島は破棄する。
-                if (!tasksStillMatch(island, tasks)) {
-                    continue;
-                }
-                ICraftingInventory inventory = runtime.acoIslandInventory();
-                // 全境界入力が現在CPU在庫へ揃うまで、この島は待機する。
-                if (inventory == null || !hasAllInputs(island, inventory)) {
-                    continue;
-                }
-                // 入力待ち中はProvider走査を省き、実行候補になった島だけ設備所有権を検証する。
+                // Backend束縛後にも全Patternの現在所有権を一件ずつ検証する。
                 if (!allPatternsSupported(island, runtime)) {
+                    OptimizationMetrics.recordCraftingIslandDecision(
+                            CraftingIslandDecision.PROVIDER_REJECTED);
                     continue;
                 }
                 // 最終Requesterを含む全境界出力が今受理可能かを先に確認する。
                 if (!canAcceptAllOutputs(island, runtime)) {
+                    OptimizationMetrics.recordCraftingIslandDecision(
+                            CraftingIslandDecision.OUTPUT_WAIT);
                     continue;
                 }
                 double requiredPower = requiredPower(island, runtime);
@@ -128,11 +152,15 @@ public final class Ae2CraftingIslandExecutor {
                                         PowerMultiplier.CONFIG)
                                 + ENERGY_COMPARISON_EPSILON
                                 < requiredPower) {
+                    OptimizationMetrics.recordCraftingIslandDecision(
+                            CraftingIslandDecision.ENERGY_WAIT);
                     continue;
                 }
                 // JobとAAC構造をcommit直前に再検証し、古いprepareを実行しない。
                 if (!runtime.acoIslandJobStillActive(jobIdentity)
                         || !runtime.acoIslandBackendStillAvailable()) {
+                    OptimizationMetrics.recordCraftingIslandDecision(
+                            CraftingIslandDecision.BACKEND_UNAVAILABLE);
                     continue;
                 }
                 int result = commit(
@@ -158,6 +186,19 @@ public final class Ae2CraftingIslandExecutor {
             logFailure(runtime, "compile", failure);
             return CraftingIslandExecutionOwner.NOT_HANDLED;
         }
+    }
+
+    private static boolean bindBackend(
+            CompiledCraftingIsland<AEKey, IPatternDetails> island,
+            CraftingIslandRuntime runtime) {
+        List<IPatternDetails> patterns =
+                new ArrayList<>(island.tasks().size());
+        // Task順を維持した一覧を渡し、設備側の選択結果を同じJobで決定的にする。
+        for (CompiledCraftingIsland.Task<AEKey, IPatternDetails> task :
+                island.tasks()) {
+            patterns.add(task.pattern());
+        }
+        return runtime.acoIslandBindBackend(List.copyOf(patterns));
     }
 
     private static boolean tasksStillMatch(

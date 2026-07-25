@@ -5,6 +5,8 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "AdvancedAeCraftingCpuLogicExecutionBudgetMixin",
+    "AdvancedAeCraftingCpuLogicIslandAccessor",
+    "AdvancedAeElapsedTimeTrackerAccessor",
     "AdvancedAeCraftingCpuLogicBatchSourceReceiptMixin",
     "AdvancedAeCraftingCpuLogicTransactionalBatchV2Mixin",
     "AdvancedAeCraftingCpuTransactionAccessMixin",

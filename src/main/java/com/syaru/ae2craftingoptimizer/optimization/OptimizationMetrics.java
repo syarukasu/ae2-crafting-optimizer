@@ -46,6 +46,15 @@ public final class OptimizationMetrics {
             new LongAccumulator(Long::max, 0L);
     private static final LongAdder CRAFTING_ISLAND_CACHE_HITS = new LongAdder();
     private static final LongAdder CRAFTING_ISLAND_CACHE_MISSES = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_ATTEMPTS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_COMPILE_REJECTS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_BACKEND_REJECTS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_CAPACITY_WAITS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_STALE_TASKS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_INPUT_WAITS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_PROVIDER_REJECTS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_OUTPUT_WAITS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_ENERGY_WAITS = new LongAdder();
     private static final LongAdder CRAFTING_ISLAND_WAVES = new LongAdder();
     private static final LongAdder CRAFTING_ISLAND_PATTERNS = new LongAdder();
     private static final LongAccumulator CRAFTING_ISLAND_LOGICAL_EXECUTIONS =
@@ -164,6 +173,25 @@ public final class OptimizationMetrics {
         (hit ? CRAFTING_ISLAND_CACHE_HITS : CRAFTING_ISLAND_CACHE_MISSES).increment();
     }
 
+    public static void recordCraftingIslandAttempt() {
+        CRAFTING_ISLAND_ATTEMPTS.increment();
+    }
+
+    public static void recordCraftingIslandDecision(
+            CraftingIslandDecision decision) {
+        // enumごとに一つのカウンタだけを増やし、/aco statsで停止段階を区別する。
+        switch (decision) {
+            case COMPILE_REJECTED -> CRAFTING_ISLAND_COMPILE_REJECTS.increment();
+            case BACKEND_UNAVAILABLE -> CRAFTING_ISLAND_BACKEND_REJECTS.increment();
+            case CAPACITY_WAIT -> CRAFTING_ISLAND_CAPACITY_WAITS.increment();
+            case STALE_TASK -> CRAFTING_ISLAND_STALE_TASKS.increment();
+            case INPUT_WAIT -> CRAFTING_ISLAND_INPUT_WAITS.increment();
+            case PROVIDER_REJECTED -> CRAFTING_ISLAND_PROVIDER_REJECTS.increment();
+            case OUTPUT_WAIT -> CRAFTING_ISLAND_OUTPUT_WAITS.increment();
+            case ENERGY_WAIT -> CRAFTING_ISLAND_ENERGY_WAITS.increment();
+        }
+    }
+
     public static void recordCraftingIslandWave(
             int patterns,
             BigInteger logicalExecutions,
@@ -222,6 +250,16 @@ public final class OptimizationMetrics {
                         + " hit(s)/" + CRAFTING_ISLAND_CACHE_MISSES.sum()
                         + " miss(es), max wave "
                         + (CRAFTING_ISLAND_MAX_WAVE_NANOS.get() / 1_000L) + " us",
+                "Compiled Island decisions: " + CRAFTING_ISLAND_ATTEMPTS.sum()
+                        + " attempt(s), compile/backend/capacity/stale/input/provider/output/energy = "
+                        + CRAFTING_ISLAND_COMPILE_REJECTS.sum() + "/"
+                        + CRAFTING_ISLAND_BACKEND_REJECTS.sum() + "/"
+                        + CRAFTING_ISLAND_CAPACITY_WAITS.sum() + "/"
+                        + CRAFTING_ISLAND_STALE_TASKS.sum() + "/"
+                        + CRAFTING_ISLAND_INPUT_WAITS.sum() + "/"
+                        + CRAFTING_ISLAND_PROVIDER_REJECTS.sum() + "/"
+                        + CRAFTING_ISLAND_OUTPUT_WAITS.sum() + "/"
+                        + CRAFTING_ISLAND_ENERGY_WAITS.sum(),
                 "Experimental V2 Instant: " + INSTANT_DISPATCH_CALLS.sum()
                         + " successful call(s), " + INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS.sum()
                         + " multi-transaction call(s), " + INSTANT_DISPATCH_TRANSACTIONS.sum()
@@ -276,6 +314,15 @@ public final class OptimizationMetrics {
         SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.reset();
         CRAFTING_ISLAND_CACHE_HITS.reset();
         CRAFTING_ISLAND_CACHE_MISSES.reset();
+        CRAFTING_ISLAND_ATTEMPTS.reset();
+        CRAFTING_ISLAND_COMPILE_REJECTS.reset();
+        CRAFTING_ISLAND_BACKEND_REJECTS.reset();
+        CRAFTING_ISLAND_CAPACITY_WAITS.reset();
+        CRAFTING_ISLAND_STALE_TASKS.reset();
+        CRAFTING_ISLAND_INPUT_WAITS.reset();
+        CRAFTING_ISLAND_PROVIDER_REJECTS.reset();
+        CRAFTING_ISLAND_OUTPUT_WAITS.reset();
+        CRAFTING_ISLAND_ENERGY_WAITS.reset();
         CRAFTING_ISLAND_WAVES.reset();
         CRAFTING_ISLAND_PATTERNS.reset();
         CRAFTING_ISLAND_LOGICAL_EXECUTIONS.reset();
@@ -290,5 +337,16 @@ public final class OptimizationMetrics {
     private static long saturatedAdd(long left, long right) {
         // 診断カウンタ自身がwrapしないよう、残量を超える加算はLong.MAX_VALUEで固定する。
         return right > Long.MAX_VALUE - left ? Long.MAX_VALUE : left + right;
+    }
+
+    public enum CraftingIslandDecision {
+        COMPILE_REJECTED,
+        BACKEND_UNAVAILABLE,
+        CAPACITY_WAIT,
+        STALE_TASK,
+        INPUT_WAIT,
+        PROVIDER_REJECTED,
+        OUTPUT_WAIT,
+        ENERGY_WAIT
     }
 }

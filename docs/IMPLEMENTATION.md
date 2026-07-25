@@ -488,8 +488,22 @@ repeat uncertain work.
 
 ACO owns all qualification, graph, arithmetic, transaction ordering, and
 fallback behavior. The backend owns only structure capacity, power constants,
-live Pattern-provider ownership, and version-specific Job/inventory/output
-calls.
+and live Pattern-provider ownership. ACO's CPU adapter owns the
+version-specific Job, inventory, and output calls.
+
+`CraftingIslandBackendRegistry` separates CPU ownership from execution
+hardware. AAC registers a short-lived session only when all Patterns are
+currently exposed by formed AAC Pattern Buses. AdvancedAE/AQE CPU logic binds
+that session before input extraction, then revalidates structure and provider
+ownership immediately before commit. Without a matching session it returns
+`NOT_HANDLED` and runs the original Sequential path.
+
+AdvancedAE's `ExecutingCraftingJob` is adapted to the same reversible contract:
+checked `waitingFor` staging, exact rollback, final-requester simulation,
+elapsed-work decrement, one listener notification, and fail-closed link
+cancellation after an uncertain irreversible failure. The AdvancedAE atomic
+wave is charged as one measured operation against ACO's shared Grid time
+budget, regardless of the island's logical recipe count.
 
 The generated default cap is `264192` effective co-processors per CPU. This keeps the optimizer safe by default while matching AQE's non-experimental full structure.
 

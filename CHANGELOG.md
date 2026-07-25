@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added a versioned external Compiled Crafting Island backend API.
+- Added an AdvancedAE/AQE CPU execution path that can bind an entire proven
+  crafting-table island to a formed atomic backend such as AAC.
+- Added `/aco stats` decision counters for compile, backend, capacity, stale
+  task, input, provider, output, and energy fallbacks.
+- Added a regression test for the pack's twenty-stage 9-to-1 compression probe.
+
+### Fixed
+
+- Compiled Crafting Islands are no longer limited to Neo ECO CPU jobs when an
+  external atomic backend explicitly owns every pattern.
+- AdvancedAE waiting, final-output, elapsed-work, cancellation, and task
+  notification accounting now participate in the same reversible island
+  transaction contract.
+
 ## [1.5.3] - 2026-07-25
 
 ### Fixed

@@ -233,9 +233,15 @@ already present. Unrelated Neo ECO machine work continues through its original
 path while another island waits.
 
 This optimization is owned by ACO. An optional backend such as Advanced
-Assembly Computing supplies only formed hardware capacity, power cost, and
-version-specific CPU accounting. The feature does nothing when no backend
-implements `CraftingIslandExecutionOwner`.
+Assembly Computing registers formed hardware capacity, power cost, and live
+Pattern ownership through `CraftingIslandBackendRegistry`. ACO supplies the
+version-specific CPU accounting. The feature does nothing when no registered
+backend can own every Pattern in the candidate island.
+
+ACO 1.5.4 can invoke the same backend from either Neo ECO's CPU or an
+AdvancedAE/AQE Quantum Computer. The selected CPU still owns its Job,
+inventory, requester, task progress, and cancellation state. AAC does not
+replace either CPU implementation.
 
 The backend must also prove that it currently provides every Pattern in the
 candidate island. A hardware structure elsewhere on the same Grid cannot

@@ -243,7 +243,8 @@ screen, or job that reports complete before its outputs arrive fails the stage.
 ## Compiled Crafting Islands
 
 1. Install the explicit backend under test, currently AAC 1.0.0 with Neo ECO
-   20.3.0, on both client and server.
+   20.3.0, on both client and server. Test both a Neo ECO CPU and an AQE
+   Quantum Computer.
 2. Set `enableCompiledCraftingIslands = true` under
    `[experimentalCraftingEngine]` and restart both sides.
 3. Submit a deterministic 1k-to-256M ordinary crafting-table chain with all raw
@@ -254,12 +255,12 @@ screen, or job that reports complete before its outputs arrive fails the stage.
 5. Confirm intermediate components inside the connected island are not
    materialized in ME storage.
 6. Move one middle Pattern to a normal provider outside the AAC structure.
-   Confirm the island remains on Neo ECO/AE2's original route.
+   Confirm the island remains on the CPU's original Sequential route.
 7. Replace one middle step with a processing Pattern. Confirm ACO creates
    independent crafting islands on each side and does not wait for the entire
    tree before executing a ready side.
-8. Remove a boundary input. Confirm that island waits while unrelated Neo ECO
-   machine Patterns continue normally.
+8. Remove a boundary input. Confirm that island waits while unrelated machine
+   Patterns continue normally.
 9. Test substitutions, duplicate producers, cycles, NBT, durability, remaining
    items, fluids, chemicals, and custom recipe classes. Confirm no island input
    changes and the original path handles the Job.
@@ -270,8 +271,12 @@ screen, or job that reports complete before its outputs arrive fails the stage.
 12. Cancel while an island waits, unload/reload its chunks, and restart the
     server before and after completion. Confirm no loss, duplication, stuck
     Task, or stale cached island.
-13. Disable the switch and restart. Confirm Neo ECO's existing normal/vector
-    paths produce the same result without any island attempt.
+13. Disable the switch and restart. Confirm Neo ECO and AdvancedAE existing
+    normal/vector paths produce the same result without any island attempt.
+14. Reset statistics, submit the twenty-stage 9-to-1 pack probe through AQE,
+    and run `/aco stats`. Confirm `Compiled Crafting Islands` reports one wave
+    and twenty Patterns, while `Compiled Island decisions` identifies no
+    backend, capacity, provider, output, or energy fallback for that wave.
 
 Compatibility-disabled sync checks retained in 1.2.2:
 

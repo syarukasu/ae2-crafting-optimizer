@@ -2,6 +2,7 @@ package com.syaru.ae2craftingoptimizer.integration;
 
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterHostTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterRecoveryAccess;
+import com.syaru.ae2craftingoptimizer.access.CraftingIslandJobAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingJobTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
@@ -12,6 +13,8 @@ import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.mixin.MekanismCachedRecipeAccessor;
+import com.syaru.ae2craftingoptimizer.mixin.AdvancedAeCraftingCpuLogicIslandAccessor;
+import com.syaru.ae2craftingoptimizer.mixin.AdvancedAeElapsedTimeTrackerAccessor;
 import com.syaru.ae2craftingoptimizer.scheduler.FairSchedulerStateStore;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +51,26 @@ public final class ExperimentalCompatibilityValidator {
                 require(failures, "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster",
                         BigCapacityPlanBoundaryAccess.class);
             }
+        }
+        // AdvancedAE CPUからCompiled Islandを実行する時は、Job会計と非公開通知APIを全て確認する。
+        if (ACOConfig.enableCompiledCraftingIslands()
+                && ModList.get().isLoaded("advanced_ae")) {
+            require(
+                    failures,
+                    "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob",
+                    CraftingIslandJobAccess.class);
+            require(
+                    failures,
+                    "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob$TaskProgress",
+                    CraftingTaskProgressAccess.class);
+            require(
+                    failures,
+                    "net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic",
+                    AdvancedAeCraftingCpuLogicIslandAccessor.class);
+            require(
+                    failures,
+                    "net.pedroksl.advanced_ae.common.logic.ElapsedTimeTracker",
+                    AdvancedAeElapsedTimeTrackerAccessor.class);
         }
         if (ACOConfig.enableTransactionalBatchingV2()) {
             require(failures, "appeng.crafting.execution.CraftingCpuLogic",
