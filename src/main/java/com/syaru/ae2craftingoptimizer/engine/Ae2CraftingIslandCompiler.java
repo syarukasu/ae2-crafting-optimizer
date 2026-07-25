@@ -6,8 +6,11 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.crafting.pattern.AECraftingPattern;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +35,20 @@ public final class Ae2CraftingIslandCompiler {
     private static final String ITEM_STATE_TAG = "tag";
     /** Forge Capability由来の追加状態を示す汎用NBTキー。 */
     private static final String ITEM_CAPABILITIES_TAG = "caps";
+    /** KubeJSが通常の整形作業台レシピへ使う実装クラス名。 */
+    private static final String KUBEJS_SHAPED_RECIPE =
+            "dev.latvian.mods.kubejs.recipe.special.ShapedKubeJSRecipe";
+    /** KubeJSが通常の不定形作業台レシピへ使う実装クラス名。 */
+    private static final String KUBEJS_SHAPELESS_RECIPE =
+            "dev.latvian.mods.kubejs.recipe.special.ShapelessKubeJSRecipe";
+    /** KubeJSの動的入力処理一覧を読む公開アクセサ名。 */
+    private static final String KUBEJS_INGREDIENT_ACTIONS_METHOD =
+            "kjs$getIngredientActions";
+    /** KubeJSの動的出力コールバックを読む公開アクセサ名。 */
+    private static final String KUBEJS_MODIFY_RESULT_METHOD =
+            "kjs$getModifyResult";
+    /** KubeJSのプレイヤーステージ条件を読む公開アクセサ名。 */
+    private static final String KUBEJS_STAGE_METHOD = "kjs$getStage";
 
     private Ae2CraftingIslandCompiler() {
     }
@@ -184,13 +201,56 @@ public final class Ae2CraftingIslandCompiler {
             return false;
         }
         Recipe<?> recipe = level.getRecipeManager().byKey(recipeId).orElse(null);
-        // バニラJSONのShaped/Shapeless実装だけを許可し、独自CraftingRecipeコードは境界にする。
+        // 特殊作業台レシピは入力欄以外の状態を読むため、固定式へ変換しない。
         if (!(recipe instanceof CraftingRecipe craftingRecipe)
                 || craftingRecipe.isSpecial()) {
             return false;
         }
-        return recipe.getClass() == ShapedRecipe.class
-                || recipe.getClass() == ShapelessRecipe.class;
+        // 素のMinecraft実装は入力、出力、返却物の固定性を上位の検査だけで証明できる。
+        if (recipe.getClass() == ShapedRecipe.class
+                || recipe.getClass() == ShapelessRecipe.class) {
+            return true;
+        }
+        // KubeJSの通常作業台レシピはShapedRecipeを継承するが、厳密なclass一致では除外される。
+        // 動的アクション、結果コールバック、ステージ条件が無い場合だけ同じ固定式として扱う。
+        return isStaticKubeJsCraftingRecipe(recipe);
+    }
+
+    private static boolean isStaticKubeJsCraftingRecipe(Recipe<?> recipe) {
+        String className = recipe.getClass().getName();
+        // KubeJS以外の派生Recipeは独自状態を持つ可能性があるため許可しない。
+        if (!KUBEJS_SHAPED_RECIPE.equals(className)
+                && !KUBEJS_SHAPELESS_RECIPE.equals(className)) {
+            return false;
+        }
+
+        try {
+            Method ingredientActionsMethod = recipe.getClass().getMethod(
+                    KUBEJS_INGREDIENT_ACTIONS_METHOD);
+            Object rawActions = ingredientActionsMethod.invoke(recipe);
+            // 空のList以外は消費量・残存物を動的に変えるため、AE2本来の実行へ戻す。
+            if (!(rawActions instanceof Collection<?> actions) || !actions.isEmpty()) {
+                return false;
+            }
+
+            Method modifyResultMethod = recipe.getClass().getMethod(
+                    KUBEJS_MODIFY_RESULT_METHOD);
+            // 結果コールバックはクラフトグリッドの内容で出力を変更できるため許可しない。
+            if (modifyResultMethod.invoke(recipe) != null) {
+                return false;
+            }
+
+            Method stageMethod = recipe.getClass().getMethod(KUBEJS_STAGE_METHOD);
+            Object rawStage = stageMethod.invoke(recipe);
+            // 空文字以外のステージはプレイヤーごとに結果が変わるため固定式へ畳み込まない。
+            return rawStage instanceof String stage && stage.isEmpty();
+        } catch (IllegalAccessException
+                | InvocationTargetException
+                | NoSuchMethodException
+                | RuntimeException unsupportedKubeJsVersion) {
+            // KubeJS側APIの変更や反射失敗時は、壊れた高速経路を使わず通常AE2へ戻す。
+            return false;
+        }
     }
 
     private static boolean isPlainItem(AEItemKey key) {
