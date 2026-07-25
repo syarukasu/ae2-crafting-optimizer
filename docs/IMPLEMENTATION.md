@@ -145,6 +145,29 @@ well as runtime submission, NBT decode, and packet decode.
 The implementation also applies an exact global maximum of `10^16384 - 1`, so
 the boundary bit length cannot admit a value with 16,385 decimal digits.
 
+## AE2 Crafting Tree Summary Compatibility
+
+ACO returns a prebuilt `CraftingPlanSummary` for wide plans before AE2 performs
+its signed-long aggregation. This intentionally cancels the remainder of
+`CraftingPlanSummary.fromJob`, including AE2 Crafting Tree's tail injection that
+normally initializes its `RecipeHelper`.
+
+When AE2 Crafting Tree is installed, `Ae2CraftingTreeCompatibility` rebuilds the
+helper from ACO's genuine AE2 `CraftingPlan` facade and stores it through the
+add-on's public summary interface before the summary is serialized. Reflection
+metadata is resolved once and cached. Standard plans, installations without
+AE2 Crafting Tree, and the add-on's own packet format remain unchanged. An
+incompatible detected API fails with an explicit integration error instead of
+serializing a null helper.
+
+## Delegating BigInteger Storage
+
+AE2 mounts drive cells through `DriveWatcher`, which delegates to the actual
+cell inventory. ACO unwraps only AE2's typed `DelegatingMEInventory` chain,
+then reads an ExtendedAE Plus BigInteger cell through its optional Accessor.
+The exact map is intersected with the wrapper's already-filtered long facade,
+so partition and extraction visibility rules remain authoritative.
+
 ## Long Root Amount Boundary
 
 AE2 15.4.10's `NumberEntryWidget` and

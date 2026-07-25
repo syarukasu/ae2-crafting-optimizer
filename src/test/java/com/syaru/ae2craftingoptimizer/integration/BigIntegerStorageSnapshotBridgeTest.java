@@ -9,6 +9,7 @@ import appeng.api.stacks.AEKeyType;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
 import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
+import com.syaru.ae2craftingoptimizer.mixin.DelegatingMEInventoryAccessor;
 import com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventoryAccessor;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -74,6 +75,24 @@ class BigIntegerStorageSnapshotBridgeTest {
     }
 
     @Test
+    void readsExactCellThroughAe2DriveWrapperWithoutBypassingItsVisibleKeys() {
+        BigInteger exactAmount = BigInteger.TEN.pow(64);
+        KeyCounter network = new KeyCounter();
+
+        BigIntegerStorageSnapshotBridge.collect(
+                new FakeDriveWrapper(
+                        new FakeInfinityBigIntegerCell(exactAmount)),
+                network,
+                true);
+
+        assertEquals(Long.MAX_VALUE, network.get(TEST_KEY));
+        BigKeyCounterSidecars.Snapshot exact =
+                BigKeyCounterSidecars.snapshot(network).orElseThrow();
+        assertTrue(exact.complete());
+        assertEquals(exactAmount, exact.amount(TEST_KEY));
+    }
+
+    @Test
     void neverPublishesAlreadyWrappedNegativeStorageAsMissing() {
         KeyCounter network = new KeyCounter();
 
@@ -123,6 +142,31 @@ class BigIntegerStorageSnapshotBridgeTest {
         @Override
         public Component getDescription() {
             return Component.literal("fake infinity BigInteger cell");
+        }
+    }
+
+    /** DriveWatcherと同じくFacade呼出しを内側のセルへ委譲する試験用Wrapper。 */
+    private static final class FakeDriveWrapper
+            implements MEStorage, DelegatingMEInventoryAccessor {
+        private final MEStorage delegate;
+
+        private FakeDriveWrapper(MEStorage delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void getAvailableStacks(KeyCounter out) {
+            delegate.getAvailableStacks(out);
+        }
+
+        @Override
+        public MEStorage aco$getDelegateStorage() {
+            return delegate;
+        }
+
+        @Override
+        public Component getDescription() {
+            return Component.literal("fake AE2 drive wrapper");
         }
     }
 

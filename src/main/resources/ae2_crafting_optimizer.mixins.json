@@ -42,6 +42,7 @@
     "CraftingTreeNodeCheckedMathMixin",
     "CraftingTreeProcessCheckedMathMixin",
     "CraftingSimulationStateCheckedMathMixin",
+    "DelegatingMEInventoryAccessor",
     "ExtendedAeAssemblerMatrixClusterCacheMixin",
     "ExtendedAeAssemblerMatrixCrafterCacheMixin",
     "ExtendedAeCircuitCutterRecipeCacheMixin",
