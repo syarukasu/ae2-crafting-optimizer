@@ -40,10 +40,16 @@ final class ExactVectorGridTickBudget {
         long softBudgetNanos = Math.multiplyExact(
                 ACOConfig.getExactVectorGridTimeBudgetMillis(),
                 NANOSECONDS_PER_MILLISECOND);
-        // 件数またはsoft時間予算へ達したGridでは、新規Transactionを次tickへ送る。
-        if (starts
-                        >= ACOConfig.getExactVectorMaximumStartsPerGridTick()
-                || elapsedNanos() >= softBudgetNanos) {
+        /*
+         * 計画コンパイルも同じtick時間へ含まれるため、最初の一件まで時間だけで拒否すると
+         * 重いが適格なPlanが永遠に開始できない。件数上限は常に守り、時間超過は二件目以降
+         * だけを次tickへ送る。
+         */
+        if (shouldDeferOperation(
+                starts,
+                ACOConfig.getExactVectorMaximumStartsPerGridTick(),
+                elapsedNanos(),
+                softBudgetNanos)) {
             return false;
         }
         starts++;
@@ -58,13 +64,32 @@ final class ExactVectorGridTickBudget {
          * 完了会計は出力待ちを長く保持しないためsoft予算後も許可するが、
          * hard予算と件数上限は越えない。
          */
-        if (completions
-                        >= ACOConfig.getExactVectorMaximumCompletionsPerGridTick()
-                || elapsedNanos() >= hardBudgetNanos) {
+        if (shouldDeferOperation(
+                completions,
+                ACOConfig.getExactVectorMaximumCompletionsPerGridTick(),
+                elapsedNanos(),
+                hardBudgetNanos)) {
             return false;
         }
         completions++;
         return true;
+    }
+
+    /**
+     * 一tickの最初の一件を時間だけで飢餓させず、二件目以降へ時間予算を適用する。
+     */
+    static boolean shouldDeferOperation(
+            int completedOperations,
+            int maximumOperations,
+            long elapsedNanos,
+            long timeBudgetNanos) {
+        // 件数上限は初回保証より優先し、設定された最大数を絶対に超えない。
+        if (completedOperations >= maximumOperations) {
+            return true;
+        }
+        // 初回は必ず許可し、その処理時間を見て同tickの追加作業だけを延期する。
+        return completedOperations > 0
+                && elapsedNanos >= timeBudgetNanos;
     }
 
     private void resetForTick(long currentTick) {

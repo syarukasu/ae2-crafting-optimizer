@@ -44,4 +44,16 @@ public final class ExactVectorDiagnostics {
     public static void energyPaused() {
         OptimizationMetrics.recordExactVectorEnergyPause();
     }
+
+    public static void startBudgetDeferred() {
+        OptimizationMetrics.recordExactVectorStartBudgetDeferral();
+    }
+
+    public static void receiptFreeRollback() {
+        OptimizationMetrics.recordExactVectorReceiptFreeRollback();
+    }
+
+    public static void fingerprintRevalidated() {
+        OptimizationMetrics.recordExactVectorFingerprintRevalidation();
+    }
 }

@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.function.Function;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
@@ -240,32 +241,52 @@ public final class Ae2BigCraftingPlanFactory {
             if (cached != null) {
                 return cached;
             }
-            List<String> nodes = new ArrayList<>(program.nodeCount());
-            // ノードごとの完全な静的情報を記録し、後でsortして探索順の違いを消す。
-            for (int node = 0; node < program.nodeCount(); node++) {
-                StringBuilder descriptor =
-                        new StringBuilder(FINGERPRINT_DESCRIPTOR_INITIAL_CAPACITY);
-                descriptor.append(program.keyAt(node).toTagGeneric())
-                        .append("|emitter=")
-                        .append(program.isEmittableAt(node));
-                CompiledPattern<AEKey> pattern = program.patternAt(node);
-                descriptor.append("|pattern=")
-                        .append(pattern == null ? "-" : pattern.id());
-                // 入力slot順はレシピ意味の一部なので維持し、子AEKeyと量を無損失で含める。
-                for (int input = 0; input < program.inputCountAt(node); input++) {
-                    descriptor.append("|in:")
-                            .append(program.inputKeyAt(node, input).toTagGeneric())
-                            .append('@')
-                            .append(program.inputAmountAt(node, input));
-                }
-                nodes.add(descriptor.toString());
-            }
-            nodes.sort(Comparator.naturalOrder());
-            String fingerprint = StableFingerprint.sha256(
-                    program.root().toTagGeneric() + "\n" + String.join("\n", nodes));
+            String fingerprint = computeProgramFingerprint(
+                    program,
+                    key -> key.toTagGeneric().toString());
             PROGRAM_FINGERPRINTS.put(program, fingerprint);
             return fingerprint;
         }
+    }
+
+    /**
+     * 不変Programを、呼出側が与える安定キー表現から順序非依存の指紋へ変換する。
+     */
+    static <K> String computeProgramFingerprint(
+            CompiledRootProgram<K> program,
+            Function<? super K, String> encodeKey) {
+        Objects.requireNonNull(program, "program");
+        Objects.requireNonNull(encodeKey, "encodeKey");
+        List<String> nodes = new ArrayList<>(program.nodeCount());
+        // ノードごとの完全な静的情報を記録し、後でsortして探索順の違いを消す。
+        for (int node = 0; node < program.nodeCount(); node++) {
+            StringBuilder descriptor =
+                    new StringBuilder(FINGERPRINT_DESCRIPTOR_INITIAL_CAPACITY);
+            descriptor.append(encodeKey.apply(program.keyAt(node)))
+                    .append("|emitter=")
+                    .append(program.isEmittableAt(node));
+            CompiledPattern<K> pattern = program.patternAt(node);
+            descriptor.append("|pattern=")
+                    .append(pattern == null ? "-" : pattern.id())
+                    .append("|output=")
+                    .append(program.outputAmountAt(node));
+            // 入力slot順はレシピ意味の一部なので維持し、子キーと量を無損失で含める。
+            for (int input = 0;
+                    input < program.inputCountAt(node);
+                    input++) {
+                descriptor.append("|in:")
+                        .append(encodeKey.apply(
+                                program.inputKeyAt(node, input)))
+                        .append('@')
+                        .append(program.inputAmountAt(node, input));
+            }
+            nodes.add(descriptor.toString());
+        }
+        nodes.sort(Comparator.naturalOrder());
+        return StableFingerprint.sha256(
+                encodeKey.apply(program.root())
+                        + "\n"
+                        + String.join("\n", nodes));
     }
 
     private static boolean fitsLongChild(

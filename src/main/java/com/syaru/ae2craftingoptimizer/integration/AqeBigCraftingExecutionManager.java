@@ -272,6 +272,9 @@ public final class AqeBigCraftingExecutionManager {
         private final BigCraftingHostRuntime<AEKey> host;
         private final Map<UUID, PendingCalculation> pending = new HashMap<>();
         private final Map<UUID, Long> retryAfter = new HashMap<>();
+        private final ProgramFingerprintRevalidationCache
+                revalidatedPrograms =
+                        new ProgramFingerprintRevalidationCache();
         private boolean recovered;
 
         private Controller(
@@ -577,6 +580,7 @@ public final class AqeBigCraftingExecutionManager {
                 }
                 // 実際に外部Receiptを作れる候補だけが、このtickの開始予算を消費する。
                 if (!budget.tryStart()) {
+                    ExactVectorDiagnostics.startBudgetDeferred();
                     retryableParents.add(candidate.jobId());
                     continue;
                 }
@@ -697,6 +701,15 @@ public final class AqeBigCraftingExecutionManager {
                             "AQE Exact Vector executor reported a started parent job {} without a receipt",
                             candidate.jobId());
                     return false;
+                }
+                ExactVectorDiagnostics.receiptFreeRollback();
+                if (ACOConfig.logExactVectorDiagnostics()
+                        && started != null
+                        && !started.rejectionReason().isBlank()) {
+                    AE2CraftingOptimizer.LOGGER.warn(
+                            "AQE Exact Vector parent job {} was rejected after an accepted simulation: {}",
+                            candidate.jobId(),
+                            started.rejectionReason());
                 }
                 /*
                  * 拒否または例外後に同じExecutorがReceiptなしを明示した場合だけ、
@@ -988,28 +1001,48 @@ public final class AqeBigCraftingExecutionManager {
         private boolean isStale(BigCraftingRuntime.ExecutionLease<AEKey> lease) {
             long currentPatternGeneration = ProviderPatternGenerationTracker.generation();
             long currentRecipeGeneration = RecipeGenerationTracker.generation();
-            // 同一JVM内では世代番号が正本なので、Patternまたはrecipe変更を即時失効させる。
-            if (PlanningRuntimeEpoch.current().equals(lease.planningEpoch())) {
-                return lease.patternGeneration() < 0L
-                        || lease.recipeGeneration() < 0L
-                        || lease.patternGeneration() != currentPatternGeneration
-                        || lease.recipeGeneration() != currentRecipeGeneration;
+            // 世代が一致する同一JVM Jobは、再コンパイルせずそのまま継続できる。
+            if (PlanningRuntimeEpoch.current().equals(lease.planningEpoch())
+                    && lease.patternGeneration() == currentPatternGeneration
+                    && lease.recipeGeneration() == currentRecipeGeneration) {
+                return false;
             }
-            // 旧Schemaには再起動後の同一性証明がないため、推測でJobを継続しない。
+            /*
+             * Provider世代はGrid全体であり、無関係なPattern Busの追加・解除でも変化する。
+             * 保存したroot数式Fingerprintがない旧Schemaだけは、安全な再検証ができない。
+             */
             if (lease.planningEpoch().isEmpty() || lease.programFingerprint().isEmpty()) {
                 return true;
+            }
+            /*
+             * 同じ現在世代で一度完全一致を証明したProgramは、次の世代変更まで再コンパイルしない。
+             * 指紋はroot、AEKey、出力量、入力辺、Emitter状態を含む。
+             */
+            if (revalidatedPrograms.contains(
+                    currentPatternGeneration,
+                    currentRecipeGeneration,
+                    lease.programFingerprint())) {
+                return false;
             }
             try {
                 var snapshot = Ae2CompiledCraftingGraphCache.getOrCompile(
                         cluster.getGrid(), cluster.getLevel());
                 var currentProgram = snapshot.rootProgram(lease.requestedKey()).orElse(null);
                 /*
-                 * 再起動で世代番号だけが変わった場合は、正規化Fingerprintが完全一致する
-                 * 同じ決定的Programだけを継続する。FingerprintはProgram単位でキャッシュされる。
+                 * 再起動または無関係なProvider更新で世代番号だけが変わった場合は、
+                 * 正規化Fingerprintが完全一致する同じ決定的Programだけを継続する。
                  */
-                return currentProgram == null
-                        || !lease.programFingerprint().equals(
+                boolean matches = currentProgram != null
+                        && lease.programFingerprint().equals(
                                 Ae2BigCraftingPlanFactory.programFingerprint(currentProgram));
+                if (matches) {
+                    revalidatedPrograms.record(
+                            currentPatternGeneration,
+                            currentRecipeGeneration,
+                            lease.programFingerprint());
+                    ExactVectorDiagnostics.fingerprintRevalidated();
+                }
+                return !matches;
             } catch (RuntimeException invalidCurrentGraph) {
                 // 再構築不能・世代競合時はJobを進めず、呼出側が安全に取消する。
                 return true;

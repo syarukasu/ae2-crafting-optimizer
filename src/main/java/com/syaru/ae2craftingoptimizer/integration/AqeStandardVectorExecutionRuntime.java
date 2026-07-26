@@ -504,10 +504,6 @@ public final class AqeStandardVectorExecutionRuntime {
             // 標準JobとBigInteger親Jobを同じGrid上限へ数え、空きが出るまで入力Escrowを保持する。
             return true;
         }
-        // 実際にAAC Receiptを作るtickで、BigInteger親Jobと同じGrid開始予算を消費する。
-        if (!ExactVectorGridTickBudget.forGrid(grid).tryStart()) {
-            return true;
-        }
         VectorExecutionOffer offer;
         try {
             offer = executor.simulate(state.plan());
@@ -547,6 +543,14 @@ public final class AqeStandardVectorExecutionRuntime {
                     ? fallbackAfterRollback(host)
                     : true;
         }
+        /*
+         * 未形成・満杯などでsimulate拒否された設備は、Gridの開始枠を消費しない。
+         * Receiptを作成可能と証明できた候補だけが、BigInteger親Jobと共有する開始予算を使う。
+         */
+        if (!ExactVectorGridTickBudget.forGrid(grid).tryStart()) {
+            ExactVectorDiagnostics.startBudgetDeferred();
+            return true;
+        }
         VectorStartResult started;
         try {
             started = Objects.requireNonNull(
@@ -557,6 +561,7 @@ public final class AqeStandardVectorExecutionRuntime {
                     host,
                     executor,
                     false,
+                    "",
                     startFailure);
         }
         // 別UUIDの応答は、誤った外部Transactionが動いている可能性を排除できない。
@@ -574,6 +579,7 @@ public final class AqeStandardVectorExecutionRuntime {
                     host,
                     executor,
                     started.started(),
+                    started.rejectionReason(),
                     null);
         }
         state.phase(
@@ -590,6 +596,7 @@ public final class AqeStandardVectorExecutionRuntime {
             AqeStandardVectorHost host,
             ExactVectorExecutor executor,
             boolean claimedStarted,
+            String rejectionReason,
             Throwable startFailure) {
         Optional<VectorTransactionSnapshot> snapshot;
         try {
@@ -614,6 +621,13 @@ public final class AqeStandardVectorExecutionRuntime {
                 return true;
             }
             // 同じExecutorがReceiptなしを明示した場合だけ、入力所有権はCPU側に残っている。
+            ExactVectorDiagnostics.receiptFreeRollback();
+            if (ACOConfig.logExactVectorDiagnostics()
+                    && !rejectionReason.isBlank()) {
+                AE2CraftingOptimizer.LOGGER.warn(
+                        "AQE standard Exact Vector start was rejected after an accepted simulation: {}",
+                        rejectionReason);
+            }
             return ACOConfig.exactVectorFallbackBeforeOwnershipTransfer()
                     ? fallbackAfterRollback(host)
                     : true;

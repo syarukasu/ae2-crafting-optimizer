@@ -80,6 +80,12 @@ public final class OptimizationMetrics {
             new LongAdder();
     private static final LongAdder EXACT_VECTOR_ENERGY_PAUSES =
             new LongAdder();
+    private static final LongAdder EXACT_VECTOR_START_BUDGET_DEFERRALS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_FINGERPRINT_REVALIDATIONS =
+            new LongAdder();
     private static final LongAccumulator EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS =
             new LongAccumulator(Long::max, 0L);
 
@@ -270,6 +276,18 @@ public final class OptimizationMetrics {
         EXACT_VECTOR_ENERGY_PAUSES.increment();
     }
 
+    public static void recordExactVectorStartBudgetDeferral() {
+        EXACT_VECTOR_START_BUDGET_DEFERRALS.increment();
+    }
+
+    public static void recordExactVectorReceiptFreeRollback() {
+        EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS.increment();
+    }
+
+    public static void recordExactVectorFingerprintRevalidation() {
+        EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.increment();
+    }
+
     public static List<String> summaryLines() {
         long gtHits = GT_CANDIDATE_CACHE_HITS.sum();
         long gtMisses = GT_CANDIDATE_CACHE_MISSES.sum();
@@ -335,6 +353,10 @@ public final class OptimizationMetrics {
                         + EXACT_VECTOR_QUARANTINES.sum()
                         + ", energy pause(s) "
                         + EXACT_VECTOR_ENERGY_PAUSES.sum()
+                        + ", start defer/receipt rollback/revalidated "
+                        + EXACT_VECTOR_START_BUDGET_DEFERRALS.sum() + "/"
+                        + EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS.sum() + "/"
+                        + EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.sum()
                         + ", max active tick "
                         + (EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.get() / 1_000L)
                         + " us",
@@ -414,6 +436,9 @@ public final class OptimizationMetrics {
         EXACT_VECTOR_CANCELLATIONS.reset();
         EXACT_VECTOR_QUARANTINES.reset();
         EXACT_VECTOR_ENERGY_PAUSES.reset();
+        EXACT_VECTOR_START_BUDGET_DEFERRALS.reset();
+        EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS.reset();
+        EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.reset();
         EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.reset();
     }
 

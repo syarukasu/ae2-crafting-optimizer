@@ -31,6 +31,9 @@ class ExactVectorDiagnosticsTest {
         ExactVectorDiagnostics.transactionCancelled();
         ExactVectorDiagnostics.transactionQuarantined();
         ExactVectorDiagnostics.energyPaused();
+        ExactVectorDiagnostics.startBudgetDeferred();
+        ExactVectorDiagnostics.receiptFreeRollback();
+        ExactVectorDiagnostics.fingerprintRevalidated();
 
         String exactVector = OptimizationMetrics.summaryLines().stream()
                 .filter(line -> line.startsWith("Exact Vector:"))
@@ -42,6 +45,8 @@ class ExactVectorDiagnosticsTest {
         assertTrue(exactVector.contains("active tick(s) 1"));
         assertTrue(exactVector.contains("completed/cancelled/quarantined 1/1/1"));
         assertTrue(exactVector.contains("energy pause(s) 1"));
+        assertTrue(exactVector.contains(
+                "start defer/receipt rollback/revalidated 1/1/1"));
         assertTrue(exactVector.contains("max active tick 2 us"));
     }
 }
