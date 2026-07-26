@@ -11,6 +11,7 @@ import com.syaru.ae2craftingoptimizer.access.AqeStandardVectorHost;
 import com.syaru.ae2craftingoptimizer.access.CraftingIslandJobAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactStack;
+import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorDiagnostics;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorExecutor;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorExecutorRegistry;
 import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatch;
@@ -215,6 +216,7 @@ public final class AqeStandardVectorExecutionRuntime {
         }
 
         ExactVectorExecutor selected = null;
+        ExactVectorExecutor retryable = null;
         // 同じGridの全Executorへ一回ずつ事前照会し、最初に全条件を満たす設備を選ぶ。
         for (ExactVectorExecutor executor :
                 ExactVectorExecutorRegistry.find(grid)) {
@@ -228,6 +230,16 @@ public final class AqeStandardVectorExecutionRuntime {
                     selected = executor;
                     break;
                 }
+                ExactVectorDiagnostics.executorRejected();
+                /*
+                 * 設備枠や一時資源待ちでは状態を作ってAACを待つ。
+                 * 未対応Patternだけは候補にせず、Advanced AE本来の経路へ戻す。
+                 */
+                if (retryable == null
+                        && executor.shouldRetryRejectedOffer(
+                                prepared.plan(), offer)) {
+                    retryable = executor;
+                }
             } catch (RuntimeException | LinkageError failure) {
                 // simulateは所有権移転前なので、壊れた候補だけを除外して次の設備を試せる。
                 if (ACOConfig.logExactVectorDiagnostics()) {
@@ -237,9 +249,14 @@ public final class AqeStandardVectorExecutionRuntime {
                 }
             }
         }
+        // 直ちに受理できる設備がなければ、再試行を明示した最初の設備へ順番待ちする。
+        if (selected == null) {
+            selected = retryable;
+        }
         if (selected == null) {
             return false;
         }
+        ExactVectorDiagnostics.planPrepared();
         state = new AqeStandardVectorExecutionState(
                 prepared.plan(),
                 selected.identity().id(),
@@ -506,6 +523,20 @@ public final class AqeStandardVectorExecutionRuntime {
                     : true;
         }
         if (!offer.accepted()) {
+            ExactVectorDiagnostics.executorRejected();
+            try {
+                // 一時拒否ならCPU入力Escrowを保持し、次tickに同じReceipt作成を再試行する。
+                if (executor.shouldRetryRejectedOffer(
+                        state.plan(), offer)) {
+                    return true;
+                }
+            } catch (RuntimeException | LinkageError classificationFailure) {
+                if (ACOConfig.logExactVectorDiagnostics()) {
+                    AE2CraftingOptimizer.LOGGER.warn(
+                            "Exact Vector executor failed AQE standard retry classification",
+                            classificationFailure);
+                }
+            }
             return ACOConfig.exactVectorFallbackBeforeOwnershipTransfer()
                     ? fallbackAfterRollback(host)
                     : true;
