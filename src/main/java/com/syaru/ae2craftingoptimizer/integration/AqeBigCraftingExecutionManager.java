@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.integration;
 
 import appeng.api.networking.crafting.CalculationStrategy;
+import appeng.api.networking.IGrid;
 import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.stacks.AEKey;
@@ -9,15 +10,26 @@ import com.syaru.ae2craftingoptimizer.access.AdvancedAeClusterExecutionAccess;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRegistry;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRuntime;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingRuntime;
+import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorExecutor;
+import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorExecutorRegistry;
+import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatch;
+import com.syaru.ae2craftingoptimizer.api.vector.VectorExecutionOffer;
+import com.syaru.ae2craftingoptimizer.api.vector.VectorStartResult;
+import com.syaru.ae2craftingoptimizer.api.vector.VectorTransactionSnapshot;
+import com.syaru.ae2craftingoptimizer.api.vector.VectorTransactionStatus;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2BigCraftingPlanFactory;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingJob;
+import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
+import com.syaru.ae2craftingoptimizer.engine.CompiledRootProgram;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.PlanningRuntimeEpoch;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
+import com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator;
+import com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanner;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
 import java.math.BigInteger;
@@ -27,6 +39,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
@@ -235,6 +248,7 @@ public final class AqeBigCraftingExecutionManager {
             controller.close(true);
         }
         CONTROLLERS.clear();
+        ExactVectorGridTickBudget.clearAll();
     }
 
     private static AdvCraftingCPUCluster clusterAt(CommandSourceStack source, BlockPos position) {
@@ -272,6 +286,13 @@ public final class AqeBigCraftingExecutionManager {
             if (!ACOConfig.enableBigIntegerGameplayExecution()
                     || !cluster.isActive()
                     || cluster.getGrid() == null) {
+                return;
+            }
+            reconcileVectorParents();
+            tryStartVectorParents();
+            // Vector専用運用では、未受理親Jobをchecked-long子Windowへ自動移行しない。
+            if (ACOConfig.enableAqeBigIntegerVectorParents()
+                    && !ACOConfig.exactVectorFallbackBeforeOwnershipTransfer()) {
                 return;
             }
             int maximumStarts = Math.max(
@@ -313,6 +334,453 @@ public final class AqeBigCraftingExecutionManager {
                 pending.put(lease.jobId(), new PendingCalculation(lease, future));
             }
             cluster.markDirty();
+        }
+
+        private void reconcileVectorParents() {
+            if (!ACOConfig.enableAqeBigIntegerVectorParents()) {
+                return;
+            }
+            IGrid grid = cluster.getGrid();
+            List<ExactVectorExecutor> executors =
+                    ExactVectorExecutorRegistry.findRegistered(grid);
+            if (executors.isEmpty()) {
+                // 設備チャンクが未読込でも親Leaseを推測で戻さず、再登録を待つ。
+                return;
+            }
+            ExactVectorGridTickBudget budget =
+                    ExactVectorGridTickBudget.forGrid(grid);
+            for (var recovered :
+                    List.copyOf(host.unresolvedVectorExecutions())) {
+                ExactVectorExecutor executor = executors.stream()
+                        .filter(candidate -> candidate.identity().id().equals(
+                                recovered.prepared().executorId()))
+                        .findFirst()
+                        .orElse(null);
+                // 保存Receiptを所有する設備がまだ形成されていない場合は、そのまま待機する。
+                if (executor == null) {
+                    continue;
+                }
+                Optional<VectorTransactionSnapshot> snapshot;
+                try {
+                    snapshot = executor.snapshot(
+                            recovered.prepared().transactionId());
+                } catch (RuntimeException | LinkageError snapshotFailure) {
+                    /*
+                     * Executorは読込済みなのにReceiptを照合できない。
+                     * 親Leaseを戻すと同じ入力を再利用し得るため隔離する。
+                     */
+                    host.quarantineVector(
+                            recovered.jobId(),
+                            recovered.prepared().transactionId());
+                    cluster.recalculateRemainingStorage();
+                    cluster.markDirty();
+                    AE2CraftingOptimizer.LOGGER.error(
+                            "Failed to read AQE Exact Vector parent receipt for job {}",
+                            recovered.jobId(),
+                            snapshotFailure);
+                    continue;
+                }
+                if (snapshot.isEmpty()) {
+                    // 同一設備が読込済みなのにReceiptが無ければ、start前に止まったLeaseで入力所有権はない。
+                    host.rollbackVector(
+                            recovered.jobId(),
+                            recovered.prepared().transactionId());
+                    cluster.markDirty();
+                    continue;
+                }
+                VectorTransactionStatus status =
+                        snapshot.get().status();
+                if ((status == VectorTransactionStatus.ACCOUNTING
+                                || status == VectorTransactionStatus.COMPLETED)
+                        && budget.tryCompletion()) {
+                    /*
+                     * Receiptを先にCOMPLETEDへする。ここで停止しても次回はCOMPLETEDから
+                     * 親commitを再実行でき、出力を再挿入する経路には戻らない。
+                     */
+                    boolean executorCompleted = true;
+                    try {
+                        if (status == VectorTransactionStatus.ACCOUNTING) {
+                            executorCompleted = executor.completeAccounting(
+                                    recovered.prepared().transactionId());
+                        }
+                    } catch (RuntimeException | LinkageError completionFailure) {
+                        executorCompleted = false;
+                        AE2CraftingOptimizer.LOGGER.error(
+                                "AQE Exact Vector executor accounting acknowledgement failed for job {}",
+                                recovered.jobId(),
+                                completionFailure);
+                    }
+                    if (!executorCompleted) {
+                        host.quarantineVector(
+                                recovered.jobId(),
+                                recovered.prepared().transactionId());
+                        cluster.recalculateRemainingStorage();
+                        cluster.markDirty();
+                        continue;
+                    }
+                    try {
+                        host.commitVector(
+                                recovered.jobId(),
+                                recovered.prepared().transactionId());
+                    } catch (RuntimeException commitFailure) {
+                        /*
+                         * Executor側はCOMPLETEDでも親commitの成否が不明なため、
+                         * 同じ出力を再会計せず親Jobを隔離する。
+                         */
+                        host.quarantineVector(
+                                recovered.jobId(),
+                                recovered.prepared().transactionId());
+                        cluster.recalculateRemainingStorage();
+                        cluster.markDirty();
+                        AE2CraftingOptimizer.LOGGER.error(
+                                "AQE Exact Vector parent commit became uncertain for job {}",
+                                recovered.jobId(),
+                                commitFailure);
+                        continue;
+                    }
+                    cluster.recalculateRemainingStorage();
+                    cluster.markDirty();
+                    if (ACOConfig.logExactVectorDiagnostics()) {
+                        AE2CraftingOptimizer.LOGGER.info(
+                                "Committed AQE Exact Vector parent job {} via {}",
+                                recovered.jobId(),
+                                recovered.prepared().executorId());
+                    }
+                    continue;
+                }
+                if (status == VectorTransactionStatus.CANCELLED) {
+                    host.rollbackVector(
+                            recovered.jobId(),
+                            recovered.prepared().transactionId());
+                    retryAfter.put(
+                            recovered.jobId(),
+                            ServerTickClock.currentTick()
+                                    + ACOConfig
+                                            .getBigIntegerRetryBackoffTicks());
+                    cluster.markDirty();
+                } else if (status
+                        == VectorTransactionStatus.QUARANTINED) {
+                    host.quarantineVector(
+                            recovered.jobId(),
+                            recovered.prepared().transactionId());
+                    cluster.recalculateRemainingStorage();
+                    cluster.markDirty();
+                    AE2CraftingOptimizer.LOGGER.error(
+                            "Quarantined AQE Exact Vector parent job {}: {}",
+                            recovered.jobId(),
+                            snapshot.get().detail());
+                }
+            }
+        }
+
+        private void tryStartVectorParents() {
+            if (!ACOConfig.enableAqeBigIntegerVectorParents()) {
+                return;
+            }
+            IGrid grid = cluster.getGrid();
+            List<ExactVectorExecutor> executors =
+                    ExactVectorExecutorRegistry.find(grid);
+            if (executors.isEmpty()) {
+                return;
+            }
+            ExactVectorGridTickBudget budget =
+                    ExactVectorGridTickBudget.forGrid(grid);
+            int activeTransactions =
+                    ExactVectorExecutorRegistry.activeTransactionCount(grid);
+            if (activeTransactions
+                    >= ACOConfig.getExactVectorMaximumActivePerGrid()) {
+                return;
+            }
+
+            for (BigCraftingRuntime.VectorCandidate<AEKey> candidate :
+                    host.vectorCandidates()) {
+                if (activeTransactions
+                                >= ACOConfig
+                                        .getExactVectorMaximumActivePerGrid()) {
+                    return;
+                }
+                if (candidate.requestedAmount().compareTo(
+                                BigInteger.valueOf(
+                                        ACOConfig
+                                                .getExactVectorMinimumExecutions()))
+                        < 0) {
+                    continue;
+                }
+                PreparedVectorBatch plan =
+                        prepareVectorPlan(candidate);
+                if (plan == null) {
+                    continue;
+                }
+                ExactVectorExecutor selected = null;
+                for (ExactVectorExecutor executor : executors) {
+                    VectorExecutionOffer offer;
+                    try {
+                        offer = executor.simulate(plan);
+                    } catch (RuntimeException | LinkageError failure) {
+                        AE2CraftingOptimizer.LOGGER.warn(
+                                "Exact Vector executor {} failed simulation",
+                                executor.identity().id(),
+                                failure);
+                        continue;
+                    }
+                    if (offer.accepted()
+                            && offer.durationTicks()
+                                    == plan.durationTicks()
+                            && offer.physicalThreadSlots() > 0) {
+                        selected = executor;
+                        break;
+                    }
+                }
+                if (selected == null) {
+                    continue;
+                }
+                // 実際に外部Receiptを作れる候補だけが、このtickの開始予算を消費する。
+                if (!budget.tryStart()) {
+                    return;
+                }
+
+                String selectedExecutorId;
+                try {
+                    selectedExecutorId = selected.identity().id();
+                    host.prepareVector(
+                            candidate.jobId(),
+                            plan.transactionId(),
+                            selectedExecutorId,
+                            plan.programFingerprint());
+                } catch (RuntimeException | LinkageError preparationFailure) {
+                    // 外部start前なので、prepare自体を確定できなかった候補は次tickへ延期する。
+                    AE2CraftingOptimizer.LOGGER.error(
+                            "Failed to prepare AQE Exact Vector parent job {}",
+                            candidate.jobId(),
+                            preparationFailure);
+                    continue;
+                }
+                cluster.markDirty();
+                try {
+                    VectorStartResult started = Objects.requireNonNull(
+                            selected.start(plan),
+                            "Exact Vector executor start result");
+                    if (!resolveVectorStartOutcome(
+                            candidate,
+                            plan,
+                            selected,
+                            started,
+                            null)) {
+                        continue;
+                    }
+                    activeTransactions++;
+                    if (ACOConfig.logExactVectorDiagnostics()) {
+                        AE2CraftingOptimizer.LOGGER.info(
+                                "Started AQE Exact Vector parent job {}: {} logical execution(s), {} stage(s), {} tick(s), executor {}",
+                                candidate.jobId(),
+                                plan.logicalExecutions(),
+                                plan.logicalStageCount(),
+                                plan.durationTicks(),
+                                selectedExecutorId);
+                    }
+                } catch (RuntimeException | LinkageError failure) {
+                    if (resolveVectorStartOutcome(
+                            candidate,
+                            plan,
+                            selected,
+                            null,
+                            failure)) {
+                        activeTransactions++;
+                    }
+                }
+            }
+        }
+
+        /**
+         * start後は応答より永続Receiptを優先し、Receiptなしを証明できた時だけLeaseを戻す。
+         *
+         * @return 外部設備が未完了Receiptを所有している場合true
+         */
+        private boolean resolveVectorStartOutcome(
+                BigCraftingRuntime.VectorCandidate<AEKey> candidate,
+                PreparedVectorBatch plan,
+                ExactVectorExecutor executor,
+                VectorStartResult started,
+                Throwable startFailure) {
+            if (started != null
+                    && !started.transactionId().equals(
+                            plan.transactionId())) {
+                host.quarantineVector(
+                        candidate.jobId(),
+                        plan.transactionId());
+                cluster.markDirty();
+                AE2CraftingOptimizer.LOGGER.error(
+                        "Exact Vector executor returned another transaction ID for parent job {}",
+                        candidate.jobId(),
+                        startFailure);
+                return false;
+            }
+            if (started != null
+                    && started.started()
+                    && !started.status().terminal()) {
+                return true;
+            }
+
+            Optional<VectorTransactionSnapshot> snapshot;
+            try {
+                snapshot = executor.snapshot(
+                        plan.transactionId());
+            } catch (RuntimeException | LinkageError snapshotFailure) {
+                if (startFailure != null) {
+                    snapshotFailure.addSuppressed(startFailure);
+                }
+                host.quarantineVector(
+                        candidate.jobId(),
+                        plan.transactionId());
+                cluster.markDirty();
+                AE2CraftingOptimizer.LOGGER.error(
+                        "AQE Exact Vector parent start outcome could not be proven for job {}",
+                        candidate.jobId(),
+                        snapshotFailure);
+                return false;
+            }
+            if (snapshot.isEmpty()) {
+                if (started != null && started.started()) {
+                    // started=trueなのにReceiptが無い応答は、所有権を推測せず親Jobを隔離する。
+                    host.quarantineVector(
+                            candidate.jobId(),
+                            plan.transactionId());
+                    cluster.markDirty();
+                    AE2CraftingOptimizer.LOGGER.error(
+                            "AQE Exact Vector executor reported a started parent job {} without a receipt",
+                            candidate.jobId());
+                    return false;
+                }
+                /*
+                 * 拒否または例外後に同じExecutorがReceiptなしを明示した場合だけ、
+                 * 入力所有権は移っていないため親LeaseをPLANNEDへ戻せる。
+                 */
+                host.rollbackVector(
+                        candidate.jobId(),
+                        plan.transactionId());
+                cluster.markDirty();
+                if (startFailure != null) {
+                    AE2CraftingOptimizer.LOGGER.warn(
+                            "Rolled back AQE Exact Vector parent job {} after a receipt-free start failure",
+                            candidate.jobId(),
+                            startFailure);
+                }
+                return false;
+            }
+
+            VectorTransactionStatus remote =
+                    snapshot.orElseThrow().status();
+            if (remote == VectorTransactionStatus.CANCELLED) {
+                host.rollbackVector(
+                        candidate.jobId(),
+                        plan.transactionId());
+                cluster.markDirty();
+                return false;
+            }
+            if (remote == VectorTransactionStatus.QUARANTINED
+                    || remote == VectorTransactionStatus.COMPLETED) {
+                host.quarantineVector(
+                        candidate.jobId(),
+                        plan.transactionId());
+                cluster.markDirty();
+                AE2CraftingOptimizer.LOGGER.error(
+                        "AQE Exact Vector parent job {} returned unsafe start receipt {}",
+                        candidate.jobId(),
+                        remote,
+                        startFailure);
+                return false;
+            }
+            if (startFailure != null) {
+                AE2CraftingOptimizer.LOGGER.warn(
+                        "Recovered AQE Exact Vector parent job {} from its executor receipt",
+                        candidate.jobId(),
+                        startFailure);
+            }
+            return true;
+        }
+
+        private PreparedVectorBatch prepareVectorPlan(
+                BigCraftingRuntime.VectorCandidate<AEKey> candidate) {
+            try {
+                long currentPatternGeneration =
+                        ProviderPatternGenerationTracker.generation();
+                long currentRecipeGeneration =
+                        RecipeGenerationTracker.generation();
+                var graphSnapshot =
+                        Ae2CompiledCraftingGraphCache.getOrCompile(
+                                cluster.getGrid(), cluster.getLevel());
+                CompiledRootProgram<AEKey> program =
+                        graphSnapshot.rootProgram(
+                                        candidate.requestedKey())
+                                .orElse(null);
+                if (program == null
+                        || graphSnapshot.graph().generation()
+                                != currentPatternGeneration
+                        || graphSnapshot.recipeGeneration()
+                                != currentRecipeGeneration
+                        || !candidate.programFingerprint().equals(
+                                Ae2BigCraftingPlanFactory
+                                        .programFingerprint(program))) {
+                    return null;
+                }
+                BigKeyCounterSidecars.Snapshot exact =
+                        BigKeyCounterSidecars.snapshot(
+                                        cluster.getGrid()
+                                                .getStorageService()
+                                                .getCachedInventory())
+                                .orElse(null);
+                // 不完全なSidecarをLong.MAX_VALUEの在庫として採用しない。
+                if (exact == null || !exact.complete()) {
+                    return null;
+                }
+                int maximumBits =
+                        ACOConfig.getBigIntegerMaximumBits();
+                CompiledRootProgram.BigInventorySnapshot<AEKey>
+                        inventory = program.captureBigInventory(
+                                key -> key.equals(
+                                                candidate.requestedKey())
+                                        ? BigInteger.ZERO
+                                        : exact.amount(key),
+                                maximumBits);
+                PreparedVectorBatch plan = VectorBatchPlanner.prepare(
+                        UUID.randomUUID(),
+                        candidate.jobId(),
+                        program,
+                        inventory,
+                        candidate.requestedAmount(),
+                        ACOConfig
+                                .getExactVectorTicksPerLogicalStage(),
+                        ACOConfig
+                                .getExactVectorEnergyMicroAePerLogicalExecution(),
+                        BigInteger.ZERO,
+                        candidate.programFingerprint(),
+                        currentPatternGeneration,
+                        currentRecipeGeneration,
+                        maximumBits);
+                VectorBatchPlanValidator.validate(
+                        plan,
+                        maximumBits,
+                        ACOConfig
+                                .getExactVectorMaximumPatternNodes(),
+                        ACOConfig.getExactVectorMaximumInputKeys(),
+                        ACOConfig.getExactVectorMaximumOutputKeys());
+                // 計画直後に世代が変わった結果は、Executorへsimulateすら渡さない。
+                if (ProviderPatternGenerationTracker.generation()
+                                != currentPatternGeneration
+                        || RecipeGenerationTracker.generation()
+                                != currentRecipeGeneration) {
+                    return null;
+                }
+                return plan;
+            } catch (RuntimeException | LinkageError unsupported) {
+                if (ACOConfig.logExactVectorDiagnostics()) {
+                    AE2CraftingOptimizer.LOGGER.debug(
+                            "AQE parent job {} is not eligible for Exact Vector execution: {}",
+                            candidate.jobId(),
+                            unsupported.toString());
+                }
+                return null;
+            }
         }
 
         private void recoverOnce() {
@@ -507,6 +975,93 @@ public final class AqeBigCraftingExecutionManager {
                 calculation.future().cancel(true);
                 host.rollback(calculation.lease());
             }
+            var vector = host.unresolvedVectorExecutions().stream()
+                    .filter(recovered ->
+                            recovered.jobId().equals(jobId))
+                    .findFirst()
+                    .orElse(null);
+            if (vector != null) {
+                IGrid grid = cluster.getGrid();
+                ExactVectorExecutor executor = grid == null
+                        ? null
+                        : ExactVectorExecutorRegistry.findRegistered(grid)
+                                .stream()
+                                .filter(candidate ->
+                                        candidate.identity().id().equals(
+                                                vector.prepared().executorId()))
+                                .findFirst()
+                                .orElse(null);
+                /*
+                 * 未読込設備の入力所有権は推測できない。親Jobを消さず、設備が再登録されるまで
+                 * キャンセル要求を拒否する。
+                 */
+                if (executor == null) {
+                    AE2CraftingOptimizer.LOGGER.warn(
+                            "Deferred cancellation of AQE Exact Vector job {} because executor {} is not loaded",
+                            jobId,
+                            vector.prepared().executorId());
+                    return false;
+                }
+                boolean executorCancelled;
+                Optional<VectorTransactionSnapshot> snapshot;
+                try {
+                    executorCancelled = executor.cancel(
+                            vector.prepared().transactionId());
+                    snapshot = executor.snapshot(
+                            vector.prepared().transactionId());
+                } catch (RuntimeException | LinkageError cancellationFailure) {
+                    host.quarantineVector(
+                            jobId,
+                            vector.prepared().transactionId());
+                    cluster.recalculateRemainingStorage();
+                    cluster.markDirty();
+                    AE2CraftingOptimizer.LOGGER.error(
+                            "AQE Exact Vector cancellation became uncertain for job {}",
+                            jobId,
+                            cancellationFailure);
+                    return true;
+                }
+                // 同一設備にReceiptが無い場合だけ、入力未所有のstart前Leaseとして戻す。
+                if (snapshot.isEmpty()) {
+                    host.rollbackVector(
+                            jobId,
+                            vector.prepared().transactionId());
+                } else {
+                    VectorTransactionStatus status =
+                            snapshot.get().status();
+                    if (status == VectorTransactionStatus.CANCELLED) {
+                        host.rollbackVector(
+                                jobId,
+                                vector.prepared().transactionId());
+                    } else if (status
+                            == VectorTransactionStatus.QUARANTINED) {
+                        host.quarantineVector(
+                                jobId,
+                                vector.prepared().transactionId());
+                        cluster.recalculateRemainingStorage();
+                        cluster.markDirty();
+                        return true;
+                    } else if (!executorCancelled) {
+                        /*
+                         * 出力移転後など、設備が安全に取消できない状態は親進捗を推測せず
+                         * 隔離する。
+                         */
+                        host.quarantineVector(
+                                jobId,
+                                vector.prepared().transactionId());
+                        cluster.recalculateRemainingStorage();
+                        cluster.markDirty();
+                        return true;
+                    } else {
+                        host.quarantineVector(
+                                jobId,
+                                vector.prepared().transactionId());
+                        cluster.recalculateRemainingStorage();
+                        cluster.markDirty();
+                        return true;
+                    }
+                }
+            }
             List<UUID> children = host.externalExecutions().values().stream()
                     .filter(binding -> binding.jobId().equals(jobId))
                     .map(BigCraftingHostRuntime.ExternalExecutionBinding::childCpuId)
@@ -553,4 +1108,5 @@ public final class AqeBigCraftingExecutionManager {
             Objects.requireNonNull(future, "future");
         }
     }
+
 }

@@ -278,6 +278,60 @@ screen, or job that reports complete before its outputs arrive fails the stage.
     and twenty Patterns, while `Compiled Island decisions` identifies no
     backend, capacity, provider, output, or energy fallback for that wave.
 
+## Exact Vector Crafting
+
+Automated tests cover API codec bounds, legacy schema migration, exact
+fixed-point energy division, weak executor registration, shared active counts,
+critical-path calculation, BigInteger parent lease persistence, exactly-once
+commit/rollback, and quantity-independent duration.
+
+The twenty-stage unit case must remain exactly twenty active ticks for:
+
+```text
+1
+1000
+Long.MAX_VALUE
+10^1024 - 1
+```
+
+For live qualification:
+
+1. Keep `enableCompiledCraftingIslands = false` to isolate the new API v1 path.
+2. Enable `[exactVectorCrafting]` in ACO and the Exact Vector executor in AAC.
+3. Store every deterministic ordinary-crafting Pattern in Pattern Buses owned
+   by one formed AAC controller.
+4. Submit the same twenty-stage root through an AQE/AdvancedAE standard Job at
+   `1`, `1,000`, and the largest practical signed-long amount. Confirm the AAC
+   receipt uses `HOST_ESCROWED`, no intermediate item is materialized, and the
+   logical execution lasts twenty active ticks.
+5. Submit an AQE BigInteger parent above signed long with exact stock in an
+   inspected ExtendedAE Plus Infinity BigInteger Cell. Confirm no checked-long
+   child Job is created and the receipt uses `NETWORK_STORAGE`.
+6. Compare every distinct raw input and final/remaining output before and after.
+   No key may be wrapped, clamped, duplicated, or lost.
+7. Remove power during active tick 10. Confirm status becomes
+   `PAUSED_ENERGY`, input ownership remains fixed, and completion occurs after
+   ten additional powered active ticks.
+8. Fill output storage. Confirm `OUTPUT_PENDING` retries by output key and does
+   not repeat an already inserted key.
+9. Change a Pattern or reload recipes before ownership transfer. Confirm the
+   original path remains available. Repeat after ownership transfer and confirm
+   the transaction is cancelled or quarantined without fallback.
+10. Cancel in PREPARED, INPUTS_EXTRACTING, RUNNING, OUTPUT_PENDING, and
+    ACCOUNTING. Only a persisted `CANCELLED` executor receipt may release host
+    input escrow.
+11. Restart or unload chunks at every persisted state. Confirm pending external
+    calls are quarantined and completed calls are not replayed.
+12. Break/reform the AAC structure. Confirm the weak registry does not retain
+    the old controller and the same persisted receipt is reconciled only by its
+    matching executor identity.
+13. Run simultaneous standard and BigInteger jobs. Confirm the shared
+    per-grid start, completion, active-transaction, and elapsed-time limits
+    prevent one CPU from monopolizing the tick.
+14. Run `/aco stats`. Confirm `Exact Vector` reports the expected
+    host/network starts, active tick count, terminal outcomes, and maximum
+    active-tick time without printing or iterating the full BigInteger amount.
+
 Compatibility-disabled sync checks retained in 1.2.2:
 
 1. Set the retained terminal, watcher, aggregate refresh, range, and client coalescing keys to `true`, restart, and confirm ACO still leaves AE2's original terminal and storage synchronization paths active because the related Mixins are unregistered.

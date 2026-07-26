@@ -6,6 +6,22 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- Added Exact Vector Crafting API v1 for quantity-independent deterministic
+  ordinary-crafting transactions.
+- Added a persistent AdvancedAE standard-job path using host-owned input escrow
+  and an AQE BigInteger parent-job path using exact network-storage ownership.
+- Added generation-bound vector plans, critical-path timing, exact fixed-point
+  energy schedules, weak per-grid executor registration, and shared start,
+  completion, active-transaction, and elapsed-time limits.
+- Added schema-versioned BigInteger plan and receipt codecs with strict size,
+  key-count, state, and energy-ledger validation.
+- Added direct exact-storage transactions for inspected ExtendedAE Plus
+  Infinity BigInteger Cells without quantity-sized or checked-long windows.
+- Added automated coverage proving that a twenty-stage graph remains twenty
+  active ticks for `1`, `1,000`, `Long.MAX_VALUE`, and a 1,024-digit order.
+- Added quantity-independent `/aco stats` counters for host/network starts,
+  active ticks, completion, cancellation, quarantine, and maximum active-tick
+  wall time.
 - Added a versioned external Compiled Crafting Island backend API.
 - Added an AdvancedAE/AQE CPU execution path that can bind an entire proven
   crafting-table island to a formed atomic backend such as AAC.
@@ -15,6 +31,15 @@ All notable changes to this project are documented here.
 
 ### Fixed
 
+- Made executor receipts authoritative after `start`, cancellation, completion,
+  and recovery so an uncertain external call cannot silently fall back and
+  duplicate inputs or outputs.
+- Quarantined malformed, missing, mismatched, or unreadable receipts instead of
+  letting integration exceptions escape into the server tick.
+- Made BigInteger vector-parent completion validate every projected counter
+  before mutating task progress.
+- Made the inspected ExtendedAE Plus cache and SavedData consistency injections
+  fail fast when their target methods change.
 - Compiled Crafting Islands are no longer limited to Neo ECO CPU jobs when an
   external atomic backend explicitly owns every pattern.
 - AdvancedAE waiting, final-output, elapsed-work, cancellation, and task

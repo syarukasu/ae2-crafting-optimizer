@@ -31,6 +31,7 @@ class CompiledCraftingIslandTest {
         assertEquals(BigInteger.valueOf(300), island.internalOutputs().get("part_2"));
         assertEquals(BigInteger.valueOf(100), island.sinkExecutions());
         assertEquals(BigInteger.valueOf(1300), island.logicalExecutions());
+        assertEquals(3, island.criticalPathStages());
         assertTrue(island.fitsSignedLongRuntime());
     }
 
@@ -207,7 +208,69 @@ class CompiledCraftingIslandTest {
                 island.boundaryInputs().get("seed_b"));
         assertEquals(BigInteger.ONE, island.boundaryOutputs().get("stage_20"));
         assertEquals(BigInteger.ONE, island.sinkExecutions());
+        assertEquals(stageCount, island.criticalPathStages());
         assertTrue(island.fitsSignedLongRuntime());
+    }
+
+    @Test
+    void keepsTwentyStagesForSmallLongAndHugeExactOrders() {
+        int stageCount = 20;
+        int maximumBits = 4096;
+        List<BigInteger> quantities = List.of(
+                BigInteger.ONE,
+                BigInteger.valueOf(1_000L),
+                BigInteger.valueOf(Long.MAX_VALUE),
+                BigInteger.TEN.pow(1_024).subtract(BigInteger.ONE));
+
+        // 注文数量ごとに同じ20ノードを構築し、数量が段数やTask件数へ漏れないことを固定する。
+        for (BigInteger quantity : quantities) {
+            List<CompiledCraftingIsland.Task<String, String>> tasks =
+                    new ArrayList<>(stageCount);
+            for (int stage = 1; stage <= stageCount; stage++) {
+                String input = stage == 1
+                        ? "raw"
+                        : stageName(stage - 1);
+                String output = stageName(stage);
+                tasks.add(new CompiledCraftingIsland.Task<>(
+                        output,
+                        output,
+                        output,
+                        1L,
+                        List.of(new CompiledCraftingIsland.Input<>(
+                                input,
+                                1L)),
+                        quantity));
+            }
+
+            var island = CompiledCraftingIsland
+                    .tryCompileIncludingSingletons(tasks, maximumBits)
+                    .orElseThrow()
+                    .get(0);
+
+            assertEquals(stageCount, island.tasks().size());
+            assertEquals(stageCount, island.criticalPathStages());
+            assertEquals(quantity, island.boundaryInputs().get("raw"));
+            assertEquals(
+                    quantity,
+                    island.boundaryOutputs().get("stage_20"));
+        }
+    }
+
+    @Test
+    void includesASinglePatternOnlyForTheExactVectorCompiler() {
+        var task = task("single", "raw", 2, "final", 1, 3);
+
+        var islands = CompiledCraftingIsland
+                .tryCompileIncludingSingletons(
+                        List.of(task),
+                        TEST_MAXIMUM_BITS)
+                .orElseThrow();
+
+        assertEquals(1, islands.size());
+        assertEquals(1, islands.get(0).criticalPathStages());
+        assertEquals(
+                BigInteger.valueOf(6L),
+                islands.get(0).boundaryInputs().get("raw"));
     }
 
     @Test

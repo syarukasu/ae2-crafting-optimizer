@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.optimization;
 
+import com.syaru.ae2craftingoptimizer.api.vector.VectorResourceMode;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.concurrent.atomic.LongAccumulator;
@@ -60,6 +61,20 @@ public final class OptimizationMetrics {
     private static final LongAccumulator CRAFTING_ISLAND_LOGICAL_EXECUTIONS =
             new LongAccumulator(OptimizationMetrics::saturatedAdd, 0L);
     private static final LongAccumulator CRAFTING_ISLAND_MAX_WAVE_NANOS =
+            new LongAccumulator(Long::max, 0L);
+    private static final LongAdder EXACT_VECTOR_HOST_ESCROWED_STARTS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_NETWORK_STORAGE_STARTS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_ACTIVE_TICKS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_COMPLETIONS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_CANCELLATIONS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_QUARANTINES =
+            new LongAdder();
+    private static final LongAccumulator EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS =
             new LongAccumulator(Long::max, 0L);
 
     private OptimizationMetrics() {
@@ -208,6 +223,35 @@ public final class OptimizationMetrics {
         CRAFTING_ISLAND_MAX_WAVE_NANOS.accumulate(Math.max(0L, elapsedNanos));
     }
 
+    /** 所有方式ごとのTransaction開始を一回だけ数える。 */
+    public static void recordExactVectorStart(VectorResourceMode mode) {
+        // CPU EscrowとME Storage直接所有を分け、どちらの経路が使われたか表示する。
+        if (mode == VectorResourceMode.HOST_ESCROWED) {
+            EXACT_VECTOR_HOST_ESCROWED_STARTS.increment();
+        } else {
+            EXACT_VECTOR_NETWORK_STORAGE_STARTS.increment();
+        }
+    }
+
+    /** 設備のactive tick件数と最長実時間だけを記録する。 */
+    public static void recordExactVectorActiveTick(long elapsedNanos) {
+        EXACT_VECTOR_ACTIVE_TICKS.increment();
+        EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.accumulate(
+                Math.max(0L, elapsedNanos));
+    }
+
+    public static void recordExactVectorCompletion() {
+        EXACT_VECTOR_COMPLETIONS.increment();
+    }
+
+    public static void recordExactVectorCancellation() {
+        EXACT_VECTOR_CANCELLATIONS.increment();
+    }
+
+    public static void recordExactVectorQuarantine() {
+        EXACT_VECTOR_QUARANTINES.increment();
+    }
+
     public static List<String> summaryLines() {
         long gtHits = GT_CANDIDATE_CACHE_HITS.sum();
         long gtMisses = GT_CANDIDATE_CACHE_MISSES.sum();
@@ -260,6 +304,17 @@ public final class OptimizationMetrics {
                         + CRAFTING_ISLAND_PROVIDER_REJECTS.sum() + "/"
                         + CRAFTING_ISLAND_OUTPUT_WAITS.sum() + "/"
                         + CRAFTING_ISLAND_ENERGY_WAITS.sum(),
+                "Exact Vector: starts host/network "
+                        + EXACT_VECTOR_HOST_ESCROWED_STARTS.sum() + "/"
+                        + EXACT_VECTOR_NETWORK_STORAGE_STARTS.sum()
+                        + ", active tick(s) " + EXACT_VECTOR_ACTIVE_TICKS.sum()
+                        + ", completed/cancelled/quarantined "
+                        + EXACT_VECTOR_COMPLETIONS.sum() + "/"
+                        + EXACT_VECTOR_CANCELLATIONS.sum() + "/"
+                        + EXACT_VECTOR_QUARANTINES.sum()
+                        + ", max active tick "
+                        + (EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.get() / 1_000L)
+                        + " us",
                 "Experimental V2 Instant: " + INSTANT_DISPATCH_CALLS.sum()
                         + " successful call(s), " + INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS.sum()
                         + " multi-transaction call(s), " + INSTANT_DISPATCH_TRANSACTIONS.sum()
@@ -327,6 +382,13 @@ public final class OptimizationMetrics {
         CRAFTING_ISLAND_PATTERNS.reset();
         CRAFTING_ISLAND_LOGICAL_EXECUTIONS.reset();
         CRAFTING_ISLAND_MAX_WAVE_NANOS.reset();
+        EXACT_VECTOR_HOST_ESCROWED_STARTS.reset();
+        EXACT_VECTOR_NETWORK_STORAGE_STARTS.reset();
+        EXACT_VECTOR_ACTIVE_TICKS.reset();
+        EXACT_VECTOR_COMPLETIONS.reset();
+        EXACT_VECTOR_CANCELLATIONS.reset();
+        EXACT_VECTOR_QUARANTINES.reset();
+        EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.reset();
     }
 
     private static long percent(long hits, long misses) {

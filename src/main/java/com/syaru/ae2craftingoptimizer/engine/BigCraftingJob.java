@@ -15,7 +15,7 @@ import net.minecraft.nbt.Tag;
  * 保存上の残量はBigIntegerのまま維持し、機械へ渡す時だけ上限付きlong実行Windowとして貸し出す。
  */
 public final class BigCraftingJob<K> {
-    public static final int SCHEMA_VERSION = 5;
+    public static final int SCHEMA_VERSION = 6;
     public static final long MAX_EXECUTIONS_PER_WINDOW = 1_048_576L;
     /**
      * BigInteger注文を標準AE2 Jobへ分割する時だけ使う予約済みTask ID。
@@ -42,6 +42,8 @@ public final class BigCraftingJob<K> {
     private long fixedAndTaskCountBytes;
     private State state;
     private PreparedExecution preparedExecution;
+    /** long子Windowを作らず、外部設備が親Job全量を所有する永続Lease。 */
+    private PreparedVectorExecution preparedVectorExecution;
 
     public BigCraftingJob(
             UUID id,
@@ -58,6 +60,7 @@ public final class BigCraftingJob<K> {
                 newTasks(patternExecutions),
                 new BigCraftingInventory<>(initialWaitingFor),
                 State.PLANNED,
+                null,
                 null,
                 -1L,
                 -1L,
@@ -146,6 +149,7 @@ public final class BigCraftingJob<K> {
                 new BigCraftingInventory<>(Map.of()),
                 State.PLANNED,
                 null,
+                null,
                 patternGeneration,
                 recipeGeneration,
                 maximumExecutionsPerWindow,
@@ -187,6 +191,7 @@ public final class BigCraftingJob<K> {
                 new BigCraftingInventory<>(waiting),
                 State.PLANNED,
                 null,
+                null,
                 -1L,
                 -1L,
                 MAX_EXECUTIONS_PER_WINDOW,
@@ -203,6 +208,7 @@ public final class BigCraftingJob<K> {
             BigCraftingInventory<K> waitingFor,
             State state,
             PreparedExecution preparedExecution,
+            PreparedVectorExecution preparedVectorExecution,
             long patternGeneration,
             long recipeGeneration,
             long maximumExecutionsPerWindow,
@@ -256,6 +262,7 @@ public final class BigCraftingJob<K> {
         this.waitingFor = Objects.requireNonNull(waitingFor, "waitingFor");
         this.state = Objects.requireNonNull(state, "state");
         this.preparedExecution = preparedExecution;
+        this.preparedVectorExecution = preparedVectorExecution;
     }
 
     public synchronized PreparedExecution prepareWindow(String patternId, long maximumExecutions) {
@@ -264,7 +271,7 @@ public final class BigCraftingJob<K> {
             throw new IllegalArgumentException(
                     "maximumExecutions must be between 1 and " + MAX_EXECUTIONS_PER_WINDOW);
         }
-        if (preparedExecution != null) {
+        if (hasPreparedExecution()) {
             throw new IllegalStateException("BigInteger job already has a prepared execution window");
         }
         BigCraftingTaskProgress task = requireTask(patternId);
@@ -318,6 +325,89 @@ public final class BigCraftingJob<K> {
         preparedExecution = null;
     }
 
+    /**
+     * 親Jobの未完了量全体を一件のExact Vector Transactionへ貸し出す。
+     *
+     * <p>このLeaseは数量をlongへ変換せず、設備側Receiptと照合できる識別子だけを保存する。</p>
+     */
+    public synchronized PreparedVectorExecution prepareVectorExecution(
+            UUID transactionId,
+            String executorId,
+            String planFingerprint) {
+        ensureRunnable();
+        if (hasPreparedExecution()) {
+            throw new IllegalStateException(
+                    "BigInteger job already has a prepared execution");
+        }
+        if (!isRootWindowed()) {
+            throw new IllegalStateException(
+                    "Exact Vector currently requires a root-windowed parent job");
+        }
+        BigCraftingTaskProgress task = requireTask(ROOT_WINDOW_TASK_ID);
+        if (task.isComplete()) {
+            throw new IllegalStateException("BigInteger root task is complete");
+        }
+        state = State.RUNNING;
+        preparedVectorExecution = new PreparedVectorExecution(
+                Objects.requireNonNull(transactionId, "transactionId"),
+                checkedMetadata(executorId, "executorId"),
+                checkedMetadata(planFingerprint, "planFingerprint"),
+                task.completed(),
+                task.remaining());
+        return preparedVectorExecution;
+    }
+
+    /**
+     * 設備Receiptが入力・処理・出力を全て完了した時だけ、親Job全量を確定する。
+     */
+    public synchronized void commitPreparedVector(UUID transactionId) {
+        ensureRunnable();
+        PreparedVectorExecution prepared = requirePreparedVector(transactionId);
+        BigCraftingTaskProgress task = requireTask(ROOT_WINDOW_TASK_ID);
+        if (!task.completed().equals(prepared.offset())
+                || !task.remaining().equals(prepared.executions())) {
+            throw new IllegalStateException(
+                    "stale or replayed Exact Vector parent execution");
+        }
+        BigInteger completedBefore = task.completed();
+        BigInteger completedAfter =
+                completedBefore.add(prepared.executions());
+        BigInteger remainingAfter =
+                remainingExecutionTotal.subtract(prepared.executions());
+        int remainingTypesAfter =
+                Math.subtractExact(remainingTaskTypes, 1);
+        long countBytesAfter = replaceEncodedBytes(
+                fixedAndTaskCountBytes,
+                completedBefore,
+                completedAfter);
+        /*
+         * Taskへ触る前に全派生値を検算する。ここより前の例外ならJobは完全に未変更、
+         * ここより後は失敗しない単純代入だけになる。
+         */
+        if (!completedAfter.equals(task.total())
+                || remainingAfter.signum() < 0
+                || remainingTypesAfter < 0) {
+            throw new IllegalStateException(
+                    "invalid Exact Vector parent completion projection");
+        }
+        task.complete(prepared.executions());
+        fixedAndTaskCountBytes = countBytesAfter;
+        remainingExecutionTotal = remainingAfter;
+        remainingTaskTypes = remainingTypesAfter;
+        preparedVectorExecution = null;
+        state = waitingFor.distinctKeys() == 0
+                ? State.COMPLETE
+                : State.WAITING_FOR_OUTPUTS;
+    }
+
+    /** 入力所有権が設備へ移る前に拒否されたVector Leaseだけを安全に戻す。 */
+    public synchronized void rollbackPreparedVector(UUID transactionId) {
+        ensureRunnable();
+        requirePreparedVector(transactionId);
+        preparedVectorExecution = null;
+        state = State.PLANNED;
+    }
+
     public synchronized void acceptOutput(K key, BigInteger amount) {
         if (state == State.CANCELLED || state == State.QUARANTINED || state == State.COMPLETE) {
             throw new IllegalStateException("job cannot accept output in state " + state);
@@ -331,7 +421,7 @@ public final class BigCraftingJob<K> {
 
     public synchronized void cancel() {
         if (state != State.COMPLETE && state != State.QUARANTINED) {
-            state = preparedExecution == null && waitingFor.distinctKeys() == 0
+            state = !hasPreparedExecution() && waitingFor.distinctKeys() == 0
                     ? State.CANCELLED
                     : State.QUARANTINED;
         }
@@ -367,6 +457,26 @@ public final class BigCraftingJob<K> {
             BigIntegerNbtCodec.putNonNegative(
                     prepared, "remainingAfter", preparedExecution.window().remainingAfter(), maximumBits);
             tag.put("prepared", prepared);
+        }
+        if (preparedVectorExecution != null) {
+            CompoundTag prepared = new CompoundTag();
+            prepared.putUUID(
+                    "transaction", preparedVectorExecution.transactionId());
+            prepared.putString(
+                    "executor", preparedVectorExecution.executorId());
+            prepared.putString(
+                    "fingerprint", preparedVectorExecution.planFingerprint());
+            BigIntegerNbtCodec.putNonNegative(
+                    prepared,
+                    "offset",
+                    preparedVectorExecution.offset(),
+                    maximumBits);
+            BigIntegerNbtCodec.putNonNegative(
+                    prepared,
+                    "executions",
+                    preparedVectorExecution.executions(),
+                    maximumBits);
+            tag.put("preparedVector", prepared);
         }
 
         ListTag taskList = new ListTag();
@@ -411,15 +521,19 @@ public final class BigCraftingJob<K> {
         K requestedKey = Objects.requireNonNull(codec.decode(tag.getCompound("requestedKey")), "requestedKey");
         State state = parseState(tag.getString("state"));
         PreparedExecution prepared = schema >= 2 ? readPrepared(tag, maximumBits) : null;
+        PreparedVectorExecution preparedVector =
+                schema >= 6 ? readPreparedVector(tag, maximumBits) : null;
         long maximumExecutionsPerWindow = schema >= 4
                 ? tag.getLong("maximumExecutionsPerWindow")
                 : MAX_EXECUTIONS_PER_WINDOW;
         String planningEpoch = schema >= 5 ? tag.getString("planningEpoch") : "";
         String programFingerprint = schema >= 5 ? tag.getString("programFingerprint") : "";
         validateWindowLimit(maximumExecutionsPerWindow);
-        validatePrepared(tasks, prepared, maximumExecutionsPerWindow);
+        validatePrepared(
+                tasks, prepared, preparedVector, maximumExecutionsPerWindow);
         Map<K, BigInteger> waitingFor = readCounts(tag, "waitingFor", codec, maximumBits);
-        validateLoadedState(tasks, waitingFor, state, prepared);
+        validateLoadedState(
+                tasks, waitingFor, state, prepared, preparedVector);
         return new BigCraftingJob<>(
                 tag.getUUID("id"),
                 requestedKey,
@@ -429,6 +543,7 @@ public final class BigCraftingJob<K> {
                 new BigCraftingInventory<>(waitingFor),
                 state,
                 prepared,
+                preparedVector,
                 schema >= 3 ? tag.getLong("patternGeneration") : -1L,
                 schema >= 3 ? tag.getLong("recipeGeneration") : -1L,
                 maximumExecutionsPerWindow,
@@ -512,7 +627,11 @@ public final class BigCraftingJob<K> {
     }
 
     public synchronized boolean hasPreparedExecution() {
-        return preparedExecution != null;
+        return preparedExecution != null || preparedVectorExecution != null;
+    }
+
+    public synchronized PreparedVectorExecution preparedVectorExecution() {
+        return preparedVectorExecution;
     }
 
     public Map<K, BigInteger> waitingFor() {
@@ -540,7 +659,7 @@ public final class BigCraftingJob<K> {
                 state,
                 remainingTasks(),
                 waitingFor.snapshot(),
-                preparedExecution != null);
+                hasPreparedExecution());
     }
 
     public synchronized CompactStatusSnapshot<K> compactStatusSnapshot() {
@@ -554,7 +673,7 @@ public final class BigCraftingJob<K> {
                 waitingFor.totalAmount(),
                 remainingTaskTypes,
                 waitingFor.distinctKeys(),
-                preparedExecution != null);
+                hasPreparedExecution());
     }
 
     public synchronized long estimatedCountBytes() {
@@ -622,6 +741,17 @@ public final class BigCraftingJob<K> {
         return preparedExecution;
     }
 
+    private PreparedVectorExecution requirePreparedVector(UUID transactionId) {
+        Objects.requireNonNull(transactionId, "transactionId");
+        if (preparedVectorExecution == null
+                || !preparedVectorExecution.transactionId()
+                        .equals(transactionId)) {
+            throw new IllegalStateException(
+                    "unknown, stale, or replayed Exact Vector transaction");
+        }
+        return preparedVectorExecution;
+    }
+
     private static <K> Map<K, BigInteger> validateOutputs(Map<K, BigInteger> outputs) {
         Objects.requireNonNull(outputs, "expectedOutputs");
         Map<K, BigInteger> result = new LinkedHashMap<>();
@@ -679,11 +809,45 @@ public final class BigCraftingJob<K> {
                         BigIntegerNbtCodec.getNonNegative(tag, "remainingAfter", maximumBits)));
     }
 
+    private static PreparedVectorExecution readPreparedVector(
+            CompoundTag owner,
+            int maximumBits) {
+        if (!owner.contains("preparedVector")) {
+            return null;
+        }
+        if (!owner.contains("preparedVector", Tag.TAG_COMPOUND)) {
+            throw new IllegalArgumentException(
+                    "invalid Exact Vector prepared execution");
+        }
+        CompoundTag tag = owner.getCompound("preparedVector");
+        if (!tag.hasUUID("transaction")) {
+            throw new IllegalArgumentException(
+                    "Exact Vector execution is missing its transaction id");
+        }
+        return new PreparedVectorExecution(
+                tag.getUUID("transaction"),
+                checkedMetadata(tag.getString("executor"), "executorId"),
+                checkedMetadata(
+                        tag.getString("fingerprint"), "planFingerprint"),
+                BigIntegerNbtCodec.getNonNegative(
+                        tag, "offset", maximumBits),
+                positive(
+                        BigIntegerNbtCodec.getNonNegative(
+                                tag, "executions", maximumBits),
+                        "vector executions"));
+    }
+
     private static void validatePrepared(
             Map<String, BigCraftingTaskProgress> tasks,
             PreparedExecution prepared,
+            PreparedVectorExecution preparedVector,
             long maximumExecutionsPerWindow) {
+        if (prepared != null && preparedVector != null) {
+            throw new IllegalArgumentException(
+                    "job contains both window and Exact Vector leases");
+        }
         if (prepared == null) {
+            validatePreparedVector(tasks, preparedVector);
             return;
         }
         if (prepared.window().executions() > maximumExecutionsPerWindow) {
@@ -704,6 +868,24 @@ public final class BigCraftingJob<K> {
         }
     }
 
+    private static void validatePreparedVector(
+            Map<String, BigCraftingTaskProgress> tasks,
+            PreparedVectorExecution prepared) {
+        if (prepared == null) {
+            return;
+        }
+        if (tasks.size() != 1 || !tasks.containsKey(ROOT_WINDOW_TASK_ID)) {
+            throw new IllegalArgumentException(
+                    "Exact Vector lease does not belong to a root parent job");
+        }
+        BigCraftingTaskProgress task = tasks.get(ROOT_WINDOW_TASK_ID);
+        if (!task.completed().equals(prepared.offset())
+                || !task.remaining().equals(prepared.executions())) {
+            throw new IllegalArgumentException(
+                    "Exact Vector lease does not match parent progress");
+        }
+    }
+
     private static void validateWindowLimit(long maximumExecutionsPerWindow) {
         if (maximumExecutionsPerWindow <= 0L
                 || maximumExecutionsPerWindow > MAX_EXECUTIONS_PER_WINDOW) {
@@ -720,6 +902,14 @@ public final class BigCraftingJob<K> {
         return checked;
     }
 
+    private static String checkedMetadata(String value, String name) {
+        String checked = planningMetadata(value, name).trim();
+        if (checked.isEmpty()) {
+            throw new IllegalArgumentException(name + " must not be blank");
+        }
+        return checked;
+    }
+
     private static long utf8Length(String value) {
         return value.getBytes(StandardCharsets.UTF_8).length;
     }
@@ -728,19 +918,26 @@ public final class BigCraftingJob<K> {
             Map<String, BigCraftingTaskProgress> tasks,
             Map<K, BigInteger> waitingFor,
             State state,
-            PreparedExecution prepared) {
+            PreparedExecution prepared,
+            PreparedVectorExecution preparedVector) {
         boolean tasksComplete = tasks.values().stream().allMatch(BigCraftingTaskProgress::isComplete);
-        if (prepared != null && state != State.RUNNING && state != State.QUARANTINED) {
+        boolean executionPrepared = prepared != null || preparedVector != null;
+        if (executionPrepared
+                && state != State.RUNNING
+                && state != State.QUARANTINED) {
             throw new IllegalArgumentException("prepared execution exists in incompatible state " + state);
         }
-        if (state == State.PLANNED && (prepared != null
+        if (state == State.PLANNED && (executionPrepared
                 || tasks.values().stream().anyMatch(task -> task.completed().signum() != 0))) {
             throw new IllegalArgumentException("planned job already contains execution progress");
         }
         if (state == State.WAITING_FOR_OUTPUTS && (!tasksComplete || waitingFor.isEmpty())) {
             throw new IllegalArgumentException("waiting job has inconsistent task or output state");
         }
-        if (state == State.COMPLETE && (!tasksComplete || !waitingFor.isEmpty() || prepared != null)) {
+        if (state == State.COMPLETE
+                && (!tasksComplete
+                        || !waitingFor.isEmpty()
+                        || executionPrepared)) {
             throw new IllegalArgumentException("complete job has unfinished state");
         }
     }
@@ -834,6 +1031,22 @@ public final class BigCraftingJob<K> {
                 throw new IllegalArgumentException("patternId must not be blank");
             }
             Objects.requireNonNull(window, "window");
+        }
+    }
+
+    public record PreparedVectorExecution(
+            UUID transactionId,
+            String executorId,
+            String planFingerprint,
+            BigInteger offset,
+            BigInteger executions) {
+        public PreparedVectorExecution {
+            Objects.requireNonNull(transactionId, "transactionId");
+            executorId = checkedMetadata(executorId, "executorId");
+            planFingerprint =
+                    checkedMetadata(planFingerprint, "planFingerprint");
+            BigCountMath.requireNonNegative(offset, "vector offset");
+            positive(executions, "vector executions");
         }
     }
 

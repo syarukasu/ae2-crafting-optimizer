@@ -157,6 +157,36 @@ keys, substitutions, multiple producers, cycles, NBT, durability, remaining
 items, and custom recipe implementations remain on the original execution
 path.
 
+### Exact Vector Crafting
+
+This section is independent from Compiled Crafting Islands. It requires the
+compiled graph and a registered API v1 executor such as AAC.
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `enabled` | `true` | Enables strictly proven quantity-independent ordinary-crafting transactions. Unsupported graphs fall back before ownership transfer. |
+| `enableAqeStandardJobs` | `true` | Uses a persistent `HOST_ESCROWED` transaction for signed-long AdvancedAE/AQE jobs. |
+| `enableAqeBigIntegerParents` | `true` | Tries one exact `NETWORK_STORAGE` transaction before creating checked-long child windows for an AQE BigInteger parent. |
+| `minimumExecutions` | `1` | Minimum requested root count before an executor is considered. |
+| `ticksPerLogicalStage` | `1` | Active ticks per node on the deterministic critical path. Range `1..1200`. |
+| `maximumPatternNodes` | `1024` | Maximum distinct Pattern nodes in one transaction. Range `1..1048576`. |
+| `maximumUniqueInputKeys` | `128` | Maximum distinct boundary input keys. Range `1..65536`. |
+| `maximumUniqueOutputKeys` | `128` | Maximum distinct final plus remaining-output keys. Range `1..65536`. |
+| `maximumStartsPerGridPerTick` | `1` | Shared start limit across standard and BigInteger parent transactions. Range `1..64`. |
+| `maximumCompletionsPerGridPerTick` | `1` | Shared accounting-completion limit per grid and tick. Range `1..64`. |
+| `maximumActiveTransactionsPerGrid` | `4` | Shared active receipt ceiling across every registered executor. Range `1..1024`. |
+| `gridTimeBudgetMillis` | `2` | Soft main-thread budget for start/input/completion work. Range `1..45`. |
+| `hardTimeBudgetMillis` | `4` | Hard deadline after which no additional Vector work starts. Range `1..45`, clamped to at least the soft budget. |
+| `fallbackBeforeOwnershipTransfer` | `true` | Allows the original path only while no executor owns inputs. It never permits fallback after a persisted receipt takes ownership. |
+| `logVectorDiagnostics` | `false` | Enables bounded start, recovery, fallback, and quarantine diagnostics. |
+| `energyMicroAePerLogicalExecution` | `6400000000` | Exact micro-AE charged per summed logical Pattern execution. The total remains `BigInteger`. |
+
+`enableExactVectorCrafting()` also requires the global optimizer and compiled
+graph switches. BigInteger parents additionally require
+`enableBigIntegerGameplayExecution`. Disabling a switch does not discard an
+already persisted external receipt; ownership must still be reconciled before
+the job can be removed.
+
 | Key | Default | Main risk |
 | --- | --- | --- |
 | `twoStageMissingPreview` | `false` | Changes calculation presentation and has legacy companion flags. |

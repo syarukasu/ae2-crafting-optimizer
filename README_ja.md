@@ -27,7 +27,7 @@ ACOはAE2内部へMixinするため、別のAE2系列や未検証バージョン
 
 1.2.2では、Import/Export Bus、IO Port、端末クラフト可能一覧、旧トランザクション実行など、可変ストレージへ触れる独自Mixinを撤去しました。これらの互換Configキーを`true`にしても再有効化されません。
 
-`1.4.1`は、記載した依存関係でクリーンビルドと自動テストを完了した
+開発版`1.5.4`は、記載した依存関係でビルドと自動テストを完了した
 P0-P8実装版です。起動、復旧、マルチプレイ、長時間ワールド試験は
 運用者が行うP9です。AQE専用のBigInteger計画・実行プロファイルはAdvanced AEと
 Advanced Quantum Engineeringの両方が存在する時だけ既定で有効になります。
@@ -71,6 +71,30 @@ AE2 15.4.10のクラフト計算APIは`long`量を受け取れますが、数量
 
 これは通常AE2 CPUの容量を増やす機能でも、BigIntegerのGUI入力でもありません。
 実際の計画を受理できる容量と実行処理は、明示連携したAQE Hostなど対応CPU側が担当します。
+
+## Exact Vector Crafting Engine
+
+Exact Vector API v1は、厳密に決定的な通常作業台クラフトDAGを一つの永続
+Transactionへ縮約します。注文数量は検査付き`BigInteger`演算の桁数にだけ影響し、
+数量回のループ、Pattern Push、Worker、子Job、long実行窓を作りません。
+
+- AdvancedAE/AQE標準Jobは`HOST_ESCROWED`を使います。ACOがCPU在庫から境界入力を
+  AEKeyごとに一度だけ預かり、AACは論理実行Receiptだけを所有し、完了時のTask・
+  waiting output・Requester会計はACOがAdvancedAE本来の経路へ反映します。
+- AQE BigInteger親Jobは`NETWORK_STORAGE`を使います。対応ExecutorがACOの正確在庫APIで
+  境界入力と最終出力をAEKeyごとに一度だけ移転します。現在の正確BigInteger
+  ネットワーク在庫実装は、調査済みExtendedAE Plus Infinity BigInteger Cellです。
+
+処理時間は最長依存経路の段数×`ticksPerLogicalStage`です。20段階なら、1個、
+1,000個、`Long.MAX_VALUE`、対応範囲のBigInteger注文のいずれも20 active tickです。
+電力はmicro-AE整数で正確に分配し、不足中は所有権を保持したまま停止します。
+
+固定された通常のshaped/shapelessレシピだけを対象にし、Processing Pattern、代替素材、
+Fuzzy、NBT変化、耐久値、確率出力、循環、不確定なRemaining Itemは開始前に通常経路へ
+戻します。入力所有権移転後は通常経路へ戻さず、永続Receiptから復旧するか隔離します。
+
+既存のCompiled Crafting Islandsは互換用の別経路として残り、Exact Vectorは
+`enableCompiledCraftingIslands`には依存しません。
 
 ## 主な機能
 
@@ -158,7 +182,7 @@ gradlew.bat clean build
 生成物:
 
 ```text
-build/libs/ae2-crafting-optimizer-1.4.1.jar
+build/libs/ae2-crafting-optimizer-1.5.4.jar
 ```
 
 `-dev`は安定版JARとの取り違えを防ぐための開発用接尾辞です。このJARは

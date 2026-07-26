@@ -451,6 +451,76 @@ Advanced AE Quantum Computer execution receives the same hard effective co-proce
 
 Neo ECO AE Extension 20.3.x uses a separate `ECOCraftingCPULogic`, so the standard AE2 redirect cannot see it. ACO injects only at Neo ECO's two existing limit-return methods and around its existing `executeCrafting(...)` call. The lower of Neo ECO's own limit and ACO's limit wins. The actual return value from Neo ECO remains the completed-operation count used for adaptive measurement.
 
+### Exact Vector Crafting Engine
+
+`com.syaru.ae2craftingoptimizer.api.vector` is API v1 and does not modify the
+existing BigInteger host API v3. `PreparedVectorBatch` stores all quantities as
+bounded non-negative `BigInteger` values and records the transaction UUID,
+parent UUID, ownership mode, critical path, exact input/output keys, required
+Pattern fingerprints, generation numbers, and fixed-point resource totals.
+
+`VectorBatchPlanner` evaluates a generation-cached `CompiledRootProgram` once.
+It sums produced and consumed values per AEKey, subtracts internal
+intermediates, and emits only net boundary inputs, final output, and fixed
+remaining output. Its loops are over Pattern nodes, input slots, and distinct
+keys; no loop uses requested quantity as a bound.
+
+`VectorBatchPlanValidator` and `PreparedVectorBatchCodec` enforce:
+
+- the configured BigInteger bit and exact decimal ceilings;
+- bounded Pattern, input-key, and output-key counts;
+- positive duration and stage values;
+- stable transaction and program fingerprints;
+- schema-versioned byte-array BigInteger encoding;
+- strict enum, key, duplicate, and NBT-size validation.
+
+`ExactVectorExecutorRegistry` weakly keys grids, owners, and executors. Existing
+receipts are discoverable even when an executor cannot accept new work. Standard
+and BigInteger parent jobs share the same active transaction count and per-grid
+start/completion/time budgets.
+
+AdvancedAE standard jobs use `AqeStandardVectorExecutionRuntime` in
+`HOST_ESCROWED` mode. The runtime:
+
+1. compiles the already accepted live Job and proves every task is an exact
+   ordinary crafting Pattern;
+2. simulates every output and input before mutation;
+3. extracts each distinct CPU-inventory boundary key once and persists its
+   receipt;
+4. starts one external logical transaction and suppresses normal Pattern push
+   for that same Job;
+5. waits for the executor `ACCOUNTING` receipt;
+6. stages outputs reversibly, clears the exact saved tasks, updates elapsed
+   internal work, and calls AdvancedAE's normal output insertion path.
+
+The standard path is intentionally signed-long at the CPU inventory boundary.
+No amount is narrowed silently; any boundary that does not fit exactly falls
+back before extraction.
+
+AQE BigInteger parent jobs use `AqeBigCraftingExecutionManager` in
+`NETWORK_STORAGE` mode. A proven root is offered directly before a child window
+is created. A compatible executor owns the exact network input/output transfer,
+while the AQE host keeps capacity and parent progress. A successful receipt
+commits the whole parent once with `BigInteger`; a rejection with a confirmed
+empty receipt may return to checked-long windows.
+
+After `start`, the persistent executor receipt is the source of truth.
+Mismatched IDs, missing receipts after a claimed start, unreadable receipts,
+interrupted input/output/energy calls, and uncertain accounting are quarantined.
+They never trigger speculative replay or normal-path fallback.
+
+`ExactNetworkStorageBridge` follows AE2 mount priority but admits only storage
+whose complete amount can be accessed exactly. The current implementation
+supports the inspected ExtendedAE Plus Infinity BigInteger Cell, performs one
+direct mutation per participating mount rather than long-sized windows, records
+before/after totals, rolls back in reverse order, invalidates the AE2 storage
+cache once, and fail-fast checks its cache/SavedData consistency injection
+points.
+
+`VectorEnergySchedule` divides total micro-AE by active ticks. The quotient is
+charged every tick and the first remainder ticks receive one additional
+micro-AE, so the final sum equals the original BigInteger exactly.
+
 ### Compiled Crafting Islands
 
 `Ae2CraftingIslandCompiler` reads the already accepted live Job and admits only

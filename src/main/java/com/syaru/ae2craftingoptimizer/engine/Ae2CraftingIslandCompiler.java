@@ -53,6 +53,12 @@ public final class Ae2CraftingIslandCompiler {
     private Ae2CraftingIslandCompiler() {
     }
 
+    /** 保存Receiptと現在Patternを同じ方式で照合する公開Fingerprint境界。 */
+    public static String patternFingerprint(IPatternDetails details) {
+        return Ae2CompiledPatternFactory.fingerprint(
+                Objects.requireNonNull(details, "details"));
+    }
+
     /**
      * 実行中Taskを一回だけ読み、機械・液体・化学・可変NBTを境界として島へ分割する。
      */
@@ -110,6 +116,64 @@ public final class Ae2CraftingIslandCompiler {
             }
         }
         return CompiledCraftingIsland.tryCompile(safeTasks, maximumBits);
+    }
+
+    /**
+     * AdvancedAE標準Job全体が一つの決定的作業台DAGである場合だけ返す。
+     *
+     * <p>一部だけを20tick実行すると通常Pattern Pushとの順序が変わるため、
+     * Exact Vector標準経路では全active Taskの完全包含を必須にする。</p>
+     */
+    public static Optional<CompiledCraftingIsland<AEKey, IPatternDetails>>
+            tryCompileWholeDeterministicJob(
+                    Map<IPatternDetails, Object> liveTasks,
+                    Level level,
+                    int maximumPatterns,
+                    int maximumBits) {
+        Objects.requireNonNull(liveTasks, "liveTasks");
+        Objects.requireNonNull(level, "level");
+        if (liveTasks.isEmpty()
+                || liveTasks.size() > maximumPatterns) {
+            return Optional.empty();
+        }
+
+        List<CompiledCraftingIsland.Task<AEKey, IPatternDetails>> tasks =
+                new ArrayList<>(liveTasks.size());
+        // 全Taskを固定作業台Patternへ変換できないJobは、部分採用せずAdvancedAEへ戻す。
+        for (Map.Entry<IPatternDetails, Object> entry : liveTasks.entrySet()) {
+            if (!(entry.getValue() instanceof CraftingTaskProgressAccess progress)) {
+                return Optional.empty();
+            }
+            long executions = progress.aco$getTaskProgress();
+            if (executions <= 0L) {
+                return Optional.empty();
+            }
+            CompiledCraftingIsland.Task<AEKey, IPatternDetails> task =
+                    tryCompileExactCraftingTask(
+                            entry.getKey(),
+                            executions,
+                            level);
+            if (task == null) {
+                return Optional.empty();
+            }
+            tasks.add(task);
+        }
+
+        Optional<List<CompiledCraftingIsland<AEKey, IPatternDetails>>> compiled =
+                CompiledCraftingIsland.tryCompileIncludingSingletons(
+                        tasks,
+                        maximumBits);
+        if (compiled.isEmpty()
+                || compiled.orElseThrow().size() != 1) {
+            return Optional.empty();
+        }
+        CompiledCraftingIsland<AEKey, IPatternDetails> island =
+                compiled.orElseThrow().get(0);
+        // 複数の独立成分や欠落Taskを一つの親Transactionへ誤結合しない。
+        if (island.tasks().size() != tasks.size()) {
+            return Optional.empty();
+        }
+        return Optional.of(island);
     }
 
     @Nullable

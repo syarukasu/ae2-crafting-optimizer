@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "AdvancedAeCraftingCpuLogicExecutionBudgetMixin",
+    "AdvancedAeStandardVectorExecutionMixin",
     "AdvancedAeCraftingCpuLogicIslandAccessor",
     "AdvancedAeElapsedTimeTrackerAccessor",
     "AdvancedAeCraftingCpuLogicBatchSourceReceiptMixin",
@@ -59,11 +60,14 @@
     "NetworkCraftingSimulationStateBigIntegerSnapshotMixin",
     "NetworkCraftingSimulationStateAccessor",
     "NetworkStorageBigIntegerSnapshotMixin",
+    "NetworkStorageMountsAccessor",
     "PatternProviderLogicIntentCaptureMixin",
     "PatternProviderLogicNativeBatchReceiptMixin",
     "AdvancedAePatternProviderLogicNativeBatchReceiptMixin",
     "TaskProgressTransactionAccessMixin",
     "ExtendedAePlusBigIntegerCellInventoryAccessor",
+    "ExtendedAePlusBigIntegerCellConsistencyMixin",
+    "ExtendedAePlusInfinityDataStorageConsistencyMixin",
     "MekanismCachedRecipeAccessor",
     "P2PServiceTopologyDeduplicationMixin"
   ],

@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.config;
 
 import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Locale;
 import net.minecraftforge.common.ForgeConfigSpec;
@@ -202,6 +203,22 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_RETRY_BACKOFF_TICKS;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_STATUS_PAGE_ENTRIES;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_RUNTIME_COUNT_BUDGET_MIB;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_EXACT_VECTOR_CRAFTING;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_AQE_STANDARD_VECTOR_JOBS;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_AQE_BIG_INTEGER_VECTOR_PARENTS;
+    private static final ForgeConfigSpec.LongValue EXACT_VECTOR_MINIMUM_EXECUTIONS;
+    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_TICKS_PER_LOGICAL_STAGE;
+    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_PATTERN_NODES;
+    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_INPUT_KEYS;
+    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_OUTPUT_KEYS;
+    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_STARTS_PER_GRID_TICK;
+    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_COMPLETIONS_PER_GRID_TICK;
+    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_ACTIVE_PER_GRID;
+    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS;
+    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_HARD_TIME_BUDGET_MILLIS;
+    private static final ForgeConfigSpec.BooleanValue EXACT_VECTOR_FALLBACK_BEFORE_OWNERSHIP;
+    private static final ForgeConfigSpec.BooleanValue LOG_EXACT_VECTOR_DIAGNOSTICS;
+    private static final ForgeConfigSpec.LongValue EXACT_VECTOR_ENERGY_MICRO_AE_PER_LOGICAL_EXECUTION;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -877,6 +894,71 @@ public final class ACOConfig {
                         "Aggregate memory-accounting budget for BigInteger count magnitudes in one CPU runtime, in MiB.",
                         "New jobs or output reservations fall back before exceeding this bound.")
                 .defineInRange("bigIntegerRuntimeCountBudgetMiB", 256, 32, 4096);
+        builder.pop();
+
+        builder.push("exactVectorCrafting");
+        ENABLE_EXACT_VECTOR_CRAFTING = builder
+                .comment(
+                        "Execute strictly deterministic ordinary crafting DAGs as one quantity-independent transaction.",
+                        "Unsupported graphs fall back before input ownership is transferred.")
+                .define("enabled", true);
+        ENABLE_AQE_STANDARD_VECTOR_JOBS = builder
+                .comment(
+                        "Allow the Exact Vector path for ordinary signed-long Advanced AE jobs.",
+                        "The existing Advanced AE path remains authoritative when no executor accepts the plan.")
+                .define("enableAqeStandardJobs", true);
+        ENABLE_AQE_BIG_INTEGER_VECTOR_PARENTS = builder
+                .comment(
+                        "Try one Exact Vector parent transaction before creating checked-long child windows.",
+                        "After input ownership transfer, failure is recovered or quarantined and never falls back.")
+                .define("enableAqeBigIntegerParents", true);
+        EXACT_VECTOR_MINIMUM_EXECUTIONS = builder
+                .comment("Minimum logical root executions required before trying an Exact Vector executor.")
+                .defineInRange("minimumExecutions", 1L, 1L, Long.MAX_VALUE);
+        EXACT_VECTOR_TICKS_PER_LOGICAL_STAGE = builder
+                .comment("Active ticks assigned to each node on the deterministic critical path.")
+                .defineInRange("ticksPerLogicalStage", 1, 1, 20 * 60);
+        EXACT_VECTOR_MAXIMUM_PATTERN_NODES = builder
+                .comment("Maximum distinct deterministic pattern nodes in one Exact Vector plan.")
+                .defineInRange("maximumPatternNodes", 1024, 1, 1_048_576);
+        EXACT_VECTOR_MAXIMUM_INPUT_KEYS = builder
+                .comment("Maximum distinct external input keys in one Exact Vector transaction.")
+                .defineInRange("maximumUniqueInputKeys", 128, 1, 65_536);
+        EXACT_VECTOR_MAXIMUM_OUTPUT_KEYS = builder
+                .comment("Maximum distinct final and fixed remaining-output keys in one Exact Vector transaction.")
+                .defineInRange("maximumUniqueOutputKeys", 128, 1, 65_536);
+        EXACT_VECTOR_MAXIMUM_STARTS_PER_GRID_TICK = builder
+                .comment("Maximum new Exact Vector ownership transfers per ME grid and server tick.")
+                .defineInRange("maximumStartsPerGridPerTick", 1, 1, 64);
+        EXACT_VECTOR_MAXIMUM_COMPLETIONS_PER_GRID_TICK = builder
+                .comment("Maximum Exact Vector parent-job commits per ME grid and server tick.")
+                .defineInRange("maximumCompletionsPerGridPerTick", 1, 1, 64);
+        EXACT_VECTOR_MAXIMUM_ACTIVE_PER_GRID = builder
+                .comment("Maximum concurrently owned Exact Vector transactions per ME grid.")
+                .defineInRange("maximumActiveTransactionsPerGrid", 4, 1, 1024);
+        EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS = builder
+                .comment("Soft main-thread budget for Exact Vector start and completion work on one grid.")
+                .defineInRange("gridTimeBudgetMillis", 2, 1, 45);
+        EXACT_VECTOR_HARD_TIME_BUDGET_MILLIS = builder
+                .comment("Hard main-thread budget after which no more Exact Vector work starts in this tick.")
+                .defineInRange("hardTimeBudgetMillis", 4, 1, 45);
+        EXACT_VECTOR_FALLBACK_BEFORE_OWNERSHIP = builder
+                .comment(
+                        "Permit the checked-long child-window path only while no executor owns inputs.",
+                        "Disabling this leaves rejected parent jobs planned for a later Exact Vector executor.")
+                .define("fallbackBeforeOwnershipTransfer", true);
+        LOG_EXACT_VECTOR_DIAGNOSTICS = builder
+                .comment("Log bounded Exact Vector acceptance, rejection, recovery, and quarantine diagnostics.")
+                .define("logVectorDiagnostics", false);
+        EXACT_VECTOR_ENERGY_MICRO_AE_PER_LOGICAL_EXECUTION = builder
+                .comment(
+                        "Exact fixed-point energy charged per summed logical pattern execution.",
+                        "The total remains BigInteger and is divided exactly over active ticks.")
+                .defineInRange(
+                        "energyMicroAePerLogicalExecution",
+                        6_400_000_000L,
+                        0L,
+                        Long.MAX_VALUE);
         builder.pop();
 
         builder.push("diagnostics");
@@ -1693,5 +1775,105 @@ public final class ACOConfig {
         return Math.multiplyExact(
                 (long) Math.min(4096, Math.max(32, BIG_INTEGER_RUNTIME_COUNT_BUDGET_MIB.get())),
                 1024L * 1024L);
+    }
+
+    public static boolean enableExactVectorCrafting() {
+        return enableOptimizer()
+                && enableCompiledCraftingGraph()
+                && ENABLE_EXACT_VECTOR_CRAFTING.get();
+    }
+
+    public static boolean enableAqeStandardVectorJobs() {
+        return enableExactVectorCrafting()
+                && ENABLE_AQE_STANDARD_VECTOR_JOBS.get();
+    }
+
+    public static boolean enableAqeBigIntegerVectorParents() {
+        return enableExactVectorCrafting()
+                && enableBigIntegerGameplayExecution()
+                && ENABLE_AQE_BIG_INTEGER_VECTOR_PARENTS.get();
+    }
+
+    public static long getExactVectorMinimumExecutions() {
+        return Math.max(1L, EXACT_VECTOR_MINIMUM_EXECUTIONS.get());
+    }
+
+    public static int getExactVectorTicksPerLogicalStage() {
+        return Math.min(
+                20 * 60,
+                Math.max(1, EXACT_VECTOR_TICKS_PER_LOGICAL_STAGE.get()));
+    }
+
+    public static int getExactVectorMaximumPatternNodes() {
+        return Math.min(
+                1_048_576,
+                Math.max(1, EXACT_VECTOR_MAXIMUM_PATTERN_NODES.get()));
+    }
+
+    public static int getExactVectorMaximumInputKeys() {
+        return Math.min(
+                65_536,
+                Math.max(1, EXACT_VECTOR_MAXIMUM_INPUT_KEYS.get()));
+    }
+
+    public static int getExactVectorMaximumOutputKeys() {
+        return Math.min(
+                65_536,
+                Math.max(1, EXACT_VECTOR_MAXIMUM_OUTPUT_KEYS.get()));
+    }
+
+    public static int getExactVectorMaximumStartsPerGridTick() {
+        return Math.min(
+                64,
+                Math.max(
+                        1,
+                        EXACT_VECTOR_MAXIMUM_STARTS_PER_GRID_TICK.get()));
+    }
+
+    public static int getExactVectorMaximumCompletionsPerGridTick() {
+        return Math.min(
+                64,
+                Math.max(
+                        1,
+                        EXACT_VECTOR_MAXIMUM_COMPLETIONS_PER_GRID_TICK.get()));
+    }
+
+    public static int getExactVectorMaximumActivePerGrid() {
+        return Math.min(
+                1024,
+                Math.max(1, EXACT_VECTOR_MAXIMUM_ACTIVE_PER_GRID.get()));
+    }
+
+    public static int getExactVectorGridTimeBudgetMillis() {
+        return Math.min(
+                45,
+                Math.max(1, EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS.get()));
+    }
+
+    public static int getExactVectorHardTimeBudgetMillis() {
+        return Math.max(
+                getExactVectorGridTimeBudgetMillis(),
+                Math.min(
+                        45,
+                        Math.max(
+                                1,
+                                EXACT_VECTOR_HARD_TIME_BUDGET_MILLIS.get())));
+    }
+
+    public static boolean exactVectorFallbackBeforeOwnershipTransfer() {
+        return enableExactVectorCrafting()
+                && EXACT_VECTOR_FALLBACK_BEFORE_OWNERSHIP.get();
+    }
+
+    public static boolean logExactVectorDiagnostics() {
+        return enableExactVectorCrafting()
+                && LOG_EXACT_VECTOR_DIAGNOSTICS.get();
+    }
+
+    public static BigInteger getExactVectorEnergyMicroAePerLogicalExecution() {
+        return BigInteger.valueOf(
+                Math.max(
+                        0L,
+                        EXACT_VECTOR_ENERGY_MICRO_AE_PER_LOGICAL_EXECUTION.get()));
     }
 }

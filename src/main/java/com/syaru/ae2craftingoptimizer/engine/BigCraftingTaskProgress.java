@@ -26,7 +26,20 @@ public final class BigCraftingTaskProgress {
         if (executions <= 0L) {
             throw new IllegalArgumentException("completed executions must be positive");
         }
-        BigInteger next = completed.add(BigInteger.valueOf(executions));
+        complete(BigInteger.valueOf(executions));
+    }
+
+    /**
+     * Exact Vector実行が所有した全量を、longへ狭めず一度で完了させる。
+     */
+    public synchronized void complete(BigInteger executions) {
+        BigInteger checked = BigCountMath.requireNonNegative(
+                executions, "completed executions");
+        if (checked.signum() == 0) {
+            throw new IllegalArgumentException(
+                    "completed executions must be positive");
+        }
+        BigInteger next = completed.add(checked);
         if (next.compareTo(total) > 0) {
             throw new IllegalArgumentException("cannot complete more executions than the task total");
         }

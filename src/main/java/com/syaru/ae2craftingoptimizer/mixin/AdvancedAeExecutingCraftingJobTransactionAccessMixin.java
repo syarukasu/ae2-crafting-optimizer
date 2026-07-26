@@ -65,6 +65,11 @@ public abstract class AdvancedAeExecutingCraftingJobTransactionAccessMixin
     }
 
     @Override
+    public long aco$getIslandRemainingAmount() {
+        return remainingAmount;
+    }
+
+    @Override
     public boolean aco$canAcceptIslandOutput(AEKey key, long amount) {
         // 0以下の値やwaitingForをwrapさせる加算は、CPU会計へ一切入れない。
         if (key == null || amount <= 0L) {

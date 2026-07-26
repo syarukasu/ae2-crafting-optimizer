@@ -224,6 +224,51 @@ public final class BigCraftingHostRuntime<K> {
         return bigRuntime.schedule(operationBudget, maximumWindows);
     }
 
+    /** Exact Vector対応設備へ渡せる、まだ子Windowを持たない親Job一覧。 */
+    public synchronized List<BigCraftingRuntime.VectorCandidate<K>>
+            vectorCandidates() {
+        return bigRuntime.vectorCandidates();
+    }
+
+    /** 外部入力へ触る前に、親JobとVector Transactionの対応を永続化する。 */
+    public synchronized BigCraftingRuntime.VectorExecutionLease<K>
+            prepareVector(
+                    UUID jobId,
+                    UUID transactionId,
+                    String executorId,
+                    String planFingerprint) {
+        return bigRuntime.prepareVector(
+                jobId, transactionId, executorId, planFingerprint);
+    }
+
+    /** 設備のACCOUNTING Receiptと一致したVector親Jobを確定する。 */
+    public synchronized void commitVector(
+            UUID jobId,
+            UUID transactionId) {
+        bigRuntime.commitVector(jobId, transactionId);
+        rebalanceBigRuntimeCapacity();
+    }
+
+    /** 入力所有権移転前に拒否されたVector Leaseだけを通常経路へ戻す。 */
+    public synchronized void rollbackVector(
+            UUID jobId,
+            UUID transactionId) {
+        bigRuntime.rollbackVector(jobId, transactionId);
+    }
+
+    /** 設備Receiptの成否を証明できない親Jobを隔離する。 */
+    public synchronized void quarantineVector(
+            UUID jobId,
+            UUID transactionId) {
+        bigRuntime.quarantineVector(jobId, transactionId);
+    }
+
+    /** 再起動後に設備Receiptと照合すべきVector Lease一覧。 */
+    public synchronized List<BigCraftingRuntime.RecoveredVectorExecution<K>>
+            unresolvedVectorExecutions() {
+        return bigRuntime.unresolvedVectorExecutions();
+    }
+
     /**
      * 準備済みBigInteger窓を、同じQuantum Computer内の標準AE2子CPUへ紐付ける。
      * 以後は子CPUの成功/失敗通知が来るまでBig側の進捗を確定しない。

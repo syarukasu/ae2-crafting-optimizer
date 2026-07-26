@@ -15,6 +15,7 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
@@ -123,9 +124,14 @@ class BigIntegerStorageSnapshotBridgeTest {
             implements MEStorage, ExtendedAePlusBigIntegerCellInventoryAccessor {
         private final Object2ObjectMap<AEKey, BigInteger> exact =
                 new Object2ObjectOpenHashMap<>();
+        private int exactTypes;
+        private BigInteger exactTotal;
+        private UUID storageUuid;
 
         private FakeInfinityBigIntegerCell(BigInteger amount) {
             exact.put(TEST_KEY, amount);
+            exactTypes = 1;
+            exactTotal = amount;
         }
 
         @Override
@@ -137,6 +143,45 @@ class BigIntegerStorageSnapshotBridgeTest {
         @Override
         public Object2ObjectMap<AEKey, BigInteger> aco$getExactStoredAmounts() {
             return exact;
+        }
+
+        @Override
+        public int aco$getExactStoredTypeCount() {
+            return exactTypes;
+        }
+
+        @Override
+        public void aco$setExactStoredTypeCount(int value) {
+            exactTypes = value;
+        }
+
+        @Override
+        public BigInteger aco$getExactStoredTotal() {
+            return exactTotal;
+        }
+
+        @Override
+        public void aco$setExactStoredTotal(BigInteger value) {
+            exactTotal = value;
+        }
+
+        @Override
+        public void aco$saveExactChanges() {
+            // 単体試験セルはNBTを持たないため、保存通知だけを成功扱いにする。
+        }
+
+        @Override
+        public boolean aco$hasExactStorageUuid() {
+            return storageUuid != null;
+        }
+
+        @Override
+        public UUID aco$assignExactStorageUuid() {
+            // 実セルと同じく、未割当時だけ一意な保存IDを作る。
+            if (storageUuid == null) {
+                storageUuid = UUID.randomUUID();
+            }
+            return storageUuid;
         }
 
         @Override
