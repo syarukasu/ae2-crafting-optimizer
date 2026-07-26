@@ -11,6 +11,7 @@ import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRegistry;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRuntime;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingRuntime;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorExecutor;
+import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorDiagnostics;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorExecutorRegistry;
 import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatch;
 import com.syaru.ae2craftingoptimizer.api.vector.VectorExecutionOffer;
@@ -289,7 +290,8 @@ public final class AqeBigCraftingExecutionManager {
                 return;
             }
             reconcileVectorParents();
-            tryStartVectorParents();
+            Set<UUID> retryableVectorParents =
+                    tryStartVectorParents();
             // Vector専用運用では、未受理親Jobをchecked-long子Windowへ自動移行しない。
             if (ACOConfig.enableAqeBigIntegerVectorParents()
                     && !ACOConfig.exactVectorFallbackBeforeOwnershipTransfer()) {
@@ -306,6 +308,14 @@ public final class AqeBigCraftingExecutionManager {
             List<BigCraftingRuntime.ExecutionLease<AEKey>> leases =
                     host.schedule(budget, maximumStarts);
             for (var lease : leases) {
+                /*
+                 * AAC設備枠や資源待ちの親Jobは同じExact Vector計画を次tickに再試行する。
+                 * ここでchecked-long子Windowへ落とすと数量依存処理が再発するため、Leaseを戻す。
+                 */
+                if (retryableVectorParents.contains(lease.jobId())) {
+                    host.rollback(lease);
+                    continue;
+                }
                 if (!BigCraftingJob.ROOT_WINDOW_TASK_ID.equals(lease.prepared().patternId())) {
                     host.rollback(lease);
                     continue;
@@ -473,15 +483,16 @@ public final class AqeBigCraftingExecutionManager {
             }
         }
 
-        private void tryStartVectorParents() {
+        private Set<UUID> tryStartVectorParents() {
+            Set<UUID> retryableParents = new LinkedHashSet<>();
             if (!ACOConfig.enableAqeBigIntegerVectorParents()) {
-                return;
+                return Set.of();
             }
             IGrid grid = cluster.getGrid();
             List<ExactVectorExecutor> executors =
                     ExactVectorExecutorRegistry.find(grid);
             if (executors.isEmpty()) {
-                return;
+                return Set.of();
             }
             ExactVectorGridTickBudget budget =
                     ExactVectorGridTickBudget.forGrid(grid);
@@ -489,7 +500,18 @@ public final class AqeBigCraftingExecutionManager {
                     ExactVectorExecutorRegistry.activeTransactionCount(grid);
             if (activeTransactions
                     >= ACOConfig.getExactVectorMaximumActivePerGrid()) {
-                return;
+                // Grid共通枠が空くまで、Vector対象になり得る全親Jobを逐次経路へ落とさない。
+                for (BigCraftingRuntime.VectorCandidate<AEKey> candidate :
+                        host.vectorCandidates()) {
+                    if (candidate.requestedAmount().compareTo(
+                                    BigInteger.valueOf(
+                                            ACOConfig
+                                                    .getExactVectorMinimumExecutions()))
+                            >= 0) {
+                        retryableParents.add(candidate.jobId());
+                    }
+                }
+                return Set.copyOf(retryableParents);
             }
 
             for (BigCraftingRuntime.VectorCandidate<AEKey> candidate :
@@ -497,7 +519,8 @@ public final class AqeBigCraftingExecutionManager {
                 if (activeTransactions
                                 >= ACOConfig
                                         .getExactVectorMaximumActivePerGrid()) {
-                    return;
+                    retryableParents.add(candidate.jobId());
+                    continue;
                 }
                 if (candidate.requestedAmount().compareTo(
                                 BigInteger.valueOf(
@@ -511,7 +534,9 @@ public final class AqeBigCraftingExecutionManager {
                 if (plan == null) {
                     continue;
                 }
+                ExactVectorDiagnostics.planPrepared();
                 ExactVectorExecutor selected = null;
+                boolean retryableRejection = false;
                 for (ExactVectorExecutor executor : executors) {
                     VectorExecutionOffer offer;
                     try {
@@ -530,13 +555,30 @@ public final class AqeBigCraftingExecutionManager {
                         selected = executor;
                         break;
                     }
+                    // 拒否回数だけを記録し、巨大数量やPattern一覧は診断へ渡さない。
+                    ExactVectorDiagnostics.executorRejected();
+                    try {
+                        // 一時的な設備拒否だけを保持し、未対応Patternは通常経路へ戻せるよう区別する。
+                        retryableRejection |=
+                                executor.shouldRetryRejectedOffer(
+                                        plan, offer);
+                    } catch (RuntimeException | LinkageError failure) {
+                        AE2CraftingOptimizer.LOGGER.warn(
+                                "Exact Vector executor {} failed retry classification",
+                                executor.identity().id(),
+                                failure);
+                    }
                 }
                 if (selected == null) {
+                    if (retryableRejection) {
+                        retryableParents.add(candidate.jobId());
+                    }
                     continue;
                 }
                 // 実際に外部Receiptを作れる候補だけが、このtickの開始予算を消費する。
                 if (!budget.tryStart()) {
-                    return;
+                    retryableParents.add(candidate.jobId());
+                    continue;
                 }
 
                 String selectedExecutorId;
@@ -553,6 +595,7 @@ public final class AqeBigCraftingExecutionManager {
                             "Failed to prepare AQE Exact Vector parent job {}",
                             candidate.jobId(),
                             preparationFailure);
+                    retryableParents.add(candidate.jobId());
                     continue;
                 }
                 cluster.markDirty();
@@ -566,6 +609,7 @@ public final class AqeBigCraftingExecutionManager {
                             selected,
                             started,
                             null)) {
+                        retryableParents.add(candidate.jobId());
                         continue;
                     }
                     activeTransactions++;
@@ -586,9 +630,12 @@ public final class AqeBigCraftingExecutionManager {
                             null,
                             failure)) {
                         activeTransactions++;
+                    } else {
+                        retryableParents.add(candidate.jobId());
                     }
                 }
             }
+            return Set.copyOf(retryableParents);
         }
 
         /**

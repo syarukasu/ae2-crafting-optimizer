@@ -12,6 +12,14 @@ public final class ExactVectorDiagnostics {
     private ExactVectorDiagnostics() {
     }
 
+    public static void planPrepared() {
+        OptimizationMetrics.recordExactVectorPreparedPlan();
+    }
+
+    public static void executorRejected() {
+        OptimizationMetrics.recordExactVectorExecutorRejection();
+    }
+
     public static void transactionStarted(VectorResourceMode mode) {
         OptimizationMetrics.recordExactVectorStart(
                 Objects.requireNonNull(mode, "mode"));
@@ -31,5 +39,9 @@ public final class ExactVectorDiagnostics {
 
     public static void transactionQuarantined() {
         OptimizationMetrics.recordExactVectorQuarantine();
+    }
+
+    public static void energyPaused() {
+        OptimizationMetrics.recordExactVectorEnergyPause();
     }
 }

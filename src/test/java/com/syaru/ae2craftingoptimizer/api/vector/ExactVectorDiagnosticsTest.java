@@ -20,6 +20,8 @@ class ExactVectorDiagnosticsTest {
 
     @Test
     void reportsQuantityIndependentLifecycleCounters() {
+        ExactVectorDiagnostics.planPrepared();
+        ExactVectorDiagnostics.executorRejected();
         ExactVectorDiagnostics.transactionStarted(
                 VectorResourceMode.HOST_ESCROWED);
         ExactVectorDiagnostics.transactionStarted(
@@ -28,6 +30,7 @@ class ExactVectorDiagnosticsTest {
         ExactVectorDiagnostics.transactionCompleted();
         ExactVectorDiagnostics.transactionCancelled();
         ExactVectorDiagnostics.transactionQuarantined();
+        ExactVectorDiagnostics.energyPaused();
 
         String exactVector = OptimizationMetrics.summaryLines().stream()
                 .filter(line -> line.startsWith("Exact Vector:"))
@@ -35,8 +38,10 @@ class ExactVectorDiagnosticsTest {
                 .orElseThrow();
 
         assertTrue(exactVector.contains("starts host/network 1/1"));
+        assertTrue(exactVector.contains("prepared/rejected 1/1"));
         assertTrue(exactVector.contains("active tick(s) 1"));
         assertTrue(exactVector.contains("completed/cancelled/quarantined 1/1/1"));
+        assertTrue(exactVector.contains("energy pause(s) 1"));
         assertTrue(exactVector.contains("max active tick 2 us"));
     }
 }

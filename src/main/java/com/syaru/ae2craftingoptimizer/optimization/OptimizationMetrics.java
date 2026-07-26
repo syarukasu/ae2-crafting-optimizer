@@ -62,6 +62,10 @@ public final class OptimizationMetrics {
             new LongAccumulator(OptimizationMetrics::saturatedAdd, 0L);
     private static final LongAccumulator CRAFTING_ISLAND_MAX_WAVE_NANOS =
             new LongAccumulator(Long::max, 0L);
+    private static final LongAdder EXACT_VECTOR_PREPARED_PLANS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_EXECUTOR_REJECTIONS =
+            new LongAdder();
     private static final LongAdder EXACT_VECTOR_HOST_ESCROWED_STARTS =
             new LongAdder();
     private static final LongAdder EXACT_VECTOR_NETWORK_STORAGE_STARTS =
@@ -73,6 +77,8 @@ public final class OptimizationMetrics {
     private static final LongAdder EXACT_VECTOR_CANCELLATIONS =
             new LongAdder();
     private static final LongAdder EXACT_VECTOR_QUARANTINES =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_ENERGY_PAUSES =
             new LongAdder();
     private static final LongAccumulator EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS =
             new LongAccumulator(Long::max, 0L);
@@ -224,6 +230,14 @@ public final class OptimizationMetrics {
     }
 
     /** 所有方式ごとのTransaction開始を一回だけ数える。 */
+    public static void recordExactVectorPreparedPlan() {
+        EXACT_VECTOR_PREPARED_PLANS.increment();
+    }
+
+    public static void recordExactVectorExecutorRejection() {
+        EXACT_VECTOR_EXECUTOR_REJECTIONS.increment();
+    }
+
     public static void recordExactVectorStart(VectorResourceMode mode) {
         // CPU EscrowとME Storage直接所有を分け、どちらの経路が使われたか表示する。
         if (mode == VectorResourceMode.HOST_ESCROWED) {
@@ -250,6 +264,10 @@ public final class OptimizationMetrics {
 
     public static void recordExactVectorQuarantine() {
         EXACT_VECTOR_QUARANTINES.increment();
+    }
+
+    public static void recordExactVectorEnergyPause() {
+        EXACT_VECTOR_ENERGY_PAUSES.increment();
     }
 
     public static List<String> summaryLines() {
@@ -307,11 +325,16 @@ public final class OptimizationMetrics {
                 "Exact Vector: starts host/network "
                         + EXACT_VECTOR_HOST_ESCROWED_STARTS.sum() + "/"
                         + EXACT_VECTOR_NETWORK_STORAGE_STARTS.sum()
+                        + ", prepared/rejected "
+                        + EXACT_VECTOR_PREPARED_PLANS.sum() + "/"
+                        + EXACT_VECTOR_EXECUTOR_REJECTIONS.sum()
                         + ", active tick(s) " + EXACT_VECTOR_ACTIVE_TICKS.sum()
                         + ", completed/cancelled/quarantined "
                         + EXACT_VECTOR_COMPLETIONS.sum() + "/"
                         + EXACT_VECTOR_CANCELLATIONS.sum() + "/"
                         + EXACT_VECTOR_QUARANTINES.sum()
+                        + ", energy pause(s) "
+                        + EXACT_VECTOR_ENERGY_PAUSES.sum()
                         + ", max active tick "
                         + (EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.get() / 1_000L)
                         + " us",
@@ -384,10 +407,13 @@ public final class OptimizationMetrics {
         CRAFTING_ISLAND_MAX_WAVE_NANOS.reset();
         EXACT_VECTOR_HOST_ESCROWED_STARTS.reset();
         EXACT_VECTOR_NETWORK_STORAGE_STARTS.reset();
+        EXACT_VECTOR_PREPARED_PLANS.reset();
+        EXACT_VECTOR_EXECUTOR_REJECTIONS.reset();
         EXACT_VECTOR_ACTIVE_TICKS.reset();
         EXACT_VECTOR_COMPLETIONS.reset();
         EXACT_VECTOR_CANCELLATIONS.reset();
         EXACT_VECTOR_QUARANTINES.reset();
+        EXACT_VECTOR_ENERGY_PAUSES.reset();
         EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.reset();
     }
 
