@@ -140,6 +140,8 @@ processResources {
 }
 
 jar {
+    // 配布JAR内のMinecraft参照を、本番環境で使われる難読化名へ必ず変換する。
+    finalizedBy 'reobfJar'
     manifest {
         attributes([
             'Specification-Title': mod_id,
