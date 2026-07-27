@@ -122,13 +122,16 @@ class CompiledCraftingIslandTest {
     }
 
     @Test
-    void leavesASinglePatternOnTheExistingVectorPath() {
+    void compilesASingleDeterministicPatternOnTheNormalEntryPoint() {
         var compiled = CompiledCraftingIsland.tryCompile(
                 List.of(task("single", "raw", 1, "final", 1, 1)),
                 TEST_MAXIMUM_BITS);
 
         assertTrue(compiled.isPresent());
-        assertTrue(compiled.orElseThrow().isEmpty());
+        assertEquals(1, compiled.orElseThrow().size());
+        assertEquals(
+                BigInteger.ONE,
+                compiled.orElseThrow().get(0).boundaryInputs().get("raw"));
     }
 
     @Test
@@ -257,7 +260,7 @@ class CompiledCraftingIslandTest {
     }
 
     @Test
-    void includesASinglePatternOnlyForTheExactVectorCompiler() {
+    void keepsTheExplicitSingletonEntryPointCompatible() {
         var task = task("single", "raw", 2, "final", 1, 3);
 
         var islands = CompiledCraftingIsland

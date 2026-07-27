@@ -119,8 +119,8 @@ fair scheduling, or atomic Big-capacity submission accepts only
 | `authoritativeMinimumShadowMatches` | `64` | Complete AE2/ACO accounting matches required for the same generation-keyed root before authoritative use. `0` explicitly bypasses qualification; one mismatch rejects that root until generation change. |
 | `requireAqeBigPlanShadowQualification` | `false` | When true, even strict long-overflow AQE plans require prior Shadow matches. The default uses strict topology, generation, and referenced-inventory proof because AE2 cannot complete a true overflow request for comparison. |
 | `enableCompiledCraftingGraph` | `true` | Builds the immutable generation-keyed graph only while the AQE profile or experimental master is active; unsupported or unproven plans still fall back to AE2. |
-| `enableCompiledCraftingIslands` | `false` | Independently enables atomic net-delta execution for ready connected islands of two or more exact ordinary crafting-table Patterns. It requires an explicit backend such as AAC and otherwise does nothing. |
-| `maximumCompiledCraftingIslandPatterns` | `4096` | Maximum live Job Patterns inspected before the island compiler falls back. Range `2..1048576`. |
+| `enableCompiledCraftingIslands` | `false` | Independently enables atomic net-delta execution for one or more exact ordinary crafting-table Patterns. It requires an explicit backend such as AAC and otherwise does nothing. |
+| `maximumCompiledCraftingIslandPatterns` | `4096` | Maximum live Job Patterns inspected before the island compiler falls back. Range `1..1048576`. |
 | `logCompiledCraftingIslands` | `true` | Logs each unique backend/stage/exception failure once while the island feature is enabled. Successful waves are not logged. |
 | `enableTransactionalBatchingV2` | `false` | Enables durable prepare/accept/account/reconcile transactions. |
 | `enableGtceuNativeBatching` | `false` | Enables exact all-or-zero GTCEu native batches; requires V2. |
@@ -180,7 +180,7 @@ compiled graph and a registered API v1 executor such as AAC.
 | `hardTimeBudgetMillis` | `4` | Hard deadline after which no additional Vector work starts. Range `1..45`, clamped to at least the soft budget. |
 | `fallbackBeforeOwnershipTransfer` | `true` | Allows the original path only while no executor owns inputs. It never permits fallback after a persisted receipt takes ownership. |
 | `logVectorDiagnostics` | `false` | Enables bounded start, recovery, fallback, and quarantine diagnostics. |
-| `energyMicroAePerLogicalExecution` | `6400000000` | Exact micro-AE charged per summed logical Pattern execution. The total remains `BigInteger`. |
+| `energyMicroAePerLogicalExecution` | `6400000000` | Exact micro-AE charged once per distinct compiled Pattern node. The legacy key name is retained for config compatibility; order quantity does not multiply the cost. |
 
 `enableExactVectorCrafting()` also requires the global optimizer and compiled
 graph switches. BigInteger parents additionally require

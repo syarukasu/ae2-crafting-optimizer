@@ -59,7 +59,7 @@ public final class Ae2CraftingIslandExecutor {
         if (runtime == null
                 || energyService == null
                 || level == null
-                || maximumPatterns < 2) {
+                || maximumPatterns < 1) {
             return CraftingIslandExecutionOwner.NOT_HANDLED;
         }
 
@@ -88,7 +88,7 @@ public final class Ae2CraftingIslandExecutor {
             }
             List<CompiledCraftingIsland<AEKey, IPatternDetails>> islands =
                     compiled.get();
-            // 安全な二段以上の島が無いJobは既存単一Pattern Vector経路へ戻す。
+            // 実行可能な決定的Patternが一件も無いJobだけを既存経路へ戻す。
             if (islands.isEmpty()) {
                 OptimizationMetrics.recordCraftingIslandDecision(
                         CraftingIslandDecision.COMPILE_REJECTED);
@@ -123,9 +123,11 @@ public final class Ae2CraftingIslandExecutor {
                     continue;
                 }
                 long capacity = runtime.acoIslandRootExecutionCapacity();
-                // 形成済み設備がない、またはsink回数が一Wave容量を超える島は扱わない。
-                if (capacity <= 0L
-                        || island.sinkExecutions().compareTo(BigInteger.valueOf(capacity)) > 0) {
+                /*
+                 * 容量は同時Transaction枠の存在確認にだけ使う。
+                 * Pattern実行数は一つの数式係数なので、注文数量と比較してFallbackさせない。
+                 */
+                if (capacity <= 0L) {
                     OptimizationMetrics.recordCraftingIslandDecision(
                             CraftingIslandDecision.CAPACITY_WAIT);
                     continue;
@@ -269,13 +271,16 @@ public final class Ae2CraftingIslandExecutor {
     private static double requiredPower(
             CompiledCraftingIsland<AEKey, IPatternDetails> island,
             CraftingIslandRuntime runtime) {
-        double perExecution = runtime.acoIslandEnergyPerLogicalExecution();
+        double perPatternNode = runtime.acoIslandEnergyPerPatternNode();
         // 負、NaN、Infinityは設備実装の破損値なので実行不能として返す。
-        if (!Double.isFinite(perExecution) || perExecution < 0.0D) {
+        if (!Double.isFinite(perPatternNode) || perPatternNode < 0.0D) {
             return Double.NaN;
         }
-        // BigInteger回数を一度だけdoubleへ変換し、Pattern回数ぶんのループを作らない。
-        return island.logicalExecutions().doubleValue() * perExecution;
+        /*
+         * 注文数量は一括会計する係数であり、設備の物理処理回数ではない。
+         * 固有Patternノード数だけを掛け、Long/BigInteger注文で電力を線形増加させない。
+         */
+        return island.tasks().size() * perPatternNode;
     }
 
     private static int commit(

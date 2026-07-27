@@ -566,15 +566,17 @@ repeat uncertain work.
 
 ACO owns all qualification, graph, arithmetic, transaction ordering, and
 fallback behavior. The backend owns only structure capacity, power constants,
-and live Pattern-provider ownership. ACO's CPU adapter owns the
+and its configured same-Grid or controller-local Pattern scope. ACO's CPU
+adapter owns the
 version-specific Job, inventory, and output calls.
 
 `CraftingIslandBackendRegistry` separates CPU ownership from execution
-hardware. AAC registers a short-lived session only when all Patterns are
-currently exposed by formed AAC Pattern Buses. AdvancedAE/AQE CPU logic binds
-that session before input extraction, then revalidates structure and provider
-ownership immediately before commit. Without a matching session it returns
-`NOT_HANDLED` and runs the original Sequential path.
+hardware. AAC registers a short-lived session when a formed controller exists
+on the same Grid; its optional strict mode additionally requires controller
+Pattern Bus ownership. AdvancedAE/AQE CPU logic binds that session before input
+extraction, then revalidates structure and configured Pattern scope immediately
+before commit. Without a matching session it returns `NOT_HANDLED` and runs the
+original Sequential path.
 
 AdvancedAE's `ExecutingCraftingJob` is adapted to the same reversible contract:
 checked `waitingFor` staging, exact rollback, final-requester simulation,

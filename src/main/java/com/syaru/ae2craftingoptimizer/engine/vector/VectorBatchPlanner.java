@@ -30,7 +30,7 @@ public final class VectorBatchPlanner {
             CompiledRootProgram.BigInventorySnapshot<AEKey> inventory,
             BigInteger requestedAmount,
             int ticksPerLogicalStage,
-            BigInteger energyMicroAePerLogicalExecution,
+            BigInteger energyMicroAePerPatternNode,
             BigInteger totalCoolant,
             String programFingerprint,
             long patternGeneration,
@@ -40,11 +40,11 @@ public final class VectorBatchPlanner {
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(requestedAmount, "requestedAmount");
         Objects.requireNonNull(
-                energyMicroAePerLogicalExecution,
-                "energyMicroAePerLogicalExecution");
+                energyMicroAePerPatternNode,
+                "energyMicroAePerPatternNode");
         // 時間は正数、設備資源は非負数だけを数式計画へ入れる。
         if (ticksPerLogicalStage <= 0
-                || energyMicroAePerLogicalExecution.signum() < 0
+                || energyMicroAePerPatternNode.signum() < 0
                 || totalCoolant.signum() < 0) {
             throw new IllegalArgumentException("invalid vector timing or resource cost");
         }
@@ -165,11 +165,14 @@ public final class VectorBatchPlanner {
         int stages = VectorCriticalPathCalculator.calculate(
                 program, requiredPatterns);
         int durationTicks = Math.multiplyExact(stages, ticksPerLogicalStage);
-        BigInteger totalEnergy = checkedMultiply(
-                logicalExecutions,
-                energyMicroAePerLogicalExecution,
-                maximumBits,
-                "total vector energy");
+        /*
+         * 数量は数式上の係数であり、物理的なPattern処理回数ではない。
+         * 電力も固有Patternノード数だけで決め、巨大注文を線形コストへ戻さない。
+         */
+        BigInteger totalEnergy = VectorEnergyCost.forPatternNodes(
+                requiredPatterns.size(),
+                energyMicroAePerPatternNode,
+                maximumBits);
         List<ExactStack> inputs = exactStacks(boundaryInputs);
         List<ExactStack> remainingOutputs = exactStacks(remaining);
         String transactionFingerprint = VectorPlanFingerprint.create(

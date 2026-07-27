@@ -298,8 +298,8 @@ For live qualification:
 
 1. Keep `enableCompiledCraftingIslands = false` to isolate the new API v1 path.
 2. Enable `[exactVectorCrafting]` in ACO and the Exact Vector executor in AAC.
-3. Store every deterministic ordinary-crafting Pattern in Pattern Buses owned
-   by one formed AAC controller.
+3. Expose every deterministic ordinary-crafting Pattern on the same ME Grid.
+   Repeat with AAC strict ownership enabled and controller-local Pattern Buses.
 4. Submit the same twenty-stage root through an AQE/AdvancedAE standard Job at
    `1`, `1,000`, and the largest practical signed-long amount. Confirm the AAC
    receipt uses `HOST_ESCROWED`, no intermediate item is materialized, and an

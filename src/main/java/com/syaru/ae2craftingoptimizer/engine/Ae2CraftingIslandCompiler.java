@@ -6,22 +6,14 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.crafting.pattern.AECraftingPattern;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.ShapedRecipe;
-import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,26 +21,10 @@ import org.jetbrains.annotations.Nullable;
  * 実行中AE2 Jobから、結果を証明できる通常作業台Patternだけを島コンパイラへ渡す。
  */
 public final class Ae2CraftingIslandCompiler {
-    /** AE2 15.4.xがPattern定義NBTへ保存する元CraftingRecipe IDキー。 */
-    private static final String PATTERN_RECIPE_ID_TAG = "recipe";
     /** AEItemKeyの追加状態を示す汎用NBTキー。 */
     private static final String ITEM_STATE_TAG = "tag";
     /** Forge Capability由来の追加状態を示す汎用NBTキー。 */
     private static final String ITEM_CAPABILITIES_TAG = "caps";
-    /** KubeJSが通常の整形作業台レシピへ使う実装クラス名。 */
-    private static final String KUBEJS_SHAPED_RECIPE =
-            "dev.latvian.mods.kubejs.recipe.special.ShapedKubeJSRecipe";
-    /** KubeJSが通常の不定形作業台レシピへ使う実装クラス名。 */
-    private static final String KUBEJS_SHAPELESS_RECIPE =
-            "dev.latvian.mods.kubejs.recipe.special.ShapelessKubeJSRecipe";
-    /** KubeJSの動的入力処理一覧を読む公開アクセサ名。 */
-    private static final String KUBEJS_INGREDIENT_ACTIONS_METHOD =
-            "kjs$getIngredientActions";
-    /** KubeJSの動的出力コールバックを読む公開アクセサ名。 */
-    private static final String KUBEJS_MODIFY_RESULT_METHOD =
-            "kjs$getModifyResult";
-    /** KubeJSのプレイヤーステージ条件を読む公開アクセサ名。 */
-    private static final String KUBEJS_STAGE_METHOD = "kjs$getStage";
 
     private Ae2CraftingIslandCompiler() {
     }
@@ -115,7 +91,12 @@ public final class Ae2CraftingIslandCompiler {
                 safeTasks.add(task);
             }
         }
-        return CompiledCraftingIsland.tryCompile(safeTasks, maximumBits);
+        /*
+         * 入出力式が一意なら一段だけでも数量非依存Batchとして成立する。
+         * 段数を安全条件にせず、曖昧性と会計可能性だけを下位コンパイラで検査する。
+         */
+        return CompiledCraftingIsland.tryCompileIncludingSingletons(
+                safeTasks, maximumBits);
     }
 
     /**
@@ -182,17 +163,15 @@ public final class Ae2CraftingIslandCompiler {
                     IPatternDetails details,
                     long executions,
                     Level level) {
-        // AECraftingPatternそのもの以外は独自機械またはアドオンPatternとして境界にする。
-        if (details.getClass() != AECraftingPattern.class) {
+        /*
+         * AE2の作業台Pattern APIを実装する派生型も、公開された固定入出力を同じ規則で検査する。
+         * class完全一致はラッパーや互換実装を不要にFallbackさせるため使用しない。
+         */
+        if (!(details instanceof AECraftingPattern crafting)) {
             return null;
         }
-        AECraftingPattern crafting = (AECraftingPattern) details;
         // 代替素材・液体代替は在庫状態で選択結果が変わるため島へ入れない。
         if (crafting.canSubstitute || crafting.canSubstituteFluids) {
-            return null;
-        }
-        // 特殊レシピはNBTやワールド状態から出力が変わり得るため固定式にしない。
-        if (!isOrdinaryFixedRecipe(crafting, level)) {
             return null;
         }
 
@@ -247,74 +226,6 @@ public final class Ae2CraftingIslandCompiler {
                 outputs[0].amount(),
                 inputs,
                 BigInteger.valueOf(executions));
-    }
-
-    private static boolean isOrdinaryFixedRecipe(
-            AECraftingPattern pattern,
-            Level level) {
-        CompoundTag definition = pattern.getDefinition().getTag();
-        // Recipe IDが欠けたPatternはデータパック再読込後の固定性を証明できない。
-        if (definition == null
-                || !definition.contains(PATTERN_RECIPE_ID_TAG)) {
-            return false;
-        }
-        ResourceLocation recipeId = ResourceLocation.tryParse(
-                definition.getString(PATTERN_RECIPE_ID_TAG));
-        // 壊れたIDはRecipeManagerへ渡さず標準経路へ戻す。
-        if (recipeId == null) {
-            return false;
-        }
-        Recipe<?> recipe = level.getRecipeManager().byKey(recipeId).orElse(null);
-        // 特殊作業台レシピは入力欄以外の状態を読むため、固定式へ変換しない。
-        if (!(recipe instanceof CraftingRecipe craftingRecipe)
-                || craftingRecipe.isSpecial()) {
-            return false;
-        }
-        // 素のMinecraft実装は入力、出力、返却物の固定性を上位の検査だけで証明できる。
-        if (recipe.getClass() == ShapedRecipe.class
-                || recipe.getClass() == ShapelessRecipe.class) {
-            return true;
-        }
-        // KubeJSの通常作業台レシピはShapedRecipeを継承するが、厳密なclass一致では除外される。
-        // 動的アクション、結果コールバック、ステージ条件が無い場合だけ同じ固定式として扱う。
-        return isStaticKubeJsCraftingRecipe(recipe);
-    }
-
-    private static boolean isStaticKubeJsCraftingRecipe(Recipe<?> recipe) {
-        String className = recipe.getClass().getName();
-        // KubeJS以外の派生Recipeは独自状態を持つ可能性があるため許可しない。
-        if (!KUBEJS_SHAPED_RECIPE.equals(className)
-                && !KUBEJS_SHAPELESS_RECIPE.equals(className)) {
-            return false;
-        }
-
-        try {
-            Method ingredientActionsMethod = recipe.getClass().getMethod(
-                    KUBEJS_INGREDIENT_ACTIONS_METHOD);
-            Object rawActions = ingredientActionsMethod.invoke(recipe);
-            // 空のList以外は消費量・残存物を動的に変えるため、AE2本来の実行へ戻す。
-            if (!(rawActions instanceof Collection<?> actions) || !actions.isEmpty()) {
-                return false;
-            }
-
-            Method modifyResultMethod = recipe.getClass().getMethod(
-                    KUBEJS_MODIFY_RESULT_METHOD);
-            // 結果コールバックはクラフトグリッドの内容で出力を変更できるため許可しない。
-            if (modifyResultMethod.invoke(recipe) != null) {
-                return false;
-            }
-
-            Method stageMethod = recipe.getClass().getMethod(KUBEJS_STAGE_METHOD);
-            Object rawStage = stageMethod.invoke(recipe);
-            // 空文字以外のステージはプレイヤーごとに結果が変わるため固定式へ畳み込まない。
-            return rawStage instanceof String stage && stage.isEmpty();
-        } catch (IllegalAccessException
-                | InvocationTargetException
-                | NoSuchMethodException
-                | RuntimeException unsupportedKubeJsVersion) {
-            // KubeJS側APIの変更や反射失敗時は、壊れた高速経路を使わず通常AE2へ戻す。
-            return false;
-        }
     }
 
     private static boolean isPlainItem(AEItemKey key) {

@@ -811,7 +811,7 @@ public final class AqeBigCraftingExecutionManager {
                         ACOConfig
                                 .getExactVectorTicksPerLogicalStage(),
                         ACOConfig
-                                .getExactVectorEnergyMicroAePerLogicalExecution(),
+                                .getExactVectorEnergyMicroAePerPatternNode(),
                         BigInteger.ZERO,
                         candidate.programFingerprint(),
                         currentPatternGeneration,

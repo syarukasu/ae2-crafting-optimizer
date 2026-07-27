@@ -23,6 +23,7 @@ import com.syaru.ae2craftingoptimizer.api.vector.VectorTransactionStatus;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingIslandCompiler;
 import com.syaru.ae2craftingoptimizer.engine.CompiledCraftingIsland;
+import com.syaru.ae2craftingoptimizer.engine.vector.VectorEnergyCost;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator;
 import com.syaru.ae2craftingoptimizer.engine.vector.VectorPlanFingerprint;
@@ -331,10 +332,14 @@ public final class AqeStandardVectorExecutionRuntime {
         int durationTicks = Math.multiplyExact(
                 island.criticalPathStages(),
                 ACOConfig.getExactVectorTicksPerLogicalStage());
-        BigInteger totalEnergy = checkedMagnitude(
-                island.logicalExecutions().multiply(
-                        ACOConfig.getExactVectorEnergyMicroAePerLogicalExecution()),
-                "AQE standard Vector energy");
+        /*
+         * 一億回の同一Patternも一つの数式ノードとして実行する。
+         * 注文量ではなく固有Pattern数だけを電力へ反映し、数量比例の停止を防ぐ。
+         */
+        BigInteger totalEnergy = VectorEnergyCost.forPatternNodes(
+                island.tasks().size(),
+                ACOConfig.getExactVectorEnergyMicroAePerPatternNode(),
+                ACOConfig.getBigIntegerMaximumBits());
         long patternGeneration =
                 ProviderPatternGenerationTracker.generation();
         long recipeGeneration = RecipeGenerationTracker.generation();
