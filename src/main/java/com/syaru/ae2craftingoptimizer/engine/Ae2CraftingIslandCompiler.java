@@ -159,24 +159,21 @@ public final class Ae2CraftingIslandCompiler {
     }
 
     /**
-     * Provider世代に紐づく数式Programを正として、AdvancedAE標準Job全体を投影する。
+     * AdvancedAE標準Jobが既に選択した作業台Patternだけを、現在世代の固定式へ投影する。
      *
-     * <p>実行中TaskからPattern式を再推測せず、登録済みProgramの係数と現在の残回数だけを
-     * 結合する。これにより注文数に比例する展開を行わず、NBTから復元されたPatternも
-     * 現在世代の登録式と完全一致する場合だけ安全に作業台Batchへ参加できる。</p>
+     * <p>同じ出力を作る未選択レシピは参照しない。各active TaskのPattern ID、固定係数、
+     * 残実行回数だけを結合するため、注文数に比例する展開を行わない。</p>
      */
     public static Optional<CompiledCraftingIsland<AEKey, IPatternDetails>>
             tryCompileGenerationBackedWholeDeterministicJob(
                     Map<IPatternDetails, Object> liveTasks,
                     Level level,
                     IGrid grid,
-                    AEKey requestedOutput,
                     int maximumPatterns,
                     int maximumBits) {
         Objects.requireNonNull(liveTasks, "liveTasks");
         Objects.requireNonNull(level, "level");
         Objects.requireNonNull(grid, "grid");
-        Objects.requireNonNull(requestedOutput, "requestedOutput");
         // 空Jobまたは設定上限を超えたJobでは、Graph参照前にAdvancedAEへ戻す。
         if (liveTasks.isEmpty()
                 || liveTasks.size() > maximumPatterns) {
@@ -191,26 +188,10 @@ public final class Ae2CraftingIslandCompiler {
             // Provider更新が連続したtickは古い式を採用せず、次tickの標準経路へ委譲する。
             return Optional.empty();
         }
-        Optional<CompiledRootProgram<AEKey>> optionalProgram =
-                snapshot.rootProgram(requestedOutput);
-        // 単一Patternへ確定できないルートはAE2本来の選択処理を維持する。
-        if (optionalProgram.isEmpty()) {
-            return Optional.empty();
-        }
-        CompiledRootProgram<AEKey> program =
-                optionalProgram.orElseThrow();
-        // 到達Pattern数が設定上限を超えるルートは、一括Transactionへ所有させない。
-        if (program.patternCount() > maximumPatterns) {
-            return Optional.empty();
-        }
-        // タグ候補、返却物、Emitter変化などを実AE2 APIで証明できない式は採用しない。
-        if (snapshot.strictTopology(level, grid, program).isEmpty()) {
-            return Optional.empty();
-        }
 
-        List<CompiledCraftingIsland.ProgramTask<IPatternDetails>>
-                projectedTasks = new ArrayList<>(liveTasks.size());
-        // 現在JobのTaskを、同じProvider世代で登録されたPattern IDへ一対一に固定する。
+        List<CompiledCraftingIsland.Task<AEKey, IPatternDetails>>
+                selectedTasks = new ArrayList<>(liveTasks.size());
+        // 現在Jobが選択済みのTaskだけを、同じProvider世代の固定式へ一対一に接続する。
         for (Map.Entry<IPatternDetails, Object> entry :
                 liveTasks.entrySet()) {
             IPatternDetails details = entry.getKey();
@@ -233,16 +214,78 @@ public final class Ae2CraftingIslandCompiler {
             if (patternId == null) {
                 return Optional.empty();
             }
-            projectedTasks.add(
-                    new CompiledCraftingIsland.ProgramTask<>(
+            CompiledCraftingIsland.Task<AEKey, IPatternDetails> selected =
+                    tryCompileSelectedCraftingTask(
+                            snapshot,
                             details,
                             patternId,
-                            BigInteger.valueOf(executions)));
+                            executions);
+            // 選択済みPattern自体が固定作業台式でなければ、Job全体をAdvancedAEへ戻す。
+            if (selected == null) {
+                return Optional.empty();
+            }
+            selectedTasks.add(selected);
         }
-        return CompiledCraftingIsland.tryCompileProgramTasks(
-                program,
-                projectedTasks,
-                maximumBits);
+
+        Optional<List<CompiledCraftingIsland<AEKey, IPatternDetails>>> compiled =
+                CompiledCraftingIsland.tryCompileIncludingSingletons(
+                        selectedTasks,
+                        maximumBits);
+        // 一つのJobを複数Transactionへ分裂させず、全active Taskが連結する場合だけ採用する。
+        if (compiled.isEmpty()
+                || compiled.orElseThrow().size() != 1) {
+            return Optional.empty();
+        }
+        CompiledCraftingIsland<AEKey, IPatternDetails> island =
+                compiled.orElseThrow().get(0);
+        // 選択Taskが一件でも欠落した場合は部分実行せず、元のAdvancedAE会計を維持する。
+        if (island.tasks().size() != selectedTasks.size()) {
+            return Optional.empty();
+        }
+        return Optional.of(island);
+    }
+
+    @Nullable
+    private static CompiledCraftingIsland.Task<AEKey, IPatternDetails>
+            tryCompileSelectedCraftingTask(
+                    Ae2CompiledCraftingGraphCache.Snapshot snapshot,
+                    IPatternDetails details,
+                    String patternId,
+                    long executions) {
+        CompiledPattern<AEKey> selected =
+                snapshot.compiledPattern(patternId);
+        // 外部機械Patternと複数出力Patternは、作業台の原子的な一出力式ではない。
+        if (selected == null
+                || selected.externalPush()
+                || selected.outputs().size() != 1) {
+            return null;
+        }
+
+        List<CompiledCraftingIsland.Input<AEKey>> inputs =
+                new ArrayList<>(selected.inputs().size());
+        // エンコード済みPatternの各slotから、実際に固定された一つの入力だけを取得する。
+        for (CompiledPattern.InputSlot<AEKey> slot :
+                selected.inputs()) {
+            // 代替許可が残るslotだけは、実際に消費されたキーをTask Mapから証明できない。
+            if (slot.alternatives().size() != 1) {
+                return null;
+            }
+            CompiledPattern.Stack<AEKey> input =
+                    slot.alternatives().get(0);
+            inputs.add(new CompiledCraftingIsland.Input<>(
+                    input.key(),
+                    input.amount()));
+        }
+
+        Map.Entry<AEKey, Long> output =
+                selected.outputs().entrySet().iterator().next();
+        return new CompiledCraftingIsland.Task<>(
+                details,
+                patternId,
+                output.getKey(),
+                output.getValue(),
+                inputs,
+                BigInteger.valueOf(executions));
     }
 
     @Nullable
@@ -344,7 +387,7 @@ public final class Ae2CraftingIslandCompiler {
         }
 
         List<CompiledCraftingIsland.Input<AEKey>> inputs = new ArrayList<>();
-        // 各圧縮入力slotを単一の確定Itemへ変換する。
+        // 各作業台入力slotを単一の確定Itemへ変換する。
         for (IPatternDetails.IInput input : details.getInputs()) {
             // 0以下の倍率はAE2のPattern会計と一致しないため拒否する。
             if (input == null || input.getMultiplier() <= 0L) {

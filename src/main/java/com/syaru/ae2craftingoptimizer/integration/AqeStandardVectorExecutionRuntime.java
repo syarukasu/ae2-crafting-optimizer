@@ -356,7 +356,6 @@ public final class AqeStandardVectorExecutionRuntime {
                         liveTasks,
                         level,
                         grid,
-                        requestedKey,
                         ACOConfig.getExactVectorMaximumPatternNodes(),
                         ACOConfig.getBigIntegerMaximumBits());
         if (compiled.isEmpty()) {
