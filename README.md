@@ -56,7 +56,11 @@ Keep the server and client copies aligned. Server-side gameplay behavior uses
 the server copy, while client-only display optimizations use the client copy.
 Legacy `defaultconfigs` and per-world `serverconfig` files are no longer read.
 
-Back up the world before enabling disabled-by-default deep rewrites. See [Configuration](docs/CONFIGURATION.md), [Implementation](docs/IMPLEMENTATION.md), and [Testing](docs/TESTING.md).
+Back up the world before enabling disabled-by-default deep rewrites. See
+[Feature ownership](docs/FEATURE_OWNERSHIP.md),
+[Configuration](docs/CONFIGURATION.md),
+[Implementation](docs/IMPLEMENTATION.md), and
+[Testing](docs/TESTING.md).
 
 The development tree also contains a checked long/BigInteger planner, durable
 GTCEu/Mekanism native batching protocol, fair multi-job scheduler, versioned
