@@ -208,14 +208,11 @@ public final class TransactionalCraftingExecutorV2 {
                  * 実ワーカーが一つの仕事として所有するAdapterだけ、論理long回数を
                  * maxPatternsから切り離し、CPUには物理配送一回として返す。
                  */
-                long requested = accountingMode == BatchCpuAccountingMode.SINGLE_PHYSICAL_OPERATION
-                        ? remaining
-                        : Math.min(remaining, (long) maxPatterns);
-                if (accountingMode == BatchCpuAccountingMode.LOGICAL_EXECUTIONS) {
-                    requested = Math.min(
-                            requested,
-                            ACOConfig.getNativeBatchMaximumExecutions());
-                }
+                long requested = BatchExecutionOffer.select(
+                        remaining,
+                        maxPatterns,
+                        accountingMode,
+                        ACOConfig.getNativeBatchMaximumExecutions());
                 requested = plan.safeBatchSize(requested);
                 requested = selection.adapter().limitExecutions(selection.context(), requested);
                 requested = limitByWaitingFor(

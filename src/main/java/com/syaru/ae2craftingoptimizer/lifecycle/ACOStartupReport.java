@@ -2,6 +2,8 @@ package com.syaru.ae2craftingoptimizer.lifecycle;
 
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchApi;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchCpuAccountingMode;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchV2Api;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingEngineApi;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
@@ -183,6 +185,7 @@ final class ACOStartupReport {
                 ACOConfig.enableMekanismNativeBatching(),
                 ACOConfig.enableFairCraftingJobScheduler(),
                 ACOConfig.persistBatchTransactionJournal());
+        logTransactionalBatchV2Status();
         AE2CraftingOptimizer.LOGGER.info(
                 "ACO long root craft amount input: {} (existing AE2 int path remains authoritative through {})",
                 ACOConfig.enableLongRootCraftAmounts(),
@@ -205,6 +208,36 @@ final class ACOStartupReport {
         AE2CraftingOptimizer.LOGGER.info(
                 "ACO heavy process hints: {}",
                 ACOConfig.getHeavyProcessHints());
+    }
+
+    private static void logTransactionalBatchV2Status() {
+        var adapterIds =
+                PatternBatchV2Api.registeredAdapterIds();
+        var singlePhysicalOperationAdapters =
+                adapterIds.stream()
+                        .filter(id ->
+                                PatternBatchV2Api.adapter(id)
+                                        .map(adapter ->
+                                                adapter.cpuAccountingMode()
+                                                        == BatchCpuAccountingMode
+                                                                .SINGLE_PHYSICAL_OPERATION)
+                                        .orElse(false))
+                        .toList();
+        AE2CraftingOptimizer.LOGGER.info(
+                "ACO transactional V2 adapters: {} (single physical operation: {})",
+                adapterIds,
+                singlePhysicalOperationAdapters);
+        /*
+         * Aggregate Adapter登録済みなのにV2が無効なら、標準経路へ戻って
+         * 物理Thread数が見かけの成果物スループットになるため明示する。
+         */
+        if (!ACOConfig.enableTransactionalBatchingV2()
+                && !singlePhysicalOperationAdapters.isEmpty()) {
+            AE2CraftingOptimizer.LOGGER.warn(
+                    "ACO transaction V2 is disabled while aggregate worker adapters {} are registered. "
+                            + "Their long logical execution coefficient is inactive and crafting falls back to the parent mod path.",
+                    singlePhysicalOperationAdapters);
+        }
     }
 
     private static void logDeepRewriteFlags() {
