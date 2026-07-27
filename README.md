@@ -40,9 +40,8 @@ use AE2's original confirmation packet and menu path.
 
 ## Status
 
-Release `1.5.0` is pinned to AE2 `15.4.x`. Its release artifact was clean-built
-and passed the complete automated test suite. P9 startup, recovery, multiplayer,
-and long-running live-world qualification remains operator-run. The optional Neo ECO integration is pinned to Neo ECO AE
+Development version `1.5.4` is pinned to AE2 `15.4.x` and passes the complete
+automated test suite. The optional Neo ECO integration is pinned to Neo ECO AE
 Extension `20.3.x`. ACO uses Mixins against mod internals, so do not assume
 compatibility with another branch or minor series without rebuilding and
 testing it.
@@ -67,10 +66,9 @@ Quantum Engineering are installed. Native machine batching, general
 authoritative plan replacement, and unrelated deep rewrites remain disabled.
 Read
 [Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md) before testing them.
-The current source carries the `1.5.2` version while P0-P8 are reviewed;
-P9 startup, recovery, multiplayer, and long-running world tests are deliberately
-not claimed by this source revision. See
-[P0-P8 implementation status](docs/P0_P8_IMPLEMENTATION_STATUS.md).
+The current source carries version `1.5.4`. See
+[P0-P8 implementation status](docs/P0_P8_IMPLEMENTATION_STATUS.md) and the
+separate Exact Vector test matrix below.
 
 ### Experimental BigInteger Boundary
 
@@ -138,6 +136,51 @@ boundary:
 This does not make a standard AE2 CPU large enough to accept the plan and does
 not add BigInteger GUI input. A compatible CPU, such as an explicitly
 integrated AQE host, remains responsible for capacity and execution.
+
+### Exact Vector Crafting Engine
+
+ACO API v1 can collapse one strictly deterministic ordinary-crafting DAG into
+one persistent transaction. Requested quantity changes only the size of the
+checked `BigInteger` arithmetic; it does not create quantity-sized loops,
+Pattern pushes, workers, child jobs, or execution windows.
+
+The runtime has two ownership modes:
+
+- AdvancedAE/AQE standard jobs use `HOST_ESCROWED`. ACO extracts each distinct
+  boundary key once from the CPU inventory, AAC owns only the logical execution
+  receipt, and ACO performs the original AdvancedAE output and task accounting.
+- AQE BigInteger parent jobs use `NETWORK_STORAGE`. A compatible executor
+  extracts and inserts each distinct boundary key once through ACO's exact
+  storage API. The inspected ExtendedAE Plus Infinity BigInteger Cell and
+  explicit-policy subclasses such as Registry BigInteger Cell are the current
+  exact network-storage implementations.
+
+Logical work is the deterministic graph's critical-path depth multiplied by
+`ticksPerLogicalStage`. An executor claims an available range from the shared
+per-grid budget instead of waiting one server tick per stage. An idle grid can
+therefore finish a twenty-stage chain in the same server tick for `1`, `1,000`,
+`Long.MAX_VALUE`, or a supported BigInteger quantity. If the soft time budget
+is already occupied, the remaining stages continue on later ticks. Energy is
+stored in exact micro-AE and summed once for each claimed range without
+rounding loss. Energy shortage reduces the range to one stage or pauses
+progress rather than changing ownership.
+
+The path admits only fixed ordinary shaped/shapeless recipes with one exact
+producer and no substitutions, fuzzy inputs, processing Patterns, NBT changes,
+durability, probabilistic outputs, cycles, or unproven remaining items. Pattern
+or recipe generation changes invalidate the plan. Rejection before ownership
+transfer falls back; any uncertain state after transfer is recovered from the
+persistent executor receipt or quarantined.
+
+Compiled Crafting Islands remain as a separate compatibility path. Exact Vector
+uses `ExactVectorExecutorRegistry` and is not controlled by
+`enableCompiledCraftingIslands`.
+
+When a job also contains processing Patterns, ACO treats them as boundaries.
+The ordinary-crafting island before the machine is collapsed when its inputs
+are ready, the original AE2/GTCEu/Mekanism path remains authoritative while
+the machine runs, and the next island becomes eligible only after the machine
+output returns. ACO never fabricates or skips an external machine result.
 
 ## Goals
 
@@ -233,9 +276,15 @@ already present. Unrelated Neo ECO machine work continues through its original
 path while another island waits.
 
 This optimization is owned by ACO. An optional backend such as Advanced
-Assembly Computing supplies only formed hardware capacity, power cost, and
-version-specific CPU accounting. The feature does nothing when no backend
-implements `CraftingIslandExecutionOwner`.
+Assembly Computing registers formed hardware capacity, power cost, and live
+Pattern ownership through `CraftingIslandBackendRegistry`. ACO supplies the
+version-specific CPU accounting. The feature does nothing when no registered
+backend can own every Pattern in the candidate island.
+
+ACO 1.5.4 can invoke the same backend from either Neo ECO's CPU or an
+AdvancedAE/AQE Quantum Computer. The selected CPU still owns its Job,
+inventory, requester, task progress, and cancellation state. AAC does not
+replace either CPU implementation.
 
 The backend must also prove that it currently provides every Pattern in the
 candidate island. A hardware structure elsewhere on the same Grid cannot

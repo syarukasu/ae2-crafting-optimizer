@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.optimization;
 
+import com.syaru.ae2craftingoptimizer.api.vector.VectorResourceMode;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.concurrent.atomic.LongAccumulator;
@@ -46,11 +47,46 @@ public final class OptimizationMetrics {
             new LongAccumulator(Long::max, 0L);
     private static final LongAdder CRAFTING_ISLAND_CACHE_HITS = new LongAdder();
     private static final LongAdder CRAFTING_ISLAND_CACHE_MISSES = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_ATTEMPTS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_COMPILE_REJECTS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_BACKEND_REJECTS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_CAPACITY_WAITS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_STALE_TASKS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_INPUT_WAITS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_PROVIDER_REJECTS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_OUTPUT_WAITS = new LongAdder();
+    private static final LongAdder CRAFTING_ISLAND_ENERGY_WAITS = new LongAdder();
     private static final LongAdder CRAFTING_ISLAND_WAVES = new LongAdder();
     private static final LongAdder CRAFTING_ISLAND_PATTERNS = new LongAdder();
     private static final LongAccumulator CRAFTING_ISLAND_LOGICAL_EXECUTIONS =
             new LongAccumulator(OptimizationMetrics::saturatedAdd, 0L);
     private static final LongAccumulator CRAFTING_ISLAND_MAX_WAVE_NANOS =
+            new LongAccumulator(Long::max, 0L);
+    private static final LongAdder EXACT_VECTOR_PREPARED_PLANS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_EXECUTOR_REJECTIONS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_HOST_ESCROWED_STARTS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_NETWORK_STORAGE_STARTS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_ACTIVE_TICKS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_COMPLETIONS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_CANCELLATIONS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_QUARANTINES =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_ENERGY_PAUSES =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_START_BUDGET_DEFERRALS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS =
+            new LongAdder();
+    private static final LongAdder EXACT_VECTOR_FINGERPRINT_REVALIDATIONS =
+            new LongAdder();
+    private static final LongAccumulator EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS =
             new LongAccumulator(Long::max, 0L);
 
     private OptimizationMetrics() {
@@ -164,6 +200,25 @@ public final class OptimizationMetrics {
         (hit ? CRAFTING_ISLAND_CACHE_HITS : CRAFTING_ISLAND_CACHE_MISSES).increment();
     }
 
+    public static void recordCraftingIslandAttempt() {
+        CRAFTING_ISLAND_ATTEMPTS.increment();
+    }
+
+    public static void recordCraftingIslandDecision(
+            CraftingIslandDecision decision) {
+        // enumごとに一つのカウンタだけを増やし、/aco statsで停止段階を区別する。
+        switch (decision) {
+            case COMPILE_REJECTED -> CRAFTING_ISLAND_COMPILE_REJECTS.increment();
+            case BACKEND_UNAVAILABLE -> CRAFTING_ISLAND_BACKEND_REJECTS.increment();
+            case CAPACITY_WAIT -> CRAFTING_ISLAND_CAPACITY_WAITS.increment();
+            case STALE_TASK -> CRAFTING_ISLAND_STALE_TASKS.increment();
+            case INPUT_WAIT -> CRAFTING_ISLAND_INPUT_WAITS.increment();
+            case PROVIDER_REJECTED -> CRAFTING_ISLAND_PROVIDER_REJECTS.increment();
+            case OUTPUT_WAIT -> CRAFTING_ISLAND_OUTPUT_WAITS.increment();
+            case ENERGY_WAIT -> CRAFTING_ISLAND_ENERGY_WAITS.increment();
+        }
+    }
+
     public static void recordCraftingIslandWave(
             int patterns,
             BigInteger logicalExecutions,
@@ -178,6 +233,70 @@ public final class OptimizationMetrics {
                         : logicalExecutions.longValueExact();
         CRAFTING_ISLAND_LOGICAL_EXECUTIONS.accumulate(boundedExecutions);
         CRAFTING_ISLAND_MAX_WAVE_NANOS.accumulate(Math.max(0L, elapsedNanos));
+    }
+
+    /** 所有方式ごとのTransaction開始を一回だけ数える。 */
+    public static void recordExactVectorPreparedPlan() {
+        EXACT_VECTOR_PREPARED_PLANS.increment();
+    }
+
+    public static void recordExactVectorExecutorRejection() {
+        EXACT_VECTOR_EXECUTOR_REJECTIONS.increment();
+    }
+
+    public static void recordExactVectorStart(VectorResourceMode mode) {
+        // CPU EscrowとME Storage直接所有を分け、どちらの経路が使われたか表示する。
+        if (mode == VectorResourceMode.HOST_ESCROWED) {
+            EXACT_VECTOR_HOST_ESCROWED_STARTS.increment();
+        } else {
+            EXACT_VECTOR_NETWORK_STORAGE_STARTS.increment();
+        }
+    }
+
+    /** 設備のactive tick件数と最長実時間だけを記録する。 */
+    public static void recordExactVectorActiveTick(long elapsedNanos) {
+        recordExactVectorActiveStages(1, elapsedNanos);
+    }
+
+    /** 設備が一括進行した論理段数と最長slice実時間だけを記録する。 */
+    public static void recordExactVectorActiveStages(
+            int stages,
+            long elapsedNanos) {
+        if (stages <= 0) {
+            throw new IllegalArgumentException(
+                    "Exact Vector stages must be positive");
+        }
+        EXACT_VECTOR_ACTIVE_TICKS.add(stages);
+        EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.accumulate(
+                Math.max(0L, elapsedNanos));
+    }
+
+    public static void recordExactVectorCompletion() {
+        EXACT_VECTOR_COMPLETIONS.increment();
+    }
+
+    public static void recordExactVectorCancellation() {
+        EXACT_VECTOR_CANCELLATIONS.increment();
+    }
+
+    public static void recordExactVectorQuarantine() {
+        EXACT_VECTOR_QUARANTINES.increment();
+    }
+
+    public static void recordExactVectorEnergyPause() {
+        EXACT_VECTOR_ENERGY_PAUSES.increment();
+    }
+
+    public static void recordExactVectorStartBudgetDeferral() {
+        EXACT_VECTOR_START_BUDGET_DEFERRALS.increment();
+    }
+
+    public static void recordExactVectorReceiptFreeRollback() {
+        EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS.increment();
+    }
+
+    public static void recordExactVectorFingerprintRevalidation() {
+        EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.increment();
     }
 
     public static List<String> summaryLines() {
@@ -222,6 +341,36 @@ public final class OptimizationMetrics {
                         + " hit(s)/" + CRAFTING_ISLAND_CACHE_MISSES.sum()
                         + " miss(es), max wave "
                         + (CRAFTING_ISLAND_MAX_WAVE_NANOS.get() / 1_000L) + " us",
+                "Compiled Island decisions: " + CRAFTING_ISLAND_ATTEMPTS.sum()
+                        + " attempt(s), compile/backend/capacity/stale/input/provider/output/energy = "
+                        + CRAFTING_ISLAND_COMPILE_REJECTS.sum() + "/"
+                        + CRAFTING_ISLAND_BACKEND_REJECTS.sum() + "/"
+                        + CRAFTING_ISLAND_CAPACITY_WAITS.sum() + "/"
+                        + CRAFTING_ISLAND_STALE_TASKS.sum() + "/"
+                        + CRAFTING_ISLAND_INPUT_WAITS.sum() + "/"
+                        + CRAFTING_ISLAND_PROVIDER_REJECTS.sum() + "/"
+                        + CRAFTING_ISLAND_OUTPUT_WAITS.sum() + "/"
+                        + CRAFTING_ISLAND_ENERGY_WAITS.sum(),
+                "Exact Vector: starts host/network "
+                        + EXACT_VECTOR_HOST_ESCROWED_STARTS.sum() + "/"
+                        + EXACT_VECTOR_NETWORK_STORAGE_STARTS.sum()
+                        + ", prepared/rejected "
+                        + EXACT_VECTOR_PREPARED_PLANS.sum() + "/"
+                        + EXACT_VECTOR_EXECUTOR_REJECTIONS.sum()
+                        + ", logical stage(s) " + EXACT_VECTOR_ACTIVE_TICKS.sum()
+                        + ", completed/cancelled/quarantined "
+                        + EXACT_VECTOR_COMPLETIONS.sum() + "/"
+                        + EXACT_VECTOR_CANCELLATIONS.sum() + "/"
+                        + EXACT_VECTOR_QUARANTINES.sum()
+                        + ", energy pause(s) "
+                        + EXACT_VECTOR_ENERGY_PAUSES.sum()
+                        + ", start defer/receipt rollback/revalidated "
+                        + EXACT_VECTOR_START_BUDGET_DEFERRALS.sum() + "/"
+                        + EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS.sum() + "/"
+                        + EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.sum()
+                        + ", max active range "
+                        + (EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.get() / 1_000L)
+                        + " us",
                 "Experimental V2 Instant: " + INSTANT_DISPATCH_CALLS.sum()
                         + " successful call(s), " + INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS.sum()
                         + " multi-transaction call(s), " + INSTANT_DISPATCH_TRANSACTIONS.sum()
@@ -276,10 +425,32 @@ public final class OptimizationMetrics {
         SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.reset();
         CRAFTING_ISLAND_CACHE_HITS.reset();
         CRAFTING_ISLAND_CACHE_MISSES.reset();
+        CRAFTING_ISLAND_ATTEMPTS.reset();
+        CRAFTING_ISLAND_COMPILE_REJECTS.reset();
+        CRAFTING_ISLAND_BACKEND_REJECTS.reset();
+        CRAFTING_ISLAND_CAPACITY_WAITS.reset();
+        CRAFTING_ISLAND_STALE_TASKS.reset();
+        CRAFTING_ISLAND_INPUT_WAITS.reset();
+        CRAFTING_ISLAND_PROVIDER_REJECTS.reset();
+        CRAFTING_ISLAND_OUTPUT_WAITS.reset();
+        CRAFTING_ISLAND_ENERGY_WAITS.reset();
         CRAFTING_ISLAND_WAVES.reset();
         CRAFTING_ISLAND_PATTERNS.reset();
         CRAFTING_ISLAND_LOGICAL_EXECUTIONS.reset();
         CRAFTING_ISLAND_MAX_WAVE_NANOS.reset();
+        EXACT_VECTOR_HOST_ESCROWED_STARTS.reset();
+        EXACT_VECTOR_NETWORK_STORAGE_STARTS.reset();
+        EXACT_VECTOR_PREPARED_PLANS.reset();
+        EXACT_VECTOR_EXECUTOR_REJECTIONS.reset();
+        EXACT_VECTOR_ACTIVE_TICKS.reset();
+        EXACT_VECTOR_COMPLETIONS.reset();
+        EXACT_VECTOR_CANCELLATIONS.reset();
+        EXACT_VECTOR_QUARANTINES.reset();
+        EXACT_VECTOR_ENERGY_PAUSES.reset();
+        EXACT_VECTOR_START_BUDGET_DEFERRALS.reset();
+        EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS.reset();
+        EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.reset();
+        EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.reset();
     }
 
     private static long percent(long hits, long misses) {
@@ -290,5 +461,16 @@ public final class OptimizationMetrics {
     private static long saturatedAdd(long left, long right) {
         // 診断カウンタ自身がwrapしないよう、残量を超える加算はLong.MAX_VALUEで固定する。
         return right > Long.MAX_VALUE - left ? Long.MAX_VALUE : left + right;
+    }
+
+    public enum CraftingIslandDecision {
+        COMPILE_REJECTED,
+        BACKEND_UNAVAILABLE,
+        CAPACITY_WAIT,
+        STALE_TASK,
+        INPUT_WAIT,
+        PROVIDER_REJECTED,
+        OUTPUT_WAIT,
+        ENERGY_WAIT
     }
 }

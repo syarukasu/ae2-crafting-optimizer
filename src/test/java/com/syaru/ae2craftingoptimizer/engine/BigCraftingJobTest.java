@@ -160,6 +160,66 @@ class BigCraftingJobTest {
         assertEquals(BigCraftingJob.State.QUARANTINED, job.state());
     }
 
+    @Test
+    void vectorLeaseSurvivesPersistenceAndCommitsTheWholeParentOnce() {
+        BigInteger amount =
+                BigInteger.TEN.pow(1_024).subtract(BigInteger.ONE);
+        BigCraftingJob<String> job = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(),
+                "output",
+                amount,
+                BigInteger.valueOf(42L));
+        UUID transactionId = UUID.randomUUID();
+        job.prepareVectorExecution(
+                transactionId,
+                "aac:test-controller",
+                "vector-plan-fingerprint");
+
+        BigCraftingJob<String> restored = BigCraftingJob.load(
+                job.save(STRINGS, 4096),
+                STRINGS,
+                4096);
+
+        assertEquals(BigCraftingJob.State.RUNNING, restored.state());
+        assertEquals(
+                amount,
+                restored.preparedVectorExecution().executions());
+        restored.commitPreparedVector(transactionId);
+        assertEquals(BigCraftingJob.State.COMPLETE, restored.state());
+        assertTrue(restored.remainingTasks().isEmpty());
+        assertThrows(
+                IllegalStateException.class,
+                () -> restored.commitPreparedVector(transactionId));
+    }
+
+    @Test
+    void vectorLeaseRollbackDoesNotAdvanceParentProgress() {
+        BigInteger amount = BigInteger.TEN.pow(64);
+        BigCraftingJob<String> job = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(),
+                "output",
+                amount,
+                BigInteger.ONE);
+        UUID first = UUID.randomUUID();
+        job.prepareVectorExecution(
+                first,
+                "aac:first",
+                "first-plan");
+
+        job.rollbackPreparedVector(first);
+        UUID replacement = UUID.randomUUID();
+        var prepared = job.prepareVectorExecution(
+                replacement,
+                "aac:replacement",
+                "replacement-plan");
+
+        assertEquals(BigInteger.ZERO, prepared.offset());
+        assertEquals(amount, prepared.executions());
+        assertThrows(
+                IllegalStateException.class,
+                () -> job.rollbackPreparedVector(first));
+    }
+
     private static BigCraftingJob<String> job(BigInteger count) {
         return new BigCraftingJob<>(
                 UUID.randomUUID(),

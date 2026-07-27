@@ -146,6 +146,84 @@ public final class BigCraftingRuntime<K> {
                 .toList();
     }
 
+    /** 子Window作成前のroot親Jobを、Exact Vector Plannerへ保存順で公開する。 */
+    public synchronized List<VectorCandidate<K>> vectorCandidates() {
+        return ledger.jobIds().stream()
+                .map(ledger::get)
+                .filter(Objects::nonNull)
+                .filter(job -> job.state() == BigCraftingJob.State.PLANNED)
+                .filter(BigCraftingJob::isRootWindowed)
+                .filter(job -> !job.hasPreparedExecution())
+                .map(job -> new VectorCandidate<>(
+                        runtimeId,
+                        job.id(),
+                        job.requestedKey(),
+                        job.requestedAmount(),
+                        job.reservedCapacity(),
+                        job.patternGeneration(),
+                        job.recipeGeneration(),
+                        job.planningEpoch(),
+                        job.programFingerprint()))
+                .toList();
+    }
+
+    /**
+     * PlannerとExecutorのsimulate完了後、入力へ触る前に親JobのVector Leaseを保存する。
+     */
+    public synchronized VectorExecutionLease<K> prepareVector(
+            UUID jobId,
+            UUID transactionId,
+            String executorId,
+            String planFingerprint) {
+        BigCraftingJob<K> job = requireJob(jobId);
+        BigCraftingJob.PreparedVectorExecution prepared =
+                job.prepareVectorExecution(
+                        transactionId, executorId, planFingerprint);
+        return new VectorExecutionLease<>(
+                runtimeId,
+                job.id(),
+                job.requestedKey(),
+                job.requestedAmount(),
+                job.reservedCapacity(),
+                job.patternGeneration(),
+                job.recipeGeneration(),
+                job.planningEpoch(),
+                job.programFingerprint(),
+                prepared);
+    }
+
+    /** 設備Receiptが入出力まで完了した親JobだけをBigIntegerのまま全量確定する。 */
+    public synchronized void commitVector(UUID jobId, UUID transactionId) {
+        BigCraftingJob<K> job = requireJob(jobId);
+        requirePreparedVector(job, transactionId);
+        long previousEstimate = job.estimatedCountBytes();
+        job.commitPreparedVector(transactionId);
+        ledger.removeTerminal(job.id());
+        replaceTrackedJobBytes(
+                previousEstimate,
+                ledger.get(job.id()) == null
+                        ? 0L
+                        : job.estimatedCountBytes());
+    }
+
+    /** Executorが未受理と証明した時だけ、親Jobを通常Window経路へ戻す。 */
+    public synchronized void rollbackVector(
+            UUID jobId,
+            UUID transactionId) {
+        BigCraftingJob<K> job = requireJob(jobId);
+        requirePreparedVector(job, transactionId);
+        job.rollbackPreparedVector(transactionId);
+    }
+
+    /** 成否を証明できないReceiptは進捗を推測せず隔離する。 */
+    public synchronized void quarantineVector(
+            UUID jobId,
+            UUID transactionId) {
+        BigCraftingJob<K> job = requireJob(jobId);
+        requirePreparedVector(job, transactionId);
+        job.quarantine();
+    }
+
     /** Optional host integrations call this before transferring ownership to an external child job. */
     public synchronized void validateLease(ExecutionLease<K> lease) {
         requireOwned(lease);
@@ -183,9 +261,23 @@ public final class BigCraftingRuntime<K> {
         return ledger.jobIds().stream()
                 .map(ledger::get)
                 .filter(Objects::nonNull)
-                .filter(BigCraftingJob::hasPreparedExecution)
+                .filter(job -> job.preparedExecution() != null)
                 .map(job -> new RecoveredExecution<>(
                         job.id(), job.requestedKey(), job.preparedExecution()))
+                .toList();
+    }
+
+    /** 保存をまたいだExact Vector Leaseを設備Receiptとの再照合用に列挙する。 */
+    public synchronized List<RecoveredVectorExecution<K>>
+            unresolvedVectorExecutions() {
+        return ledger.jobIds().stream()
+                .map(ledger::get)
+                .filter(Objects::nonNull)
+                .filter(job -> job.preparedVectorExecution() != null)
+                .map(job -> new RecoveredVectorExecution<>(
+                        job.id(),
+                        job.requestedKey(),
+                        job.preparedVectorExecution()))
                 .toList();
     }
 
@@ -474,6 +566,20 @@ public final class BigCraftingRuntime<K> {
         }
     }
 
+    private static <K> void requirePreparedVector(
+            BigCraftingJob<K> job,
+            UUID transactionId) {
+        BigCraftingJob.PreparedVectorExecution prepared =
+                job.preparedVectorExecution();
+        if (prepared == null
+                || !prepared.transactionId().equals(
+                        Objects.requireNonNull(
+                                transactionId, "transactionId"))) {
+            throw new IllegalStateException(
+                    "unknown, stale, or replayed Exact Vector transaction");
+        }
+    }
+
     private void validateJob(BigCraftingJob<K> job) {
         Objects.requireNonNull(job, "job");
         validateMagnitude(job.requestedAmount(), "job requested amount", maximumBits);
@@ -482,6 +588,16 @@ public final class BigCraftingRuntime<K> {
                 amount -> validateMagnitude(amount, "job task amount", maximumBits));
         job.waitingFor().values().forEach(
                 amount -> validateMagnitude(amount, "job waiting amount", maximumBits));
+        if (job.preparedVectorExecution() != null) {
+            validateMagnitude(
+                    job.preparedVectorExecution().offset(),
+                    "job vector offset",
+                    maximumBits);
+            validateMagnitude(
+                    job.preparedVectorExecution().executions(),
+                    "job vector executions",
+                    maximumBits);
+        }
         validateMagnitude(job.remainingExecutionTotal(), "job remaining execution total", maximumBits);
         validateMagnitude(job.waitingTotal(), "job waiting total", maximumBits);
     }
@@ -583,6 +699,67 @@ public final class BigCraftingRuntime<K> {
         public RecoveredExecution {
             Objects.requireNonNull(jobId, "jobId");
             Objects.requireNonNull(requestedKey, "requestedKey");
+            Objects.requireNonNull(prepared, "prepared");
+        }
+    }
+
+    public record RecoveredVectorExecution<K>(
+            UUID jobId,
+            K requestedKey,
+            BigCraftingJob.PreparedVectorExecution prepared) {
+        public RecoveredVectorExecution {
+            Objects.requireNonNull(jobId, "jobId");
+            Objects.requireNonNull(requestedKey, "requestedKey");
+            Objects.requireNonNull(prepared, "prepared");
+        }
+    }
+
+    public record VectorCandidate<K>(
+            UUID runtimeId,
+            UUID jobId,
+            K requestedKey,
+            BigInteger requestedAmount,
+            BigInteger jobReservedCapacity,
+            long patternGeneration,
+            long recipeGeneration,
+            String planningEpoch,
+            String programFingerprint) {
+        public VectorCandidate {
+            Objects.requireNonNull(runtimeId, "runtimeId");
+            Objects.requireNonNull(jobId, "jobId");
+            Objects.requireNonNull(requestedKey, "requestedKey");
+            BigCountMath.requireNonNegative(
+                    requestedAmount, "requestedAmount");
+            BigCountMath.requireNonNegative(
+                    jobReservedCapacity, "jobReservedCapacity");
+            Objects.requireNonNull(planningEpoch, "planningEpoch");
+            Objects.requireNonNull(
+                    programFingerprint, "programFingerprint");
+        }
+    }
+
+    public record VectorExecutionLease<K>(
+            UUID runtimeId,
+            UUID jobId,
+            K requestedKey,
+            BigInteger requestedAmount,
+            BigInteger jobReservedCapacity,
+            long patternGeneration,
+            long recipeGeneration,
+            String planningEpoch,
+            String programFingerprint,
+            BigCraftingJob.PreparedVectorExecution prepared) {
+        public VectorExecutionLease {
+            Objects.requireNonNull(runtimeId, "runtimeId");
+            Objects.requireNonNull(jobId, "jobId");
+            Objects.requireNonNull(requestedKey, "requestedKey");
+            BigCountMath.requireNonNegative(
+                    requestedAmount, "requestedAmount");
+            BigCountMath.requireNonNegative(
+                    jobReservedCapacity, "jobReservedCapacity");
+            Objects.requireNonNull(planningEpoch, "planningEpoch");
+            Objects.requireNonNull(
+                    programFingerprint, "programFingerprint");
             Objects.requireNonNull(prepared, "prepared");
         }
     }

@@ -3,6 +3,7 @@ package com.syaru.ae2craftingoptimizer.api.execution;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.stacks.AEKey;
 import appeng.crafting.inv.ICraftingInventory;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -20,6 +21,16 @@ public interface CraftingIslandRuntime {
 
     /** prepare時と同じJobがまだCPUへ属しているかを返す。 */
     boolean acoIslandJobStillActive(Object expectedJob);
+
+    /**
+     * 現在の島を原子的に所有する外部設備へ、この一回の実行を束縛する。
+     *
+     * <p>CPU実装自身が設備を所有する既存Backendは既定値を使える。外部設備を動的選択する
+     * Runtimeは全Patternを同時所有できない場合にfalseを返す。</p>
+     */
+    default boolean acoIslandBindBackend(List<IPatternDetails> patterns) {
+        return true;
+    }
 
     /** 現在形成済みの設備が一Waveで扱える外部sink Pattern回数。 */
     long acoIslandRootExecutionCapacity();

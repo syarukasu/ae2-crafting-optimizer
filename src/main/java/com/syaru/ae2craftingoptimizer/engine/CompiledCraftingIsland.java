@@ -28,6 +28,7 @@ public final class CompiledCraftingIsland<K, P> {
     private final Map<K, BigInteger> internalOutputs;
     private final BigInteger sinkExecutions;
     private final BigInteger logicalExecutions;
+    private final int criticalPathStages;
     private final String fingerprint;
 
     private CompiledCraftingIsland(
@@ -37,6 +38,7 @@ public final class CompiledCraftingIsland<K, P> {
             Map<K, BigInteger> internalOutputs,
             BigInteger sinkExecutions,
             BigInteger logicalExecutions,
+            int criticalPathStages,
             String fingerprint) {
         this.tasks = List.copyOf(tasks);
         this.boundaryInputs = Map.copyOf(boundaryInputs);
@@ -44,6 +46,7 @@ public final class CompiledCraftingIsland<K, P> {
         this.internalOutputs = Map.copyOf(internalOutputs);
         this.sinkExecutions = sinkExecutions;
         this.logicalExecutions = logicalExecutions;
+        this.criticalPathStages = criticalPathStages;
         this.fingerprint = fingerprint;
     }
 
@@ -56,6 +59,23 @@ public final class CompiledCraftingIsland<K, P> {
     public static <K, P> Optional<List<CompiledCraftingIsland<K, P>>> tryCompile(
             List<Task<K, P>> sourceTasks,
             int maximumBits) {
+        return tryCompile(sourceTasks, maximumBits, false);
+    }
+
+    /**
+     * Exact Vector標準Job用に、単一Patternも決定的な一段の島として返す。
+     */
+    public static <K, P> Optional<List<CompiledCraftingIsland<K, P>>>
+            tryCompileIncludingSingletons(
+                    List<Task<K, P>> sourceTasks,
+                    int maximumBits) {
+        return tryCompile(sourceTasks, maximumBits, true);
+    }
+
+    private static <K, P> Optional<List<CompiledCraftingIsland<K, P>>> tryCompile(
+            List<Task<K, P>> sourceTasks,
+            int maximumBits,
+            boolean includeSingletons) {
         Objects.requireNonNull(sourceTasks, "sourceTasks");
         // 0件は有効だが実行対象がないJobとして扱う。
         if (sourceTasks.isEmpty()) {
@@ -131,8 +151,8 @@ public final class CompiledCraftingIsland<K, P> {
                 continue;
             }
             List<Integer> component = collectComponent(seed, undirected, assigned);
-            // 単一Patternは既存Vector Batchの方が会計経路が短いため島実行しない。
-            if (component.size() < 2) {
+            // 既存Compiled Islandsは単一Patternを従来経路へ残し、新Exact Vectorだけ許可する。
+            if (!includeSingletons && component.size() < 2) {
                 continue;
             }
             CompiledCraftingIsland<K, P> island =
@@ -243,6 +263,7 @@ public final class CompiledCraftingIsland<K, P> {
                 internallyConsumedKeys.add(input.key());
             }
         }
+        int criticalPathStages = calculateCriticalPath(tasks);
 
         Map<K, BigInteger> boundaryInputs = new LinkedHashMap<>();
         Map<K, BigInteger> boundaryOutputs = new LinkedHashMap<>();
@@ -301,7 +322,63 @@ public final class CompiledCraftingIsland<K, P> {
                 internalOutputs,
                 sinkExecutions,
                 logicalExecutions,
+                criticalPathStages,
                 StableFingerprint.sha256(fingerprintSource));
+    }
+
+    private static <K, P> int calculateCriticalPath(
+            List<Task<K, P>> tasks) {
+        Map<K, Integer> producerByOutput = new HashMap<>();
+        List<List<Integer>> dependents = new ArrayList<>(tasks.size());
+        int[] dependencies = new int[tasks.size()];
+        int[] depths = new int[tasks.size()];
+        // 各出力の生産Taskと逆辺Listを一度だけ準備する。
+        for (int index = 0; index < tasks.size(); index++) {
+            producerByOutput.put(tasks.get(index).output(), index);
+            dependents.add(new ArrayList<>());
+        }
+        // 同じ生産Taskを複数slotから参照しても、段数の依存辺は一件にまとめる。
+        for (int consumer = 0; consumer < tasks.size(); consumer++) {
+            Set<Integer> uniqueProducers = new LinkedHashSet<>();
+            for (Input<K> input : tasks.get(consumer).inputs()) {
+                Integer producer = producerByOutput.get(input.key());
+                if (producer != null && uniqueProducers.add(producer)) {
+                    dependencies[consumer]++;
+                    dependents.get(producer).add(consumer);
+                }
+            }
+        }
+
+        ArrayDeque<Integer> ready = new ArrayDeque<>();
+        // 外部入力だけを読むPatternを論理第1段として開始する。
+        for (int node = 0; node < tasks.size(); node++) {
+            if (dependencies[node] == 0) {
+                depths[node] = 1;
+                ready.addLast(node);
+            }
+        }
+        int visited = 0;
+        int maximumDepth = 0;
+        // Kahn順で最長親深度を伝播し、要求数量とは無関係に各Patternを一回だけ処理する。
+        while (!ready.isEmpty()) {
+            int producer = ready.removeFirst();
+            visited++;
+            maximumDepth = Math.max(maximumDepth, depths[producer]);
+            for (int consumer : dependents.get(producer)) {
+                depths[consumer] = Math.max(
+                        depths[consumer],
+                        Math.addExact(depths[producer], 1));
+                int remaining = --dependencies[consumer];
+                if (remaining == 0) {
+                    ready.addLast(consumer);
+                }
+            }
+        }
+        if (visited != tasks.size() || maximumDepth <= 0) {
+            throw new IllegalArgumentException(
+                    "crafting island does not form a non-empty DAG");
+        }
+        return maximumDepth;
     }
 
     private static BigInteger checkedAdd(
@@ -378,6 +455,10 @@ public final class CompiledCraftingIsland<K, P> {
 
     public BigInteger logicalExecutions() {
         return logicalExecutions;
+    }
+
+    public int criticalPathStages() {
+        return criticalPathStages;
     }
 
     public String fingerprint() {

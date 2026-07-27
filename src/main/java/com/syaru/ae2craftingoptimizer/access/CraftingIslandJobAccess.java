@@ -13,6 +13,8 @@ public interface CraftingIslandJobAccess {
 
     GenericStack aco$getIslandFinalOutput();
 
+    long aco$getIslandRemainingAmount();
+
     boolean aco$canAcceptIslandOutput(AEKey key, long amount);
 
     void aco$stageIslandOutput(AEKey key, long amount);

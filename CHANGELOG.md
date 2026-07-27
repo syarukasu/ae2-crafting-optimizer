@@ -4,6 +4,51 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added Exact Vector Crafting API v1 for quantity-independent deterministic
+  ordinary-crafting transactions.
+- Added a persistent AdvancedAE standard-job path using host-owned input escrow
+  and an AQE BigInteger parent-job path using exact network-storage ownership.
+- Added generation-bound vector plans, critical-path timing, exact fixed-point
+  energy schedules, weak per-grid executor registration, and shared start,
+  completion, active-transaction, and elapsed-time limits.
+- Added schema-versioned BigInteger plan and receipt codecs with strict size,
+  key-count, state, and energy-ledger validation.
+- Added direct exact-storage transactions for inspected ExtendedAE Plus
+  Infinity BigInteger Cells without quantity-sized or checked-long windows.
+- Added a work-conserving Exact Vector stage budget. An idle grid can claim a
+  twenty-stage graph as one range, while occupied grids defer remaining stages
+  without changing results.
+- Added exact range energy accounting and coverage for `1`, `1,000`,
+  `Long.MAX_VALUE`, and a 1,024-digit order.
+- Added quantity-independent `/aco stats` counters for host/network starts,
+  logical stages, completion, cancellation, quarantine, and maximum active-range
+  wall time.
+- Added a versioned external Compiled Crafting Island backend API.
+- Added an AdvancedAE/AQE CPU execution path that can bind an entire proven
+  crafting-table island to a formed atomic backend such as AAC.
+- Added `/aco stats` decision counters for compile, backend, capacity, stale
+  task, input, provider, output, and energy fallbacks.
+- Added a regression test for the pack's twenty-stage 9-to-1 compression probe.
+
+### Fixed
+
+- Made executor receipts authoritative after `start`, cancellation, completion,
+  and recovery so an uncertain external call cannot silently fall back and
+  duplicate inputs or outputs.
+- Quarantined malformed, missing, mismatched, or unreadable receipts instead of
+  letting integration exceptions escape into the server tick.
+- Made BigInteger vector-parent completion validate every projected counter
+  before mutating task progress.
+- Made the inspected ExtendedAE Plus cache and SavedData consistency injections
+  fail fast when their target methods change.
+- Compiled Crafting Islands are no longer limited to Neo ECO CPU jobs when an
+  external atomic backend explicitly owns every pattern.
+- AdvancedAE waiting, final-output, elapsed-work, cancellation, and task
+  notification accounting now participate in the same reversible island
+  transaction contract.
+
 ## [1.5.3] - 2026-07-25
 
 ### Fixed

@@ -259,6 +259,76 @@ class BigCraftingRuntimeTest {
         assertEquals(3, leases.stream().map(BigCraftingRuntime.ExecutionLease::jobId).distinct().count());
     }
 
+    @Test
+    void persistsAndCommitsOneBigIntegerVectorParentExactlyOnce() {
+        BigInteger amount =
+                BigInteger.TEN.pow(1_024).subtract(BigInteger.ONE);
+        BigCraftingRuntime<String> runtime = new BigCraftingRuntime<>(
+                amount,
+                STRINGS,
+                4096,
+                8);
+        BigCraftingJob<String> job = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(),
+                "out",
+                amount,
+                BigInteger.ONE);
+        assertTrue(runtime.submit(job));
+        var candidate = runtime.vectorCandidates().get(0);
+        UUID transactionId = UUID.randomUUID();
+        runtime.prepareVector(
+                candidate.jobId(),
+                transactionId,
+                "aac:test-controller",
+                "vector-plan-fingerprint");
+
+        BigCraftingRuntime<String> restored = BigCraftingRuntime.load(
+                runtime.save(),
+                STRINGS,
+                4096,
+                8);
+
+        assertEquals(1, restored.unresolvedVectorExecutions().size());
+        assertTrue(restored.schedule(1L).isEmpty());
+        restored.commitVector(candidate.jobId(), transactionId);
+        assertTrue(restored.jobIds().isEmpty());
+        assertEquals(BigInteger.ZERO, restored.reserved());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> restored.commitVector(
+                        candidate.jobId(),
+                        transactionId));
+    }
+
+    @Test
+    void rollsBackRejectedVectorParentWithoutCreatingAChildWindow() {
+        BigCraftingRuntime<String> runtime = new BigCraftingRuntime<>(
+                BigInteger.valueOf(100L),
+                STRINGS,
+                128,
+                8);
+        BigCraftingJob<String> job = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(),
+                "out",
+                BigInteger.TEN,
+                BigInteger.ONE);
+        assertTrue(runtime.submit(job));
+        UUID transactionId = UUID.randomUUID();
+        runtime.prepareVector(
+                job.id(),
+                transactionId,
+                "aac:test-controller",
+                "vector-plan-fingerprint");
+
+        runtime.rollbackVector(job.id(), transactionId);
+
+        assertTrue(runtime.unresolvedVectorExecutions().isEmpty());
+        assertEquals(1, runtime.vectorCandidates().size());
+        assertEquals(
+                BigInteger.TEN,
+                runtime.vectorCandidates().get(0).requestedAmount());
+    }
+
     private static BigCraftingJob<String> job(BigInteger amount, BigInteger reservation) {
         return new BigCraftingJob<>(
                 UUID.randomUUID(),

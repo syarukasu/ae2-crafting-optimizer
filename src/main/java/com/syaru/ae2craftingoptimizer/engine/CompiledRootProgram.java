@@ -658,6 +658,18 @@ public final class CompiledRootProgram<K> {
         return (CompiledPattern<K>) patterns[node];
     }
 
+    /** Vector Plannerが実行Mapを配列走査へ戻すための安定Pattern ID。 */
+    public String patternIdAt(int node) {
+        Objects.checkIndex(node, keys.size());
+        return patternIds[node];
+    }
+
+    /** 一Pattern実行で生成される、このノードの主出力量。 */
+    public long outputAmountAt(int node) {
+        Objects.checkIndex(node, keys.size());
+        return outputAmounts[node];
+    }
+
     public boolean isEmittableAt(int node) {
         return emittable[node];
     }

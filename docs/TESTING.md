@@ -243,7 +243,8 @@ screen, or job that reports complete before its outputs arrive fails the stage.
 ## Compiled Crafting Islands
 
 1. Install the explicit backend under test, currently AAC 1.0.0 with Neo ECO
-   20.3.0, on both client and server.
+   20.3.0, on both client and server. Test both a Neo ECO CPU and an AQE
+   Quantum Computer.
 2. Set `enableCompiledCraftingIslands = true` under
    `[experimentalCraftingEngine]` and restart both sides.
 3. Submit a deterministic 1k-to-256M ordinary crafting-table chain with all raw
@@ -254,12 +255,12 @@ screen, or job that reports complete before its outputs arrive fails the stage.
 5. Confirm intermediate components inside the connected island are not
    materialized in ME storage.
 6. Move one middle Pattern to a normal provider outside the AAC structure.
-   Confirm the island remains on Neo ECO/AE2's original route.
+   Confirm the island remains on the CPU's original Sequential route.
 7. Replace one middle step with a processing Pattern. Confirm ACO creates
    independent crafting islands on each side and does not wait for the entire
    tree before executing a ready side.
-8. Remove a boundary input. Confirm that island waits while unrelated Neo ECO
-   machine Patterns continue normally.
+8. Remove a boundary input. Confirm that island waits while unrelated machine
+   Patterns continue normally.
 9. Test substitutions, duplicate producers, cycles, NBT, durability, remaining
    items, fluids, chemicals, and custom recipe classes. Confirm no island input
    changes and the original path handles the Job.
@@ -270,8 +271,73 @@ screen, or job that reports complete before its outputs arrive fails the stage.
 12. Cancel while an island waits, unload/reload its chunks, and restart the
     server before and after completion. Confirm no loss, duplication, stuck
     Task, or stale cached island.
-13. Disable the switch and restart. Confirm Neo ECO's existing normal/vector
-    paths produce the same result without any island attempt.
+13. Disable the switch and restart. Confirm Neo ECO and AdvancedAE existing
+    normal/vector paths produce the same result without any island attempt.
+14. Reset statistics, submit the twenty-stage 9-to-1 pack probe through AQE,
+    and run `/aco stats`. Confirm `Compiled Crafting Islands` reports one wave
+    and twenty Patterns, while `Compiled Island decisions` identifies no
+    backend, capacity, provider, output, or energy fallback for that wave.
+
+## Exact Vector Crafting
+
+Automated tests cover API codec bounds, legacy schema migration, exact
+fixed-point energy division, weak executor registration, shared active counts,
+critical-path calculation, BigInteger parent lease persistence, exactly-once
+commit/rollback, and quantity-independent duration.
+
+The twenty-stage unit case must remain exactly twenty logical stages for:
+
+```text
+1
+1000
+Long.MAX_VALUE
+10^1024 - 1
+```
+
+For live qualification:
+
+1. Keep `enableCompiledCraftingIslands = false` to isolate the new API v1 path.
+2. Enable `[exactVectorCrafting]` in ACO and the Exact Vector executor in AAC.
+3. Store every deterministic ordinary-crafting Pattern in Pattern Buses owned
+   by one formed AAC controller.
+4. Submit the same twenty-stage root through an AQE/AdvancedAE standard Job at
+   `1`, `1,000`, and the largest practical signed-long amount. Confirm the AAC
+   receipt uses `HOST_ESCROWED`, no intermediate item is materialized, and an
+   idle Grid claims all twenty logical stages in one server tick.
+5. Submit an AQE BigInteger parent above signed long with exact stock in an
+   inspected ExtendedAE Plus Infinity BigInteger Cell. Confirm no checked-long
+   child Job is created and the receipt uses `NETWORK_STORAGE`.
+6. Compare every distinct raw input and final/remaining output before and after.
+   No key may be wrapped, clamped, duplicated, or lost.
+7. Limit available power below the full claimed range. Confirm the executor
+   retries one stage, enters `PAUSED_ENERGY` only when even that stage cannot be
+   powered, and keeps input ownership fixed.
+8. Fill output storage. Confirm `OUTPUT_PENDING` retries by output key and does
+   not repeat an already inserted key.
+9. Change a Pattern or reload recipes before ownership transfer. Confirm the
+   original path remains available. Repeat after ownership transfer and confirm
+   the transaction is cancelled or quarantined without fallback.
+10. Cancel in PREPARED, INPUTS_EXTRACTING, RUNNING, OUTPUT_PENDING, and
+    ACCOUNTING. Only a persisted `CANCELLED` executor receipt may release host
+    input escrow.
+11. Restart or unload chunks at every persisted state. Confirm pending external
+    calls are quarantined and completed calls are not replayed.
+12. Break/reform the AAC structure. Confirm the weak registry does not retain
+    the old controller and the same persisted receipt is reconciled only by its
+    matching executor identity.
+13. Run simultaneous standard and BigInteger jobs. Confirm the shared
+    per-grid start, completion, active-transaction, and elapsed-time limits
+    prevent one CPU from monopolizing the tick.
+14. Run `/aco stats`. Confirm `Exact Vector` reports the expected
+    host/network starts, logical-stage count, terminal outcomes, and maximum
+    active-range time without printing or iterating the full BigInteger amount.
+15. Insert a GTCEu or Mekanism processing Pattern between two deterministic
+    crafting chains. Confirm the upstream island finishes first, the downstream
+    island waits for the real machine output, and no machine result is skipped
+    or synthesized.
+16. Repeat the exact-network case with Registry BigInteger Cell. Confirm ACO
+    reads and mutates its exact BigInteger amount rather than treating the
+    saturated long facade as authoritative.
 
 Compatibility-disabled sync checks retained in 1.2.2:
 

@@ -31,6 +31,7 @@ class CompiledCraftingIslandTest {
         assertEquals(BigInteger.valueOf(300), island.internalOutputs().get("part_2"));
         assertEquals(BigInteger.valueOf(100), island.sinkExecutions());
         assertEquals(BigInteger.valueOf(1300), island.logicalExecutions());
+        assertEquals(3, island.criticalPathStages());
         assertTrue(island.fitsSignedLongRuntime());
     }
 
@@ -162,6 +163,117 @@ class CompiledCraftingIslandTest {
     }
 
     @Test
+    void collapsesTheTwentyStageNineWayPackProbeIntoOneWave() {
+        int stageCount = 20;
+        BigInteger nine = BigInteger.valueOf(9L);
+        List<CompiledCraftingIsland.Task<String, String>> tasks =
+                new ArrayList<>(stageCount);
+        // 第一段だけSeed A五個とSeed B四個を使い、各キーはlong内、合計だけlong超過にする。
+        BigInteger firstStageExecutions = nine.pow(stageCount - 1);
+        tasks.add(new CompiledCraftingIsland.Task<>(
+                "stage_01",
+                "stage_01",
+                "stage_01",
+                1L,
+                List.of(
+                        new CompiledCraftingIsland.Input<>("seed_a", 5L),
+                        new CompiledCraftingIsland.Input<>("seed_b", 4L)),
+                firstStageExecutions));
+        // 第二段以降は直前素材九個を一個へ圧縮し、第二十段の実行回数を一回にする。
+        for (int stage = 2; stage <= stageCount; stage++) {
+            int remainingStages = stageCount - stage;
+            String output = stageName(stage);
+            String input = stageName(stage - 1);
+            tasks.add(new CompiledCraftingIsland.Task<>(
+                    output,
+                    output,
+                    output,
+                    1L,
+                    List.of(new CompiledCraftingIsland.Input<>(
+                            input,
+                            9L)),
+                    nine.pow(remainingStages)));
+        }
+
+        var island = CompiledCraftingIsland.tryCompile(
+                        tasks,
+                        TEST_MAXIMUM_BITS)
+                .orElseThrow()
+                .get(0);
+
+        assertEquals(stageCount, island.tasks().size());
+        assertEquals(firstStageExecutions.multiply(BigInteger.valueOf(5L)),
+                island.boundaryInputs().get("seed_a"));
+        assertEquals(firstStageExecutions.multiply(BigInteger.valueOf(4L)),
+                island.boundaryInputs().get("seed_b"));
+        assertEquals(BigInteger.ONE, island.boundaryOutputs().get("stage_20"));
+        assertEquals(BigInteger.ONE, island.sinkExecutions());
+        assertEquals(stageCount, island.criticalPathStages());
+        assertTrue(island.fitsSignedLongRuntime());
+    }
+
+    @Test
+    void keepsTwentyStagesForSmallLongAndHugeExactOrders() {
+        int stageCount = 20;
+        int maximumBits = 4096;
+        List<BigInteger> quantities = List.of(
+                BigInteger.ONE,
+                BigInteger.valueOf(1_000L),
+                BigInteger.valueOf(Long.MAX_VALUE),
+                BigInteger.TEN.pow(1_024).subtract(BigInteger.ONE));
+
+        // 注文数量ごとに同じ20ノードを構築し、数量が段数やTask件数へ漏れないことを固定する。
+        for (BigInteger quantity : quantities) {
+            List<CompiledCraftingIsland.Task<String, String>> tasks =
+                    new ArrayList<>(stageCount);
+            for (int stage = 1; stage <= stageCount; stage++) {
+                String input = stage == 1
+                        ? "raw"
+                        : stageName(stage - 1);
+                String output = stageName(stage);
+                tasks.add(new CompiledCraftingIsland.Task<>(
+                        output,
+                        output,
+                        output,
+                        1L,
+                        List.of(new CompiledCraftingIsland.Input<>(
+                                input,
+                                1L)),
+                        quantity));
+            }
+
+            var island = CompiledCraftingIsland
+                    .tryCompileIncludingSingletons(tasks, maximumBits)
+                    .orElseThrow()
+                    .get(0);
+
+            assertEquals(stageCount, island.tasks().size());
+            assertEquals(stageCount, island.criticalPathStages());
+            assertEquals(quantity, island.boundaryInputs().get("raw"));
+            assertEquals(
+                    quantity,
+                    island.boundaryOutputs().get("stage_20"));
+        }
+    }
+
+    @Test
+    void includesASinglePatternOnlyForTheExactVectorCompiler() {
+        var task = task("single", "raw", 2, "final", 1, 3);
+
+        var islands = CompiledCraftingIsland
+                .tryCompileIncludingSingletons(
+                        List.of(task),
+                        TEST_MAXIMUM_BITS)
+                .orElseThrow();
+
+        assertEquals(1, islands.size());
+        assertEquals(1, islands.get(0).criticalPathStages());
+        assertEquals(
+                BigInteger.valueOf(6L),
+                islands.get(0).boundaryInputs().get("raw"));
+    }
+
+    @Test
     void rejectsAnIslandAboveTheConfiguredBigIntegerBitLimit() {
         var producer = task("producer", "raw", 3, "middle", 1, Long.MAX_VALUE);
         var consumer = task("consumer", "middle", 1, "final", 1, Long.MAX_VALUE);
@@ -207,5 +319,10 @@ class CompiledCraftingIslandTest {
                 outputAmount,
                 List.of(new CompiledCraftingIsland.Input<>(input, inputAmount)),
                 BigInteger.valueOf(executions));
+    }
+
+    private static String stageName(int stage) {
+        // 実ゲームのProbe IDと同じ二桁表記に揃え、段間キーの誤接続を検出する。
+        return "stage_" + (stage < 10 ? "0" : "") + stage;
     }
 }
