@@ -45,9 +45,9 @@ The compatibility section name remains `[exactVectorCrafting]`.
 | `maximumUniqueInputKeys` | `128` | Maximum distinct exact ME boundary-input keys. |
 | `maximumUniqueOutputKeys` | `128` | Maximum distinct final and fixed-return output keys. |
 | `maximumStartsPerGridPerTick` | `1` | Maximum new ownership transfers per grid and tick. |
-| `maximumActiveStagesPerGridPerTick` | `256` | Maximum physical step-state inspections per grid and tick. |
+| `maximumActiveStagesPerGridPerTick` | `256` | Maximum active, setup-ready, or dependency-ready physical step operations per grid and tick. Dependency-blocked steps return their claim. |
 | `maximumActiveTransactionsPerGrid` | `4` | Maximum concurrent physical parent transactions per grid. |
-| `gridTimeBudgetMillis` | `2` | Soft main-thread scheduling budget per grid. |
+| `gridTimeBudgetMillis` | `2` | Soft main-thread scheduling budget measured from the grid's first Exact Vector operation. Trees up to 64 steps retain a full-scan guarantee inside the count limit. |
 | `logVectorDiagnostics` | `false` | Enables bounded acceptance, recovery, and quarantine logs. |
 
 Deleted direct-executor, artificial duration, fixed tree-energy, coolant, and

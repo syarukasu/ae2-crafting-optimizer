@@ -52,9 +52,9 @@ class ExactVectorGridTickBudgetTest {
     }
 
     @Test
-    void aBusyGridGuaranteesOnlyOneStageForItsFirstRange() {
+    void aBusyGridStillScansAWholeTwentyStageTree() {
         assertEquals(
-                1,
+                20,
                 ExactVectorGridTickBudget.claimOperations(
                         0,
                         256,
@@ -64,13 +64,25 @@ class ExactVectorGridTickBudgetTest {
     }
 
     @Test
-    void defersAdditionalRangesAfterTheSoftBudget() {
+    void defersAdditionalLargeRangesAfterTheSoftBudget() {
         assertEquals(
                 0,
                 ExactVectorGridTickBudget.claimOperations(
                         20,
                         256,
-                        20,
+                        ExactVectorGridTickBudget.GUARANTEED_FULL_SCAN_STAGES + 1,
+                        2L,
+                        2L));
+    }
+
+    @Test
+    void aLargeFirstRangeKeepsOneStageStarvationProtection() {
+        assertEquals(
+                1,
+                ExactVectorGridTickBudget.claimOperations(
+                        0,
+                        256,
+                        ExactVectorGridTickBudget.GUARANTEED_FULL_SCAN_STAGES + 1,
                         2L,
                         2L));
     }

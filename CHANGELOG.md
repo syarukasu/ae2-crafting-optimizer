@@ -17,9 +17,9 @@ All notable changes to this project are documented here.
   key-count, state, and energy-ledger validation.
 - Added direct exact-storage transactions for inspected ExtendedAE Plus
   Infinity BigInteger Cells without quantity-sized or checked-long windows.
-- Added a work-conserving Exact Vector stage budget. An idle grid can claim a
-  twenty-stage graph as one range, while occupied grids defer remaining stages
-  without changing results.
+- Added a work-conserving Exact Vector stage budget. Deterministic graphs up to
+  64 stages are scanned as one range within the per-grid count limit, while
+  larger ranges retain soft-time deferral without changing results.
 - Added exact range energy accounting and coverage for `1`, `1,000`,
   `Long.MAX_VALUE`, and a 1,024-digit order.
 - Added quantity-independent `/aco stats` counters for host/network starts,
@@ -34,9 +34,6 @@ All notable changes to this project are documented here.
 - Added a display-only AdvancedAE progress facade for standard Exact Vector
   jobs. Exact counters remain `BigInteger`, while task and CPU status values
   clamp to signed `long`.
-- Added a dedicated BigInteger parent status menu backed by the server runtime,
-  including exact requested amount, remaining amount, reserved capacity,
-  completion state, and cancellation.
 - Added direct regression coverage for one deterministic nine-slot Pattern
   requested `Long.MAX_VALUE` times. Identical slots aggregate to one exact
   `9 * Long.MAX_VALUE` input mutation and one `Long.MAX_VALUE` output.
@@ -75,6 +72,13 @@ All notable changes to this project are documented here.
 - Reduced the default Exact Vector energy from `6,400,000,000` to `640`
   micro-AE per distinct Pattern node, exactly one ten-millionth of the previous
   default.
+- Made the Exact Vector time budget start at its first grid operation instead
+  of server tick START.
+- Guaranteed full per-tick scans for deterministic trees up to 64 physical
+  recipe nodes, prioritized owned Workers and runnable dependencies, and
+  returned dependency-blocked stage claims to the grid.
+- Removed the separate BigInteger status menu. Advanced AE's crafting CPU
+  status screen remains the single progress and cancellation UI.
 
 ## [1.5.3] - 2026-07-25
 

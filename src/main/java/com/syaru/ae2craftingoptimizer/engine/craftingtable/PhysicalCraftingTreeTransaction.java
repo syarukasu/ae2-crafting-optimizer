@@ -70,6 +70,8 @@ public final class PhysicalCraftingTreeTransaction {
     private PendingNetworkBatchMutation pendingNetworkMutation;
     private boolean cancellationRequested;
     private String detail;
+    /** 直前のtickで実際に設備処理または会計を試みた物理段数。 */
+    private int lastConsumedOperations;
     /**
      * 現在のProvider/Recipe世代で解決済みの一回分Pattern式。
      *
@@ -128,6 +130,8 @@ public final class PhysicalCraftingTreeTransaction {
                         detail);
         this.resolvedStepCache =
                 List.of();
+        this.lastConsumedOperations =
+                0;
         validateState();
     }
 
@@ -345,6 +349,9 @@ public final class PhysicalCraftingTreeTransaction {
             throw new IllegalArgumentException(
                     "operationBudget must be positive");
         }
+        // 各tickの実消費数を0から数え直し、依存待ちの未使用Claimを呼出側へ返せるようにする。
+        lastConsumedOperations =
+                0;
         try {
             /*
              * ME境界操作は、親NBTへpendingを保存した次のtickにだけ適用する。
@@ -463,6 +470,10 @@ public final class PhysicalCraftingTreeTransaction {
         return state;
     }
 
+    public int lastConsumedOperations() {
+        return lastConsumedOperations;
+    }
+
     public Map<AEKey, BigInteger> escrowSnapshot() {
         return escrow.snapshot();
     }
@@ -574,56 +585,88 @@ public final class PhysicalCraftingTreeTransaction {
         validatedRecipeGeneration =
                 snapshot.recipeGeneration();
 
-        int inspected =
+        int consumedOperations =
                 0;
         int changed =
                 0;
         int stepCount =
                 steps.size();
-        // ラウンドロビンで独立枝を公平に進め、入力のない親段はEscrowで待たせる。
-        for (int offset = 0;
-                offset < stepCount
-                        && inspected < operationBudget;
-                offset++) {
-            int index =
-                    Math.floorMod(
-                            schedulerCursor
-                                    + offset,
-                            stepCount);
-            StepReceipt receipt =
-                    steps.get(
-                            index);
-            // 完了承認済みの段は予算を消費せず飛ばす。
-            if (receipt.state()
-                    == StepState.ACKNOWLEDGED) {
-                continue;
-            }
-            inspected++;
-            StepAdvance advance =
-                    advanceOneRecipe(
-                            grid,
-                            level,
-                            snapshot,
-                            receipt);
-            // 一段でも状態が変われば、親NBTをdirtyにする結果を返す。
-            if (advance.changed()) {
-                changed++;
-            }
-            // 物理所有権が不確定な一段を見つけたら、他段を進めず親全体を隔離する。
-            if (advance.quarantined()) {
-                quarantine(
-                        advance.detail());
-                return TickOutcome.quarantined(
-                        detail);
+        int lastProcessedIndex =
+                -1;
+        /*
+         * 物理Thread所有中、投入準備済み、依存入力が揃った段の順に処理する。
+         * 各Laneでは保存Cursorから巡回し、独立枝同士の公平性を維持する。
+         */
+        scheduling:
+        for (SchedulingLane lane :
+                SchedulingLane.RUNNABLE_ORDER) {
+            // 同じLaneの全段を一巡し、注文数量ではなく固有Pattern数だけを確認する。
+            for (int offset = 0;
+                    offset < stepCount;
+                    offset++) {
+                // 実際に処理した段数がGridから借りた上限へ達したら、残りを次tickへ送る。
+                if (consumedOperations >= operationBudget) {
+                    break scheduling;
+                }
+                int index =
+                        Math.floorMod(
+                                schedulerCursor
+                                        + offset,
+                                stepCount);
+                StepReceipt receipt =
+                        steps.get(
+                                index);
+                // 現在の状態を担当しないLaneでは設備やレシピ解決へ触れない。
+                if (schedulingLane(
+                                receipt.state())
+                        != lane) {
+                    continue;
+                }
+                ResolvedStep resolved =
+                        resolveStep(
+                                snapshot,
+                                level,
+                                receipt.index());
+                /*
+                 * 中間素材が未完成の親段は走査だけで待機させる。
+                 * この判定は設備I/Oを行わないため、Gridの実行予算を消費しない。
+                 */
+                if (lane == SchedulingLane.DEPENDENCY_READY
+                        && !escrow.containsAll(
+                                resolved.inputTotals())) {
+                    continue;
+                }
+                consumedOperations++;
+                lastConsumedOperations =
+                        consumedOperations;
+                lastProcessedIndex =
+                        index;
+                StepAdvance advance =
+                        advanceOneRecipe(
+                                grid,
+                                level,
+                                receipt,
+                                resolved);
+                // 一段でも状態が変われば、親NBTをdirtyにする結果を返す。
+                if (advance.changed()) {
+                    changed++;
+                }
+                // 物理所有権が不確定な一段を見つけたら、他段を進めず親全体を隔離する。
+                if (advance.quarantined()) {
+                    quarantine(
+                            advance.detail());
+                    return TickOutcome.quarantined(
+                            detail);
+                }
             }
         }
-        schedulerCursor =
-                Math.floorMod(
-                        schedulerCursor
-                                + Math.max(
-                                        1,
-                                        inspected),
-                        stepCount);
+        // 一段以上を処理した場合だけ、次回の同一Lane開始位置を一つ先へ進める。
+        if (lastProcessedIndex >= 0) {
+            schedulerCursor =
+                    Math.floorMod(
+                            lastProcessedIndex + 1,
+                            stepCount);
+        }
 
         // 全段の実出力がEscrowへ入り、Thread解放まで終わった後だけME返却へ進む。
         if (allRecipesAcknowledged()) {
@@ -655,14 +698,8 @@ public final class PhysicalCraftingTreeTransaction {
     private StepAdvance advanceOneRecipe(
             IGrid grid,
             Level level,
-            Ae2CompiledCraftingGraphCache.Snapshot snapshot,
-            StepReceipt receipt) {
-        ResolvedStep resolved =
-                resolveStep(
-                        snapshot,
-                        level,
-                        receipt.index());
-
+            StepReceipt receipt,
+            ResolvedStep resolved) {
         // 次段の全入力がEscrowに実在する時だけ、一括予約して物理仕事を開始する。
         if (receipt.state()
                 == StepState.WAITING_FOR_INPUTS) {
@@ -942,6 +979,26 @@ public final class PhysicalCraftingTreeTransaction {
         return StepAdvance.waiting();
     }
 
+    private static SchedulingLane schedulingLane(
+            StepState state) {
+        return switch (state) {
+            /*
+             * 外部Workerが所有する仕事と出力会計待ちは、次段を解禁できるため最優先する。
+             */
+            case ACCEPTED, OUTPUT_OBSERVED, OUTPUT_CREDITED ->
+                    SchedulingLane.OWNED_THREAD;
+            // 入力を既に予約した段は、Target選択または受理を先に完了させる。
+            case INPUTS_RESERVED, TARGET_SELECTED ->
+                    SchedulingLane.READY_SETUP;
+            // 未予約段はEscrowに全依存入力が揃った場合だけ実行対象になる。
+            case WAITING_FOR_INPUTS ->
+                    SchedulingLane.DEPENDENCY_READY;
+            // 通常実行では終端段へ再度触れない。
+            case ACKNOWLEDGED, CANCELLED ->
+                    SchedulingLane.TERMINAL;
+        };
+    }
+
     private TickOutcome returnNextResult(
             IGrid grid,
             IActionSource source) {
@@ -999,6 +1056,8 @@ public final class PhysicalCraftingTreeTransaction {
                 continue;
             }
             inspected++;
+            lastConsumedOperations =
+                    inspected;
             // 未受理段は外部所有者がいないため、予約入力を即座に戻せる。
             if (receipt.state()
                             == StepState.WAITING_FOR_INPUTS
@@ -2360,6 +2419,20 @@ public final class PhysicalCraftingTreeTransaction {
         OUTPUT_CREDITED,
         ACKNOWLEDGED,
         CANCELLED
+    }
+
+    private enum SchedulingLane {
+        OWNED_THREAD,
+        READY_SETUP,
+        DEPENDENCY_READY,
+        TERMINAL;
+
+        /** 終端Laneを除いた、固定の優先実行順。 */
+        private static final List<SchedulingLane> RUNNABLE_ORDER =
+                List.of(
+                        OWNED_THREAD,
+                        READY_SETUP,
+                        DEPENDENCY_READY);
     }
 
     private enum NetworkDirection {

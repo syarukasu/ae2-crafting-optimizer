@@ -13,6 +13,12 @@ import java.util.WeakHashMap;
 public final class ExactVectorGridTickBudget {
     /** Configのミリ秒をSystem.nanoTimeのナノ秒へ変換する固定倍率。 */
     private static final long NANOSECONDS_PER_MILLISECOND = 1_000_000L;
+    /**
+     * 一般的な短いクラフトツリーを、soft時間超過だけで一段ずつへ分割しない上限。
+     *
+     * <p>Grid全体の件数上限は別に維持されるため、この保証だけで無制限に処理しない。</p>
+     */
+    static final int GUARANTEED_FULL_SCAN_STAGES = 64;
     private static final Map<IGrid, ExactVectorGridTickBudget> BUDGETS =
             new WeakHashMap<>();
 
@@ -60,6 +66,30 @@ public final class ExactVectorGridTickBudget {
                 softBudgetNanos);
         budget.activeStages += granted;
         return granted;
+    }
+
+    /**
+     * 先に予約した段数のうち、依存待ちなどで実処理しなかった枠を同じGridへ返す。
+     */
+    public static synchronized void settleActiveStageClaim(
+            IGrid grid,
+            int claimedStages,
+            int consumedStages) {
+        if (claimedStages < 0
+                || consumedStages < 0
+                || consumedStages > claimedStages) {
+            throw new IllegalArgumentException(
+                    "invalid Exact Vector active-stage settlement");
+        }
+        ExactVectorGridTickBudget budget = forGrid(grid);
+        int unusedStages =
+                claimedStages - consumedStages;
+        // 同期的なserver tick内のClaimより多く返す場合は、会計破損として即座に検出する。
+        if (unusedStages > budget.activeStages) {
+            throw new IllegalStateException(
+                    "Exact Vector active-stage settlement exceeds the current claim");
+        }
+        budget.activeStages -= unusedStages;
     }
 
     synchronized boolean tryStart() {
@@ -118,16 +148,26 @@ public final class ExactVectorGridTickBudget {
         if (completedOperations >= maximumOperations) {
             return 0;
         }
+        int remainingOperations =
+                maximumOperations - completedOperations;
         /*
-         * soft予算へ達したtickの最初の要求は一段だけ進める。全範囲を許可すると
-         * 既に混雑したtickへ追加burstを作り、0では永続的な飢餓になり得る。
+         * 64段以下のツリーは毎tick全体を確認する。依存待ちの段は呼出側が未使用枠を
+         * 返すため、ここで20段を予約しても20回の重い設備処理を強制しない。
+         */
+        if (requestedOperations <= GUARANTEED_FULL_SCAN_STAGES
+                && requestedOperations <= remainingOperations) {
+            return requestedOperations;
+        }
+        /*
+         * 大きなツリーでsoft予算へ達したtickの最初の要求は一段だけ進める。
+         * 全範囲を許可すると追加burstを作り、0では永続的な飢餓になり得る。
          */
         if (elapsedNanos >= timeBudgetNanos) {
             return completedOperations == 0 ? 1 : 0;
         }
         return Math.min(
                 requestedOperations,
-                maximumOperations - completedOperations);
+                remainingOperations);
     }
 
     private void resetForTick(long currentTick) {
@@ -137,10 +177,10 @@ public final class ExactVectorGridTickBudget {
         }
         tick = currentTick;
         /*
-         * Exact Vectorの最初の呼出時刻ではなくserver tick開始時刻から測り、
-         * 同tick前半を他MODが消費した場合も混雑済みとして扱う。
+         * server tick STARTからではなく、このGridでExact Vector処理を初めて
+         * 要求した時刻から測る。END phaseへ到達しただけで予算切れにしない。
          */
-        startedAtNanos = ServerTickClock.startedAtNanos();
+        startedAtNanos = System.nanoTime();
         starts = 0;
         activeStages = 0;
     }

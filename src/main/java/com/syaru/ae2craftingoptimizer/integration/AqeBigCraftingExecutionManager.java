@@ -429,13 +429,26 @@ public final class AqeBigCraftingExecutionManager {
                 }
                 long tickStartedNanos =
                         System.nanoTime();
-                PhysicalCraftingTreeTransaction.TickOutcome outcome =
-                        transaction.tick(
-                                grid,
-                                cluster.getLevel(),
-                                cluster.getSrc(),
-                                graphSnapshot,
-                                operationBudget);
+                PhysicalCraftingTreeTransaction.TickOutcome outcome;
+                try {
+                    outcome =
+                            transaction.tick(
+                                    grid,
+                                    cluster.getLevel(),
+                                    cluster.getSrc(),
+                                    graphSnapshot,
+                                    operationBudget);
+                } finally {
+                    /*
+                     * 依存入力待ちなどで設備処理しなかった段は、同じGridの後続Jobへ返す。
+                     * Transaction側の実消費数は必ずClaim以下に保たれる。
+                     */
+                    ExactVectorGridTickBudget
+                            .settleActiveStageClaim(
+                                    grid,
+                                    operationBudget,
+                                    transaction.lastConsumedOperations());
+                }
                 ExactVectorDiagnostics.activeTick(
                         System.nanoTime()
                                 - tickStartedNanos);

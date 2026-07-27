@@ -205,6 +205,11 @@ logVectorDiagnostics = false
 Its implementation is the physical crafting tree described above; the deleted
 direct Vector executor cannot be re-enabled.
 
+The soft time budget begins when Exact Vector first runs on a grid during that
+server tick. Trees with at most 64 physical recipe nodes are fully scanned
+within the count limit, and dependency-blocked nodes do not consume active-stage
+capacity.
+
 See [Configuration](docs/CONFIGURATION.md),
 [Feature ownership](docs/FEATURE_OWNERSHIP.md),
 [Implementation](docs/IMPLEMENTATION.md), and

@@ -893,9 +893,10 @@ public final class ACOConfig {
                 .defineInRange("maximumStartsPerGridPerTick", 1, 1, 64);
         EXACT_VECTOR_MAXIMUM_ACTIVE_STAGES_PER_GRID_TICK = builder
                 .comment(
-                        "Maximum physical crafting-table recipe nodes inspected per ME grid and server tick.",
-                        "Available nodes are claimed as one range; request quantity never controls this loop.",
-                        "The soft time budget may defer remaining stages, while the first range avoids starvation.")
+                         "Maximum physical crafting-table recipe nodes inspected per ME grid and server tick.",
+                         "Available nodes are claimed as one range; request quantity never controls this loop.",
+                         "Trees up to 64 nodes are fully scanned each tick within this count limit.",
+                         "Dependency-blocked nodes return their unused claim to the same grid.")
                 .defineInRange(
                         "maximumActiveStagesPerGridPerTick",
                         256,
@@ -905,7 +906,9 @@ public final class ACOConfig {
                 .comment("Maximum concurrently owned Exact Vector transactions per ME grid.")
                 .defineInRange("maximumActiveTransactionsPerGrid", 4, 1, 1024);
         EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS = builder
-                .comment("Soft main-thread budget for physical crafting-table scheduling on one grid.")
+                .comment(
+                        "Soft main-thread budget for physical crafting-table scheduling on one grid.",
+                        "Timing begins at the first Exact Vector operation, not at server tick START.")
                 .defineInRange("gridTimeBudgetMillis", 2, 1, 45);
         LOG_EXACT_VECTOR_DIAGNOSTICS = builder
                 .comment("Log bounded physical crafting-tree acceptance, recovery, and quarantine diagnostics.")
