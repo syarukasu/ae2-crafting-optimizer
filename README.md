@@ -160,15 +160,26 @@ Logical work is the deterministic graph's critical-path depth multiplied by
 per-grid budget instead of waiting one server tick per stage. An idle grid can
 therefore complete the actual conversion for a twenty-stage chain in the same
 server tick for `1`, `1,000`, `Long.MAX_VALUE`, or a supported BigInteger
-quantity. For an AdvancedAE standard job, ACO may delay only the final atomic
-accounting for at most that logical duration. During this presentation window,
-the crafting-status screen receives a signed-long-clamped progress facade that
-moves once per logical tick; exact inventory, `waitingFor`, and task counters
-are not changed. If the soft time budget is already occupied, the remaining
-stages continue on later ticks. Energy is stored in exact micro-AE and charged
-once per distinct compiled Pattern node, independent of order quantity. Energy
-shortage reduces the range to one stage or pauses progress rather than changing
-ownership.
+quantity. ACO does not add a display-only server delay after the executor has
+finished. If the soft time budget is already occupied, the remaining stages
+continue on later ticks.
+
+The dedicated BigInteger parent status menu reads the server runtime's exact
+requested and remaining values. Compatibility fields shown through an existing
+AE2 or AdvancedAE menu saturate at `Long.MAX_VALUE` only for display and are
+never written back to inventory, `waitingFor`, task progress, or receipts.
+
+For a deterministic nine-slot recipe requested `Long.MAX_VALUE` times, nine
+identical input slots are aggregated as one exact
+`9 * Long.MAX_VALUE` boundary input and the output remains
+`Long.MAX_VALUE`. Distinct input keys are each transferred once. Neither case
+creates a quantity-sized loop.
+
+Energy is stored in exact micro-AE and charged once per distinct compiled
+Pattern node, independent of order quantity. The default is `640` micro-AE per
+node, one ten-millionth of the previous `6,400,000,000` micro-AE default.
+Energy shortage reduces the range to one stage or pauses progress rather than
+changing ownership.
 
 The path admits only fixed ordinary shaped/shapeless recipes with one exact
 producer and no substitutions, fuzzy inputs, processing Patterns, NBT changes,

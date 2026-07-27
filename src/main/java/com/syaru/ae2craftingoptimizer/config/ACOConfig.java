@@ -968,7 +968,7 @@ public final class ACOConfig {
                         "The total remains BigInteger and is divided exactly over active ticks.")
                 .defineInRange(
                         "energyMicroAePerLogicalExecution",
-                        6_400_000_000L,
+                        640L,
                         0L,
                         Long.MAX_VALUE);
         builder.pop();

@@ -535,6 +535,29 @@ public final class BigCraftingRuntime<K> {
                 runtimeId, capacity(), reserved(), available(), ids.size(), offset, summaries);
     }
 
+    /**
+     * 一つの状態画面へ対象Jobだけを送る、小さなStatus Pageを作成する。
+     *
+     * <p>Jobが既に完了・取消済みなら空Pageを返す。画面側は、直前に受信した
+     * Snapshotを表示専用に保持できるが、この空Pageを実会計の未完了扱いにはしない。</p>
+     */
+    public synchronized BigCraftingStatusPage<K> statusPage(UUID jobId) {
+        BigCraftingJob<K> job =
+                ledger.get(Objects.requireNonNull(jobId, "jobId"));
+        List<BigCraftingStatusPage.JobSummary<K>> summaries =
+                job == null
+                        ? List.of()
+                        : List.of(summarize(job.compactStatusSnapshot()));
+        return new BigCraftingStatusPage<>(
+                runtimeId,
+                capacity(),
+                reserved(),
+                available(),
+                summaries.size(),
+                0,
+                summaries);
+    }
+
     private BigCraftingJob<K> requireOwned(ExecutionLease<K> lease) {
         Objects.requireNonNull(lease, "lease");
         if (!runtimeId.equals(lease.runtimeId())) {

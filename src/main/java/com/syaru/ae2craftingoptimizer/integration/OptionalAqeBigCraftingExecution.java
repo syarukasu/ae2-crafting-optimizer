@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.integration;
 
 import appeng.api.stacks.AEKey;
+import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRuntime;
 import java.math.BigInteger;
 import java.util.UUID;
 import net.minecraft.commands.CommandSourceStack;
@@ -40,6 +41,18 @@ public final class OptionalAqeBigCraftingExecution {
             return 0;
         }
         return AqeBigCraftingExecutionManager.cancelAt(source, position, jobId);
+    }
+
+    /**
+     * 状態Menuからの取消を、Advanced AEを必須化せず遅延境界越しに処理する。
+     */
+    public static boolean cancel(
+            BigCraftingHostRuntime<AEKey> host,
+            UUID jobId) {
+        if (!ModList.get().isLoaded(ADVANCED_AE_MODID)) {
+            return false;
+        }
+        return AqeBigCraftingExecutionManager.cancel(host, jobId);
     }
 
     public static int status(CommandSourceStack source, BlockPos position) {

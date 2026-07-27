@@ -180,7 +180,7 @@ compiled graph and a registered API v1 executor such as AAC.
 | `hardTimeBudgetMillis` | `4` | Hard deadline after which no additional Vector work starts. Range `1..45`, clamped to at least the soft budget. |
 | `fallbackBeforeOwnershipTransfer` | `true` | Allows the original path only while no executor owns inputs. It never permits fallback after a persisted receipt takes ownership. |
 | `logVectorDiagnostics` | `false` | Enables bounded start, recovery, fallback, and quarantine diagnostics. |
-| `energyMicroAePerLogicalExecution` | `6400000000` | Exact micro-AE charged once per distinct compiled Pattern node. The legacy key name is retained for config compatibility; order quantity does not multiply the cost. |
+| `energyMicroAePerLogicalExecution` | `640` | Exact micro-AE charged once per distinct compiled Pattern node. This is exactly one ten-millionth of the previous `6400000000` default. The legacy key name is retained for config compatibility; order quantity does not multiply the cost. |
 
 `enableExactVectorCrafting()` also requires the global optimizer and compiled
 graph switches. BigInteger parents additionally require

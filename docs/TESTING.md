@@ -308,10 +308,11 @@ For live qualification:
    order whose full twenty-stage expansion exceeds signed long. Confirm ACO
    keeps the exact one-stage plan instead of falling back to AE2's saturated
    inventory view.
-6. Keep the AdvancedAE crafting-status screen open during the standard
-   twenty-stage test. Confirm pending values above signed long start at
-   `Long.MAX_VALUE`, visibly decrease for up to twenty ticks, and reach zero
-   without changing real CPU inventory, `waitingFor`, or Task receipts.
+6. Keep the crafting-status screen open during the standard and BigInteger
+   parent tests. Confirm the server may complete an idle twenty-stage range in
+   one tick without an artificial display wait. Existing AE2/AdvancedAE fields
+   saturate at `Long.MAX_VALUE` only for display, while the ACO parent menu
+   reports the exact requested and remaining values.
 7. Submit an AQE BigInteger parent above signed long with exact stock in an
    inspected ExtendedAE Plus Infinity BigInteger Cell. Confirm no checked-long
    child Job is created and the receipt uses `NETWORK_STORAGE`.
@@ -346,6 +347,11 @@ For live qualification:
 18. Repeat the exact-network case with Registry BigInteger Cell. Confirm ACO
     reads and mutates its exact BigInteger amount rather than treating the
     saturated long facade as authoritative.
+19. Encode one deterministic crafting Pattern whose nine input slots all use
+    the same key. Request `Long.MAX_VALUE` outputs and stock exactly
+    `9 * Long.MAX_VALUE` inputs in Registry BigInteger Cell. Confirm one exact
+    input-key mutation and one `Long.MAX_VALUE` output, with no wrap, clamp,
+    quantity-sized loop, loss, or duplication.
 
 Compatibility-disabled sync checks retained in 1.2.2:
 

@@ -29,6 +29,7 @@ import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingIslandExecutor;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusInbox;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRegistry;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
+import com.syaru.ae2craftingoptimizer.registry.ACOMenus;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecovery;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchV2Api;
@@ -61,6 +62,7 @@ public final class AE2CraftingOptimizer {
     public AE2CraftingOptimizer() {
         BigCraftingNetwork.register();
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        ACOMenus.register(modBus);
         ACOConfig.register();
         PatternBatchApi.registerBuiltIns();
         PatternBatchV2Api.registerBuiltIns();

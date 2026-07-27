@@ -509,16 +509,14 @@ from the immutable plan and projects it through
 
 - exact values at or below `Long.MAX_VALUE` retain their real display scale;
 - larger exact values use `Long.MAX_VALUE` as a display-only facade;
-- the facade decreases by logical display tick and reaches zero only at the
-  final tick;
+- the facade follows the executor's authoritative active-stage receipt;
 - `inventory`, `waitingFor`, `TaskProgress`, and the exact receipt are never
-  changed for animation.
+  changed by display projection.
 
-AAC may complete all logical work in one server tick. ACO advances the
-AdvancedAE facade by at most one logical tick per server tick and postpones only
-the final atomic accounting until the facade reaches its duration. A
-twenty-stage chain therefore exposes up to twenty visible changes while the
-actual conversion still remains quantity independent.
+AAC may complete all logical work in one server tick. ACO does not postpone
+final accounting for animation after the executor reaches `ACCOUNTING`.
+The dedicated BigInteger parent menu reads the exact server runtime status and
+keeps display-only long saturation outside every accounting object.
 
 AQE BigInteger parent jobs use `AqeBigCraftingExecutionManager` in
 `NETWORK_STORAGE` mode. A proven root is offered directly before a child window
@@ -540,6 +538,12 @@ such as Registry BigInteger Cell that explicitly implement
 mount rather than long-sized windows, records before/after totals, rolls back in
 reverse order, invalidates the AE2 storage cache once, and fail-fast checks its
 cache/SavedData consistency injection points.
+
+Repeated input slots are merged before this boundary. A nine-slot Pattern with
+the same key in every slot and `Long.MAX_VALUE` root executions therefore
+produces one `9 * Long.MAX_VALUE` exact input mutation, not nine long windows or
+`9 * Long.MAX_VALUE` loop iterations. The corresponding root output remains
+exactly `Long.MAX_VALUE`.
 
 `ExactVectorExecutionBudget` claims a continuous logical-stage range from the
 shared Grid budget. The first range is starvation-safe; later ranges defer after

@@ -36,12 +36,45 @@ public final class VectorBatchPlanner {
             long patternGeneration,
             long recipeGeneration,
             int maximumBits) {
+        return prepare(
+                transactionId,
+                parentJobId,
+                program,
+                inventory,
+                requestedAmount,
+                ticksPerLogicalStage,
+                energyMicroAePerPatternNode,
+                totalCoolant,
+                programFingerprint,
+                patternGeneration,
+                recipeGeneration,
+                maximumBits,
+                VectorPlanFingerprint::create);
+    }
+
+    static PreparedVectorBatch prepare(
+            UUID transactionId,
+            UUID parentJobId,
+            CompiledRootProgram<AEKey> program,
+            CompiledRootProgram.BigInventorySnapshot<AEKey> inventory,
+            BigInteger requestedAmount,
+            int ticksPerLogicalStage,
+            BigInteger energyMicroAePerPatternNode,
+            BigInteger totalCoolant,
+            String programFingerprint,
+            long patternGeneration,
+            long recipeGeneration,
+            int maximumBits,
+            FingerprintFactory fingerprintFactory) {
         Objects.requireNonNull(program, "program");
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(requestedAmount, "requestedAmount");
         Objects.requireNonNull(
                 energyMicroAePerPatternNode,
                 "energyMicroAePerPatternNode");
+        Objects.requireNonNull(
+                fingerprintFactory,
+                "fingerprintFactory");
         // 時間は正数、設備資源は非負数だけを数式計画へ入れる。
         if (ticksPerLogicalStage <= 0
                 || energyMicroAePerPatternNode.signum() < 0
@@ -175,7 +208,7 @@ public final class VectorBatchPlanner {
                 maximumBits);
         List<ExactStack> inputs = exactStacks(boundaryInputs);
         List<ExactStack> remainingOutputs = exactStacks(remaining);
-        String transactionFingerprint = VectorPlanFingerprint.create(
+        String transactionFingerprint = fingerprintFactory.create(
                 programFingerprint,
                 requestedAmount,
                 inputs,
@@ -199,6 +232,21 @@ public final class VectorBatchPlanner {
                 transactionFingerprint,
                 patternGeneration,
                 recipeGeneration);
+    }
+
+    /**
+     * 数式計画とAEKey直列化を分離する内部境界。
+     *
+     * <p>通常経路は常に{@link VectorPlanFingerprint#create}を渡す。単体試験だけが
+     * Minecraft Registryを起動せず、数量会計を独立検証するために差し替える。</p>
+     */
+    @FunctionalInterface
+    interface FingerprintFactory {
+        String create(
+                String programFingerprint,
+                BigInteger requestedAmount,
+                List<ExactStack> inputs,
+                List<ExactStack> outputs);
     }
 
     private static List<ExactStack> exactStacks(

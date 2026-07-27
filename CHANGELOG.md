@@ -33,7 +33,13 @@ All notable changes to this project are documented here.
 - Added a regression test for the pack's twenty-stage 9-to-1 compression probe.
 - Added a display-only AdvancedAE progress facade for standard Exact Vector
   jobs. Exact counters remain `BigInteger`, while task and CPU status values
-  clamp to signed `long` and advance once per logical display tick.
+  clamp to signed `long`.
+- Added a dedicated BigInteger parent status menu backed by the server runtime,
+  including exact requested amount, remaining amount, reserved capacity,
+  completion state, and cancellation.
+- Added direct regression coverage for one deterministic nine-slot Pattern
+  requested `Long.MAX_VALUE` times. Identical slots aggregate to one exact
+  `9 * Long.MAX_VALUE` input mutation and one `Long.MAX_VALUE` output.
 
 ### Fixed
 
@@ -56,10 +62,12 @@ All notable changes to this project are documented here.
   counters. The plan no longer falls back to AE2's saturated inventory view.
 - Added one-time per-job diagnostics for AdvancedAE standard jobs that cannot
   enter the Exact Vector path.
-- Kept final AdvancedAE accounting atomic while allowing an already completed
-  AAC conversion to wait for at most its logical duration, so the crafting
-  status visibly progresses without mutating inventory, `waitingFor`, or live
-  task counters.
+- Removed the artificial post-execution display wait. Final AdvancedAE
+  accounting now commits as soon as the authoritative executor receipt and
+  per-grid completion budget allow it.
+- Reduced the default Exact Vector energy from `6,400,000,000` to `640`
+  micro-AE per distinct Pattern node, exactly one ten-millionth of the previous
+  default.
 
 ## [1.5.3] - 2026-07-25
 

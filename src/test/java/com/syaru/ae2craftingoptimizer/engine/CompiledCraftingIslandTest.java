@@ -122,6 +122,38 @@ class CompiledCraftingIslandTest {
     }
 
     @Test
+    void aggregatesNineLongMaximumSlotsWithoutNarrowingTheBoundary() {
+        BigInteger executions = BigInteger.valueOf(Long.MAX_VALUE);
+        List<CompiledCraftingIsland.Input<String>> inputs =
+                new ArrayList<>(9);
+        // 作業台九枠が同一素材でも、各枠をlongへ戻さず一つのBigInteger境界へ合算する。
+        for (int slot = 0; slot < 9; slot++) {
+            inputs.add(new CompiledCraftingIsland.Input<>("raw", 1L));
+        }
+        var task = new CompiledCraftingIsland.Task<>(
+                "nine_slot",
+                "nine_slot",
+                "final",
+                1L,
+                inputs,
+                executions);
+
+        var island = CompiledCraftingIsland
+                .tryCompileIncludingSingletons(
+                        List.of(task),
+                        TEST_MAXIMUM_BITS)
+                .orElseThrow()
+                .get(0);
+
+        assertEquals(
+                executions.multiply(BigInteger.valueOf(9L)),
+                island.boundaryInputs().get("raw"));
+        assertEquals(executions, island.boundaryOutputs().get("final"));
+        assertEquals(executions, island.sinkExecutions());
+        assertFalse(island.fitsSignedLongRuntime());
+    }
+
+    @Test
     void compilesASingleDeterministicPatternOnTheNormalEntryPoint() {
         var compiled = CompiledCraftingIsland.tryCompile(
                 List.of(task("single", "raw", 1, "final", 1, 1)),

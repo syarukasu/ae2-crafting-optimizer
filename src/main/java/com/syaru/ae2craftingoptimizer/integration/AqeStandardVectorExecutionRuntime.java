@@ -802,14 +802,6 @@ public final class AqeStandardVectorExecutionRuntime {
                     PAUSED_ENERGY,
                     OUTPUT_PENDING -> true;
             case ACCOUNTING -> {
-                /*
-                 * AACの実変換が先に終わっても、最大durationTicksだけ最終会計を
-                 * 待たせ、クラフト状況画面のlong値を一段ずつ動かす。
-                 */
-                if (displayActiveTick
-                        < state.plan().durationTicks()) {
-                    yield true;
-                }
                 state.phase(
                         AqeStandardVectorExecutionState.Phase.ACCOUNTING,
                         "AAC completed the logical critical path");
@@ -1140,13 +1132,10 @@ public final class AqeStandardVectorExecutionRuntime {
         if (executorActiveTick <= displayActiveTick) {
             return;
         }
-        /*
-         * Executorが一tickで全変換を終えても表示は一段だけ進める。
-         * これにより数量とは無関係に最大duration tickの演出時間を確保する。
-         */
+        // Receiptの実進捗へ直接追従し、表示のためにServer会計を遅らせない。
         displayActiveTick = Math.min(
                 duration,
-                displayActiveTick + 1);
+                executorActiveTick);
         installDisplay(host, true);
     }
 
