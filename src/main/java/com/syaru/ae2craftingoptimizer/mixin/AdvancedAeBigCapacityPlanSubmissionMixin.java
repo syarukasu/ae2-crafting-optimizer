@@ -14,7 +14,6 @@ import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext;
-import com.syaru.ae2craftingoptimizer.menu.BigCraftingMenuOpenRequest;
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -22,7 +21,6 @@ import java.util.Set;
 import java.util.UUID;
 import net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPU;
 import net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster;
-import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -202,18 +200,6 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
             AdvCraftingCPUCluster cluster = (AdvCraftingCPUCluster) (Object) this;
             cluster.recalculateRemainingStorage();
             cluster.markDirty();
-            /*
-             * 手動注文のServerPlayerだけを、現在のCraftConfirmMenu RETURNへ引き継ぐ。
-             * 自動要求やCommandには状態画面を勝手に開かない。
-             */
-            source.player()
-                    .filter(ServerPlayer.class::isInstance)
-                    .map(ServerPlayer.class::cast)
-                    .ifPresent(player ->
-                            BigCraftingMenuOpenRequest.record(
-                                    player,
-                                    host,
-                                    job.id()));
             // CraftConfirmMenuの手動注文はrequester=nullなので、永続CraftingLinkを偽造しない。
             cir.setReturnValue(CraftingSubmitResult.successful(null));
         } catch (RuntimeException failure) {

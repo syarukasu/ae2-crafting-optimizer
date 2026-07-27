@@ -7,7 +7,6 @@ import com.syaru.ae2craftingoptimizer.command.ACOIntentCommands;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.lifecycle.ACOServerLifecycle;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
-import com.syaru.ae2craftingoptimizer.registry.ACOMenus;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -31,7 +30,6 @@ public final class AE2CraftingOptimizer {
     public AE2CraftingOptimizer() {
         BigCraftingNetwork.register();
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
-        ACOMenus.register(modBus);
         ACOConfig.register();
         PatternBatchApi.registerBuiltIns();
         PatternBatchV2Api.registerBuiltIns();
