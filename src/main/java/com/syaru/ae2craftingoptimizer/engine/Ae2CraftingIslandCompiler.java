@@ -121,7 +121,7 @@ public final class Ae2CraftingIslandCompiler {
     /**
      * AdvancedAE標準Job全体が一つの決定的作業台DAGである場合だけ返す。
      *
-     * <p>一部だけを20tick実行すると通常Pattern Pushとの順序が変わるため、
+     * <p>一部だけを別Receiptへ所有すると通常Pattern Pushとの順序が変わるため、
      * Exact Vector標準経路では全active Taskの完全包含を必須にする。</p>
      */
     public static Optional<CompiledCraftingIsland<AEKey, IPatternDetails>>

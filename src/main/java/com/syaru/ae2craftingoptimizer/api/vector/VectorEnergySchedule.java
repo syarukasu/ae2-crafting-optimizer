@@ -54,4 +54,26 @@ public record VectorEnergySchedule(
                 ? basePerTick.add(BigInteger.ONE)
                 : basePerTick;
     }
+
+    /**
+     * 連続する論理段の電力を、段数ぶん反復せず正確に合計する。
+     */
+    public BigInteger microAeForRange(
+            int firstActiveTick,
+            int tickCount) {
+        if (firstActiveTick < 0
+                || tickCount <= 0
+                || firstActiveTick > totalTicks - tickCount) {
+            throw new IndexOutOfBoundsException(
+                    "invalid active tick range");
+        }
+        int rangeEnd = firstActiveTick + tickCount;
+        int remainderInRange = Math.max(
+                0,
+                Math.min(rangeEnd, remainderTicks)
+                        - Math.min(firstActiveTick, remainderTicks));
+        return basePerTick
+                .multiply(BigInteger.valueOf(tickCount))
+                .add(BigInteger.valueOf(remainderInRange));
+    }
 }

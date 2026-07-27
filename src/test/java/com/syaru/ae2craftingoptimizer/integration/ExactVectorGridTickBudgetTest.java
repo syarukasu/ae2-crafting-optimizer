@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.integration;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -36,5 +37,53 @@ class ExactVectorGridTickBudgetTest {
                 4,
                 2L,
                 2L));
+    }
+
+    @Test
+    void claimsAWholeTwentyStageRangeWhenTheGridIsIdle() {
+        assertEquals(
+                20,
+                ExactVectorGridTickBudget.claimOperations(
+                        0,
+                        256,
+                        20,
+                        0L,
+                        2L));
+    }
+
+    @Test
+    void aBusyGridGuaranteesOnlyOneStageForItsFirstRange() {
+        assertEquals(
+                1,
+                ExactVectorGridTickBudget.claimOperations(
+                        0,
+                        256,
+                        20,
+                        2L,
+                        2L));
+    }
+
+    @Test
+    void defersAdditionalRangesAfterTheSoftBudget() {
+        assertEquals(
+                0,
+                ExactVectorGridTickBudget.claimOperations(
+                        20,
+                        256,
+                        20,
+                        2L,
+                        2L));
+    }
+
+    @Test
+    void clampsAClaimToTheRemainingGridStageCapacity() {
+        assertEquals(
+                6,
+                ExactVectorGridTickBudget.claimOperations(
+                        250,
+                        256,
+                        20,
+                        0L,
+                        2L));
     }
 }

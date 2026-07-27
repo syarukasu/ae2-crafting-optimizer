@@ -42,11 +42,11 @@ class ExactVectorDiagnosticsTest {
 
         assertTrue(exactVector.contains("starts host/network 1/1"));
         assertTrue(exactVector.contains("prepared/rejected 1/1"));
-        assertTrue(exactVector.contains("active tick(s) 1"));
+        assertTrue(exactVector.contains("logical stage(s) 1"));
         assertTrue(exactVector.contains("completed/cancelled/quarantined 1/1/1"));
         assertTrue(exactVector.contains("energy pause(s) 1"));
         assertTrue(exactVector.contains(
                 "start defer/receipt rollback/revalidated 1/1/1"));
-        assertTrue(exactVector.contains("max active tick 2 us"));
+        assertTrue(exactVector.contains("max active range 2 us"));
     }
 }

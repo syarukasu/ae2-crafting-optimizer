@@ -477,7 +477,7 @@ keys; no loop uses requested quantity as a bound.
 `ExactVectorExecutorRegistry` weakly keys grids, owners, and executors. Existing
 receipts are discoverable even when an executor cannot accept new work. Standard
 and BigInteger parent jobs share the same active transaction count and per-grid
-start/completion/time budgets.
+start/completion/active-stage/time budgets.
 
 AdvancedAE standard jobs use `AqeStandardVectorExecutionRuntime` in
 `HOST_ESCROWED` mode. The runtime:
@@ -511,15 +511,18 @@ They never trigger speculative replay or normal-path fallback.
 
 `ExactNetworkStorageBridge` follows AE2 mount priority but admits only storage
 whose complete amount can be accessed exactly. The current implementation
-supports the inspected ExtendedAE Plus Infinity BigInteger Cell, performs one
-direct mutation per participating mount rather than long-sized windows, records
-before/after totals, rolls back in reverse order, invalidates the AE2 storage
-cache once, and fail-fast checks its cache/SavedData consistency injection
-points.
+supports the inspected ExtendedAE Plus Infinity BigInteger Cell and subclasses
+such as Registry BigInteger Cell that explicitly implement
+`ExactVectorStoragePolicy`. It performs one direct mutation per participating
+mount rather than long-sized windows, records before/after totals, rolls back in
+reverse order, invalidates the AE2 storage cache once, and fail-fast checks its
+cache/SavedData consistency injection points.
 
-`VectorEnergySchedule` divides total micro-AE by active ticks. The quotient is
-charged every tick and the first remainder ticks receive one additional
-micro-AE, so the final sum equals the original BigInteger exactly.
+`ExactVectorExecutionBudget` claims a continuous logical-stage range from the
+shared Grid budget. The first range is starvation-safe; later ranges defer after
+the soft wall-clock budget. `VectorEnergySchedule.microAeForRange` sums that
+range without a per-stage loop. The quotient and remainder still reconstruct
+the original BigInteger energy exactly.
 
 ### Compiled Crafting Islands
 
@@ -536,6 +539,11 @@ components, and computes each component's produced, consumed, internal,
 boundary-input, and boundary-output maps with checked `BigInteger` arithmetic.
 Processing Patterns are omitted from the graph and therefore become natural
 boundaries. Components with one Pattern remain on the existing vector path.
+
+This means a mixed job is work-conserving without skipping machines: an
+upstream ordinary-crafting island commits when ready, AE2 continues the
+processing Pattern through its original provider, and a downstream island waits
+until that real output appears in the CPU inventory.
 
 `CraftingIslandCompilationCache` weakly keys the compiled result by live Job.
 It reuses a waiting island only while recipe generation and every included Task

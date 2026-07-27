@@ -151,14 +151,19 @@ The runtime has two ownership modes:
   receipt, and ACO performs the original AdvancedAE output and task accounting.
 - AQE BigInteger parent jobs use `NETWORK_STORAGE`. A compatible executor
   extracts and inserts each distinct boundary key once through ACO's exact
-  storage API. The inspected ExtendedAE Plus Infinity BigInteger Cell is the
-  current exact network-storage implementation.
+  storage API. The inspected ExtendedAE Plus Infinity BigInteger Cell and
+  explicit-policy subclasses such as Registry BigInteger Cell are the current
+  exact network-storage implementations.
 
-The duration is the deterministic graph's critical-path depth multiplied by
-`ticksPerLogicalStage`. A twenty-stage chain therefore uses twenty active ticks
-for `1`, `1,000`, `Long.MAX_VALUE`, or a supported BigInteger quantity. Energy
-is stored in exact micro-AE and divided across those active ticks without
-rounding loss. Energy shortage pauses progress rather than changing ownership.
+Logical work is the deterministic graph's critical-path depth multiplied by
+`ticksPerLogicalStage`. An executor claims an available range from the shared
+per-grid budget instead of waiting one server tick per stage. An idle grid can
+therefore finish a twenty-stage chain in the same server tick for `1`, `1,000`,
+`Long.MAX_VALUE`, or a supported BigInteger quantity. If the soft time budget
+is already occupied, the remaining stages continue on later ticks. Energy is
+stored in exact micro-AE and summed once for each claimed range without
+rounding loss. Energy shortage reduces the range to one stage or pauses
+progress rather than changing ownership.
 
 The path admits only fixed ordinary shaped/shapeless recipes with one exact
 producer and no substitutions, fuzzy inputs, processing Patterns, NBT changes,
@@ -170,6 +175,12 @@ persistent executor receipt or quarantined.
 Compiled Crafting Islands remain as a separate compatibility path. Exact Vector
 uses `ExactVectorExecutorRegistry` and is not controlled by
 `enableCompiledCraftingIslands`.
+
+When a job also contains processing Patterns, ACO treats them as boundaries.
+The ordinary-crafting island before the machine is collapsed when its inputs
+are ready, the original AE2/GTCEu/Mekanism path remains authoritative while
+the machine runs, and the next island becomes eligible only after the machine
+output returns. ACO never fabricates or skips an external machine result.
 
 ## Goals
 

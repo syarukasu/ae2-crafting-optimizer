@@ -255,7 +255,18 @@ public final class OptimizationMetrics {
 
     /** 設備のactive tick件数と最長実時間だけを記録する。 */
     public static void recordExactVectorActiveTick(long elapsedNanos) {
-        EXACT_VECTOR_ACTIVE_TICKS.increment();
+        recordExactVectorActiveStages(1, elapsedNanos);
+    }
+
+    /** 設備が一括進行した論理段数と最長slice実時間だけを記録する。 */
+    public static void recordExactVectorActiveStages(
+            int stages,
+            long elapsedNanos) {
+        if (stages <= 0) {
+            throw new IllegalArgumentException(
+                    "Exact Vector stages must be positive");
+        }
+        EXACT_VECTOR_ACTIVE_TICKS.add(stages);
         EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.accumulate(
                 Math.max(0L, elapsedNanos));
     }
@@ -346,7 +357,7 @@ public final class OptimizationMetrics {
                         + ", prepared/rejected "
                         + EXACT_VECTOR_PREPARED_PLANS.sum() + "/"
                         + EXACT_VECTOR_EXECUTOR_REJECTIONS.sum()
-                        + ", active tick(s) " + EXACT_VECTOR_ACTIVE_TICKS.sum()
+                        + ", logical stage(s) " + EXACT_VECTOR_ACTIVE_TICKS.sum()
                         + ", completed/cancelled/quarantined "
                         + EXACT_VECTOR_COMPLETIONS.sum() + "/"
                         + EXACT_VECTOR_CANCELLATIONS.sum() + "/"
@@ -357,7 +368,7 @@ public final class OptimizationMetrics {
                         + EXACT_VECTOR_START_BUDGET_DEFERRALS.sum() + "/"
                         + EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS.sum() + "/"
                         + EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.sum()
-                        + ", max active tick "
+                        + ", max active range "
                         + (EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.get() / 1_000L)
                         + " us",
                 "Experimental V2 Instant: " + INSTANT_DISPATCH_CALLS.sum()

@@ -17,10 +17,13 @@ All notable changes to this project are documented here.
   key-count, state, and energy-ledger validation.
 - Added direct exact-storage transactions for inspected ExtendedAE Plus
   Infinity BigInteger Cells without quantity-sized or checked-long windows.
-- Added automated coverage proving that a twenty-stage graph remains twenty
-  active ticks for `1`, `1,000`, `Long.MAX_VALUE`, and a 1,024-digit order.
+- Added a work-conserving Exact Vector stage budget. An idle grid can claim a
+  twenty-stage graph as one range, while occupied grids defer remaining stages
+  without changing results.
+- Added exact range energy accounting and coverage for `1`, `1,000`,
+  `Long.MAX_VALUE`, and a 1,024-digit order.
 - Added quantity-independent `/aco stats` counters for host/network starts,
-  active ticks, completion, cancellation, quarantine, and maximum active-tick
+  logical stages, completion, cancellation, quarantine, and maximum active-range
   wall time.
 - Added a versioned external Compiled Crafting Island backend API.
 - Added an AdvancedAE/AQE CPU execution path that can bind an entire proven

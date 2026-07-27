@@ -26,7 +26,15 @@ public final class ExactVectorDiagnostics {
     }
 
     public static void activeTick(long elapsedNanos) {
-        OptimizationMetrics.recordExactVectorActiveTick(elapsedNanos);
+        activeStages(1, elapsedNanos);
+    }
+
+    /** 一括進行した論理段数と、その範囲全体の実時間だけを統計へ渡す。 */
+    public static void activeStages(
+            int stages,
+            long elapsedNanos) {
+        OptimizationMetrics.recordExactVectorActiveStages(
+                stages, elapsedNanos);
     }
 
     public static void transactionCompleted() {

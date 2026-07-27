@@ -174,8 +174,9 @@ compiled graph and a registered API v1 executor such as AAC.
 | `maximumUniqueOutputKeys` | `128` | Maximum distinct final plus remaining-output keys. Range `1..65536`. |
 | `maximumStartsPerGridPerTick` | `1` | Shared start limit across standard and BigInteger parent transactions. Range `1..64`. |
 | `maximumCompletionsPerGridPerTick` | `1` | Shared accounting-completion limit per grid and tick. Range `1..64`. |
+| `maximumActiveStagesPerGridPerTick` | `256` | Maximum compiled critical-path stages claimed as work-conserving ranges per grid and tick. Range `1..1048576`; quantity never changes this count. |
 | `maximumActiveTransactionsPerGrid` | `4` | Shared active receipt ceiling across every registered executor. Range `1..1024`. |
-| `gridTimeBudgetMillis` | `2` | Soft main-thread budget for start/input/completion work. Range `1..45`. |
+| `gridTimeBudgetMillis` | `2` | Soft main-thread budget for start/input/active-range/completion work. Range `1..45`. |
 | `hardTimeBudgetMillis` | `4` | Hard deadline after which no additional Vector work starts. Range `1..45`, clamped to at least the soft budget. |
 | `fallbackBeforeOwnershipTransfer` | `true` | Allows the original path only while no executor owns inputs. It never permits fallback after a persisted receipt takes ownership. |
 | `logVectorDiagnostics` | `false` | Enables bounded start, recovery, fallback, and quarantine diagnostics. |

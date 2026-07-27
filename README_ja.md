@@ -84,10 +84,14 @@ Transactionへ縮約します。注文数量は検査付き`BigInteger`演算の
 - AQE BigInteger親Jobは`NETWORK_STORAGE`を使います。対応ExecutorがACOの正確在庫APIで
   境界入力と最終出力をAEKeyごとに一度だけ移転します。現在の正確BigInteger
   ネットワーク在庫実装は、調査済みExtendedAE Plus Infinity BigInteger Cellです。
+  明示的な`ExactVectorStoragePolicy`を持つRegistry BigInteger Cell派生実装も同じ
+  正確数量経路を使用します。
 
-処理時間は最長依存経路の段数×`ticksPerLogicalStage`です。20段階なら、1個、
-1,000個、`Long.MAX_VALUE`、対応範囲のBigInteger注文のいずれも20 active tickです。
-電力はmicro-AE整数で正確に分配し、不足中は所有権を保持したまま停止します。
+論理作業量は最長依存経路の段数×`ticksPerLogicalStage`です。Executorは一段ごとに
+server tickを固定待機せず、Grid共有予算から空いている連続段を取得します。予算・電力・
+在庫に余裕があれば、20段階は1個、1,000個、`Long.MAX_VALUE`、対応範囲のBigInteger
+注文のいずれも同じserver tick内で完了できます。soft時間予算へ達した場合だけ残りを
+次tickへ送り、電力不足時は一段へ縮小するか所有権を保持したまま停止します。
 
 固定された通常のshaped/shapelessレシピだけを対象にし、Processing Pattern、代替素材、
 Fuzzy、NBT変化、耐久値、確率出力、循環、不確定なRemaining Itemは開始前に通常経路へ
@@ -95,6 +99,11 @@ Fuzzy、NBT変化、耐久値、確率出力、循環、不確定なRemaining It
 
 既存のCompiled Crafting Islandsは互換用の別経路として残り、Exact Vectorは
 `enableCompiledCraftingIslands`には依存しません。
+
+Processing Patternを含むJobでは、機械部分を島の境界として扱います。機械前の固定作業台
+クラフト島を入力が揃った時点で一括処理し、GTCEu/Mekanismなどの実加工中はAE2本来の
+完了を待ちます。機械出力がCPUへ戻った時点で後続の固定作業台島を再開し、外部機械の
+処理時間や結果をACOが捏造することはありません。
 
 ## 主な機能
 

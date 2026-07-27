@@ -43,4 +43,23 @@ class VectorEnergyScheduleTest {
                 IndexOutOfBoundsException.class,
                 () -> schedule.microAeForTick(20));
     }
+
+    @Test
+    void sumsAnActiveRangeWithoutPerStageIteration() {
+        VectorEnergySchedule schedule =
+                VectorEnergySchedule.divide(BigInteger.valueOf(203L), 20);
+
+        assertEquals(
+                BigInteger.valueOf(203L),
+                schedule.microAeForRange(0, 20));
+        assertEquals(
+                BigInteger.valueOf(53L),
+                schedule.microAeForRange(0, 5));
+        assertEquals(
+                BigInteger.valueOf(50L),
+                schedule.microAeForRange(5, 5));
+        assertThrows(
+                IndexOutOfBoundsException.class,
+                () -> schedule.microAeForRange(19, 2));
+    }
 }

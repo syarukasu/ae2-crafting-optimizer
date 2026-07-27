@@ -213,6 +213,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_OUTPUT_KEYS;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_STARTS_PER_GRID_TICK;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_COMPLETIONS_PER_GRID_TICK;
+    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_ACTIVE_STAGES_PER_GRID_TICK;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_ACTIVE_PER_GRID;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_HARD_TIME_BUDGET_MILLIS;
@@ -933,6 +934,16 @@ public final class ACOConfig {
         EXACT_VECTOR_MAXIMUM_COMPLETIONS_PER_GRID_TICK = builder
                 .comment("Maximum Exact Vector parent-job commits per ME grid and server tick.")
                 .defineInRange("maximumCompletionsPerGridPerTick", 1, 1, 64);
+        EXACT_VECTOR_MAXIMUM_ACTIVE_STAGES_PER_GRID_TICK = builder
+                .comment(
+                        "Maximum logical critical-path stages advanced per ME grid and server tick.",
+                        "Available stages are claimed as one range; request quantity never controls this loop.",
+                        "The soft time budget may defer remaining stages, while the first range avoids starvation.")
+                .defineInRange(
+                        "maximumActiveStagesPerGridPerTick",
+                        256,
+                        1,
+                        1_048_576);
         EXACT_VECTOR_MAXIMUM_ACTIVE_PER_GRID = builder
                 .comment("Maximum concurrently owned Exact Vector transactions per ME grid.")
                 .defineInRange("maximumActiveTransactionsPerGrid", 4, 1, 1024);
@@ -1836,6 +1847,14 @@ public final class ACOConfig {
                 Math.max(
                         1,
                         EXACT_VECTOR_MAXIMUM_COMPLETIONS_PER_GRID_TICK.get()));
+    }
+
+    public static int getExactVectorMaximumActiveStagesPerGridTick() {
+        return Math.min(
+                1_048_576,
+                Math.max(
+                        1,
+                        EXACT_VECTOR_MAXIMUM_ACTIVE_STAGES_PER_GRID_TICK.get()));
     }
 
     public static int getExactVectorMaximumActivePerGrid() {

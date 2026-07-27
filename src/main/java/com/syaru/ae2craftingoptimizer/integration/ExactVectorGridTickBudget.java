@@ -10,7 +10,7 @@ import java.util.WeakHashMap;
 /**
  * BigInteger親Jobと標準AQE Jobが共有する、Grid単位のExact Vector tick予算。
  */
-final class ExactVectorGridTickBudget {
+public final class ExactVectorGridTickBudget {
     /** Configのミリ秒をSystem.nanoTimeのナノ秒へ変換する固定倍率。 */
     private static final long NANOSECONDS_PER_MILLISECOND = 1_000_000L;
     private static final Map<IGrid, ExactVectorGridTickBudget> BUDGETS =
@@ -20,6 +20,7 @@ final class ExactVectorGridTickBudget {
     private long startedAtNanos;
     private int starts;
     private int completions;
+    private int activeStages;
 
     private ExactVectorGridTickBudget() {
     }
@@ -34,6 +35,32 @@ final class ExactVectorGridTickBudget {
 
     static synchronized void clearAll() {
         BUDGETS.clear();
+    }
+
+    /**
+     * Optional Executor APIから、同じGridの論理段進行予算を数量非依存で取得する。
+     */
+    public static synchronized int claimActiveStages(
+            IGrid grid,
+            int requestedStages) {
+        if (requestedStages <= 0) {
+            throw new IllegalArgumentException(
+                    "requestedStages must be positive");
+        }
+        ExactVectorGridTickBudget budget = forGrid(grid);
+        long softBudgetNanos = Math.multiplyExact(
+                ACOConfig.getExactVectorGridTimeBudgetMillis(),
+                NANOSECONDS_PER_MILLISECOND);
+        int maximum =
+                ACOConfig.getExactVectorMaximumActiveStagesPerGridTick();
+        int granted = claimOperations(
+                budget.activeStages,
+                maximum,
+                requestedStages,
+                budget.elapsedNanos(),
+                softBudgetNanos);
+        budget.activeStages += granted;
+        return granted;
     }
 
     synchronized boolean tryStart() {
@@ -92,15 +119,51 @@ final class ExactVectorGridTickBudget {
                 && elapsedNanos >= timeBudgetNanos;
     }
 
+    /**
+     * 数量ではなく固定済み論理段を一範囲として予約し、Grid上限を越えない件数を返す。
+     */
+    static int claimOperations(
+            int completedOperations,
+            int maximumOperations,
+            int requestedOperations,
+            long elapsedNanos,
+            long timeBudgetNanos) {
+        if (completedOperations < 0
+                || maximumOperations < 0
+                || requestedOperations <= 0) {
+            throw new IllegalArgumentException(
+                    "invalid Exact Vector operation budget");
+        }
+        // Grid件数上限は飢餓防止より優先し、残枠が無ければ一段も許可しない。
+        if (completedOperations >= maximumOperations) {
+            return 0;
+        }
+        /*
+         * soft予算へ達したtickの最初の要求は一段だけ進める。全範囲を許可すると
+         * 既に混雑したtickへ追加burstを作り、0では永続的な飢餓になり得る。
+         */
+        if (elapsedNanos >= timeBudgetNanos) {
+            return completedOperations == 0 ? 1 : 0;
+        }
+        return Math.min(
+                requestedOperations,
+                maximumOperations - completedOperations);
+    }
+
     private void resetForTick(long currentTick) {
         // 同tick内の別CPUから呼ばれた場合は、既に消費した共有予算を維持する。
         if (tick == currentTick) {
             return;
         }
         tick = currentTick;
-        startedAtNanos = System.nanoTime();
+        /*
+         * Exact Vectorの最初の呼出時刻ではなくserver tick開始時刻から測り、
+         * 同tick前半を他MODが消費した場合も混雑済みとして扱う。
+         */
+        startedAtNanos = ServerTickClock.startedAtNanos();
         starts = 0;
         completions = 0;
+        activeStages = 0;
     }
 
     private long elapsedNanos() {
