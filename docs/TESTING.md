@@ -1,400 +1,196 @@
 # Testing
 
-## Build
+## Automated
 
-```bat
-gradlew.bat clean build
+Run:
+
+```powershell
+.\gradlew.bat test --no-daemon --rerun-tasks
+.\gradlew.bat clean build --no-daemon
 ```
 
-Expected:
+Automated tests cover:
 
-- Build succeeds.
-- Jar is created under `build/libs/`.
-- No generated `build/` or `.gradle/` directories are committed.
+- checked `long` and `BigInteger` planning;
+- selected input alternatives;
+- twenty-stage quantity-independent formula generation;
+- exact escrow debit and credit;
+- exact boundary mutation recovery for all-before, mixed, all-after, and
+  invalid external-change states;
+- parent BigInteger lease commit, rollback, and persistence;
+- NBT count bounds and canonical encoding;
+- transaction journal behavior;
+- physical Worker formula multiplication;
+- durable terminal receipt identity and explicit forget.
+- nine identical signed-long input slots without merged-input rejection.
 
-For the disabled next-generation engine, also run `gradlew.bat clean test build`
-and follow the recovery/fairness matrix in
-[EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md). Building the source is not
-permission to deploy or enable those paths on a live world.
+## Required Live Matrix
 
-The automated suite must cover checked overflow, deep/recursive graphs,
-generation invalidation, planner fallback, source and target receipt NBT,
-per-output accounting cursors, malformed and unknown-schema journals, retained
-terminal evidence, scheduler operation/time budgets, and starvation prevention.
-These tests validate source invariants; they do not replace the copied-world
-kill/restart matrix.
+Runtime testing must use the same ACO and AAC JAR on server and clients.
 
-During copied-world recovery tests, turn the experimental master off with one
-transaction intentionally unresolved. Confirm journal reconciliation continues
-and that the affected CPU does not execute the same task through AE2's normal
-path until its source receipt reaches a terminal state.
+### Basic Physical Path
 
-## Automated Experimental Checks
+1. Form an AAC structure with Neo ECO Pattern Buses and Workers.
+2. Encode a deterministic `9 input -> 1 output` crafting-table Pattern.
+3. Order `1`, `1,000`, and a large signed-long quantity.
+4. Confirm the Worker performs one physical recipe stage per Pattern, not one
+   Thread per requested craft.
+5. Use a tag alternative, restart, and confirm the persisted concrete key is
+   revalidated rather than replaced by another tag member.
+6. Confirm exact input consumption and output count.
+7. Confirm normal AE2 job status remains visible.
 
-The `src/test` suite currently verifies the parts that can run without a Forge
-world:
+### Twenty-Stage Chain
 
-- every checked-long boundary and overflow promotion;
-- immutable graph fingerprints, generation invalidation, SCC recursion,
-  cancellation, stale result rejection, alternatives, fallback proof flags,
-  and randomized acyclic recipe graphs;
-- 64-, 128-, and 1024-decimal-digit BigInteger NBT round trips, plus the exact
-  16,384-digit planner/NBT/packet ceiling;
-- primitive-array Root Program tests for shared intermediates, complete missing
-  lists, checked overflow promotion, referenced-key-only reads, ambiguous-route
-  fallback, Shadow qualification, and generation-local rejection;
-- capacity reservation, multiple-job rotation, bounded execution windows,
-  waiting-output completion, clean cancellation, quarantine retention, long-job
-  migration, runtime UUID persistence, per-recipe window persistence,
-  parent-owned child allowance isolation, and count-memory rejection;
-- status page round trips, protocol validation, malformed/trailing packet
-  rejection, entry bounds, magnitude bounds, and packet-size bounds;
-- int/long root-order boundary selection, exact `Long.MAX_VALUE` item and fluid
-  unit conversion, out-of-range rejection, and checked existing-stock
-  subtraction;
-- one-key inventory aggregation at `Long.MAX_VALUE + 1`, saturated non-negative
-  AE2 facades, exact ExtendedAE Plus BigInteger cell capture, and a deterministic
-  plan satisfied by stock above signed `long`;
-- V2 source/target receipt transitions, explicit extraction, energy, and
-  per-output uncertainty barriers, rollback, bounded stale replay evidence,
-  malformed-schema locking, and output cursors;
-- deficit-round-robin operation/time budgets, persistence, reservation for later
-  jobs, and no-starvation rotation;
-- a 1,000-pattern chain planned for a 1024-digit request under a fixed time guard
-  with expansion bounded by graph size rather than requested count.
-
-An automated pass is necessary but not sufficient. Tests do not instantiate
-real GTCEu/Mekanism machines, transformed Forge classes, an Arclight server, or
-a multiplayer client.
-
-## Long Root Amount Runtime Matrix
-
-Install the same ACO build on the server and every client, leave
-`enableLongRootCraftAmounts = true`, and use a copied test world.
-
-1. Enter `2147483647` for an ordinary craft. Confirm the request behaves exactly
-   like ACO-disabled AE2 and reaches the confirmation screen.
-2. Enter `2147483648`. Confirm it reaches the confirmation screen without
-   becoming negative, zero, or `2147483647`.
-3. Enter `9223372036854775807`. Confirm the requested output in the plan remains
-   exactly `Long.MAX_VALUE`.
-4. For a fluid or chemical root, enter `9223372036854775.807` in a `1000`-unit
-   display. Confirm the internal requested amount is exactly `Long.MAX_VALUE`.
-5. Enter `9223372036854775808` and a short expression above signed long. Confirm
-   the Next button remains inactive and no request packet starts a calculation.
-6. Repeat step 3 with `=9223372036854775807` while the network holds zero, one,
-   and the full requested amount. Confirm the calculated amounts are
-   `Long.MAX_VALUE`, `Long.MAX_VALUE - 1`, and zero respectively.
-7. Use Replan, Back, and Shift Auto Start. Confirm Replan retains the long
-   amount, Back restores it in the input field, and Auto Start submits only the
-   server-confirmed plan.
-8. Close or replace the amount screen immediately after pressing Next. Confirm
-   the stale container-ID packet does not affect the newly opened menu.
-9. Set `enableLongRootCraftAmounts = false` on both sides and restart. Confirm
-   the input returns to the AE2 int maximum and all normal int crafts still
-   work.
-10. Test once with mismatched client/server ACO builds. Confirm Forge rejects
-    the protocol mismatch at connection instead of accepting an unknown packet.
-
-## AppliedE Compatibility Matrix
-
-Run the matrix separately with original AppliedE `0.14.3` and AppliedE TPS Fix
-`0.14.7-fix2`; never install both because they use the same mod ID.
-
-1. Install the selected AppliedE build and its ProjectE requirements on the
-   dedicated server and every client.
-2. Confirm startup reports `ACO AppliedE compatibility: detected ...` without a
-   missing-class or Mixin error.
-3. Add and remove an EMC Module, change the owning player's knowledge, and run a
-   datapack reload. Confirm the terminal craftable set updates each time.
-4. Request one known EMC item, then a large quantity of it. Confirm AppliedE
-   consumes the exact EMC, creates the exact output, and the AE2 CPU finishes.
-5. Cancel from the confirmation screen and cancel a submitted job. Confirm no
-   temporary transmutation pattern remains craftable afterward.
-6. Enable the experimental Compiled Graph, Shadow, authoritative, atomic
-   capacity, and BigInteger host paths. Repeat the request and confirm AppliedE
-   still uses AE2's original calculation rather than an ACO compiled plan.
-7. Run `/aco stats`. `AppliedE compatibility` fallback and provider-refresh
-   counters must increase; Shadow mismatch count must not increase solely from
-   the excluded transmutation route.
-8. Restart and repeat with the other AppliedE implementation. Compare EMC,
-   outputs, CPU completion, and craftable visibility with an ACO-disabled run.
-
-## Experimental Runtime Matrix
-
-Do not combine the rows on the first pass. Begin from a copied world and enable
-one child feature at a time.
-
-| Stage | Enable | Required proof |
-| --- | --- | --- |
-| 1 | Master + compiled graph + Shadow Mode | AE2 and ACO agree for deterministic plans; every ambiguous plan reports fallback and AE2 remains authoritative. |
-| 2 | V2 only | Unsupported targets run the normal AE2 path; unresolved receipts pause only their owner CPU. |
-| 3 | GTCEu adapter | Exact item/fluid recipes conserve inputs, outputs, task progress, waiting state, and energy through block, power, chunk, and restart failures. |
-| 4 | Mekanism adapter | Repeat Stage 3 for item, fluid, gas, infusion, pigment, slurry, and factory processes. |
-| 5 | Fair scheduler | At least three jobs and two CPU implementations all progress under operation and elapsed-time pressure. |
-| 6 | BigInteger API consumer | Long boundary, 64/128/1024-digit counts, multiple jobs, exact parent/child reservation accounting, cancellation, restart fingerprint validation, chunk reload, structure reform, and paged status all remain exact. |
-
-For V2, kill the copied server independently while each source state is current:
-
-```text
-STAGED
-EXTRACTING
-EXTRACTED
-TARGET_ACCEPTED
-ENERGY_ACCOUNTING
-ENERGY_ACCOUNTED
-PROGRESS_ACCOUNTED
-OUTPUTS_ACCOUNTING (at every output cursor)
-OUTPUT_ACCOUNTING (before each individual waiting-output insertion)
-```
-
-Current schema-2 transactions recovered in `EXTRACTING` must restore exactly
-the partial input list persisted by source receipt schema 3. Legacy schema-1
-`EXTRACTING`, `ENERGY_ACCOUNTING`, and `OUTPUT_ACCOUNTING` must quarantine
-rather than guess whether an untracked side effect completed. A quarantined
-transaction is a deliberate fail-closed result; it must retain enough journal
-and receipt data for inspection and must never resume the same AE2 task through
-the normal path.
-
-For every failure injection, compare these totals with an ACO-disabled control:
-
-```text
-CPU crafting inventory
-Pattern Provider send buffer
-target machine inputs
-target machine outputs
-AE energy charged
-task executions remaining
-waiting outputs
-final network output
-```
-
-Any loss, duplication, double energy charge, stale plan, permanently calculating
-screen, or job that reports complete before its outputs arrive fails the stage.
-
-## Manual Runtime Checks
-
-1. Start a Forge 1.20.1 client or dedicated server with AE2 15.4.10.
-2. Confirm `config/ae2_crafting_optimizer-common.toml` is generated.
-3. Request a small craft, such as a normal furnace-pattern output.
-4. Confirm the craft confirmation screen leaves `Calculating` normally and shows AE2's standard result.
-5. Request a large craft that cannot complete due to missing ingredients.
-6. Confirm AE2's normal missing-item result appears without any preliminary preview behavior.
-7. Enable `logCraftingCalculationDeduplication = true`, request the exact same large craft twice before the first calculation finishes, and confirm the second request logs an active calculation reuse.
-8. Change a pattern provider or crafting node and confirm no stale calculation is reused afterward.
-9. With `cacheCompletedCraftingPlans = true` and `cacheSuccessfulCompletedCraftingPlans = false`, repeat the same impossible request and confirm the missing/simulation result can be reused without allowing a craft to start.
-10. Add/remove storage or change pattern providers and confirm the completed-plan cache is cleared.
-11. With `fastFailMissingCrafts = true`, request impossible deterministic one-path crafts blocked by an item, fluid, and chemical in turn; confirm each returns a normal missing-items plan rather than a stuck calculating screen.
-12. Repeat with a craft that has substitutions, tags, multiple possible patterns, or can complete successfully, and confirm AE2 performs its normal calculation.
-13. Enable `logPatternLookupCache = true`, perform repeated large craft calculations, and confirm pattern-lookup cache hits appear without stale recipes after provider changes. Craftable-set caching is unregistered in 1.2.2.
-14. Push an AE2 processing pattern into a GTCEu item-output machine and confirm the recipe still starts normally.
-15. Push an AE2 processing pattern into a GTCEu fluid-output machine and confirm the recipe still starts normally.
-16. Push an AE2 processing pattern into a Mekanism item-output machine and confirm the recipe still starts normally.
-17. Push an AE2 processing pattern into a Mekanism fluid-output or chemical-output machine and confirm the recipe still starts normally.
-18. Run `/aco intents list 10` shortly after a Pattern Provider push and confirm target position and outputs are recorded.
-19. Run `/aco intents clear` and confirm captured intents and machine output indexes are cleared.
-20. With `throttleCraftingExecution = true`, start a large craft on a high-co-processor CPU and confirm the craft progresses without one CPU monopolizing server tick time.
-21. With `adaptiveCraftingExecutionBudget = true`, keep `targetCraftingExecutionMillis = 4` and confirm repeated heavy crafts do not create sustained MSPT spikes.
-22. Start large jobs on at least three standard AE2 crafting CPUs attached to one ME grid, leave `sharedCraftingExecutionBudget = true`, and confirm every job progresses while combined CPU execution remains near the configured grid target.
-23. Run `/aco stats` and confirm shared-budget limits/deferred operations increase during that test.
-24. With Neo ECO AE Extension 20.3.x installed, confirm startup logs report its detected version and `execution budget true`.
-25. Start one large job on a Neo ECO CPU and one on a standard AE2 CPU on the same grid. Confirm both progress and neither bypasses the shared grid target.
-26. Toggle `[compatibility.neoEcoAe].throttleNeoEcoAeExecution = false`, restart, and confirm Neo ECO returns to its own configured normal/FastPath limits while standard AE2 pacing remains enabled.
-27. Repeat a Neo ECO batch/aggressive FastPath craft and confirm input, output, energy, status, cancellation, save/reload, and completion match a run without ACO.
-28. Repeatedly process the same Pattern Provider recipe through GTCEu and Mekanism, then confirm `/aco stats` reports machine cache hits.
-29. Run `/reload`, repeat one GTCEu and one Mekanism processing recipe, and confirm the machines rebuild their indexes and still select the correct recipes.
-30. Place several AE2 Import Buses and Export Buses with speed-card upgrades on a large ME network.
-31. Confirm item movement still respects filters, redstone mode, craft-only mode, and scheduling mode.
-32. Set the retained grid-tick, I/O-cap, IO Port, capability-cache, and storage-simulation keys to `true`, restart, and confirm those keys remain no-ops: AE2 still performs every live transfer and no removed-Mixin behavior appears.
-33. Configure an Export Bus with a crafting card for an item that cannot currently be crafted and confirm the separate failed-request cooldown does not block a later valid craft after stock or patterns change.
-34. Test ExtendedAE Ex Import Bus, Ex Export Bus, and Precise Export Bus if ExtendedAE is installed.
-35. Test an AE2 IO Port moving high-capacity cells and confirm cells still move to the correct slots and contents are not lost.
-36. Test the ExtendedAE Circuit Cutter with normal recipes and auto-export enabled. Confirm recipes complete and outputs leave the machine when possible.
-37. Process several recipes in an AdvancedAE Reaction Chamber, including item and fluid outputs, and confirm input consumption, energy use, output, and auto-export remain exact.
-38. Install/remove AE2 Overclock overclock and parallel cards in a Reaction Chamber and Circuit Cutter. Confirm the new count applies no later than the next server tick and the configured speed/parallel behavior remains correct.
-39. Add/remove Pattern Providers and immediately request their recipes. Confirm provider changes are visible and no stale craftable recipe remains.
-40. Insert an item whose ME stock is zero through a terminal, then extract and reinsert it. Confirm no item disappears and the visible amount matches live storage.
-41. Run two ExtendedAE Circuit Cutters with different item/fluid inputs. Confirm each selects the correct recipe, a blocked output remains blocked, and changing input resumes the correct recipe without restart.
-42. Repeat a no-recipe Circuit Cutter input on two machines, add the missing datapack recipe, run `/reload`, and confirm both machines immediately discover it.
-43. With `asyncTerminalSearchSort = true`, search a terminal above the threshold using plain, `@`, `#`, `$`, and `*` terms; change the query rapidly and confirm only the newest generation appears.
-44. Form an ExtendedAE Assembly Matrix containing several crafter blocks, pattern blocks, and speed blocks. Start enough jobs to use multiple internal threads and confirm every job completes.
-45. If ExtendedAE Plus is installed, include its 32-thread crafter core and confirm the matrix busy count and scheduling still use all supported threads.
-46. Break and reform that matrix, reload its chunks, and restart the server. Confirm formation, patterns, busy state, names, and stored jobs recover normally.
-47. Run `/aco stats` after the add-on tests and confirm runtime-helper reflection, upgrade-count, Reaction Chamber, Circuit Cutter, or Assembly Matrix counters increase for installed integrations. Direct redirects into machine methods merged by AE2 Overclock remain compatibility-disabled.
-48. Disable each `[addonMachineOptimizations]` sub-option separately, restart, and confirm its counter stops increasing while the machine remains functional through the original add-on path.
-
-## Legacy Transactional API Compatibility
-
-1. Toggle the retained 1.2.0/1.2.1 transactional keys and restart.
-2. Confirm neither standard AE2 nor Advanced AE CPU execution is intercepted; both use their original 1.2.2 path.
-3. Confirm old API consumers still link, but no legacy transaction commit metric increases.
-4. Qualify the separate, default-off V2 protocol only with the copied-world matrix in [EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md).
-
-## Sequential Instant Dispatch
-
-1. Keep legacy batching and both GTCEu/Mekanism Native Batch switches disabled, then enable `enableInstantPatternDispatch`.
-2. Submit the same large processing craft to a standard AE2 CPU and an Advanced AE Quantum Computer.
-3. Confirm `/aco stats` increases `Sequential Instant` waves and completed operations while both legacy and V2 batch counters remain zero.
-4. Confirm every GTCEu item/fluid and Mekanism item/fluid/chemical output exactly matches the requested amount and the CPU reaches completion.
-5. Fill one target input or output, repeat the order, and confirm the first rejected wave stops dispatch until capacity returns without losing inputs.
-6. Confirm one tick is not capped at 65536 operations: that value bounds one probe/wave only, while actual work is limited by `maxPatterns`, `4 ms` CPU time, and `8 ms` grid time.
-7. Run `/aco stats` and compare `max wave` with Spark MSPT. A single wave may cross the deadline, but no second wave may begin after the CPU or grid budget is exhausted.
-
-## Compiled Crafting Islands
-
-1. Install the explicit backend under test, currently AAC 1.0.0 with Neo ECO
-   20.3.0, on both client and server. Test both a Neo ECO CPU and an AQE
-   Quantum Computer.
-2. Set `enableCompiledCraftingIslands = true` under
-   `[experimentalCraftingEngine]` and restart both sides.
-3. Submit a deterministic 1k-to-256M ordinary crafting-table chain with all raw
-   inputs available. Compare exact raw consumption and final output against an
-   island-disabled run.
-4. Submit 100,000,000 final outputs and record cold-cache and warm-cache
-   calculation/execution time, TPS, MSPT, allocation, and power draw.
-5. Confirm intermediate components inside the connected island are not
-   materialized in ME storage.
-6. Move one middle Pattern to a normal provider outside the AAC structure.
-   Confirm the island remains on the CPU's original Sequential route.
-7. Replace one middle step with a processing Pattern. Confirm ACO creates
-   independent crafting islands on each side and does not wait for the entire
-   tree before executing a ready side.
-8. Remove a boundary input. Confirm that island waits while unrelated machine
-   Patterns continue normally.
-9. Test substitutions, duplicate producers, cycles, NBT, durability, remaining
-   items, fluids, chemicals, and custom recipe classes. Confirm no island input
-   changes and the original path handles the Job.
-10. Test distinct boundary keys and final output at exactly `Long.MAX_VALUE`.
-   Confirm no negative, zero, wrapped, or clamped counter appears.
-11. Force `waitingFor + amount` and `inFlight + amount` above
-    `Long.MAX_VALUE`. Confirm the island refuses commit before extracting input.
-12. Cancel while an island waits, unload/reload its chunks, and restart the
-    server before and after completion. Confirm no loss, duplication, stuck
-    Task, or stale cached island.
-13. Disable the switch and restart. Confirm Neo ECO and AdvancedAE existing
-    normal/vector paths produce the same result without any island attempt.
-14. Reset statistics, submit the twenty-stage 9-to-1 pack probe through AQE,
-    and run `/aco stats`. Confirm `Compiled Crafting Islands` reports one wave
-    and twenty Patterns, while `Compiled Island decisions` identifies no
-    backend, capacity, provider, output, or energy fallback for that wave.
-
-## Exact Vector Crafting
-
-Automated tests cover API codec bounds, legacy schema migration, exact
-fixed-point energy division, weak executor registration, shared active counts,
-critical-path calculation, BigInteger parent lease persistence, exactly-once
-commit/rollback, and quantity-independent duration.
-
-The twenty-stage unit case must remain exactly twenty logical stages for:
+1. Encode a linear twenty-stage deterministic crafting-table chain.
+2. Test root amounts:
 
 ```text
 1
 1000
 Long.MAX_VALUE
+10^64 - 1
 10^1024 - 1
 ```
 
-For live qualification:
+3. Confirm each order performs twenty dependency stages.
+4. Confirm the requested amount changes arithmetic values but not step count.
+5. Confirm each parent stage waits until its child's physical output receipt is
+   credited.
+6. Confirm no internal item is created in ME merely because it appears in the
+   compiled plan.
 
-1. Keep `enableCompiledCraftingIslands = false` to isolate the new API v1 path.
-2. Enable `[exactVectorCrafting]` in ACO and the Exact Vector executor in AAC.
-3. Expose every deterministic ordinary-crafting Pattern on the same ME Grid.
-   Repeat with AAC strict ownership enabled and controller-local Pattern Buses.
-4. Submit the same twenty-stage root through an AQE/AdvancedAE standard Job at
-   `1`, `1,000`, and the largest practical signed-long amount. Confirm the AAC
-   receipt uses `HOST_ESCROWED`, no intermediate item is materialized, and an
-   idle Grid claims all twenty logical stages in one server tick.
-5. Supply enough stage-19 stock from an exact BigInteger cell for a small root
-   order whose full twenty-stage expansion exceeds signed long. Confirm ACO
-   keeps the exact one-stage plan instead of falling back to AE2's saturated
-   inventory view.
-6. Keep the crafting-status screen open during the standard and BigInteger
-   parent tests. Confirm the server may complete an idle twenty-stage range in
-   one tick without an artificial display wait. Existing AE2/AdvancedAE fields
-   saturate at `Long.MAX_VALUE` only for display, while the ACO parent menu
-   reports the exact requested and remaining values.
-7. Submit an AQE BigInteger parent above signed long with exact stock in an
-   inspected ExtendedAE Plus Infinity BigInteger Cell. Confirm no checked-long
-   child Job is created and the receipt uses `NETWORK_STORAGE`.
-8. Compare every distinct raw input and final/remaining output before and after.
-   No key may be wrapped, clamped, duplicated, or lost.
-9. Limit available power below the full claimed range. Confirm the executor
-   retries one stage, enters `PAUSED_ENERGY` only when even that stage cannot be
-   powered, and keeps input ownership fixed.
-10. Fill output storage. Confirm `OUTPUT_PENDING` retries by output key and does
-   not repeat an already inserted key.
-11. Change a Pattern or reload recipes before ownership transfer. Confirm the
-   original path remains available. Repeat after ownership transfer and confirm
-   the transaction is cancelled or quarantined without fallback.
-12. Cancel in PREPARED, INPUTS_EXTRACTING, RUNNING, OUTPUT_PENDING, and
-    ACCOUNTING. Only a persisted `CANCELLED` executor receipt may release host
-    input escrow.
-13. Restart or unload chunks at every persisted state. Confirm pending external
-    calls are quarantined and completed calls are not replayed.
-14. Break/reform the AAC structure. Confirm the weak registry does not retain
-    the old controller and the same persisted receipt is reconciled only by its
-    matching executor identity.
-15. Run simultaneous standard and BigInteger jobs. Confirm the shared
-    per-grid start, completion, active-transaction, and elapsed-time limits
-    prevent one CPU from monopolizing the tick.
-16. Run `/aco stats`. Confirm `Exact Vector` reports the expected
-    host/network starts, logical-stage count, terminal outcomes, and maximum
-    active-range time without printing or iterating the full BigInteger amount.
-17. Insert a GTCEu or Mekanism processing Pattern between two deterministic
-    crafting chains. Confirm the upstream island finishes first, the downstream
-    island waits for the real machine output, and no machine result is skipped
-    or synthesized.
-18. Repeat the exact-network case with Registry BigInteger Cell. Confirm ACO
-    reads and mutates its exact BigInteger amount rather than treating the
-    saturated long facade as authoritative.
-19. Encode one deterministic crafting Pattern whose nine input slots all use
-    the same key. Request `Long.MAX_VALUE` outputs and stock exactly
-    `9 * Long.MAX_VALUE` inputs in Registry BigInteger Cell. Confirm one exact
-    input-key mutation and one `Long.MAX_VALUE` output, with no wrap, clamp,
-    quantity-sized loop, loss, or duplication.
+### Independent Branches
 
-Compatibility-disabled sync checks retained in 1.2.2:
+1. Build a root with at least two independent crafting branches.
+2. Provide multiple Workers.
+3. Confirm both branches may run at the same time.
+4. Confirm the root starts only after both branch outputs exist in escrow.
 
-1. Set the retained terminal, watcher, aggregate refresh, range, and client coalescing keys to `true`, restart, and confirm ACO still leaves AE2's original terminal and storage synchronization paths active because the related Mixins are unregistered.
-2. Insert an item whose ME stock is zero through the terminal, then extract and reinsert it. Confirm no item is lost and the visible amount converges to live storage.
+### Processing Boundary
 
-## Deep Rewrite Checks
+1. Place a GTCEu or Mekanism processing Pattern between two deterministic
+   crafting-table sections.
+2. Confirm the upstream crafting section completes.
+3. Confirm the machine receives and processes its real inputs.
+4. Confirm the downstream crafting section waits for the real machine output.
+5. Confirm no machine output is synthesized or skipped.
 
-1. Enable the deep master switch and the three active feature switches (`patternSelectionByAvailability`, `p2pTopologyChangeOnlyRecheck`, and `fluidPatternRework`), then repeat one normal item craft and one normal fluid processing craft.
-2. Give one output two valid patterns, toggle `patternSelectionByAvailability`, and confirm only the attempted order changes while AE2's success/missing result remains the same.
-3. Confirm `networkForceUpdateCoalescing = true` remains a no-op in 1.2.2 and AE2's original aggregate refresh path remains active.
-4. Confirm `visibleTerminalRangeSync = true` remains a no-op in 1.2.2 and AE2's original coherent terminal packet path remains active.
-5. Add/remove and retune P2P tunnels several times in one tick. Confirm every structural change applies, then toggle grid power and confirm duplicate wake sweeps do not alter the final input/output topology.
-6. Set `busSearchRewrite = true` and confirm it remains a no-op in 1.2.2; AE2 alone selects and exports fuzzy variants.
-7. Craft with one exact fluid input and then with fluid substitutions. Confirm the exact case uses the fast path and substitutions fall back to AE2.
-8. Disable each deep sub-switch separately and repeat its test to confirm behavior returns to the original AE2 path.
+### Fallback Before Ownership
+
+Test:
+
+- substitutions;
+- duplicate producers;
+- cycles;
+- changing NBT;
+- durability-sensitive recipes;
+- unknown remaining items;
+- missing AAC Pattern ownership;
+- unavailable or malformed exact storage.
+
+Every case must leave boundary storage unchanged and use AE2's normal route or
+report unsupported.
+
+### No Fallback After Ownership
+
+After boundary input reservation:
+
+1. remove power;
+2. unload the Worker chunk;
+3. break and reform the structure;
+4. change a recipe generation;
+5. cancel the parent job.
+
+Confirm the transaction waits, resumes, returns exact escrow, or quarantines.
+It must not start the normal path for the same work.
+
+### Restart Points
+
+Stop and restart after each persisted point:
+
+- before boundary mutation;
+- after one key of a multi-key mutation;
+- after all boundary input extraction;
+- after Worker acceptance;
+- while Thread progress is running;
+- after `OUTPUT_READY`;
+- after Worker terminal receipt creation;
+- after escrow credit;
+- after final ME insertion;
+- before parent commit.
+
+For every point, compare exact storage before and after. There must be no loss,
+duplication, negative count, clamped accounting, or repeated job.
+
+The first Worker/Thread lookup after restart may rebuild runtime UUID indexes.
+Later status polling must use those indexes without scanning every Worker and
+Thread again.
+
+### Multi-Key Mutation Recovery
+
+Use at least three distinct exact-storage keys.
+
+1. Persist before values.
+2. Apply only some keys and stop.
+3. Restart.
+4. Confirm after-valued keys are not replayed.
+5. Confirm before-valued keys are applied once.
+6. Change one key to a third value and confirm quarantine.
+
+### Cancellation
+
+Cancel:
+
+- before input reservation;
+- after input reservation but before Worker acceptance;
+- while a Worker is running;
+- after output is ready;
+- after escrow credit.
+
+Only unfinished physical work may return its reserved inputs. Completed output
+must return as output, never as both output and original input.
+
+### Capacity and Fairness
+
+1. Submit multiple BigInteger parent jobs to the same Quantum Computer.
+2. Include one small job among giant jobs.
+3. Confirm per-grid start and active-stage budgets are respected.
+4. Confirm the small job continues to receive scheduler opportunities.
+5. Record TPS, MSPT, GC allocation, and `/aco stats`.
+
+### Diagnostics
+
+`/aco stats` should report:
+
+- `Physical crafting tree` starts;
+- active scheduler ticks;
+- completed, cancelled, and quarantined transactions;
+- start deferrals;
+- receipt recovery and fingerprint revalidation.
+
+Statistics must not iterate or print complete BigInteger inventories.
 
 ## Disable Checks
 
-Set:
+1. Disable the physical path before starting a new job and confirm normal AE2
+   execution remains available.
+2. Disable it with an existing persisted receipt and confirm recovery still
+   reconciles ownership instead of deleting the receipt.
+3. Disable AAC vector execution and confirm its controller delegates performance
+   behavior to Neo ECO.
 
-```toml
-[general]
-enableOptimizer = false
-```
+## Not Proven by Gradle
 
-Expected:
+Gradle tests do not prove:
 
-- No preliminary missing preview behavior.
-- No long root-order input; AE2's original int maximum and packet path are restored.
-- No storage watcher throttling.
-- No active calculation de-duplication.
-- No completed-plan cache.
-- No deterministic missing fast-fail.
-- No pattern lookup cache.
-- No craftable-set cache.
-- No terminal snapshot pacing.
-- No crafting execution budget cap.
-- No adaptive crafting execution pacing.
-- No shared per-grid crafting execution pacing.
-- No grid tick budget deferral.
-- No IO bus operations cap.
-- No AdvancedAE/ExtendedAE/AE2 Overclock machine caches.
-- No export-bus-style craft request throttle.
-- No pattern micro-batching or Advanced AE Pattern Provider intent capture.
-- AE2 behaves as if this mod were absent.
+- Forge client startup;
+- dedicated-server startup;
+- Arclight runtime behavior;
+- multiblock formation in a live world;
+- real AE power consumption;
+- chunk save ordering;
+- compatibility with unpinned add-on versions;
+- TPS improvement on a production network.
+
+These require the live matrix above.

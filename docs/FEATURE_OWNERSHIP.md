@@ -1,43 +1,70 @@
 # Feature Ownership
 
-ACOの責務は、AE2の計算結果を変えずに計算・同期・実行を軽量化し、
-巨大数量を正確に会計できる共通基盤を提供することです。
-特定設備の構造、レシピ、電力、見た目はアドオン側が所有します。
+## ACO Owns
 
-## Active core
+- Provider/recipe generation tracking
+- Compiled deterministic Pattern graphs
+- `long` and `BigInteger` planning
+- Exact boundary-input and final-output formulas
+- Parent CPU capacity reservation and job progress
+- Transaction-local crafting escrow
+- Exact ME storage before/after reconciliation
+- Cancellation, recovery, quarantine, and fallback decisions
+- Per-CPU and per-grid TPS budgets
+- BigInteger NBT and status protocol
 
-- AE2互換のクラフト計算キャッシュ、世代管理、Shadow検証
-- Long/BigInteger注文、Execution Window、保存、同期
-- Exact Vector計画、Receipt API、実行予算、診断
-- CPU/Grid単位の公平な実行予算
-- Pattern Provider、Bus、端末、アドオン機械の安全なキャッシュ
-- Recipe Intentと検証済みAdapter API
+ACO never asks AAC to decide whether a parent job is complete.
 
-## Compatibility paths
+## AAC Owns
 
-- Compiled Crafting Islands
-  - Neo ECO自身が所有する既存Jobを原子的に処理するための互換経路です。
-  - Exact Vectorとは別のJob会計へ接続するため、現時点では削除しません。
-  - Neo ECO Jobが永続Exact Vector Hostへ移行できた時点で廃止を再検討します。
-- Sequential Instant
-  - Native/Exact設備を持たない通常ProviderのFallbackです。
-  - 一回ずつのAE2会計を維持し、論理回数を一括所有したことにはしません。
+- AAC block and multiblock registration
+- Neo ECO structure integration
+- Pattern Bus to Worker routing
+- One real `assemble` proof for each accepted crafting-table step
+- Neo ECO Thread progress and power
+- Worker-local live ownership
+- Durable terminal output receipts
+- Physical Thread cancellation before output is complete
 
-## Experimental and opt-in
+AAC does not compile the crafting tree, reserve ME storage, complete the AQE
+parent job, or generate the tree's final output.
 
-- Transactional Batch V2
-- GTCEu/Mekanism Native Batch Adapter
-- Deep AE2 rewrite flags
-- Compiled Crafting Islands
+## AE2 Owns
 
-これらは独立したConfigで無効化でき、無効時はAE2または対象MODの通常経路へ戻ります。
+- Encoded Pattern identity
+- Normal crafting jobs and recipe eligibility
+- Standard CPU inventories and links
+- Normal Provider routing and machine work
+- Standard insertion/extraction when no exact sidecar path is active
 
-## Retained no-op compatibility keys
+## Neo ECO Owns
 
-過去Configとの読込互換だけを目的に残すキーは、起動ログで
-`compatibility-disabled`と明示します。実行経路として復活させません。
+- Pattern Bus, Worker, and Thread lifecycle
+- Structure formation and cluster lists
+- Physical progress and power consumption
+- Physical Thread NBT
 
-## Boundary with AAC
+AAC subclasses and narrowly extends these components. It does not replace the
+Neo ECO cluster implementation.
 
-ACOはAACのController、Pattern Bus、構造、電力式を探索しません。
-AACが設備の可用性と所有権を判定し、ACOの公開APIへOffer/Receiptを返します。
+## AQE and Advanced AE
+
+AQE is an optional BigInteger host integration for ACO. Advanced AE continues
+to own its Quantum Computer structure and active CPU implementation.
+
+AAC does not require AQE at runtime for its execution code. AQE-dependent AAC
+progression recipes are Forge-conditional and load only when AQE is installed.
+
+## Fallback Boundary
+
+Before boundary input ownership moves, an unsupported or unavailable physical
+path may return to AE2's normal execution.
+
+After ownership moves, fallback is forbidden. The transaction must:
+
+1. resume from its receipts;
+2. cancel and return exact escrow; or
+3. quarantine when ownership cannot be proven.
+
+This boundary prevents a normal fallback from executing the same work a second
+time.

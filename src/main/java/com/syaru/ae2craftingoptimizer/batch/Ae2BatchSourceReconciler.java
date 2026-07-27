@@ -18,6 +18,7 @@ import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
 import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord;
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -271,10 +272,19 @@ public final class Ae2BatchSourceReconciler implements BatchSourceReconciler {
             ICraftingInventory waitingFor = jobAccess.aco$getWaitingFor();
             for (int index = receipt.accountedOutputs(); index < record.expectedOutputs().size(); index++) {
                 var output = record.expectedOutputs().get(index);
+                long previousAmount =
+                        jobAccess.aco$getWaitingForAmount(output.what());
+                long expectedAmount =
+                        Math.addExact(previousAmount, output.amount());
                 source.receipts().aco$advanceBatchSourceReceipt(
                         record.id(), BatchSourceReceipt.State.OUTPUT_ACCOUNTING, index, level.getGameTime());
                 source.owner().aco$markCraftingOwnerDirty();
                 waitingFor.insert(output.what(), output.amount(), Actionable.MODULATE);
+                if (jobAccess.aco$getWaitingForAmount(output.what())
+                        != expectedAmount) {
+                    throw new IllegalStateException(
+                            "AE2 waitingFor did not accept the exact batch output amount");
+                }
                 source.receipts().aco$advanceBatchSourceReceipt(
                         record.id(), BatchSourceReceipt.State.OUTPUTS_ACCOUNTING, index + 1, level.getGameTime());
                 source.owner().aco$markCraftingOwnerDirty();
@@ -392,10 +402,14 @@ public final class Ae2BatchSourceReconciler implements BatchSourceReconciler {
 
     private static boolean isSubset(List<GenericStack> partial, List<GenericStack> expected) {
         try {
-            Map<AEKey, Long> partialTotals = stackTotals(partial);
-            Map<AEKey, Long> expectedTotals = stackTotals(expected);
-            for (Map.Entry<AEKey, Long> entry : partialTotals.entrySet()) {
-                if (entry.getValue() > expectedTotals.getOrDefault(entry.getKey(), 0L)) {
+            Map<AEKey, BigInteger> partialTotals = stackTotals(partial);
+            Map<AEKey, BigInteger> expectedTotals = stackTotals(expected);
+            for (Map.Entry<AEKey, BigInteger> entry : partialTotals.entrySet()) {
+                if (entry.getValue().compareTo(
+                                expectedTotals.getOrDefault(
+                                        entry.getKey(),
+                                        BigInteger.ZERO))
+                        > 0) {
                     return false;
                 }
             }
@@ -405,13 +419,21 @@ public final class Ae2BatchSourceReconciler implements BatchSourceReconciler {
         }
     }
 
-    private static Map<AEKey, Long> stackTotals(List<GenericStack> stacks) {
-        Map<AEKey, Long> totals = new HashMap<>();
+    private static Map<AEKey, BigInteger> stackTotals(List<GenericStack> stacks) {
+        Map<AEKey, BigInteger> totals = new HashMap<>();
         for (GenericStack stack : stacks) {
             if (stack == null || stack.amount() <= 0L) {
                 throw new IllegalArgumentException("invalid source extraction stack");
             }
-            totals.merge(stack.what(), stack.amount(), Math::addExact);
+            /*
+             * 同じ材料が複数の作業台slotへLong.MAX_VALUEずつ入るBatchでは、
+             * 取引全体の合計だけがlongを超える。各実搬送量はlongのまま保持し、
+             * 照合時の合計だけBigIntegerへ昇格してwrapを防ぐ。
+             */
+            totals.merge(
+                    stack.what(),
+                    BigInteger.valueOf(stack.amount()),
+                    BigInteger::add);
         }
         return totals;
     }

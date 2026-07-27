@@ -13,6 +13,11 @@ import com.syaru.ae2craftingoptimizer.batch.Ae2BatchSourceReconciler;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class PatternBatchV2Api {
+    /**
+     * API 4: Provider所有Targetの物理Worker電力会計を追加。
+     */
+    public static final int API_VERSION = 4;
+
     private static final CopyOnWriteArrayList<TransactionalPatternBatchAdapter> ADAPTERS =
             new CopyOnWriteArrayList<>();
     private static final Map<ResourceLocation, TransactionalPatternBatchAdapter> ADAPTERS_BY_ID =

@@ -2,7 +2,6 @@ package com.syaru.ae2craftingoptimizer.mixin;
 
 import appeng.api.networking.energy.IEnergyService;
 import appeng.me.service.CraftingService;
-import com.syaru.ae2craftingoptimizer.api.execution.CraftingIslandExecutionOwner;
 import com.syaru.ae2craftingoptimizer.api.execution.VectorBatchExecutionOwner;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget;
@@ -20,9 +19,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
     @Unique
     private CraftingService aco$neoEcoCraftingService;
-
-    @Unique
-    private IEnergyService aco$neoEcoEnergyService;
 
     @Unique
     private int aco$neoEcoRequestedOperations;
@@ -43,45 +39,9 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
             CraftingService craftingService,
             CallbackInfo callbackInfo) {
         aco$neoEcoCraftingService = craftingService;
-        aco$neoEcoEnergyService = energyService;
         aco$neoEcoRequestedOperations = 0;
         aco$neoEcoExecutionStartedAt = 0L;
         aco$neoEcoVectorBatch = false;
-    }
-
-    @Inject(
-            method = "executeCrafting(IILappeng/me/service/CraftingService;Lappeng/api/networking/energy/IEnergyService;Lnet/minecraft/world/level/Level;Lcn/dancingsnow/neoecoae/api/me/ECOCraftingCPULogic$FastPathBatchBudget;)I",
-            at = @At("HEAD"),
-            cancellable = true,
-            remap = false,
-            require = 0)
-    private void aco$tryCompiledCraftingIsland(
-            CallbackInfoReturnable<Integer> callbackInfo) {
-        // 個別スイッチOFFではNeo ECOの既存Vector/slow pathだけを実行する。
-        if (!ACOConfig.enableCompiledCraftingIslands()) {
-            return;
-        }
-        // AACなどが明示実装した原子バックエンド以外へ島会計を適用しない。
-        if (!(this instanceof CraftingIslandExecutionOwner owner)) {
-            return;
-        }
-        CraftingService craftingService = aco$neoEcoCraftingService;
-        IEnergyService energyService = aco$neoEcoEnergyService;
-        // tick入口を通らない未知の呼出しでは必要サービスがないため元処理へ戻す。
-        if (craftingService == null || energyService == null) {
-            return;
-        }
-        // 0予算でもAPIへ正の参考値を渡す。島のPattern上限は別Configで固定する。
-        int executionBudgetHint = Math.max(1, aco$neoEcoRequestedOperations);
-        int result = owner.acoTryExecuteCompiledCraftingIsland(
-                executionBudgetHint,
-                craftingService,
-                energyService);
-        // NOT_HANDLED以外は一つの原子WaveとしてNeo ECO本体の同じtick配送を置き換える。
-        if (result != CraftingIslandExecutionOwner.NOT_HANDLED) {
-            aco$neoEcoVectorBatch = result > 0;
-            callbackInfo.setReturnValue(result);
-        }
     }
 
     @Inject(
@@ -154,7 +114,6 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
             CraftingService craftingService,
             CallbackInfo callbackInfo) {
         aco$neoEcoCraftingService = null;
-        aco$neoEcoEnergyService = null;
         aco$neoEcoExecutionStartedAt = 0L;
         aco$neoEcoVectorBatch = false;
     }

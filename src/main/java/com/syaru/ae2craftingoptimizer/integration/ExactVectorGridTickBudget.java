@@ -19,7 +19,6 @@ public final class ExactVectorGridTickBudget {
     private long tick = Long.MIN_VALUE;
     private long startedAtNanos;
     private int starts;
-    private int completions;
     private int activeStages;
 
     private ExactVectorGridTickBudget() {
@@ -83,25 +82,6 @@ public final class ExactVectorGridTickBudget {
         return true;
     }
 
-    synchronized boolean tryCompletion() {
-        long hardBudgetNanos = Math.multiplyExact(
-                ACOConfig.getExactVectorHardTimeBudgetMillis(),
-                NANOSECONDS_PER_MILLISECOND);
-        /*
-         * 完了会計は出力待ちを長く保持しないためsoft予算後も許可するが、
-         * hard予算と件数上限は越えない。
-         */
-        if (shouldDeferOperation(
-                completions,
-                ACOConfig.getExactVectorMaximumCompletionsPerGridTick(),
-                elapsedNanos(),
-                hardBudgetNanos)) {
-            return false;
-        }
-        completions++;
-        return true;
-    }
-
     /**
      * 一tickの最初の一件を時間だけで飢餓させず、二件目以降へ時間予算を適用する。
      */
@@ -162,7 +142,6 @@ public final class ExactVectorGridTickBudget {
          */
         startedAtNanos = ServerTickClock.startedAtNanos();
         starts = 0;
-        completions = 0;
         activeStages = 0;
     }
 

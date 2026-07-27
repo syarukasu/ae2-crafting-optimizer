@@ -141,23 +141,19 @@ public final class BatchSourceReceiptLedger {
             throw new IllegalArgumentException("extracted input must have a positive amount");
         }
 
-        List<GenericStack> merged = new ArrayList<>(current.extractedInputs());
-        boolean found = false;
-        for (int index = 0; index < merged.size(); index++) {
-            GenericStack existing = merged.get(index);
-            if (existing.what().equals(extracted.what())) {
-                merged.set(index, new GenericStack(
-                        existing.what(), Math.addExact(existing.amount(), extracted.amount())));
-                found = true;
-                break;
-            }
+        List<GenericStack> extractedEntries =
+                new ArrayList<>(current.extractedInputs());
+        /*
+         * 同じAEKeyが作業台の複数slotに現れる場合でも、各extract呼出しは
+         * signed long一件として保存する。ここでキー別合算すると、
+         * 9 * Long.MAX_VALUEの正当な取引が台帳作成中にoverflowする。
+         */
+        if (extractedEntries.size()
+                >= BatchSourceReceipt.MAX_EXTRACTED_INPUT_ENTRIES) {
+            throw new IllegalStateException(
+                    "source extraction receipt exceeded its entry cap");
         }
-        if (!found) {
-            if (merged.size() >= BatchSourceReceipt.MAX_EXTRACTED_INPUT_ENTRIES) {
-                throw new IllegalStateException("source extraction receipt exceeded its entry cap");
-            }
-            merged.add(extracted);
-        }
+        extractedEntries.add(extracted);
         receipts.put(id, new BatchSourceReceipt(
                 id,
                 current.state(),
@@ -165,7 +161,7 @@ public final class BatchSourceReceiptLedger {
                 current.taskFingerprint(),
                 current.accountedOutputs(),
                 Math.max(current.updatedTick(), updatedTick),
-                merged));
+                extractedEntries));
     }
 
     public synchronized boolean removeTerminal(UUID id) {

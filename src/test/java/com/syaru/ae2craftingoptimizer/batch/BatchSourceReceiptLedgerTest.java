@@ -34,14 +34,15 @@ class BatchSourceReceiptLedgerTest {
         ledger.recordExtraction(id, new GenericStack(TEST_IRON, 3L), 3L);
         ledger.recordExtraction(id, new GenericStack(TEST_IRON, 2L), 4L);
 
-        assertEquals(1, ledger.get(id).extractedInputs().size());
-        assertEquals(5L, ledger.get(id).extractedInputs().get(0).amount());
+        assertEquals(2, ledger.get(id).extractedInputs().size());
+        assertEquals(3L, ledger.get(id).extractedInputs().get(0).amount());
+        assertEquals(2L, ledger.get(id).extractedInputs().get(1).amount());
         ledger.advance(id, BatchSourceReceipt.State.EXTRACTED, 0, 5L);
-        assertEquals(5L, ledger.get(id).extractedInputs().get(0).amount());
+        assertEquals(2, ledger.get(id).extractedInputs().size());
     }
 
     @Test
-    void extractionAmountsCannotOverflowOrBeRecordedOutsideTheBarrier() {
+    void sameKeyLongMaximumExtractionsRemainSeparate() {
         UUID id = UUID.randomUUID();
         BatchSourceReceiptLedger ledger = new BatchSourceReceiptLedger();
         ledger.stage(new BatchSourceReceipt(id, BatchSourceReceipt.State.STAGED, 8L, "task", 0, 1L));
@@ -50,10 +51,16 @@ class BatchSourceReceiptLedgerTest {
                 () -> ledger.recordExtraction(id, new GenericStack(TEST_IRON, 1L), 1L));
         ledger.advance(id, BatchSourceReceipt.State.EXTRACTING, 0, 2L);
         ledger.recordExtraction(id, new GenericStack(TEST_IRON, Long.MAX_VALUE), 3L);
-        assertThrows(
-                ArithmeticException.class,
-                () -> ledger.recordExtraction(id, new GenericStack(TEST_IRON, 1L), 4L));
-        assertEquals(Long.MAX_VALUE, ledger.get(id).extractedInputs().get(0).amount());
+        ledger.recordExtraction(id, new GenericStack(TEST_IRON, Long.MAX_VALUE), 4L);
+
+        assertTrue(ledger.isHealthy());
+        assertEquals(2, ledger.get(id).extractedInputs().size());
+        assertEquals(
+                Long.MAX_VALUE,
+                ledger.get(id).extractedInputs().get(0).amount());
+        assertEquals(
+                Long.MAX_VALUE,
+                ledger.get(id).extractedInputs().get(1).amount());
     }
 
     @Test

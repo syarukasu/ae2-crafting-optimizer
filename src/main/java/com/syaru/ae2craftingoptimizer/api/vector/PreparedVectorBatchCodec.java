@@ -15,8 +15,16 @@ import net.minecraft.nbt.Tag;
  * <p>旧AAC試験Receiptのschema 1は、従来どおりNETWORK_STORAGEとして読み込む。</p>
  */
 public final class PreparedVectorBatchCodec {
-    /** resourceModeを追加した現在の保存形式。 */
-    private static final int SCHEMA_VERSION = 2;
+    /**
+     * 物理設備が正本となる時間・電力・冷却材の予測値を計画から除いた現在形式。
+     */
+    private static final int SCHEMA_VERSION = 5;
+    /** Planner選択済みslot入力を実作業台Stepへ追加した旧保存形式。 */
+    private static final int SELECTED_INPUTS_SCHEMA_VERSION = 4;
+    /** 実作業台Step列はあるが、選択済みslot入力を持たない旧形式。 */
+    private static final int CRAFTING_STEPS_SCHEMA_VERSION = 3;
+    /** resourceMode追加済み、実作業台Step追加前の旧形式。 */
+    private static final int RESOURCE_MODE_SCHEMA_VERSION = 2;
     /** resourceMode追加前のAAC試験Receiptを読むための旧形式。 */
     private static final int LEGACY_SCHEMA_VERSION = 1;
     /** 16,384桁のBigIntegerを含めつつ、破損NBTの巨大配列を拒否する固定上限。 */
@@ -40,7 +48,6 @@ public final class PreparedVectorBatchCodec {
         putPositive(tag, "requestedAmount", plan.requestedAmount());
         putPositive(tag, "logicalExecutions", plan.logicalExecutions());
         tag.putInt("logicalStageCount", plan.logicalStageCount());
-        tag.putInt("durationTicks", plan.durationTicks());
         tag.put("totalInputs", encodeStacks(plan.totalInputs()));
         tag.put("finalOutputs", encodeStacks(plan.finalOutputs()));
         tag.put("remainingOutputs", encodeStacks(plan.remainingOutputs()));
@@ -52,8 +59,35 @@ public final class PreparedVectorBatchCodec {
             patterns.add(entry);
         }
         tag.put("requiredPatterns", patterns);
-        putNonNegative(tag, "totalEnergyMicroAe", plan.totalEnergyMicroAe());
-        putNonNegative(tag, "totalCoolant", plan.totalCoolant());
+        ListTag steps = new ListTag();
+        // 一つの固有Patternを一つの係数Stepとして保存し、実行数量ぶん要素を増やさない。
+        for (ExactCraftingStep step : plan.craftingSteps()) {
+            CompoundTag entry = new CompoundTag();
+            entry.putString("id", checkedIdentifier(step.patternId()));
+            entry.putInt("depth", step.depth());
+            putPositive(entry, "executions", step.executions());
+            ListTag selectedInputs = new ListTag();
+            // slot順と同一キーの重複を維持し、Plannerが選んだ一回入力だけを保存する。
+            for (ExactCraftingInputSlot input :
+                    step.selectedInputs()) {
+                CompoundTag selected =
+                        new CompoundTag();
+                selected.put(
+                        "key",
+                        input.key()
+                                .toTagGeneric());
+                selected.putLong(
+                        "amount",
+                        input.amountPerExecution());
+                selectedInputs.add(
+                        selected);
+            }
+            entry.put(
+                    "selectedInputs",
+                    selectedInputs);
+            steps.add(entry);
+        }
+        tag.put("craftingSteps", steps);
         tag.putString(
                 "programFingerprint",
                 checkedIdentifier(plan.programFingerprint()));
@@ -66,7 +100,11 @@ public final class PreparedVectorBatchCodec {
         Objects.requireNonNull(tag, "tag");
         int schema = tag.getInt("schema");
         // 対応schemaと二つの所有権UUIDが揃わないNBTは復旧対象にしない。
-        if ((schema != SCHEMA_VERSION && schema != LEGACY_SCHEMA_VERSION)
+        if ((schema != SCHEMA_VERSION
+                        && schema != SELECTED_INPUTS_SCHEMA_VERSION
+                        && schema != CRAFTING_STEPS_SCHEMA_VERSION
+                        && schema != RESOURCE_MODE_SCHEMA_VERSION
+                        && schema != LEGACY_SCHEMA_VERSION)
                 || !tag.hasUUID("transaction")
                 || !tag.hasUUID("parentJob")) {
             throw new IllegalArgumentException(
@@ -85,13 +123,11 @@ public final class PreparedVectorBatchCodec {
                 readPositive(tag, "requestedAmount"),
                 readPositive(tag, "logicalExecutions"),
                 tag.getInt("logicalStageCount"),
-                tag.getInt("durationTicks"),
                 decodeStacks(tag, "totalInputs"),
                 decodeStacks(tag, "finalOutputs"),
                 decodeStacks(tag, "remainingOutputs"),
                 decodePatterns(tag),
-                readNonNegative(tag, "totalEnergyMicroAe"),
-                readNonNegative(tag, "totalCoolant"),
+                decodeCraftingSteps(schema, tag),
                 checkedIdentifier(tag.getString("programFingerprint")),
                 tag.getLong("patternGeneration"),
                 tag.getLong("recipeGeneration"));
@@ -200,6 +236,71 @@ public final class PreparedVectorBatchCodec {
                     list.getCompound(index).getString("id")));
         }
         return List.copyOf(result);
+    }
+
+    private static List<ExactCraftingStep> decodeCraftingSteps(
+            int schema,
+            CompoundTag owner) {
+        /*
+         * schema 1/2には係数、schema 3にはPlanner選択slotがない。
+         * どれも推測移行せず、実行不能の空Listとして隔離する。
+         */
+        if (schema < SELECTED_INPUTS_SCHEMA_VERSION) {
+            return List.of();
+        }
+        ListTag list = requireCompoundList(owner, "craftingSteps");
+        List<ExactCraftingStep> result = new ArrayList<>(list.size());
+        for (int index = 0; index < list.size(); index++) {
+            CompoundTag entry = list.getCompound(index);
+            result.add(new ExactCraftingStep(
+                    checkedIdentifier(entry.getString("id")),
+                    entry.getInt("depth"),
+                    readPositive(entry, "executions"),
+                    decodeSelectedInputs(entry)));
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<ExactCraftingInputSlot> decodeSelectedInputs(
+            CompoundTag owner) {
+        ListTag list =
+                requireCompoundList(
+                        owner,
+                        "selectedInputs");
+        List<ExactCraftingInputSlot> result =
+                new ArrayList<>(
+                        list.size());
+        // 保存されたslot順で具体キーと一回入力量を復元する。
+        for (int index = 0;
+                index < list.size();
+                index++) {
+            CompoundTag entry =
+                    list.getCompound(
+                            index);
+            AEKey key =
+                    Objects.requireNonNull(
+                            AEKey.fromTagGeneric(
+                                    entry.getCompound(
+                                            "key")),
+                            "selected crafting input key");
+            // long以外の型や非正数は破損Receiptとして拒否する。
+            if (!entry.contains(
+                            "amount",
+                            Tag.TAG_LONG)
+                    || entry.getLong(
+                                    "amount")
+                            <= 0L) {
+                throw new IllegalArgumentException(
+                        "invalid selected crafting input amount");
+            }
+            result.add(
+                    new ExactCraftingInputSlot(
+                            key,
+                            entry.getLong(
+                                    "amount")));
+        }
+        return List.copyOf(
+                result);
     }
 
     private static void putPositive(

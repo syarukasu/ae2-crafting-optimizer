@@ -5,7 +5,6 @@ import com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusInbox;
 import com.syaru.ae2craftingoptimizer.batch.PatternTaskFingerprint;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
-import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingIslandExecutor;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
@@ -127,7 +126,6 @@ public final class ACOServerLifecycle {
         CircuitCutterRecipeCache.clear();
         ProviderPatternGenerationTracker.clear();
         Ae2CompiledCraftingGraphCache.clear();
-        Ae2CraftingIslandExecutor.clearCompilationCache();
         PatternTaskFingerprint.clear();
         PatternProviderRoutingCache.clear();
         NativeBatchTargetGuard.clear();

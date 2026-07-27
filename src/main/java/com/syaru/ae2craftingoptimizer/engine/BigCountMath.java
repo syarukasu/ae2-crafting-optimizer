@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class BigCountMath {
-    /** Minecraft内で保存・同期・計算を許可する10進桁数の暫定上限。 */
+    /** Minecraft内で保存・同期・計算を許可する10進桁数の実装上限。 */
     public static final int HARD_MAXIMUM_DECIMAL_DIGITS = 16_384;
     /** 16,384桁を超えない厳密な最大値。BigIntegerは不変なので共有してよい。 */
     private static final BigInteger HARD_MAXIMUM_VALUE =

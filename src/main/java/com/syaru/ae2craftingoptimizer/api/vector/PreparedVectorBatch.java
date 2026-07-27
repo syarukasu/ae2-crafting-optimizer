@@ -17,13 +17,11 @@ public record PreparedVectorBatch(
         BigInteger requestedAmount,
         BigInteger logicalExecutions,
         int logicalStageCount,
-        int durationTicks,
         List<ExactStack> totalInputs,
         List<ExactStack> finalOutputs,
         List<ExactStack> remainingOutputs,
         List<String> requiredPatternIds,
-        BigInteger totalEnergyMicroAe,
-        BigInteger totalCoolant,
+        List<ExactCraftingStep> craftingSteps,
         String programFingerprint,
         long patternGeneration,
         long recipeGeneration) {
@@ -34,17 +32,19 @@ public record PreparedVectorBatch(
         Objects.requireNonNull(requestedOutput, "requestedOutput");
         requestedAmount = requirePositive(requestedAmount, "requestedAmount");
         logicalExecutions = requirePositive(logicalExecutions, "logicalExecutions");
-        // 一段以上の決定的クラフトだけをVector実行へ渡す。
-        if (logicalStageCount <= 0 || durationTicks < logicalStageCount) {
-            throw new IllegalArgumentException("invalid vector stage duration");
+        // 一段以上の決定的クラフトだけを物理Tree実行へ渡す。
+        if (logicalStageCount <= 0) {
+            throw new IllegalArgumentException(
+                    "physical crafting tree must contain at least one stage");
         }
         totalInputs = checkedStacks(totalInputs, "totalInputs");
         finalOutputs = checkedStacks(finalOutputs, "finalOutputs");
         remainingOutputs = checkedStacks(remainingOutputs, "remainingOutputs");
         requiredPatternIds = checkedPatternIds(requiredPatternIds);
-        totalEnergyMicroAe = requireNonNegative(
-                totalEnergyMicroAe, "totalEnergyMicroAe");
-        totalCoolant = requireNonNegative(totalCoolant, "totalCoolant");
+        craftingSteps = checkedCraftingSteps(
+                craftingSteps,
+                requiredPatternIds,
+                logicalStageCount);
         programFingerprint = Objects.requireNonNull(
                         programFingerprint, "programFingerprint")
                 .trim();
@@ -99,6 +99,57 @@ public record PreparedVectorBatch(
             }
         }
         return List.copyOf(ids);
+    }
+
+    private static List<ExactCraftingStep> checkedCraftingSteps(
+            List<ExactCraftingStep> source,
+            List<String> requiredPatternIds,
+            int logicalStageCount) {
+        List<ExactCraftingStep> copy = List.copyOf(
+                Objects.requireNonNull(source, "craftingSteps"));
+        /*
+         * schema 1/2の保存ReceiptにはStep係数がない。
+         * 復号だけは許可し、Executorが安全に隔離できる実行不能状態として運ぶ。
+         */
+        if (copy.isEmpty()) {
+            return List.of();
+        }
+        if (copy.size() != requiredPatternIds.size()) {
+            throw new IllegalArgumentException(
+                    "craftingSteps do not match requiredPatternIds");
+        }
+        Set<String> ids = new LinkedHashSet<>();
+        int previousDepth = Integer.MAX_VALUE;
+        for (ExactCraftingStep step : copy) {
+            ExactCraftingStep checked = Objects.requireNonNull(
+                    step,
+                    "crafting step");
+            /*
+             * 材料側から完成品側へ処理するため、深度は降順でなければならない。
+             * 同じ深度の独立Stepは入力順を維持する。
+             */
+            if (!ids.add(checked.patternId())
+                    || checked.depth() > previousDepth
+                    || checked.depth() > logicalStageCount) {
+                throw new IllegalArgumentException(
+                        "craftingSteps are duplicated or out of dependency order");
+            }
+            previousDepth = checked.depth();
+        }
+        if (!ids.equals(new LinkedHashSet<>(requiredPatternIds))) {
+            throw new IllegalArgumentException(
+                    "craftingSteps reference another pattern set");
+        }
+        /*
+         * 実行列は最長依存経路の材料側から始まり、最終成果物側の深度1で終わる。
+         * この対応が崩れると実Thread進捗と表示段数が一致しないため拒否する。
+         */
+        if (copy.get(0).depth() != logicalStageCount
+                || copy.get(copy.size() - 1).depth() != 1) {
+            throw new IllegalArgumentException(
+                    "craftingSteps do not cover the logical critical path");
+        }
+        return copy;
     }
 
     private static BigInteger requirePositive(BigInteger value, String name) {

@@ -4,218 +4,185 @@
   <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
 </p>
 
-[![Build](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml/badge.svg)](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml)
-[![License: LGPL-3.0-only](https://img.shields.io/badge/License-LGPL--3.0--only-blue.svg)](LICENSE)
-
 [English](README.md) | 日本語
 
-AE2 Crafting Optimizer（ACO）は、Minecraft Forge 1.20.1向けのApplied Energistics 2最適化MODです。
+AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのForge
+1.20.1最適化・連携MODです。重複するクラフト計算を減らし、巨大CPUの一tick
+負荷を制御し、数量に比例しない作業台クラフト取引を提供します。
 
-巨大自動クラフトCPUが1 tickに行うパターン投入を制御し、同一計算やパターン検索の再走査を減らし、Pattern ProviderからGTCEu/Mekanism機械へ渡されたレシピ意図を短時間だけ再利用します。レシピ、クラフト可否、ストレージの増減、CPU容量や表示上の並列数は変更しません。
+通常のレシピ、Provider、クラフトJob、ストレージの正本はAE2です。深い経路は、
+入力へ触る前に会計全体を証明できた場合だけ使います。
 
 ## 対象環境
 
-- Minecraft 1.20.1
-- Forge 47.4.18以上
-- Java 17
-- Applied Energistics 2 15.4.10（15.4.x）
-- 専用サーバー / シングルプレイ
-- 任意連携: GTCEu Modern、Mekanism、Applied Mekanistics 1.4.3、Neo ECO AE Extension 20.3.x、AppliedE 0.14.3、AppliedE TPS Fix 0.14.7-fix2
-- 共存対象: Advanced AE、Advanced Quantum Engineering、ExtendedAE、EMI、JEI、KubeJS、Arclight
+- Minecraft `1.20.1`
+- Forge `47.4.18+`
+- Java `17`
+- Applied Energistics 2 `15.4.10`
+- Advanced AE `1.3.5-1.20.1`（任意）
+- Neo ECO AE Extension `20.3.x`（任意）
+- GTCEu Modern `7.5.3`（任意）
+- Mekanism `10.4.16`（任意）
+- Applied Mekanistics `1.4.3`（任意）
+- 専用サーバー、シングルプレイ、通常Forge MODとしてのArclight
 
-ACOはAE2内部へMixinするため、別のAE2系列や未検証バージョンとの互換性は保証しません。サーバーと全クライアントへ同じJARを導入してください。
-
-1.2.2では、Import/Export Bus、IO Port、端末クラフト可能一覧、旧トランザクション実行など、可変ストレージへ触れる独自Mixinを撤去しました。これらの互換Configキーを`true`にしても再有効化されません。
-
-開発版`1.5.4`は、記載した依存関係でビルドと自動テストを完了した
-P0-P8実装版です。起動、復旧、マルチプレイ、長時間ワールド試験は
-運用者が行うP9です。AQE専用のBigInteger計画・実行プロファイルはAdvanced AEと
-Advanced Quantum Engineeringの両方が存在する時だけ既定で有効になります。
-一般クラフトの計画置換、ネイティブ一括処理、公平スケジューラなどは既定で無効のため、
-実運用で有効化する前にコピーしたワールドで復旧試験を行ってください。
-
-## 実験的クラフトエンジン
-
-開発ツリーには、checked longからoverflow時だけBigIntegerへ昇格するコンパイル済み
-クラフトグラフ、永続受領票付きGTCEu/Mekanismネイティブ一括処理、公平な複数ジョブ
-スケジューラ、バージョン付きBigInteger CPUホストAPI、ページ分割ステータス同期まで
-実装されています。
-AQE専用プロファイルでは、コンパイル済みグラフ、Shadow観測、checked演算、
-wide容量計画、BigInteger実行窓だけが既定で有効です。一般クラフトの計画置換、
-V2一括処理、公平スケジューラは既定で無効です。対応MODがなければAQE専用処理は
-発生しません。設計、NBT、復旧条件、試験項目は
-[Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md)を参照してください。
-
-BigInteger機能は通常AE2やAdvanced AEのCPUを自動改変しません。
-`BigCraftingEngineApi` v3をCPU追加MODが明示的に所有する方式で、AQE 2.1.2は
-最初の任意利用者です。巨大値は
-BigIntegerのまま保存・会計し、既存機械へは上限付きのlong/int実行窓だけを渡します。
-設定したbit上限は、完成ジョブだけでなくPlannerの中間加算・乗算、NBT読込、Packet読込にも
-適用されます。実験マスターはAE2 `15.4.10`へfail-fast固定され、Advanced AEおよび
-GTCEu/Mekanism連携も文書に記載した実測対象バージョンだけを受け付けます。
-
-## longルート注文
-
-AE2 15.4.10のクラフト計算APIは`long`量を受け取れますが、数量入力画面、
-確認Packet、確認Menuは`int`に制限されています。
-`enableLongRootCraftAmounts = true`では、この入力境界だけを次のように拡張します。
-
-- `1`から`Integer.MAX_VALUE`まではAE2本来の
-  `ConfirmAutoCraftPacket(int, ...)`とMenu処理をそのまま使用
-- `Integer.MAX_VALUE + 1`から`Long.MAX_VALUE`まではACO専用Packetと
-  Menuのlong Sidecarを使用
-- サーバー側で現在のMenu型とcontainer IDを再確認してから、
-  AE2本来の`beginCraftingCalculation(..., long, ...)`を呼出し
-- `=`による在庫差引き、Shift Auto Start、再計算、キャンセル、戻る操作を維持
-- signed long範囲外の値は折返さず拒否
-
-これは通常AE2 CPUの容量を増やす機能でも、BigIntegerのGUI入力でもありません。
-実際の計画を受理できる容量と実行処理は、明示連携したAQE Hostなど対応CPU側が担当します。
-
-## Exact Vector Crafting Engine
-
-Exact Vector API v1は、厳密に決定的な通常作業台クラフトDAGを一つの永続
-Transactionへ縮約します。注文数量は検査付き`BigInteger`演算の桁数にだけ影響し、
-数量回のループ、Pattern Push、Worker、子Job、long実行窓を作りません。
-
-- AdvancedAE/AQE標準Jobは`HOST_ESCROWED`を使います。ACOがCPU在庫から境界入力を
-  AEKeyごとに一度だけ預かり、AACは論理実行Receiptだけを所有し、完了時のTask・
-  waiting output・Requester会計はACOがAdvancedAE本来の経路へ反映します。
-- AQE BigInteger親Jobは`NETWORK_STORAGE`を使います。対応ExecutorがACOの正確在庫APIで
-  境界入力と最終出力をAEKeyごとに一度だけ移転します。現在の正確BigInteger
-  ネットワーク在庫実装は、調査済みExtendedAE Plus Infinity BigInteger Cellです。
-  明示的な`ExactVectorStoragePolicy`を持つRegistry BigInteger Cell派生実装も同じ
-  正確数量経路を使用します。
-
-論理作業量は最長依存経路の段数×`ticksPerLogicalStage`です。Executorは一段ごとに
-server tickを固定待機せず、Grid共有予算から空いている連続段を取得します。予算・電力・
-在庫に余裕があれば、20段階は1個、1,000個、`Long.MAX_VALUE`、対応範囲のBigInteger
-注文のいずれも同じserver tick内で完了できます。soft時間予算へ達した場合だけ残りを
-次tickへ送り、電力不足時は一段へ縮小するか所有権を保持したまま停止します。
-
-固定された通常のshaped/shapelessレシピだけを対象にし、Processing Pattern、代替素材、
-Fuzzy、NBT変化、耐久値、確率出力、循環、不確定なRemaining Itemは開始前に通常経路へ
-戻します。入力所有権移転後は通常経路へ戻さず、永続Receiptから復旧するか隔離します。
-
-既存のCompiled Crafting Islandsは互換用の別経路として残り、Exact Vectorは
-`enableCompiledCraftingIslands`には依存しません。
-
-Processing Patternを含むJobでは、機械部分を島の境界として扱います。機械前の固定作業台
-クラフト島を入力が揃った時点で一括処理し、GTCEu/Mekanismなどの実加工中はAE2本来の
-完了を待ちます。機械出力がCPUへ戻った時点で後続の固定作業台島を再開し、外部機械の
-処理時間や結果をACOが捏造することはありません。
-
-## 主な機能
-
-- 同じネットワーク・要求元・出力・個数・計算方式の重複クラフト計算を一本化
-- 欠品/シミュレーション結果だけを短時間再利用する完了計画キャッシュ
-- パターン検索キャッシュおよび構造変更時の無効化
-- 巨大CPUの1 tickあたりパターン投入予算と適応制御
-- 標準AE2、Advanced AE、Neo ECO AEのCPUが使う投入予算の制御
-- Pattern Providerが押し出した入出力をGTCEu/Mekanismの候補検索に使うレシピ意図ブリッジ
-- GT入力バス/ハッチとマルチブロックコントローラの位置差を補う空間索引、および実投入物＋期待出力による候補優先
-- AdvancedAE反応室の重複レシピ検索と、AE2 Overclockランタイムヘルパーの反射・MethodHandle・同一tickカード数キャッシュ
-- ExtendedAE組立マトリックスのスレッド集計・稼働数集計・Crafter経路・同一tick状態通知のキャッシュ
-- クラフト計算内メモ、Provider内容世代、回路スライサー負結果を含む非破壊のAE2-UEL/GTNH型最適化
-- PATなどAE2端末でmouse-upが欠落した時に、スクロールのPage Up/Down反復を物理ボタン状態から停止する安全弁
-- 既存int注文を変更せず、`Long.MAX_VALUE`までを直接入力できるlongルート注文経路
-- 遅いクラフト計算の診断ログ
-
-AE2が最終的なクラフト計算、ジョブ投入、ストレージ操作を担当し続けます。ACOの高速経路が候補を確定できない場合は元のAE2・機械MOD処理へ戻ります。
-
-アドオン機械最適化は新規Configで既定有効ですが、`[addonMachineOptimizations]`以下から個別に無効化できます。反応室・回路スライサーの処理waveや搬入出、組立マトリックスの構造判定・8本の実クラフトスレッドは間引きません。
-
-AE2 Overclock自身のランタイムヘルパーに対する反射・MethodHandle・カード数キャッシュは有効です。一方、AE2 OverclockのMixinが機械へ追加するメソッドへの二重注入だけはForge 1.20.1で安全に適用できないため無効化しています。AE2 Overclock本体の処理は変更しません。
-
-`[uelOptimizations]`の有効な項目も個別に無効化できます。1.2.2ではImport/Export Bus、IO Port、Capability、ストレージシミュレーション用Mixinを登録せず、搬入出とロールバックをAE2本体だけに任せます。回路スライサーの候補は引き続きExtendedAE本体の`testRecipe`を通過した場合だけ使用します。
-
-Capabilityキャッシュは、同一tick・tick跨ぎの両方とも1.2.2では
-Mixin未登録の互換No-opです。端末の非同期検索・ソートは既定OFFで、
-Minecraft表示APIをワーカーから呼ばず、クライアントスレッドで作った
-不変データだけを非同期処理し、古い世代の結果を破棄します。
-
-Neo ECO AE Extension 20.3.xが存在する場合、ACOは独自ECO CPUの通常投入上限とFastPath上限を既存のCPU別適応予算・MEグリッド共有予算へ接続します。Neo ECO本体のバッチ処理、Aggressive FastPath、レシピ、容量、表示性能、クラフト会計は置き換えません。Neo ECOが無い環境では対象Mixinは適用されません。
-
-AppliedEまたはAppliedE TPS Fixが存在する場合、ACOはEMC Moduleを動的Providerとして扱います。同一tickの重複通知だけをまとめ、最終更新は必ずAE2へ渡します。`TransmutationPattern`は数式型Plannerへ取り込まず、AppliedEがAE2のクラフト木内で行う注文量専用Patternの生成・削除を維持します。EMCの増減、知識判定、アイテム生成はAppliedEが担当し続けます。
-
-## トランザクション型バッチAPI
-
-1.2.0/1.2.1のAPIとConfigキーは互換性のため残っていますが、1.2.2ではCPU実行Mixinを登録していないため動作しません。
-
-開発ツリーには、CPU・ターゲット・ワールドジャーナルのNBTを使う別系統のV2を実装しています。これは新しいマスターと子スイッチがすべて既定OFFで、現行1.2.2の有効機能ではありません。詳細は[Experimental Crafting Engine](docs/EXPERIMENTAL_ENGINE.md)を参照してください。
-
-## 既定で無効な機能
-
-次の機能は影響範囲が広いため、新規生成Configでは無効です。
-
-- 二段階欠品プレビュー
-- 決定論的な欠品早期終了
-- Grid Tickの遅延予算（1.2.2ではMixin未登録）
-- Import/Export Busの操作回数上限（1.2.2ではMixin未登録）
-- 失敗したExport Bus自動要求のクールダウン
-- 在庫量によるパターン候補順の変更
-- Export Busのfuzzy検索キャッシュ（1.2.2ではMixin未登録）
-- 成功したクラフト計画の再利用
-- Create用レシピ意図高速経路（予約項目）
-- Pattern Providerの旧集約挿入設定（互換キーだけ残り、常に無効）
-- Capabilityキャッシュ（1.2.2ではMixin未登録）
-- 端末の世代付き非同期検索・ソート
-- 端末在庫スナップショットの再利用
-- 端末クラフト可能一覧の短期キャッシュ
-- 端末表示更新の同一tick集約と範囲分割
-
-設定ごとの既定値と危険度は[Config解説](docs/CONFIGURATION.md)を参照してください。
-
-## 導入
-
-1. Forge 1.20.1、AE2 15.4.10、ACOをサーバーと全クライアントへ導入します。
-2. 一度ワールドを起動してConfigを生成します。
-3. 必要に応じて次のファイルを編集し、サーバーを再起動します。
+サーバーと全クライアントへ同じJARを導入してください。共通Configは次です。
 
 ```text
 config/ae2_crafting_optimizer-common.toml
 ```
 
-旧`defaultconfigs`とワールド別`serverconfig`は読みません。既存の共通Configは
-過去の値を保持し、READMEの既定値へ自動的に戻るわけではありません。
-変更前にワールドをバックアップしてください。
+## 主な最適化
+
+### クラフト計算
+
+- Provider・レシピ世代単位のCompiled Pattern Graph
+- 一計算内の在庫・候補メモ化
+- 厳密に証明できる材料不足の高速判定
+- `add`、`multiply`、`ceilDiv`のオーバーフロー検査
+- `long`優先と、overflow時だけの`BigInteger`昇格
+- 世代変更時の古い計算結果破棄
+
+代替素材、循環、動的出力、不明な返却物などを完全に証明できなければ、
+ストレージへ触る前にAE2へ戻します。
+
+### CPU実行
+
+- CPU単位・Grid単位のPattern Push時間予算
+- 巨大コプロセッサ数向けの適応上限
+- AE2本来の抽出・Provider・電力・Task・出力会計を保つSequential Instant
+- 対応Adapter向けの永続Transactional Batch
+
+表示上のCPU容量やコプロセッサ数は減らしません。一tickに開始できる仕事量だけを
+実測時間で制御します。
+
+### 機械Recipe Intent
+
+Pattern Providerが指定したレシピ意図を保持し、GTCEuやMekanismが毎tick同じ
+レシピを総当たりする回数を減らします。電圧、条件、電力、Tank、出力容量などの
+最終判定は各機械MODが行います。
+
+## 物理クラフトツリー
+
+旧来の「ツリー全体を直接最終成果物へ変換する経路」は削除しました。現在は、
+厳密な作業台クラフトをレシピ一段ずつ実設備で処理します。
+
+設計は次の長所を組み合わせています。
+
+- [InsaneAE](https://github.com/taikun24/InsaneAE):
+  一回だけ実クラフトし、証明済み式へ正確な係数を掛ける
+- Neo ECO AE Extension:
+  Pattern Bus、Worker、Thread、実進捗、実電力、構造、NBT復旧
+
+### 実行順
+
+1. 現在のProvider・レシピ世代から決定的なPattern DAGを一度だけコンパイル
+2. 境界入力、slot入力、各段の実行係数、最終出力、固定返却物を正確に計算
+3. MEの全境界入力を一括でACO所有Escrowへ予約
+4. Escrowに全入力があるレシピ段だけ実行可能
+5. AACが実NeoECO Workerでエンコード済みレシピを一回assemble
+6. 一回分の実入出力へ`BigInteger`係数を掛ける
+7. Workerの永続Receiptから実出力をEscrowへ追加
+8. その後だけ依存する次段を解禁
+9. 最終成果物もEscrowからMEへ返却
+10. ME挿入完了後だけ親CPU Jobを完了
+
+20段直列レシピは、注文が`1`でも`Long.MAX_VALUE`でも対応範囲の
+`BigInteger`でも20物理段です。独立した枝は複数Workerへ並列配置できます。
+計算量は注文数量ではなく固有レシピ数と境界キー数に比例します。
+
+### 所有権と復旧
+
+- ACO: Plan、Escrow、正確なME変更、親Job会計、取消、復旧判断
+- AAC: NeoECO物理AdapterとWorker Receiptのみ
+- ME変更前にキーごとの正確なbefore/afterを保存
+- 再起動後、after済みキーは再実行せずbeforeのキーだけ再試行
+- WorkerはThread解放より先に終端Receiptを同じBlock Entity NBTへ保存
+- ACOは実出力を一度だけ会計し、後からReceipt削除を明示要求
+- タグ・代替素材はPlannerが選んだ具体キーを保存し、再起動後も同じ選択だけを再検証
+- 解決済み一回分レシピ式はProvider・Recipe世代が変わるまで配列から再利用
+- AACはTransaction UUIDからWorker・Threadを直接引き、再起動後だけ一度索引を再構築
+- before/afterのどちらにも一致しない値は推測せず隔離
+
+Fallbackできるのは入力所有権の移動前だけです。移動後は再開、正確な取消返却、
+または隔離のいずれかになります。
+
+### 対象レシピ
+
+- AE2 Molecular Assembler対応Pattern
+- slotごとの決定済み入力
+- Pattern宣言と一致する一回の実assemble出力
+- 固定返却物
+- 循環がなく世代が一致するProducer Graph
+- 各段を所有する形成済みAAC/NeoECO設備
+
+Processing Patternは境界です。GTCEu、Mekanism、液体、Chemicalは本来の機械で
+処理され、下流作業台クラフトは実際の機械出力が戻るまで待ちます。
+
+## BigInteger境界
+
+ACOは任意連携用の版付きHost APIを提供します。通常AE2 CPUを勝手に
+BigInteger化しません。
+
+- 正確に収まる間は`long`
+- overflowした計算だけ`BigInteger`
+- 実装上限は`10^16384 - 1`
+- NBTは10進文字列ではなく正規byte array
+- `long`しか受け取れないAE2 APIに限り表示・互換Facadeを`Long.MAX_VALUE`へ飽和
+- 在庫、材料不足、Task進捗、Escrow、ReceiptはFacadeから逆算しない
+
+AQEは任意のHost連携、AACは任意の物理Executorです。ACO本体の必須依存では
+ありません。
+
+## 安全規則
+
+ACOは次を行いません。
+
+- Planから最終成果物を直接生成
+- 注文個数ぶんJava処理を反復
+- 正確な在庫・Task会計を暗黙に`long`へクランプ
+- 成否不明な外部変更を再実行
+- 入力受理後に通常経路へFallback
+- GTCEu/Mekanismのレシピ成立条件を書き換え
+- レシピやQuantum Computer構造ルールを変更
+- Bukkit、Paper、Spigot、Arclight APIを使用
+
+## 主な設定
+
+```toml
+[exactVectorCrafting]
+enabled = true
+enableAqeBigIntegerParents = true
+maximumPatternNodes = 1024
+maximumUniqueInputKeys = 128
+maximumUniqueOutputKeys = 128
+maximumStartsPerGridPerTick = 1
+maximumActiveStagesPerGridPerTick = 256
+maximumActiveTransactionsPerGrid = 4
+gridTimeBudgetMillis = 2
+logVectorDiagnostics = false
+```
+
+`exactVectorCrafting`という節名はConfig移行のため維持しています。実装は本項の
+物理クラフトツリーであり、削除済み直接Vector Executorを再有効化する設定では
+ありません。
+
+詳細は[Configuration](docs/CONFIGURATION.md)、
+[Feature ownership](docs/FEATURE_OWNERSHIP.md)、
+[Implementation](docs/IMPLEMENTATION.md)、
+[Testing](docs/TESTING.md)を参照してください。
 
 ## ビルド
 
-Java 17で実行します。ローカルのPrism Launcherや`mods`フォルダは不要です。
-
-```bat
-gradlew.bat clean build
+```powershell
+.\gradlew.bat clean build --no-daemon
 ```
 
-生成物:
+生成JARは`build/libs`へ出力されます。
 
-```text
-build/libs/ae2-crafting-optimizer-1.5.4.jar
-```
+## ライセンス
 
-`-dev`は安定版JARとの取り違えを防ぐための開発用接尾辞です。このJARは
-実行環境へ自動配置されません。
+`LGPL-3.0-only`
 
-ForgeはForge Maven、AE2 15.4.10はModMaven、任意連携のシグネチャ検証用Neo ECO 20.3.0はCurseMavenから`compileOnly`で取得します。Neo ECO本体は生成JARへ同梱されません。GitHub Actionsも同じクリーンビルドを実行します。
-
-## ドキュメント
-
-- [英語版の全機能・全Config](README.md)
-- [実験エンジン・BigInteger API・実働試験](docs/EXPERIMENTAL_ENGINE.md)
-- [Configと安全区分](docs/CONFIGURATION.md)
-- [実装詳細](docs/IMPLEMENTATION.md)
-- [試験手順](docs/TESTING.md)
-- [公開手順](docs/PUBLISHING.md)
-- [CurseForge投稿用説明（英語・日本語）](docs/CURSEFORGE_DESCRIPTION.md)
-- [変更履歴](CHANGELOG.md)
-
-## ライセンスと報告先
-
-ACOのソースコードは[GNU Lesser General Public License v3.0 only](LICENSE)（`LGPL-3.0-only`）です。
-
-設計調査では、LGPL v3で公開されているAE2 1.20.1とAE2-UEL 1.12.xの挙動・Issue上の議論を参考にしています。これらのソースやアセットはACOへ同梱していません。由来と帰属は[NOTICE.md](NOTICE.md)に記載しています。
-
-AE2、Advanced AE、GTCEu、Mekanismなどの依存MOD本体やリソースは同梱しません。
-
-ACO使用時だけ発生する問題を、再現確認なしでAE2や連携先MODの作者へ報告しないでください。まずACOを外した状態でも再現するか確認し、本リポジトリのIssueへログ、設定、再現手順を添えて報告してください。
+ACO固有の問題はまず本プロジェクトへ報告してください。ACOなしで再現していない
+問題をAE2や依存MODの作者へ直接報告しないでください。

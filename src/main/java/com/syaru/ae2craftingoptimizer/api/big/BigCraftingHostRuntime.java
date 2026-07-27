@@ -241,6 +241,42 @@ public final class BigCraftingHostRuntime<K> {
                 jobId, transactionId, executorId, planFingerprint);
     }
 
+    /** ACO所有の実作業台Tree状態を含めて親Leaseを保存する。 */
+    public synchronized BigCraftingRuntime.VectorExecutionLease<K>
+            prepareVector(
+                    UUID jobId,
+                    UUID transactionId,
+                    String executorId,
+                    String planFingerprint,
+                    CompoundTag executionState,
+                    int progressNumerator,
+                    int progressDenominator) {
+        return bigRuntime.prepareVector(
+                jobId,
+                transactionId,
+                executorId,
+                planFingerprint,
+                executionState,
+                progressNumerator,
+                progressDenominator);
+    }
+
+    /** 同じ親Leaseの実作業台Tree状態と表示専用進捗だけを更新する。 */
+    public synchronized BigCraftingRuntime.VectorExecutionLease<K>
+            updateVector(
+                    UUID jobId,
+                    UUID transactionId,
+                    CompoundTag executionState,
+                    int progressNumerator,
+                    int progressDenominator) {
+        return bigRuntime.updateVector(
+                jobId,
+                transactionId,
+                executionState,
+                progressNumerator,
+                progressDenominator);
+    }
+
     /** 設備のACCOUNTING Receiptと一致したVector親Jobを確定する。 */
     public synchronized void commitVector(
             UUID jobId,

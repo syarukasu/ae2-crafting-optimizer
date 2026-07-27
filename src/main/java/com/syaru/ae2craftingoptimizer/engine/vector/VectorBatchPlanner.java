@@ -2,6 +2,8 @@ package com.syaru.ae2craftingoptimizer.engine.vector;
 
 import appeng.api.stacks.AEKey;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactStack;
+import com.syaru.ae2craftingoptimizer.api.vector.ExactCraftingInputSlot;
+import com.syaru.ae2craftingoptimizer.api.vector.ExactCraftingStep;
 import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatch;
 import com.syaru.ae2craftingoptimizer.api.vector.VectorResourceMode;
 import com.syaru.ae2craftingoptimizer.engine.CompiledRootProgram;
@@ -24,9 +26,6 @@ public final class VectorBatchPlanner {
             CompiledRootProgram<AEKey> program,
             CompiledRootProgram.BigInventorySnapshot<AEKey> inventory,
             BigInteger requestedAmount,
-            int ticksPerLogicalStage,
-            BigInteger energyMicroAePerPatternNode,
-            BigInteger totalCoolant,
             String programFingerprint,
             long patternGeneration,
             long recipeGeneration,
@@ -37,9 +36,6 @@ public final class VectorBatchPlanner {
                 program,
                 inventory,
                 requestedAmount,
-                ticksPerLogicalStage,
-                energyMicroAePerPatternNode,
-                totalCoolant,
                 programFingerprint,
                 patternGeneration,
                 recipeGeneration,
@@ -53,9 +49,6 @@ public final class VectorBatchPlanner {
             CompiledRootProgram<AEKey> program,
             CompiledRootProgram.BigInventorySnapshot<AEKey> inventory,
             BigInteger requestedAmount,
-            int ticksPerLogicalStage,
-            BigInteger energyMicroAePerPatternNode,
-            BigInteger totalCoolant,
             String programFingerprint,
             long patternGeneration,
             long recipeGeneration,
@@ -65,20 +58,8 @@ public final class VectorBatchPlanner {
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(requestedAmount, "requestedAmount");
         Objects.requireNonNull(
-                energyMicroAePerPatternNode,
-                "energyMicroAePerPatternNode");
-        Objects.requireNonNull(
-                totalCoolant,
-                "totalCoolant");
-        Objects.requireNonNull(
                 fingerprintFactory,
                 "fingerprintFactory");
-        // 時間は正数、設備資源は非負数だけを数式計画へ入れる。
-        if (ticksPerLogicalStage <= 0
-                || energyMicroAePerPatternNode.signum() < 0
-                || totalCoolant.signum() < 0) {
-            throw new IllegalArgumentException("invalid vector timing or resource cost");
-        }
 
         CompiledRootProgram.DeterministicCraftingBigPlan<AEKey> deterministic =
                 program.tryPlanDeterministicCraftingBig(
@@ -123,17 +104,22 @@ public final class VectorBatchPlanner {
             throw new IllegalArgumentException(
                     "deterministic vector plan has no logical stages");
         }
-        int durationTicks = Math.multiplyExact(stages, ticksPerLogicalStage);
-        /*
-         * 数量は数式上の係数であり、物理的なPattern処理回数ではない。
-         * 電力も固有Patternノード数だけで決め、巨大注文を線形コストへ戻さない。
-         */
-        BigInteger totalEnergy = VectorEnergyCost.forPatternNodes(
-                deterministic.requiredPatternIds().size(),
-                energyMicroAePerPatternNode,
-                maximumBits);
         List<ExactStack> inputs = exactStacks(boundaryInputs);
         List<ExactStack> remainingOutputs = exactStacks(remaining);
+        List<ExactCraftingStep> craftingSteps =
+                deterministic.patternSteps().stream()
+                        .map(step -> new ExactCraftingStep(
+                                step.patternId(),
+                                step.depth(),
+                                step.executions(),
+                                step.selectedInputs()
+                                        .stream()
+                                        .map(input ->
+                                                new ExactCraftingInputSlot(
+                                                        input.key(),
+                                                        input.amount()))
+                                        .toList()))
+                        .toList();
         String transactionFingerprint = fingerprintFactory.create(
                 programFingerprint,
                 requestedAmount,
@@ -148,13 +134,11 @@ public final class VectorBatchPlanner {
                 requestedAmount,
                 deterministic.logicalExecutions(),
                 stages,
-                durationTicks,
                 inputs,
                 finalOutputs,
                 remainingOutputs,
                 deterministic.requiredPatternIds(),
-                totalEnergy,
-                totalCoolant,
+                craftingSteps,
                 transactionFingerprint,
                 patternGeneration,
                 recipeGeneration);

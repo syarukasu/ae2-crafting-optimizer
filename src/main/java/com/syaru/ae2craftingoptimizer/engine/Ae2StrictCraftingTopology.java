@@ -8,15 +8,18 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Compiled Root ProgramがAE2標準結果と一致するための、実MOD API側の追加証明。
- * タグ候補、複数Pattern、返却物、触媒、循環、ファジー候補を完全に排除できない場合は生成しない。
+ * Patternに明示されたタグ候補は全件照合し、列挙外候補、複数Pattern、返却物、
+ * 触媒、循環、動的ファジー候補を完全に排除できない場合は生成しない。
  */
 final class Ae2StrictCraftingTopology {
     private final CompiledRootProgram<AEKey> program;
@@ -100,37 +103,101 @@ final class Ae2StrictCraftingTopology {
                 return null;
             }
 
-            // slotごとの候補、キー、量、ファジー在庫、ファジーPatternを厳密に照合する。
+            // slotごとの全候補、キー、量、ファジー在庫、ファジーPatternを厳密に照合する。
             for (int slot = 0; slot < details.getInputs().length; slot++) {
                 CompiledPattern.InputSlot<AEKey> compiledInput = pattern.inputs().get(slot);
                 IPatternDetails.IInput realInput = details.getInputs()[slot];
-                // 複数候補を一つへ決め打ちすると在庫利用結果が変わるため、必ずFallbackする。
-                if (compiledInput.alternatives().size() != 1
-                        || realInput.getPossibleInputs().length != 1) {
+                var realAlternatives = realInput.getPossibleInputs();
+                int compiledAlternatives =
+                        program.inputAlternativeCountAt(
+                                node,
+                                slot);
+                /*
+                 * Compiled Graph、配列Program、実Patternの候補件数が一致しない場合は、
+                 * Plannerの選択結果を物理assembleへ安全に渡せない。
+                 */
+                if (compiledInput.alternatives().size()
+                                != realAlternatives.length
+                        || compiledAlternatives
+                                != realAlternatives.length) {
                     return null;
                 }
-                CompiledPattern.Stack<AEKey> compiledStack = compiledInput.alternatives().get(0);
-                AEKey expectedKey = program.inputKeyAt(node, slot);
-                // 平坦化前後でキーまたは一回入力量が異なるProgramは採用しない。
-                if (!compiledStack.key().equals(expectedKey)
-                        || compiledStack.amount() != program.inputAmountAt(node, slot)) {
-                    return null;
-                }
-                // 実Patternが期待キーを受け付けない場合は、コンパイル結果が不正なのでFallbackする。
-                if (!realInput.isValid(expectedKey, level)) {
-                    return null;
-                }
-                // 完全一致Patternがない入力で別のファジーcraftableが見つかる場合もAE2へ戻す。
-                if (service.getCraftingFor(expectedKey).isEmpty()) {
-                    AEKey fuzzy = service.getFuzzyCraftable(
-                            expectedKey,
-                            candidate -> realInput.isValid(candidate, level));
-                    // 期待キー以外のPattern候補が存在すれば選択順を証明できない。
-                    if (fuzzy != null && !fuzzy.equals(expectedKey)) {
+                Set<AEKey> expectedKeys =
+                        new LinkedHashSet<>(
+                                realAlternatives.length);
+                // 実Patternが列挙した候補順で、三つの表現が完全一致することを証明する。
+                for (int alternative = 0;
+                        alternative
+                                < realAlternatives.length;
+                        alternative++) {
+                    CompiledPattern.Stack<AEKey> compiledStack =
+                            compiledInput.alternatives()
+                                    .get(alternative);
+                    var realStack =
+                            realAlternatives[alternative];
+                    AEKey expectedKey =
+                            program.inputAlternativeKeyAt(
+                                    node,
+                                    slot,
+                                    alternative);
+                    long expectedAmount =
+                            program.inputAlternativeAmountAt(
+                                    node,
+                                    slot,
+                                    alternative);
+                    long realAmount;
+                    try {
+                        realAmount = Math.multiplyExact(
+                                realStack.amount(),
+                                realInput.getMultiplier());
+                    } catch (ArithmeticException overflow) {
+                        return null;
+                    }
+                    /*
+                     * キー、係数、PatternのisValidが一つでも違えば、
+                     * 古いProgramまたは非決定的入力としてFallbackする。
+                     */
+                    if (!compiledStack.key()
+                                    .equals(expectedKey)
+                            || compiledStack.amount()
+                                    != expectedAmount
+                            || !realStack.what()
+                                    .equals(expectedKey)
+                            || realAmount
+                                    != expectedAmount
+                            || !realInput.isValid(
+                                    expectedKey,
+                                    level)
+                            || !expectedKeys.add(
+                                    expectedKey)) {
                         return null;
                     }
                 }
-                proofs.add(new InputProof(expectedKey, realInput, level));
+                // 列挙外のファジーPatternが選ばれ得る場合は、候補集合を完全証明できない。
+                for (AEKey expectedKey :
+                        expectedKeys) {
+                    if (service.getCraftingFor(
+                                    expectedKey)
+                            .isEmpty()) {
+                        AEKey fuzzy =
+                                service.getFuzzyCraftable(
+                                        expectedKey,
+                                        candidate ->
+                                                realInput.isValid(
+                                                        candidate,
+                                                        level));
+                        // 明示候補集合にないPatternをAE2が選べる場合は高速経路へ入れない。
+                        if (fuzzy != null
+                                && !expectedKeys.contains(
+                                        fuzzy)) {
+                            return null;
+                        }
+                    }
+                }
+                proofs.add(new InputProof(
+                        expectedKeys,
+                        realInput,
+                        level));
             }
         }
         return new Ae2StrictCraftingTopology(program, proofs);
@@ -168,15 +235,25 @@ final class Ae2StrictCraftingTopology {
 
     private static boolean hasFuzzyInventoryAlternative(
             KeyCounter inventory,
-            AEKey expected,
+            Set<AEKey> expected,
             IPatternDetails.IInput input,
             Level level) {
-        // KeyCounterのprimary-key索引を使い、無関係なME在庫全体は走査しない。
-        for (var candidateEntry : inventory.findFuzzy(expected, FuzzyMode.IGNORE_ALL)) {
-            AEKey candidate = candidateEntry.getKey();
-            // 完全一致以外の有効候補だけを曖昧性として扱う。
-            if (!candidate.equals(expected) && input.isValid(candidate, level)) {
-                return true;
+        // 明示候補ごとのprimary-key bucketだけを調べ、無関係なME在庫全体は走査しない。
+        for (AEKey anchor :
+                expected) {
+            for (var candidateEntry :
+                    inventory.findFuzzy(
+                            anchor,
+                            FuzzyMode.IGNORE_ALL)) {
+                AEKey candidate =
+                        candidateEntry.getKey();
+                // 列挙外かつ有効な候補だけを、Planner結果を変え得る曖昧性として扱う。
+                if (!expected.contains(candidate)
+                        && input.isValid(
+                                candidate,
+                                level)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -213,13 +290,21 @@ final class Ae2StrictCraftingTopology {
     }
 
     private record InputProof(
-            AEKey expected,
+            Set<AEKey> expected,
             IPatternDetails.IInput input,
             Level level) {
         private InputProof {
-            Objects.requireNonNull(expected, "expected");
+            expected = Set.copyOf(
+                    Objects.requireNonNull(
+                            expected,
+                            "expected"));
             Objects.requireNonNull(input, "input");
             Objects.requireNonNull(level, "level");
+            // 空候補集合ではPattern slotを再検証できないため構築を拒否する。
+            if (expected.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "input proof must contain candidates");
+            }
         }
     }
 }
