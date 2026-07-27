@@ -465,6 +465,11 @@ intermediates, and emits only net boundary inputs, final output, and fixed
 remaining output. Its loops are over Pattern nodes, input slots, and distinct
 keys; no loop uses requested quantity as a bound.
 
+When a root's full recipe expansion requires wide arithmetic, ACO keeps its
+authoritative plan even if exact BigInteger intermediate stock reduces the
+current order to signed-long counters. Returning that order to AE2's saturated
+`KeyCounter` view could select a different set of intermediate crafts.
+
 `VectorBatchPlanValidator` and `PreparedVectorBatchCodec` enforce:
 
 - the configured BigInteger bit and exact decimal ceilings;
@@ -497,6 +502,24 @@ The standard path is intentionally signed-long at the CPU inventory boundary.
 No amount is narrowed silently; any boundary that does not fit exactly falls
 back before extraction.
 
+The AdvancedAE status screen is not used as an accounting store. While a
+standard Exact Vector receipt is active, ACO derives each Pattern-output total
+from the immutable plan and projects it through
+`LongClampedProgressProjection`:
+
+- exact values at or below `Long.MAX_VALUE` retain their real display scale;
+- larger exact values use `Long.MAX_VALUE` as a display-only facade;
+- the facade decreases by logical display tick and reaches zero only at the
+  final tick;
+- `inventory`, `waitingFor`, `TaskProgress`, and the exact receipt are never
+  changed for animation.
+
+AAC may complete all logical work in one server tick. ACO advances the
+AdvancedAE facade by at most one logical tick per server tick and postpones only
+the final atomic accounting until the facade reaches its duration. A
+twenty-stage chain therefore exposes up to twenty visible changes while the
+actual conversion still remains quantity independent.
+
 AQE BigInteger parent jobs use `AqeBigCraftingExecutionManager` in
 `NETWORK_STORAGE` mode. A proven root is offered directly before a child window
 is created. A compatible executor owns the exact network input/output transfer,
@@ -526,12 +549,12 @@ the original BigInteger energy exactly.
 
 ### Compiled Crafting Islands
 
-`Ae2CraftingIslandCompiler` reads the already accepted live Job and admits only
-exact `AECraftingPattern` instances backed by ordinary vanilla
-`ShapedRecipe`/`ShapelessRecipe` implementations. It rejects substitutions,
-fluid substitution, multiple outputs, multiple candidates, remaining items,
-NBT/capability state, durability, duplicate producers, cycles, and invalid
-counts.
+`Ae2CraftingIslandCompiler` reads the already accepted live Job and admits
+`AECraftingPattern` instances whose public Pattern API proves one fixed item
+output and fixed item inputs. It rejects substitutions, fluid substitution,
+multiple outputs, multiple candidates, remaining items, NBT/capability state,
+durability, duplicate producers, cycles, and invalid counts. It does not infer
+fixed behavior again from the original vanilla or KubeJS recipe class.
 
 `CompiledCraftingIsland` builds producer/dependent adjacency once, detects
 cycles with iterative Kahn traversal, divides safe Patterns into connected

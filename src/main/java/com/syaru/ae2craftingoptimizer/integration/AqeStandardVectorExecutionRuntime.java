@@ -23,6 +23,7 @@ import com.syaru.ae2craftingoptimizer.api.vector.VectorTransactionStatus;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingIslandCompiler;
 import com.syaru.ae2craftingoptimizer.engine.CompiledCraftingIsland;
+import com.syaru.ae2craftingoptimizer.engine.vector.LongClampedProgressProjection;
 import com.syaru.ae2craftingoptimizer.engine.vector.VectorEnergyCost;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -51,6 +53,11 @@ public final class AqeStandardVectorExecutionRuntime {
 
     private AqeStandardVectorExecutionState state;
     private boolean requiresPostLoadValidation;
+    private Object lastRejectedJob;
+    private String lastRejectionReason = "";
+    private String preparationFailure = "";
+    private int displayActiveTick;
+    private boolean displayInstalled;
 
     /**
      * @return 同tickのAdvancedAE通常Pattern Pushを停止する場合true
@@ -59,6 +66,7 @@ public final class AqeStandardVectorExecutionRuntime {
         Objects.requireNonNull(host, "host");
         Object currentJob = host.aco$getStandardVectorJob();
         if (state == null) {
+            clearDisplayWithoutKeys(host);
             // 機能OFFまたはJobなしでは、AdvancedAE本来の実行へ完全に戻す。
             if (!ACOConfig.enableAqeStandardVectorJobs()
                     || currentJob == null) {
@@ -80,6 +88,7 @@ public final class AqeStandardVectorExecutionRuntime {
                     null);
             return true;
         }
+        ensureDisplayInstalled(host);
         if (!(currentJob instanceof CraftingIslandJobAccess jobAccess)) {
             quarantine(
                     host,
@@ -170,6 +179,7 @@ public final class AqeStandardVectorExecutionRuntime {
         if (!rollbackInputs(host)) {
             return true;
         }
+        clearDisplay(host, true);
         state = null;
         host.aco$markStandardVectorDirty();
         return false;
@@ -189,15 +199,41 @@ public final class AqeStandardVectorExecutionRuntime {
         if (!owner.contains(NBT_STATE, Tag.TAG_COMPOUND)) {
             state = null;
             requiresPostLoadValidation = false;
+            displayActiveTick = 0;
+            displayInstalled = false;
             return;
         }
         state = AqeStandardVectorExecutionState.load(
                 owner.getCompound(NBT_STATE));
         requiresPostLoadValidation = true;
+        displayActiveTick = 0;
+        displayInstalled = false;
     }
 
     public boolean hasUnresolvedState() {
         return state != null;
+    }
+
+    /**
+     * Advanced AEの状態画面だけへ返す、longクランプ済みTask残量。
+     */
+    public OptionalLong projectedPendingOutput(AEKey key) {
+        if (state == null
+                || !displayInstalled
+                || key == null) {
+            return OptionalLong.empty();
+        }
+        BigInteger exact =
+                state.displayPendingOutputs().get(key);
+        // Vector計画に含まれないキーはAdvanced AE本来のgetterへ戻す。
+        if (exact == null) {
+            return OptionalLong.empty();
+        }
+        return OptionalLong.of(
+                LongClampedProgressProjection.remaining(
+                        exact,
+                        displayActiveTick,
+                        state.plan().durationTicks()));
     }
 
     private boolean tryPrepare(
@@ -209,10 +245,12 @@ public final class AqeStandardVectorExecutionRuntime {
         }
         var prepared = preparePlan(host, jobAccess);
         if (prepared == null) {
+            logFallbackOnce(currentJob, preparationFailure);
             return false;
         }
         IGrid grid = host.aco$getStandardVectorCpu().getGrid();
         if (grid == null) {
+            logFallbackOnce(currentJob, "Advanced AE CPU is not connected to an ME Grid");
             return false;
         }
 
@@ -255,6 +293,9 @@ public final class AqeStandardVectorExecutionRuntime {
             selected = retryable;
         }
         if (selected == null) {
+            logFallbackOnce(
+                    currentJob,
+                    "no AAC Exact Vector executor accepted the deterministic plan");
             return false;
         }
         ExactVectorDiagnostics.planPrepared();
@@ -263,13 +304,26 @@ public final class AqeStandardVectorExecutionRuntime {
                 selected.identity().id(),
                 prepared.patternTasks(),
                 prepared.internalOutputs());
+        displayActiveTick = 0;
+        installDisplay(host, true);
+        lastRejectedJob = null;
+        lastRejectionReason = "";
         host.aco$markStandardVectorDirty();
+        if (ACOConfig.logExactVectorDiagnostics()) {
+            AE2CraftingOptimizer.LOGGER.info(
+                    "Prepared AQE standard Exact Vector job {}: {} logical execution(s), {} stage(s), executor {}",
+                    prepared.plan().transactionId(),
+                    prepared.plan().logicalExecutions(),
+                    prepared.plan().logicalStageCount(),
+                    selected.identity().id());
+        }
         return true;
     }
 
     private PreparedStandardExecution preparePlan(
             AqeStandardVectorHost host,
             CraftingIslandJobAccess jobAccess) {
+        preparationFailure = "unknown deterministic-plan rejection";
         GenericStack finalOutput = jobAccess.aco$getIslandFinalOutput();
         long remainingAmount = jobAccess.aco$getIslandRemainingAmount();
         Level level = host.aco$getStandardVectorCpu().getLevel();
@@ -285,7 +339,8 @@ public final class AqeStandardVectorExecutionRuntime {
                                 BigInteger.valueOf(
                                         ACOConfig.getExactVectorMinimumExecutions()))
                         < 0) {
-            return null;
+            return rejectPreparation(
+                    "job metadata, task list, or minimum execution count is incomplete");
         }
 
         Optional<CompiledCraftingIsland<AEKey, IPatternDetails>> compiled =
@@ -295,13 +350,15 @@ public final class AqeStandardVectorExecutionRuntime {
                         ACOConfig.getExactVectorMaximumPatternNodes(),
                         ACOConfig.getBigIntegerMaximumBits());
         if (compiled.isEmpty()) {
-            return null;
+            return rejectPreparation(
+                    "active tasks are not one complete deterministic crafting DAG");
         }
         CompiledCraftingIsland<AEKey, IPatternDetails> island =
                 compiled.orElseThrow();
         // AdvancedAE CPU Inventoryはlong APIなので、標準Jobでは全境界を無損失longへ限定する。
         if (!island.fitsSignedLongRuntime()) {
-            return null;
+            return rejectPreparation(
+                    "an active standard-job boundary exceeds signed long; a fresh order must use the BigInteger parent path");
         }
 
         AEKey requestedKey = finalOutput.what();
@@ -313,7 +370,8 @@ public final class AqeStandardVectorExecutionRuntime {
          * 要求量と完全一致するJobだけをVector化し、過剰配送を防ぐ。
          */
         if (!rootBoundary.equals(requestedAmount)) {
-            return null;
+            return rejectPreparation(
+                    "remaining root output does not equal the active task boundary");
         }
 
         List<ExactStack> inputs = exactStacks(island.boundaryInputs());
@@ -391,7 +449,8 @@ public final class AqeStandardVectorExecutionRuntime {
         if (patternGeneration
                         != ProviderPatternGenerationTracker.generation()
                 || recipeGeneration != RecipeGenerationTracker.generation()) {
-            return null;
+            return rejectPreparation(
+                    "Pattern or recipe generation changed while preparing the plan");
         }
         return new PreparedStandardExecution(
                 plan,
@@ -399,11 +458,36 @@ public final class AqeStandardVectorExecutionRuntime {
                 exactStacks(island.internalOutputs()));
     }
 
+    private PreparedStandardExecution rejectPreparation(String reason) {
+        preparationFailure = Objects.requireNonNull(reason, "reason");
+        return null;
+    }
+
+    private void logFallbackOnce(Object currentJob, String reason) {
+        if (!ACOConfig.logExactVectorDiagnostics()) {
+            return;
+        }
+        String normalized = reason == null || reason.isBlank()
+                ? "unknown reason"
+                : reason;
+        // 同じ実行中Jobと同じ理由は毎tick記録せず、原因が変化した時だけ一度出す。
+        if (lastRejectedJob == currentJob
+                && lastRejectionReason.equals(normalized)) {
+            return;
+        }
+        lastRejectedJob = currentJob;
+        lastRejectionReason = normalized;
+        AE2CraftingOptimizer.LOGGER.info(
+                "AQE standard job remains on the Advanced AE fallback path: {}",
+                normalized);
+    }
+
     private boolean tickPrepared(
             AqeStandardVectorHost host,
             CraftingIslandJobAccess jobAccess) {
         if (!jobMatchesState(jobAccess)
                 || generationsChanged(state.plan())) {
+            clearDisplay(host, true);
             state = null;
             host.aco$markStandardVectorDirty();
             return false;
@@ -693,7 +777,23 @@ public final class AqeStandardVectorExecutionRuntime {
                     null);
             return true;
         }
-        VectorTransactionStatus remote = snapshot.orElseThrow().status();
+        VectorTransactionSnapshot receipt = snapshot.orElseThrow();
+        /*
+         * 別Transactionや別durationのReceiptでは表示だけでなく所有権対応も
+         * 証明できないため、会計へ進めず隔離する。
+         */
+        if (!receipt.transactionId().equals(
+                        state.plan().transactionId())
+                || receipt.durationTicks()
+                        != state.plan().durationTicks()) {
+            quarantine(
+                    host,
+                    "AAC returned a mismatched AQE standard Vector receipt",
+                    null);
+            return true;
+        }
+        advanceDisplayToward(host, receipt.activeTick());
+        VectorTransactionStatus remote = receipt.status();
         return switch (remote) {
             case PREPARED,
                     INPUTS_EXTRACTING,
@@ -702,6 +802,14 @@ public final class AqeStandardVectorExecutionRuntime {
                     PAUSED_ENERGY,
                     OUTPUT_PENDING -> true;
             case ACCOUNTING -> {
+                /*
+                 * AACの実変換が先に終わっても、最大durationTicksだけ最終会計を
+                 * 待たせ、クラフト状況画面のlong値を一段ずつ動かす。
+                 */
+                if (displayActiveTick
+                        < state.plan().durationTicks()) {
+                    yield true;
+                }
                 state.phase(
                         AqeStandardVectorExecutionState.Phase.ACCOUNTING,
                         "AAC completed the logical critical path");
@@ -799,7 +907,8 @@ public final class AqeStandardVectorExecutionRuntime {
                 progress.aco$setTaskProgress(0L);
                 tasks.remove(entry.getKey());
             }
-            host.aco$notifyStandardVectorTaskChanges();
+            host.aco$notifyStandardVectorDisplayChanges(
+                    state.displayPendingOutputs().keySet());
             // 中間出力ぶんの時間Trackerだけを、AEKey一件につき一度更新する。
             for (ExactStack internal : state.internalOutputs()) {
                 jobAccess.aco$decrementIslandInternalOutput(
@@ -823,6 +932,7 @@ public final class AqeStandardVectorExecutionRuntime {
                 throw new IllegalStateException(
                         "AAC did not acknowledge completed AQE standard accounting");
             }
+            clearDisplay(host, false);
             state = null;
             host.aco$markStandardVectorDirty();
             return true;
@@ -904,6 +1014,7 @@ public final class AqeStandardVectorExecutionRuntime {
         if (!rollbackInputs(host)) {
             return true;
         }
+        clearDisplay(host, true);
         state = null;
         host.aco$markStandardVectorDirty();
         return false;
@@ -980,6 +1091,89 @@ public final class AqeStandardVectorExecutionRuntime {
             }
         }
         return null;
+    }
+
+    private void ensureDisplayInstalled(
+            AqeStandardVectorHost host) {
+        // 再起動後は保存Receiptを読んだ最初のtickで表示Facadeだけを再作成する。
+        if (!displayInstalled) {
+            displayActiveTick = 0;
+            installDisplay(host, true);
+        }
+    }
+
+    private void installDisplay(
+            AqeStandardVectorHost host,
+            boolean notifyKeys) {
+        if (state == null) {
+            return;
+        }
+        BigInteger exactWork = state.plan().logicalExecutions();
+        long start =
+                LongClampedProgressProjection.clamp(exactWork);
+        long remaining =
+                LongClampedProgressProjection.remaining(
+                        exactWork,
+                        displayActiveTick,
+                        state.plan().durationTicks());
+        float progress =
+                LongClampedProgressProjection.progress(
+                        displayActiveTick,
+                        state.plan().durationTicks());
+        host.aco$setStandardVectorDisplay(
+                start,
+                remaining,
+                progress);
+        displayInstalled = true;
+        // 画面が開いているCPUには、変化するTask出力キーだけを増分通知する。
+        if (notifyKeys) {
+            host.aco$notifyStandardVectorDisplayChanges(
+                    state.displayPendingOutputs().keySet());
+        }
+    }
+
+    private void advanceDisplayToward(
+            AqeStandardVectorHost host,
+            int executorActiveTick) {
+        int duration = state.plan().durationTicks();
+        // Receiptがまだ同じ段なら、同一表示値を再送しない。
+        if (executorActiveTick <= displayActiveTick) {
+            return;
+        }
+        /*
+         * Executorが一tickで全変換を終えても表示は一段だけ進める。
+         * これにより数量とは無関係に最大duration tickの演出時間を確保する。
+         */
+        displayActiveTick = Math.min(
+                duration,
+                displayActiveTick + 1);
+        installDisplay(host, true);
+    }
+
+    private void clearDisplay(
+            AqeStandardVectorHost host,
+            boolean notifyKeys) {
+        if (!displayInstalled) {
+            return;
+        }
+        host.aco$clearStandardVectorDisplay();
+        displayInstalled = false;
+        displayActiveTick = 0;
+        // Fallback時は同じキーを再通知し、Advanced AE本来の残数へ即座に戻す。
+        if (notifyKeys && state != null) {
+            host.aco$notifyStandardVectorDisplayChanges(
+                    state.displayPendingOutputs().keySet());
+        }
+    }
+
+    private void clearDisplayWithoutKeys(
+            AqeStandardVectorHost host) {
+        // state消去済みの次tickでは、残ったTracker Facadeだけを一度解除する。
+        if (displayInstalled) {
+            host.aco$clearStandardVectorDisplay();
+            displayInstalled = false;
+            displayActiveTick = 0;
+        }
     }
 
     private void quarantine(

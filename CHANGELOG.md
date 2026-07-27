@@ -31,6 +31,9 @@ All notable changes to this project are documented here.
 - Added `/aco stats` decision counters for compile, backend, capacity, stale
   task, input, provider, output, and energy fallbacks.
 - Added a regression test for the pack's twenty-stage 9-to-1 compression probe.
+- Added a display-only AdvancedAE progress facade for standard Exact Vector
+  jobs. Exact counters remain `BigInteger`, while task and CPU status values
+  clamp to signed `long` and advance once per logical display tick.
 
 ### Fixed
 
@@ -48,6 +51,15 @@ All notable changes to this project are documented here.
 - AdvancedAE waiting, final-output, elapsed-work, cancellation, and task
   notification accounting now participate in the same reversible island
   transaction contract.
+- Kept ACO's exact plan when a recipe tree can exceed signed long in full but
+  exact BigInteger intermediate stock reduces the current order to signed-long
+  counters. The plan no longer falls back to AE2's saturated inventory view.
+- Added one-time per-job diagnostics for AdvancedAE standard jobs that cannot
+  enter the Exact Vector path.
+- Kept final AdvancedAE accounting atomic while allowing an already completed
+  AAC conversion to wait for at most its logical duration, so the crafting
+  status visibly progresses without mutating inventory, `waitingFor`, or live
+  task counters.
 
 ## [1.5.3] - 2026-07-25
 

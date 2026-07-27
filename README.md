@@ -158,12 +158,17 @@ The runtime has two ownership modes:
 Logical work is the deterministic graph's critical-path depth multiplied by
 `ticksPerLogicalStage`. An executor claims an available range from the shared
 per-grid budget instead of waiting one server tick per stage. An idle grid can
-therefore finish a twenty-stage chain in the same server tick for `1`, `1,000`,
-`Long.MAX_VALUE`, or a supported BigInteger quantity. If the soft time budget
-is already occupied, the remaining stages continue on later ticks. Energy is
-stored in exact micro-AE and charged once per distinct compiled Pattern node,
-independent of order quantity. Energy shortage reduces the range to one stage
-or pauses progress rather than changing ownership.
+therefore complete the actual conversion for a twenty-stage chain in the same
+server tick for `1`, `1,000`, `Long.MAX_VALUE`, or a supported BigInteger
+quantity. For an AdvancedAE standard job, ACO may delay only the final atomic
+accounting for at most that logical duration. During this presentation window,
+the crafting-status screen receives a signed-long-clamped progress facade that
+moves once per logical tick; exact inventory, `waitingFor`, and task counters
+are not changed. If the soft time budget is already occupied, the remaining
+stages continue on later ticks. Energy is stored in exact micro-AE and charged
+once per distinct compiled Pattern node, independent of order quantity. Energy
+shortage reduces the range to one stage or pauses progress rather than changing
+ownership.
 
 The path admits only fixed ordinary shaped/shapeless recipes with one exact
 producer and no substitutions, fuzzy inputs, processing Patterns, NBT changes,
