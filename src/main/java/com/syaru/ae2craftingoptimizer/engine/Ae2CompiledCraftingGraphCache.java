@@ -135,6 +135,7 @@ public final class Ae2CompiledCraftingGraphCache {
                 CompiledCraftingGraph.compile(generation, compiledById.values()),
                 idByPattern,
                 patternById,
+                compiledById,
                 registeredPatternsByOutput,
                 incompletelyCompiledOutputs,
                 craftables,
@@ -146,6 +147,7 @@ public final class Ae2CompiledCraftingGraphCache {
         private final CompiledCraftingGraph<AEKey> graph;
         private final IdentityHashMap<IPatternDetails, String> idByPattern;
         private final Map<String, IPatternDetails> patternById;
+        private final Map<String, CompiledPattern<AEKey>> compiledById;
         private final Map<AEKey, Integer> registeredPatternsByOutput;
         private final Set<AEKey> incompletelyCompiledOutputs;
         private final Set<AEKey> craftables;
@@ -160,6 +162,7 @@ public final class Ae2CompiledCraftingGraphCache {
                 CompiledCraftingGraph<AEKey> graph,
                 IdentityHashMap<IPatternDetails, String> idByPattern,
                 Map<String, IPatternDetails> patternById,
+                Map<String, CompiledPattern<AEKey>> compiledById,
                 Map<AEKey, Integer> registeredPatternsByOutput,
                 Set<AEKey> incompletelyCompiledOutputs,
                 Set<AEKey> craftables,
@@ -168,6 +171,7 @@ public final class Ae2CompiledCraftingGraphCache {
             this.graph = graph;
             this.idByPattern = new IdentityHashMap<>(idByPattern);
             this.patternById = Map.copyOf(patternById);
+            this.compiledById = Map.copyOf(compiledById);
             this.registeredPatternsByOutput = Map.copyOf(registeredPatternsByOutput);
             this.incompletelyCompiledOutputs = Set.copyOf(incompletelyCompiledOutputs);
             this.craftables = Set.copyOf(craftables);
@@ -184,6 +188,11 @@ public final class Ae2CompiledCraftingGraphCache {
 
         public IPatternDetails pattern(String id) {
             return patternById.get(id);
+        }
+
+        /** 実行中Taskが選択済みのPattern IDから、世代内で固定した入出力式を直接返す。 */
+        public CompiledPattern<AEKey> compiledPattern(String id) {
+            return compiledById.get(id);
         }
 
         /** 標準AE2側にも高速Graph側にも、その出力のPatternが一つだけ存在することを証明する。 */
