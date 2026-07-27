@@ -3,6 +3,7 @@ package com.syaru.ae2craftingoptimizer.engine;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -479,6 +480,165 @@ public final class CompiledRootProgram<K> {
         return planBigInternal(requestedAmount, inventory.copyAmounts(), guard, maximumBits);
     }
 
+    /**
+     * 確定作業台Patternだけで構成されたDAGを、需要配列一つと直接乗算で計画する。
+     *
+     * <p>注文数量に比例する反復や中間素材の実体化は行わない。各固有Patternを一度だけ読み、
+     * 入力需要、実行回数、ME在庫との正味境界、最長依存段数を同じ一巡で確定する。</p>
+     */
+    public Optional<DeterministicCraftingBigPlan<K>>
+            tryPlanDeterministicCraftingBig(
+            BigInteger requestedAmount,
+            BigInventorySnapshot<K> inventory,
+            int maximumBits) {
+        requireSnapshot(inventory);
+        BigInteger request = BigCountMath.requireMaximumBits(
+                requestedAmount,
+                "compiled-root/deterministic/request",
+                maximumBits);
+        /*
+         * Exact Vector親は完成品を新規作成する契約なので、0注文と既存在庫を使うrootは
+         * AE2標準経路へ戻す。これにより完成品の取り出しと再投入を数式上で相殺しない。
+         */
+        if (request.signum() == 0
+                || inventory.amountAt(rootIndex).signum() != 0) {
+            return Optional.empty();
+        }
+
+        int nodeCount = keys.size();
+        BigInteger[] demand = new BigInteger[nodeCount];
+        int[] patternDepth = new int[nodeCount];
+        demand[rootIndex] = request;
+        patternDepth[rootIndex] = 1;
+        Map<K, BigInteger> boundaryInputs = new LinkedHashMap<>();
+        Map<K, BigInteger> boundaryOutputs = new LinkedHashMap<>();
+        Map<K, BigInteger> missing = new LinkedHashMap<>();
+        Set<String> requiredPatterns = new LinkedHashSet<>(patternCount);
+        BigInteger logicalExecutions = BigInteger.ZERO;
+        int logicalStageCount = 0;
+
+        // 親から子へ並んだDAGを一巡し、同じ中間素材の需要を全親から先に集約する。
+        for (int node = 0; node < nodeCount; node++) {
+            BigInteger required = zeroIfNull(demand[node]);
+            // 在庫にもPatternにも触れない未到達ノードは演算と割り当てを行わない。
+            if (required.signum() == 0) {
+                continue;
+            }
+
+            BigInteger taken = required.min(inventory.amountAt(node));
+            BigInteger deficit = required.subtract(taken);
+            BigInteger produced = BigInteger.ZERO;
+
+            // 在庫だけでは足りないノードだけ、確定Patternを一度の除算と乗算で展開する。
+            if (deficit.signum() > 0) {
+                // Emitterは外部供給であり、ME在庫だけを原子的に会計する経路では扱わない。
+                if (emittable[node]) {
+                    return Optional.empty();
+                }
+                CompiledPattern<K> pattern = patternAt(node);
+                // Patternがない終端素材は不足量を記録し、他の独立枝の確認を継続する。
+                if (pattern == null) {
+                    missing.put(keys.get(node), deficit);
+                } else {
+                    // Processing Patternは機械時間を持つため、作業台一括経路へ混入させない。
+                    if (pattern.externalPush()) {
+                        return Optional.empty();
+                    }
+                    BigInteger executions = BigCountMath.requireMaximumBits(
+                            BigCountMath.ceilDiv(
+                                    deficit,
+                                    BigInteger.valueOf(outputAmounts[node]),
+                                    "compiled-root/deterministic/executions/"
+                                            + node),
+                            "compiled-root/deterministic/executions/" + node,
+                            maximumBits);
+                    produced = BigCountMath.multiply(
+                            BigInteger.valueOf(outputAmounts[node]),
+                            executions,
+                            "compiled-root/deterministic/output/" + node,
+                            maximumBits);
+                    logicalExecutions = BigCountMath.add(
+                            logicalExecutions,
+                            executions,
+                            "compiled-root/deterministic/logical-executions",
+                            maximumBits);
+                    requiredPatterns.add(patternIds[node]);
+                    int depth = patternDepth[node];
+                    // 到達したPatternに深度がない場合はDAG配列の内部不整合として拒否する。
+                    if (depth <= 0) {
+                        throw new IllegalStateException(
+                                "active deterministic pattern has no dependency depth");
+                    }
+                    logicalStageCount = Math.max(logicalStageCount, depth);
+
+                    // 各固定入力へ実行回数を直接掛け、子ノード需要へ一度だけ加算する。
+                    for (int edge = inputOffsets[node];
+                            edge < inputOffsets[node + 1];
+                            edge++) {
+                        BigInteger requiredInput = BigCountMath.multiply(
+                                BigInteger.valueOf(inputAmounts[edge]),
+                                executions,
+                                "compiled-root/deterministic/input/"
+                                        + node
+                                        + '/'
+                                        + edge,
+                                maximumBits);
+                        int child = inputIndices[edge];
+                        demand[child] = BigCountMath.add(
+                                zeroIfNull(demand[child]),
+                                requiredInput,
+                                "compiled-root/deterministic/demand/" + child,
+                                maximumBits);
+                        int childDepth = Math.addExact(depth, 1);
+                        patternDepth[child] = Math.max(
+                                patternDepth[child],
+                                childDepth);
+                    }
+                }
+            }
+
+            /*
+             * 不足終端では実在庫から使える分だけを境界入力へ残す。
+             * 計画自体は後で拒否されるが、存在しない数量をReceiptへ混ぜない。
+             */
+            if (deficit.signum() > 0 && patterns[node] == null) {
+                // 部分在庫が正数の時だけ、診断可能な正確な境界入力として保持する。
+                if (taken.signum() > 0) {
+                    boundaryInputs.put(keys.get(node), taken);
+                }
+                continue;
+            }
+
+            /*
+             * 中間素材は「この段で作った量 - 親段が要求した量」だけをME境界へ出す。
+             * これにより内部素材を実体化せず、正味の搬入出だけを原子的に会計できる。
+             */
+            BigInteger netOutput = produced.subtract(required);
+            // rootは最終成果物なので、要求数と丸め余剰をまとめた生成量を出力側へ残す。
+            if (node == rootIndex) {
+                // root Patternが要求量を生成できた場合だけ出力境界へ登録する。
+                if (produced.compareTo(request) >= 0) {
+                    boundaryOutputs.put(keys.get(node), produced);
+                }
+                continue;
+            }
+            // 負の正味量はME在庫から取り出す入力、正の正味量は余剰出力になる。
+            if (netOutput.signum() < 0) {
+                boundaryInputs.put(keys.get(node), netOutput.negate());
+            } else if (netOutput.signum() > 0) {
+                boundaryOutputs.put(keys.get(node), netOutput);
+            }
+        }
+
+        return Optional.of(new DeterministicCraftingBigPlan<>(
+                boundaryInputs,
+                boundaryOutputs,
+                missing,
+                List.copyOf(requiredPatterns),
+                logicalExecutions,
+                logicalStageCount));
+    }
+
     private BigCraftingPlan<K> planBigInternal(
             BigInteger requestedAmount,
             BigInteger[] inventory,
@@ -700,6 +860,66 @@ public final class CompiledRootProgram<K> {
 
     public Set<K> emittableKeys() {
         return emittableKeys;
+    }
+
+    /** 確定作業台DAG一巡の最小結果。汎用Pattern実行Mapや五本の数量配列を持たない。 */
+    public record DeterministicCraftingBigPlan<K>(
+            Map<K, BigInteger> boundaryInputs,
+            Map<K, BigInteger> boundaryOutputs,
+            Map<K, BigInteger> missing,
+            List<String> requiredPatternIds,
+            BigInteger logicalExecutions,
+            int logicalStageCount) {
+        public DeterministicCraftingBigPlan {
+            boundaryInputs = immutablePositiveCounts(
+                    boundaryInputs,
+                    "boundaryInputs");
+            boundaryOutputs = immutablePositiveCounts(
+                    boundaryOutputs,
+                    "boundaryOutputs");
+            missing = immutablePositiveCounts(
+                    missing,
+                    "missing");
+            requiredPatternIds = List.copyOf(
+                    Objects.requireNonNull(
+                            requiredPatternIds,
+                            "requiredPatternIds"));
+            BigCountMath.requireNonNegative(
+                    logicalExecutions,
+                    "deterministic-crafting/logicalExecutions");
+            // 実行Patternがない計画だけが0段を取り、負数の段数は常に不正とする。
+            if (logicalStageCount < 0) {
+                throw new IllegalArgumentException(
+                        "logicalStageCount must be non-negative");
+            }
+        }
+
+        public boolean craftable() {
+            return missing.isEmpty();
+        }
+
+        private static <K> Map<K, BigInteger> immutablePositiveCounts(
+                Map<K, BigInteger> source,
+                String name) {
+            Objects.requireNonNull(source, name);
+            Map<K, BigInteger> copy = new LinkedHashMap<>(source.size());
+            // Receiptへ渡る順序をDAG順のまま固定し、全境界値が正数であることも検証する。
+            for (Map.Entry<K, BigInteger> entry : source.entrySet()) {
+                K key = Objects.requireNonNull(
+                        entry.getKey(),
+                        name + " key");
+                BigInteger amount = BigCountMath.requireNonNegative(
+                        entry.getValue(),
+                        name + " amount");
+                // 0件は境界リストへ保存せず、同一キーの二重表現を作らない。
+                if (amount.signum() == 0) {
+                    throw new IllegalArgumentException(
+                            name + " must not contain zero amounts");
+                }
+                copy.put(key, amount);
+            }
+            return Collections.unmodifiableMap(copy);
+        }
     }
 
     /** ルートプログラムと同じ添字順で保持するlong在庫Snapshot。 */

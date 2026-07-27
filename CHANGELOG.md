@@ -40,6 +40,13 @@ All notable changes to this project are documented here.
 - Added direct regression coverage for one deterministic nine-slot Pattern
   requested `Long.MAX_VALUE` times. Identical slots aggregate to one exact
   `9 * Long.MAX_VALUE` input mutation and one `Long.MAX_VALUE` output.
+- Added a single-pass deterministic crafting-DAG planner. It directly
+  multiplies each active Pattern once, accumulates shared intermediate demand
+  in one array, and derives net storage boundaries and critical-path depth
+  without the former generic five-array plan plus post-plan graph walks.
+- Added regression coverage for a twenty-stage `Long.MAX_VALUE` order,
+  partial intermediate stock with recipe-rounding surplus, and rejection
+  before mutation when the final raw input is one item short.
 
 ### Fixed
 

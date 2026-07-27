@@ -459,11 +459,22 @@ bounded non-negative `BigInteger` values and records the transaction UUID,
 parent UUID, ownership mode, critical path, exact input/output keys, required
 Pattern fingerprints, generation numbers, and fixed-point resource totals.
 
-`VectorBatchPlanner` evaluates a generation-cached `CompiledRootProgram` once.
-It sums produced and consumed values per AEKey, subtracts internal
-intermediates, and emits only net boundary inputs, final output, and fixed
-remaining output. Its loops are over Pattern nodes, input slots, and distinct
-keys; no loop uses requested quantity as a bound.
+`VectorBatchPlanner` delegates deterministic ordinary-crafting DAGs to
+`CompiledRootProgram.tryPlanDeterministicCraftingBig`. The method keeps one
+`BigInteger[]` demand vector and visits each reachable key once in the existing
+parent-before-child order. For each active Pattern it calculates
+`ceilDiv(deficit, outputAmount)` once, directly multiplies every fixed input by
+that execution count, and adds it to the child demand. The same pass records
+net ME-storage inputs, fixed surplus outputs, active Pattern IDs, total logical
+executions, and critical-path depth.
+
+The Exact Vector path therefore does not create the generic five quantity
+arrays, materialize a Pattern-execution map, rebuild produced/consumed maps, or
+walk the graph again for boundary and critical-path calculation. A twenty-stage
+chain performs twenty Pattern evaluations whether the root order is `1`,
+`Long.MAX_VALUE`, or a supported BigInteger value. Processing Patterns,
+emitters, ambiguous producers, substitutions, and cycles remain outside this
+path and fall back before ownership transfer.
 
 When a root's full recipe expansion requires wide arithmetic, ACO keeps its
 authoritative plan even if exact BigInteger intermediate stock reduces the

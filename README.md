@@ -144,6 +144,12 @@ one persistent transaction. Requested quantity changes only the size of the
 checked `BigInteger` arithmetic; it does not create quantity-sized loops,
 Pattern pushes, workers, child jobs, or execution windows.
 
+The compiled DAG is evaluated in one parent-before-child pass. Every active
+crafting Pattern performs one `ceilDiv` and direct input multiplication, shared
+intermediate demand is accumulated in one array, and only the net storage
+boundary survives. Single-stage and multi-stage crafting use the same path;
+there is no second produced/consumed or critical-path graph walk.
+
 The runtime has two ownership modes:
 
 - AdvancedAE/AQE standard jobs use `HOST_ESCROWED`. ACO extracts each distinct
