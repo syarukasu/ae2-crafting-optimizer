@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import appeng.api.crafting.IPatternDetails;
+import appeng.api.networking.IGrid;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
@@ -155,6 +156,163 @@ public final class Ae2CraftingIslandCompiler {
             return Optional.empty();
         }
         return Optional.of(island);
+    }
+
+    /**
+     * Provider世代に紐づく数式Programを正として、AdvancedAE標準Job全体を投影する。
+     *
+     * <p>実行中TaskからPattern式を再推測せず、登録済みProgramの係数と現在の残回数だけを
+     * 結合する。これにより注文数に比例する展開を行わず、NBTから復元されたPatternも
+     * 現在世代の登録式と完全一致する場合だけ安全に作業台Batchへ参加できる。</p>
+     */
+    public static Optional<CompiledCraftingIsland<AEKey, IPatternDetails>>
+            tryCompileGenerationBackedWholeDeterministicJob(
+                    Map<IPatternDetails, Object> liveTasks,
+                    Level level,
+                    IGrid grid,
+                    AEKey requestedOutput,
+                    int maximumPatterns,
+                    int maximumBits) {
+        Objects.requireNonNull(liveTasks, "liveTasks");
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(grid, "grid");
+        Objects.requireNonNull(requestedOutput, "requestedOutput");
+        // 空Jobまたは設定上限を超えたJobでは、Graph参照前にAdvancedAEへ戻す。
+        if (liveTasks.isEmpty()
+                || liveTasks.size() > maximumPatterns) {
+            return Optional.empty();
+        }
+
+        Ae2CompiledCraftingGraphCache.Snapshot snapshot;
+        try {
+            snapshot =
+                    Ae2CompiledCraftingGraphCache.getOrCompile(grid, level);
+        } catch (StalePlanningSnapshotException staleGeneration) {
+            // Provider更新が連続したtickは古い式を採用せず、次tickの標準経路へ委譲する。
+            return Optional.empty();
+        }
+        Optional<CompiledRootProgram<AEKey>> optionalProgram =
+                snapshot.rootProgram(requestedOutput);
+        // 単一Patternへ確定できないルートはAE2本来の選択処理を維持する。
+        if (optionalProgram.isEmpty()) {
+            return Optional.empty();
+        }
+        CompiledRootProgram<AEKey> program =
+                optionalProgram.orElseThrow();
+        // 到達Pattern数が設定上限を超えるルートは、一括Transactionへ所有させない。
+        if (program.patternCount() > maximumPatterns) {
+            return Optional.empty();
+        }
+        // タグ候補、返却物、Emitter変化などを実AE2 APIで証明できない式は採用しない。
+        if (snapshot.strictTopology(level, grid, program).isEmpty()) {
+            return Optional.empty();
+        }
+
+        List<CompiledCraftingIsland.ProgramTask<IPatternDetails>>
+                projectedTasks = new ArrayList<>(liveTasks.size());
+        // 現在JobのTaskを、同じProvider世代で登録されたPattern IDへ一対一に固定する。
+        for (Map.Entry<IPatternDetails, Object> entry :
+                liveTasks.entrySet()) {
+            IPatternDetails details = entry.getKey();
+            // null PatternやAccessor未適用Taskは、会計を書き換えずAdvancedAEへ戻す。
+            if (details == null
+                    || !(entry.getValue()
+                            instanceof CraftingTaskProgressAccess progress)) {
+                return Optional.empty();
+            }
+            long executions = progress.aco$getTaskProgress();
+            // 標準Jobのactive Taskは必ず正数であり、0以下は同期途中として採用しない。
+            if (executions <= 0L) {
+                return Optional.empty();
+            }
+            String patternId = resolveCurrentPatternId(
+                    snapshot,
+                    details,
+                    level);
+            // 登録時またはNBT復元時の式と完全一致しないPatternは、数式Programへ接続しない。
+            if (patternId == null) {
+                return Optional.empty();
+            }
+            projectedTasks.add(
+                    new CompiledCraftingIsland.ProgramTask<>(
+                            details,
+                            patternId,
+                            BigInteger.valueOf(executions)));
+        }
+        return CompiledCraftingIsland.tryCompileProgramTasks(
+                program,
+                projectedTasks,
+                maximumBits);
+    }
+
+    @Nullable
+    private static String resolveCurrentPatternId(
+            Ae2CompiledCraftingGraphCache.Snapshot snapshot,
+            IPatternDetails details,
+            Level level) {
+        String identityId = snapshot.id(details);
+        // 新規Jobは登録済みPattern参照を保持するため、通常はIdentity索引だけで確定する。
+        if (identityId != null
+                && snapshot.pattern(identityId) == details) {
+            return identityId;
+        }
+
+        /*
+         * AdvancedAEは再起動時にPattern itemのNBTからIPatternDetailsを再デコードする。
+         * 別オブジェクトでも定義NBT、入出力、候補、倍率、外部push属性が全て一致する時だけ
+         * 現世代の登録Patternへ戻し、保存済み標準Jobを不要にFallbackさせない。
+         */
+        try {
+            String decodedId = patternFingerprint(details);
+            IPatternDetails registered = snapshot.pattern(decodedId);
+            // 現世代に同じ定義が登録されていなければ、削除・変更済みPatternとして拒否する。
+            if (registered == null) {
+                return null;
+            }
+            CompiledPattern<AEKey> decoded =
+                    Ae2CompiledPatternFactory.compile(
+                            details,
+                            decodedId,
+                            level);
+            CompiledPattern<AEKey> current =
+                    Ae2CompiledPatternFactory.compile(
+                            registered,
+                            decodedId,
+                            level);
+            // コンパイル不能または一箇所でも式が異なる復元Patternは、AE2標準経路へ戻す。
+            if (decoded == null
+                    || current == null
+                    || !sameCompiledFormula(decoded, current)) {
+                return null;
+            }
+            return decodedId;
+        } catch (RuntimeException invalidDecodedPattern) {
+            // 動的Pattern APIが検証中に失敗した場合も、起動を落とさず該当JobだけFallbackする。
+            return null;
+        }
+    }
+
+    private static boolean sameCompiledFormula(
+            CompiledPattern<AEKey> first,
+            CompiledPattern<AEKey> second) {
+        // 出力、外部機械push属性、入力slot数が違うPatternは同じ数式ではない。
+        if (first.externalPush() != second.externalPush()
+                || !first.outputs().equals(second.outputs())
+                || first.inputs().size() != second.inputs().size()) {
+            return false;
+        }
+        // slot順と全候補Stackを比較し、タグ候補等の並び替えも別式として扱う。
+        for (int slot = 0; slot < first.inputs().size(); slot++) {
+            List<CompiledPattern.Stack<AEKey>> firstAlternatives =
+                    first.inputs().get(slot).alternatives();
+            List<CompiledPattern.Stack<AEKey>> secondAlternatives =
+                    second.inputs().get(slot).alternatives();
+            // 候補キーまたは一回入力量が一つでも異なれば、同じProgramへ接続しない。
+            if (!firstAlternatives.equals(secondAlternatives)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Nullable

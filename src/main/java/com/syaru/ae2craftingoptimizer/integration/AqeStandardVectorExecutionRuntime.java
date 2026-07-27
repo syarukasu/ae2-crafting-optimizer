@@ -342,16 +342,26 @@ public final class AqeStandardVectorExecutionRuntime {
             return rejectPreparation(
                     "job metadata, task list, or minimum execution count is incomplete");
         }
+        AEKey requestedKey = finalOutput.what();
+        IGrid grid = host.aco$getStandardVectorCpu().getGrid();
+        // 切断中CPUのPattern世代は証明できないため、再接続までAdvancedAEへ委譲する。
+        if (grid == null) {
+            return rejectPreparation(
+                    "crafting CPU is not connected to an AE2 grid");
+        }
 
         Optional<CompiledCraftingIsland<AEKey, IPatternDetails>> compiled =
-                Ae2CraftingIslandCompiler.tryCompileWholeDeterministicJob(
+                Ae2CraftingIslandCompiler
+                        .tryCompileGenerationBackedWholeDeterministicJob(
                         liveTasks,
                         level,
+                        grid,
+                        requestedKey,
                         ACOConfig.getExactVectorMaximumPatternNodes(),
                         ACOConfig.getBigIntegerMaximumBits());
         if (compiled.isEmpty()) {
             return rejectPreparation(
-                    "active tasks are not one complete deterministic crafting DAG");
+                    "active tasks do not match the current generation's complete deterministic crafting DAG");
         }
         CompiledCraftingIsland<AEKey, IPatternDetails> island =
                 compiled.orElseThrow();
@@ -361,7 +371,6 @@ public final class AqeStandardVectorExecutionRuntime {
                     "an active standard-job boundary exceeds signed long; a fresh order must use the BigInteger parent path");
         }
 
-        AEKey requestedKey = finalOutput.what();
         BigInteger requestedAmount = BigInteger.valueOf(remainingAmount);
         BigInteger rootBoundary = island.boundaryOutputs()
                 .getOrDefault(requestedKey, BigInteger.ZERO);

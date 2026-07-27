@@ -34,6 +34,7 @@ public final class CompiledRootProgram<K> {
     private final int rootIndex;
     private final List<K> keys;
     private final Map<K, Integer> indexByKey;
+    private final Map<String, Integer> indexByPatternId;
     private final Object[] patterns;
     private final String[] patternIds;
     private final long[] outputAmounts;
@@ -51,6 +52,7 @@ public final class CompiledRootProgram<K> {
             int rootIndex,
             List<K> keys,
             Map<K, Integer> indexByKey,
+            Map<String, Integer> indexByPatternId,
             Object[] patterns,
             String[] patternIds,
             long[] outputAmounts,
@@ -66,6 +68,7 @@ public final class CompiledRootProgram<K> {
         this.rootIndex = rootIndex;
         this.keys = List.copyOf(keys);
         this.indexByKey = Map.copyOf(indexByKey);
+        this.indexByPatternId = Map.copyOf(indexByPatternId);
         this.patterns = patterns.clone();
         this.patternIds = patternIds.clone();
         this.outputAmounts = outputAmounts.clone();
@@ -189,6 +192,8 @@ public final class CompiledRootProgram<K> {
         int[] inputIndices = new int[edgeCount];
         long[] inputAmounts = new long[edgeCount];
         boolean[] emitters = new boolean[nodeCount];
+        Map<String, Integer> indexByPatternId =
+                new LinkedHashMap<>();
         int edgeCursor = 0;
         int compiledPatterns = 0;
 
@@ -204,7 +209,14 @@ public final class CompiledRootProgram<K> {
             }
 
             patterns[node] = pattern;
-            patternIds[node] = pattern.id();
+            String patternId = pattern.id();
+            Integer previousPatternNode =
+                    indexByPatternId.putIfAbsent(patternId, node);
+            // 同じIDが複数出力を指すGraphでは、実行回数Mapを一意なノードへ戻せない。
+            if (previousPatternNode != null) {
+                return Optional.empty();
+            }
+            patternIds[node] = patternId;
             outputAmounts[node] = pattern.outputAmount(key);
             compiledPatterns++;
             // 各slotはコンパイル条件により候補が一つなので、そのキーと量だけを平坦化する。
@@ -233,6 +245,7 @@ public final class CompiledRootProgram<K> {
                 rootIndex,
                 order,
                 indexByKey,
+                indexByPatternId,
                 patterns,
                 patternIds,
                 outputAmounts,
@@ -811,6 +824,13 @@ public final class CompiledRootProgram<K> {
 
     public int indexOf(K key) {
         return indexByKey.getOrDefault(key, -1);
+    }
+
+    /** 世代内安定Pattern IDを、数量非依存のO(1)索引でノードへ戻す。 */
+    public int indexOfPatternId(String patternId) {
+        return indexByPatternId.getOrDefault(
+                Objects.requireNonNull(patternId, "patternId"),
+                -1);
     }
 
     @SuppressWarnings("unchecked")

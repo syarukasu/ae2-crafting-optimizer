@@ -76,6 +76,81 @@ public final class CompiledCraftingIsland<K, P> {
         return tryCompile(sourceTasks, maximumBits, true);
     }
 
+    /**
+     * 世代検証済みの数式Programへ、現在Jobに残っているTask回数だけを投影する。
+     *
+     * <p>Patternの入出力式はProgramから読み、注文個数を反復しない。各Patternを一度だけ
+     * {@code 入力量 * 実行回数}へ変換し、既存の島会計へ渡す。</p>
+     */
+    public static <K, P> Optional<CompiledCraftingIsland<K, P>>
+            tryCompileProgramTasks(
+                    CompiledRootProgram<K> program,
+                    List<ProgramTask<P>> sourceTasks,
+                    int maximumBits) {
+        Objects.requireNonNull(program, "program");
+        Objects.requireNonNull(sourceTasks, "sourceTasks");
+        // 実行TaskがないJobや固定上限超過Jobは、配列を確保せず標準経路へ戻す。
+        if (sourceTasks.isEmpty()
+                || sourceTasks.size() > MAXIMUM_TASKS_PER_JOB) {
+            return Optional.empty();
+        }
+
+        List<Task<K, P>> projected = new ArrayList<>(sourceTasks.size());
+        Set<String> activePatternIds = new LinkedHashSet<>();
+        // 現在Jobの残回数を、同じ世代の固定入出力式へ一件ずつ投影する。
+        for (ProgramTask<P> sourceTask : sourceTasks) {
+            ProgramTask<P> active =
+                    Objects.requireNonNull(sourceTask, "sourceTask");
+            // 同一Patternが二件に分裂したJobは、完了時のTask会計を一意に戻せない。
+            if (!activePatternIds.add(active.patternId())) {
+                return Optional.empty();
+            }
+            int node = program.indexOfPatternId(active.patternId());
+            // 現在Programに存在しないTaskは標準経路へ戻す。
+            if (node < 0) {
+                return Optional.empty();
+            }
+            CompiledPattern<K> pattern = program.patternAt(node);
+            // Processing Patternは機械時間を持つため、一括作業台会計へ混入させない。
+            if (pattern == null || pattern.externalPush()) {
+                return Optional.empty();
+            }
+
+            List<Input<K>> inputs =
+                    new ArrayList<>(program.inputCountAt(node));
+            // 一回実行当たりの固定入力を配列Programからそのまま復元する。
+            for (int input = 0;
+                    input < program.inputCountAt(node);
+                    input++) {
+                inputs.add(new Input<>(
+                        program.inputKeyAt(node, input),
+                        program.inputAmountAt(node, input)));
+            }
+            projected.add(new Task<>(
+                    active.pattern(),
+                    active.patternId(),
+                    program.keyAt(node),
+                    program.outputAmountAt(node),
+                    inputs,
+                    active.executions()));
+        }
+
+        Optional<List<CompiledCraftingIsland<K, P>>> compiled =
+                tryCompileIncludingSingletons(projected, maximumBits);
+        // 全Taskが一つの連結成分にならないJobは、一つの原子的会計へ結合しない。
+        if (compiled.isEmpty()
+                || compiled.orElseThrow().size() != 1) {
+            return Optional.empty();
+        }
+        CompiledCraftingIsland<K, P> island =
+                compiled.orElseThrow().get(0);
+        // 投影中にTaskが欠落した場合は部分採用せず、Job全体を標準経路へ戻す。
+        if (island.tasks().size() != sourceTasks.size()) {
+            return Optional.empty();
+        }
+        return Optional.of(island);
+    }
+
     private static <K, P> Optional<List<CompiledCraftingIsland<K, P>>> tryCompile(
             List<Task<K, P>> sourceTasks,
             int maximumBits,
@@ -467,6 +542,30 @@ public final class CompiledCraftingIsland<K, P> {
 
     public String fingerprint() {
         return fingerprint;
+    }
+
+    /** 現在JobのPattern参照、世代内安定ID、残実行回数。 */
+    public record ProgramTask<P>(
+            P pattern,
+            String patternId,
+            BigInteger executions) {
+        public ProgramTask {
+            Objects.requireNonNull(pattern, "pattern");
+            String normalizedId =
+                    Objects.requireNonNull(patternId, "patternId").trim();
+            // 空IDでは数式Programのノードへ一意に戻せない。
+            if (normalizedId.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "patternId must not be blank");
+            }
+            patternId = normalizedId;
+            Objects.requireNonNull(executions, "executions");
+            // 完了済みまたは負数のTaskは実行Jobとして扱わない。
+            if (executions.signum() <= 0) {
+                throw new IllegalArgumentException(
+                        "executions must be positive");
+            }
+        }
     }
 
     /** 一Patternの固定式と、現在Jobに残っている実行回数。 */

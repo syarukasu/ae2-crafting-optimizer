@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CompiledCraftingIslandTest {
@@ -292,6 +293,185 @@ class CompiledCraftingIslandTest {
     }
 
     @Test
+    void projectsLongJobsFromOneCompiledProgramInConstantNodeCount() {
+        int stageCount = 20;
+        List<CompiledPattern<String>> patterns =
+                new ArrayList<>(stageCount);
+        // 二十段の1対1作業台ツリーを作り、数量だけを変えて同じProgramを再利用する。
+        for (int stage = 1; stage <= stageCount; stage++) {
+            String input =
+                    stage == 1 ? "raw" : stageName(stage - 1);
+            String output = stageName(stage);
+            patterns.add(compiledPattern(
+                    output,
+                    input,
+                    1L,
+                    output,
+                    1L,
+                    false));
+        }
+        CompiledRootProgram<String> program =
+                compiledProgram(stageName(stageCount), patterns);
+        List<BigInteger> quantities = List.of(
+                BigInteger.ONE,
+                BigInteger.valueOf(1_000L),
+                BigInteger.valueOf(Long.MAX_VALUE));
+
+        // 注文数が増えても、現在Taskは二十件のまま一回ずつ数式へ投影する。
+        for (BigInteger quantity : quantities) {
+            List<CompiledCraftingIsland.ProgramTask<String>> active =
+                    new ArrayList<>(stageCount);
+            // 実行中Jobが保持するPattern IDと残回数だけをProgramへ渡す。
+            for (CompiledPattern<String> pattern : patterns) {
+                active.add(new CompiledCraftingIsland.ProgramTask<>(
+                        pattern.id(),
+                        pattern.id(),
+                        quantity));
+            }
+
+            CompiledCraftingIsland<String, String> island =
+                    CompiledCraftingIsland.tryCompileProgramTasks(
+                                    program,
+                                    active,
+                                    TEST_MAXIMUM_BITS)
+                            .orElseThrow();
+
+            assertEquals(stageCount, island.tasks().size());
+            assertEquals(stageCount, island.criticalPathStages());
+            assertEquals(quantity, island.boundaryInputs().get("raw"));
+            assertEquals(
+                    quantity,
+                    island.boundaryOutputs().get(stageName(stageCount)));
+        }
+    }
+
+    @Test
+    void projectsNineLongMaximumSlotsWithoutClampingTheBoundary() {
+        List<CompiledPattern.InputSlot<String>> inputs =
+                new ArrayList<>(9);
+        // 九枠を別々の固定係数として保持し、Program投影後にだけ同一キーへ合算する。
+        for (int slot = 0; slot < 9; slot++) {
+            inputs.add(new CompiledPattern.InputSlot<>(
+                    List.of(new CompiledPattern.Stack<>("raw", 1L))));
+        }
+        CompiledPattern<String> pattern = new CompiledPattern<>(
+                "nine_slot",
+                inputs,
+                Map.of("final", 1L),
+                false);
+        CompiledRootProgram<String> program =
+                compiledProgram("final", List.of(pattern));
+        BigInteger executions = BigInteger.valueOf(Long.MAX_VALUE);
+
+        CompiledCraftingIsland<String, String> island =
+                CompiledCraftingIsland.tryCompileProgramTasks(
+                                program,
+                                List.of(new CompiledCraftingIsland.ProgramTask<>(
+                                        "live_pattern",
+                                        pattern.id(),
+                                        executions)),
+                                TEST_MAXIMUM_BITS)
+                        .orElseThrow();
+
+        assertEquals(
+                executions.multiply(BigInteger.valueOf(9L)),
+                island.boundaryInputs().get("raw"));
+        assertEquals(executions, island.boundaryOutputs().get("final"));
+        assertFalse(island.fitsSignedLongRuntime());
+    }
+
+    @Test
+    void keepsPreexistingIntermediateStockOutsideTheProjectedTaskSet() {
+        CompiledPattern<String> producer = compiledPattern(
+                "producer",
+                "raw",
+                1L,
+                "middle",
+                1L,
+                false);
+        CompiledPattern<String> consumer = compiledPattern(
+                "consumer",
+                "middle",
+                1L,
+                "final",
+                1L,
+                false);
+        CompiledRootProgram<String> program =
+                compiledProgram("final", List.of(producer, consumer));
+
+        /*
+         * middle在庫でproducer Taskが不要になったJobを再現する。
+         * Program全体ではなくactive consumerだけを会計し、middleを境界入力に残す。
+         */
+        CompiledCraftingIsland<String, String> island =
+                CompiledCraftingIsland.tryCompileProgramTasks(
+                                program,
+                                List.of(new CompiledCraftingIsland.ProgramTask<>(
+                                        "consumer",
+                                        consumer.id(),
+                                        BigInteger.valueOf(100L))),
+                                TEST_MAXIMUM_BITS)
+                        .orElseThrow();
+
+        assertEquals(BigInteger.valueOf(100L),
+                island.boundaryInputs().get("middle"));
+        assertEquals(BigInteger.valueOf(100L),
+                island.boundaryOutputs().get("final"));
+        assertFalse(island.boundaryInputs().containsKey("raw"));
+    }
+
+    @Test
+    void rejectsUnknownDuplicateAndProcessingProgramTasks() {
+        CompiledPattern<String> crafting = compiledPattern(
+                "crafting",
+                "raw",
+                1L,
+                "final",
+                1L,
+                false);
+        CompiledRootProgram<String> craftingProgram =
+                compiledProgram("final", List.of(crafting));
+        var unknown = new CompiledCraftingIsland.ProgramTask<>(
+                "unknown",
+                "not_registered",
+                BigInteger.ONE);
+        var duplicate = new CompiledCraftingIsland.ProgramTask<>(
+                "duplicate",
+                crafting.id(),
+                BigInteger.ONE);
+
+        assertTrue(CompiledCraftingIsland.tryCompileProgramTasks(
+                        craftingProgram,
+                        List.of(unknown),
+                        TEST_MAXIMUM_BITS)
+                .isEmpty());
+        assertTrue(CompiledCraftingIsland.tryCompileProgramTasks(
+                        craftingProgram,
+                        List.of(duplicate, duplicate),
+                        TEST_MAXIMUM_BITS)
+                .isEmpty());
+
+        CompiledPattern<String> processing = compiledPattern(
+                "processing",
+                "raw",
+                1L,
+                "machine_output",
+                1L,
+                true);
+        CompiledRootProgram<String> processingProgram =
+                compiledProgram("machine_output", List.of(processing));
+        // 外部機械へpushするPatternは、同じ固定式でも作業台Batchへ混入させない。
+        assertTrue(CompiledCraftingIsland.tryCompileProgramTasks(
+                        processingProgram,
+                        List.of(new CompiledCraftingIsland.ProgramTask<>(
+                                "processing",
+                                processing.id(),
+                                BigInteger.ONE)),
+                        TEST_MAXIMUM_BITS)
+                .isEmpty());
+    }
+
+    @Test
     void keepsTheExplicitSingletonEntryPointCompatible() {
         var task = task("single", "raw", 2, "final", 1, 3);
 
@@ -354,6 +534,33 @@ class CompiledCraftingIslandTest {
                 outputAmount,
                 List.of(new CompiledCraftingIsland.Input<>(input, inputAmount)),
                 BigInteger.valueOf(executions));
+    }
+
+    private static CompiledRootProgram<String> compiledProgram(
+            String root,
+            List<CompiledPattern<String>> patterns) {
+        return CompiledRootProgram.tryCompile(
+                        CompiledCraftingGraph.compile(7L, patterns),
+                        root,
+                        ignored -> false)
+                .orElseThrow();
+    }
+
+    private static CompiledPattern<String> compiledPattern(
+            String id,
+            String input,
+            long inputAmount,
+            String output,
+            long outputAmount,
+            boolean externalPush) {
+        return new CompiledPattern<>(
+                id,
+                List.of(new CompiledPattern.InputSlot<>(
+                        List.of(new CompiledPattern.Stack<>(
+                                input,
+                                inputAmount)))),
+                Map.of(output, outputAmount),
+                externalPush);
     }
 
     private static String stageName(int stage) {
