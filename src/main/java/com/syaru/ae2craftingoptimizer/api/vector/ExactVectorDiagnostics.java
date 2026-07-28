@@ -49,10 +49,6 @@ public final class ExactVectorDiagnostics {
         OptimizationMetrics.recordExactVectorQuarantine();
     }
 
-    public static void energyPaused() {
-        OptimizationMetrics.recordExactVectorEnergyPause();
-    }
-
     public static void startBudgetDeferred() {
         OptimizationMetrics.recordExactVectorStartBudgetDeferral();
     }

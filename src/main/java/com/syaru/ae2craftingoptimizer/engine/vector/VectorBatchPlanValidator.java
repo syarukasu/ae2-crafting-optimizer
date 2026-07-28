@@ -34,8 +34,6 @@ public final class VectorBatchPlanValidator {
         }
         requireBits(plan.requestedAmount(), maximumBits, "requestedAmount");
         requireBits(plan.logicalExecutions(), maximumBits, "logicalExecutions");
-        requireBits(plan.totalEnergyMicroAe(), maximumBits, "totalEnergyMicroAe");
-        requireBits(plan.totalCoolant(), maximumBits, "totalCoolant");
         checkStacks(plan.totalInputs(), maximumBits, "input");
         checkStacks(plan.finalOutputs(), maximumBits, "final output");
         checkStacks(plan.remainingOutputs(), maximumBits, "remaining output");

@@ -28,6 +28,16 @@ public final class CompiledRootProgram<K> {
     private static final int MAXIMUM_PROGRAM_INPUT_EDGES = 4_194_304;
     /** 正のsigned longへ無損失変換できる最大bit長。 */
     private static final int SIGNED_LONG_MAGNITUDE_BITS = Long.SIZE - 1;
+    /** 一つのslotを全量満たせる在庫候補を最優先する順位。 */
+    private static final int ALTERNATIVE_RANK_AVAILABLE = 0;
+    /** 下位PatternまたはEmitterで不足を解決できる候補の順位。 */
+    private static final int ALTERNATIVE_RANK_CRAFTABLE = 1;
+    /** 終端在庫を一部だけ使える候補の順位。 */
+    private static final int ALTERNATIVE_RANK_PARTIAL = 2;
+    /** 在庫も供給経路もない候補の順位。 */
+    private static final int ALTERNATIVE_RANK_MISSING = 3;
+    /** 作業台限定経路へProcessing PatternやEmitterを混入させないための最低順位。 */
+    private static final int ALTERNATIVE_RANK_UNSUPPORTED = 4;
 
     private final long generation;
     private final K root;
@@ -38,6 +48,7 @@ public final class CompiledRootProgram<K> {
     private final String[] patternIds;
     private final long[] outputAmounts;
     private final int[] inputOffsets;
+    private final int[] alternativeOffsets;
     private final int[] inputIndices;
     private final long[] inputAmounts;
     private final boolean[] emittable;
@@ -55,6 +66,7 @@ public final class CompiledRootProgram<K> {
             String[] patternIds,
             long[] outputAmounts,
             int[] inputOffsets,
+            int[] alternativeOffsets,
             int[] inputIndices,
             long[] inputAmounts,
             boolean[] emittable,
@@ -70,6 +82,7 @@ public final class CompiledRootProgram<K> {
         this.patternIds = patternIds.clone();
         this.outputAmounts = outputAmounts.clone();
         this.inputOffsets = inputOffsets.clone();
+        this.alternativeOffsets = alternativeOffsets.clone();
         this.inputIndices = inputIndices.clone();
         this.inputAmounts = inputAmounts.clone();
         this.emittable = emittable.clone();
@@ -137,15 +150,14 @@ public final class CompiledRootProgram<K> {
             }
 
             Set<K> children = new LinkedHashSet<>();
-            // 各入力slotが一つの確定キーだけを受け入れることを検証する。
+            // 各入力slotの明示候補を全てDAGへ含め、注文時に在庫と下位Patternから一つを選ぶ。
             for (CompiledPattern.InputSlot<K> slot : pattern.inputs()) {
-                // タグ、代替素材、ファジー候補を含むslotはAE2標準計算へ戻す。
-                if (slot.alternatives().size() != 1) {
-                    return Optional.empty();
+                // 候補を省略せず探索し、選ばれなかった枝は実行時の需要0として飛ばす。
+                for (CompiledPattern.Stack<K> alternative : slot.alternatives()) {
+                    K child = alternative.key();
+                    children.add(child);
+                    discover.push(child);
                 }
-                K child = slot.alternatives().get(0).key();
-                children.add(child);
-                discover.push(child);
             }
             selected.put(key, pattern);
             dependencies.put(key, Set.copyOf(children));
@@ -163,19 +175,27 @@ public final class CompiledRootProgram<K> {
             indexByKey.put(order.get(index), index);
         }
 
-        int edgeCount = 0;
-        // 入力配列を一回だけ確保するため、Patternごとのslot数を先に合計する。
+        int slotCount = 0;
+        int alternativeCount = 0;
+        // slot配列と候補配列を一回だけ確保するため、Patternごとの件数を先に合計する。
         for (K key : order) {
             CompiledPattern<K> pattern = selected.get(key);
             // 終端ノードには入力辺がないため、Patternノードだけを数える。
             if (pattern != null) {
                 try {
-                    edgeCount = Math.addExact(edgeCount, pattern.inputs().size());
+                    slotCount = Math.addExact(slotCount, pattern.inputs().size());
+                    // 各slotの候補数も別配列の確保前にchecked加算する。
+                    for (CompiledPattern.InputSlot<K> slot : pattern.inputs()) {
+                        alternativeCount = Math.addExact(
+                                alternativeCount,
+                                slot.alternatives().size());
+                    }
                 } catch (ArithmeticException overflow) {
                     return Optional.empty();
                 }
-                // 入力辺の固定上限を超えるデータは、配列確保前にFallbackする。
-                if (edgeCount > MAXIMUM_PROGRAM_INPUT_EDGES) {
+                // slotまたは候補辺の固定上限を超えるデータは、配列確保前にFallbackする。
+                if (slotCount > MAXIMUM_PROGRAM_INPUT_EDGES
+                        || alternativeCount > MAXIMUM_PROGRAM_INPUT_EDGES) {
                     return Optional.empty();
                 }
             }
@@ -186,10 +206,12 @@ public final class CompiledRootProgram<K> {
         String[] patternIds = new String[nodeCount];
         long[] outputAmounts = new long[nodeCount];
         int[] inputOffsets = new int[nodeCount + 1];
-        int[] inputIndices = new int[edgeCount];
-        long[] inputAmounts = new long[edgeCount];
+        int[] alternativeOffsets = new int[slotCount + 1];
+        int[] inputIndices = new int[alternativeCount];
+        long[] inputAmounts = new long[alternativeCount];
         boolean[] emitters = new boolean[nodeCount];
-        int edgeCursor = 0;
+        int slotCursor = 0;
+        int alternativeCursor = 0;
         int compiledPatterns = 0;
 
         // Map中心のGraphを、実行時に直接添字アクセスできる不変配列へ変換する。
@@ -197,7 +219,7 @@ public final class CompiledRootProgram<K> {
             K key = order.get(node);
             CompiledPattern<K> pattern = selected.get(key);
             emitters[node] = emitterKeys.contains(key);
-            inputOffsets[node] = edgeCursor;
+            inputOffsets[node] = slotCursor;
             // 在庫、Emitter、不足だけで解決する終端ノードにはPattern情報を書き込まない。
             if (pattern == null) {
                 continue;
@@ -208,20 +230,28 @@ public final class CompiledRootProgram<K> {
             patternIds[node] = patternId;
             outputAmounts[node] = pattern.outputAmount(key);
             compiledPatterns++;
-            // 各slotはコンパイル条件により候補が一つなので、そのキーと量だけを平坦化する。
+            // slot境界を保ったまま、明示された全候補を候補配列へ平坦化する。
             for (CompiledPattern.InputSlot<K> slot : pattern.inputs()) {
-                CompiledPattern.Stack<K> input = slot.alternatives().get(0);
-                Integer childIndex = indexByKey.get(input.key());
-                // 子ノードが未登録または親より先なら、トポロジカル順が壊れているためFallbackする。
-                if (childIndex == null || childIndex <= node) {
-                    return Optional.empty();
+                alternativeOffsets[slotCursor] = alternativeCursor;
+                // 一つのslot内の候補順はAE2 Patternが提示した順序のまま保存する。
+                for (CompiledPattern.Stack<K> input : slot.alternatives()) {
+                    Integer childIndex = indexByKey.get(input.key());
+                    /*
+                     * 子ノードが未登録または親より先なら、全候補を含む
+                     * トポロジカル順が壊れているためFallbackする。
+                     */
+                    if (childIndex == null || childIndex <= node) {
+                        return Optional.empty();
+                    }
+                    inputIndices[alternativeCursor] = childIndex;
+                    inputAmounts[alternativeCursor] = input.amount();
+                    alternativeCursor++;
                 }
-                inputIndices[edgeCursor] = childIndex;
-                inputAmounts[edgeCursor] = input.amount();
-                edgeCursor++;
+                slotCursor++;
             }
         }
-        inputOffsets[nodeCount] = edgeCursor;
+        inputOffsets[nodeCount] = slotCursor;
+        alternativeOffsets[slotCount] = alternativeCursor;
 
         Integer rootIndex = indexByKey.get(root);
         // ルートは必ず到達集合へ入るが、防御的に欠落を検出してFallbackする。
@@ -238,6 +268,7 @@ public final class CompiledRootProgram<K> {
                 patternIds,
                 outputAmounts,
                 inputOffsets,
+                alternativeOffsets,
                 inputIndices,
                 inputAmounts,
                 emitters,
@@ -434,8 +465,12 @@ public final class CompiledRootProgram<K> {
                     outputAmounts[node],
                     "compiled-root/executions/" + node);
             patternExecutions[node] = executions;
-            // 一回のPattern入力へ実行回数を掛け、共有中間素材の需要配列へ加算する。
-            for (int edge = inputOffsets[node]; edge < inputOffsets[node + 1]; edge++) {
+            // 各slotで具体候補を一つ選び、実行回数を掛けて子ノード需要へ加算する。
+            for (int slot = inputOffsets[node]; slot < inputOffsets[node + 1]; slot++) {
+                int edge = selectLongAlternative(
+                        slot,
+                        executions,
+                        inventory);
                 long requiredInput = CheckedLongMath.multiply(
                         inputAmounts[edge],
                         executions,
@@ -515,6 +550,8 @@ public final class CompiledRootProgram<K> {
         Map<K, BigInteger> boundaryOutputs = new LinkedHashMap<>();
         Map<K, BigInteger> missing = new LinkedHashMap<>();
         Set<String> requiredPatterns = new LinkedHashSet<>(patternCount);
+        List<DeterministicPatternStep<K>> patternSteps =
+                new ArrayList<>(patternCount);
         BigInteger logicalExecutions = BigInteger.ZERO;
         int logicalStageCount = 0;
 
@@ -571,11 +608,23 @@ public final class CompiledRootProgram<K> {
                                 "active deterministic pattern has no dependency depth");
                     }
                     logicalStageCount = Math.max(logicalStageCount, depth);
-
-                    // 各固定入力へ実行回数を直接掛け、子ノード需要へ一度だけ加算する。
-                    for (int edge = inputOffsets[node];
-                            edge < inputOffsets[node + 1];
-                            edge++) {
+                    List<DeterministicInput<K>> selectedInputs =
+                            new ArrayList<>(
+                                    inputOffsets[node + 1]
+                                            - inputOffsets[node]);
+                    // 各slotで選んだ具体入力を保存し、同じ選択を物理assembleまで維持する。
+                    for (int slot = inputOffsets[node];
+                            slot < inputOffsets[node + 1];
+                            slot++) {
+                        int edge = selectBigAlternative(
+                                slot,
+                                executions,
+                                inventory.amounts,
+                                maximumBits,
+                                true);
+                        selectedInputs.add(new DeterministicInput<>(
+                                keys.get(inputIndices[edge]),
+                                inputAmounts[edge]));
                         BigInteger requiredInput = BigCountMath.multiply(
                                 BigInteger.valueOf(inputAmounts[edge]),
                                 executions,
@@ -595,6 +644,11 @@ public final class CompiledRootProgram<K> {
                                 patternDepth[child],
                                 childDepth);
                     }
+                    patternSteps.add(new DeterministicPatternStep<>(
+                            patternIds[node],
+                            depth,
+                            executions,
+                            selectedInputs));
                 }
             }
 
@@ -631,11 +685,18 @@ public final class CompiledRootProgram<K> {
             }
         }
 
+        /*
+         * Workerは材料側から完成品側へ進む必要がある。
+         * 親から子へ走査した計画を深度降順へ並べ替え、同じ深度の安定順は維持する。
+         */
+        patternSteps.sort((left, right) ->
+                Integer.compare(right.depth(), left.depth()));
         return Optional.of(new DeterministicCraftingBigPlan<>(
                 boundaryInputs,
                 boundaryOutputs,
                 missing,
                 List.copyOf(requiredPatterns),
+                List.copyOf(patternSteps),
                 logicalExecutions,
                 logicalStageCount));
     }
@@ -691,8 +752,14 @@ public final class CompiledRootProgram<K> {
                     executions,
                     "compiled-root/executions/" + node,
                     maximumBits);
-            // 各入力量をBigIntegerで掛け、子ノードの需要へ上限検査付きで加算する。
-            for (int edge = inputOffsets[node]; edge < inputOffsets[node + 1]; edge++) {
+            // 各slotで具体候補を一つ選び、BigInteger需要を子ノードへ加算する。
+            for (int slot = inputOffsets[node]; slot < inputOffsets[node + 1]; slot++) {
+                int edge = selectBigAlternative(
+                        slot,
+                        executions,
+                        inventory,
+                        maximumBits,
+                        false);
                 BigInteger requiredInput = BigCountMath.multiply(
                         BigInteger.valueOf(inputAmounts[edge]),
                         executions,
@@ -774,6 +841,137 @@ public final class CompiledRootProgram<K> {
         return value == null ? BigInteger.ZERO : value;
     }
 
+    private int selectLongAlternative(
+            int slot,
+            long executions,
+            InventorySnapshot<K> inventory) {
+        int selected = -1;
+        int selectedRank = Integer.MAX_VALUE;
+        CountOverflowException firstOverflow = null;
+        // Patternが提示した候補順を保ち、同順位ではAE2の先頭候補を採用する。
+        for (int edge = alternativeOffsets[slot];
+                edge < alternativeOffsets[slot + 1];
+                edge++) {
+            long required;
+            try {
+                required = CheckedLongMath.multiply(
+                        inputAmounts[edge],
+                        executions,
+                        "compiled-root/alternative/" + slot + '/' + edge);
+            } catch (CountOverflowException overflow) {
+                // 他候補だけがlongへ収まる場合を試すため、最初のoverflowを保留する。
+                if (firstOverflow == null) {
+                    firstOverflow = overflow;
+                }
+                continue;
+            }
+            int rank = alternativeRank(
+                    inputIndices[edge],
+                    BigInteger.valueOf(required),
+                    BigInteger.valueOf(inventory.amountAt(inputIndices[edge])),
+                    false);
+            // より安全な候補だけへ更新し、同順位のPattern順は崩さない。
+            if (rank < selectedRank) {
+                selected = edge;
+                selectedRank = rank;
+            }
+        }
+        // 一つでも無損失候補を選べた場合だけ、その候補辺を返す。
+        if (selected >= 0) {
+            return selected;
+        }
+        // 全候補がoverflowした場合は、暗黙wrapせず最初の原因を上位へ返す。
+        if (firstOverflow != null) {
+            throw firstOverflow;
+        }
+        throw new IllegalStateException(
+                "compiled input slot has no long alternative");
+    }
+
+    private int selectBigAlternative(
+            int slot,
+            BigInteger executions,
+            BigInteger[] inventory,
+            int maximumBits,
+            boolean craftingTableOnly) {
+        int selected = -1;
+        int selectedRank = Integer.MAX_VALUE;
+        IllegalArgumentException firstOverflow = null;
+        // BigIntegerでも候補数だけを走査し、注文数量ぶんの反復は行わない。
+        for (int edge = alternativeOffsets[slot];
+                edge < alternativeOffsets[slot + 1];
+                edge++) {
+            BigInteger required;
+            try {
+                required = BigCountMath.multiply(
+                        BigInteger.valueOf(inputAmounts[edge]),
+                        executions,
+                        "compiled-root/big-alternative/" + slot + '/' + edge,
+                        maximumBits);
+            } catch (IllegalArgumentException overflow) {
+                // より少量の別候補が上限内に収まる可能性があるため、残り候補を確認する。
+                if (firstOverflow == null) {
+                    firstOverflow = overflow;
+                }
+                continue;
+            }
+            int child = inputIndices[edge];
+            int rank = alternativeRank(
+                    child,
+                    required,
+                    inventory[child],
+                    craftingTableOnly);
+            // 最小順位だけを採用し、同順位ではPattern内の候補順を維持する。
+            if (rank < selectedRank) {
+                selected = edge;
+                selectedRank = rank;
+            }
+        }
+        // 選択済み候補があれば、その具体キーを後続の需要計算へ固定する。
+        if (selected >= 0) {
+            return selected;
+        }
+        // 全候補が設定上限を越えた場合は、縮小せず正確な失敗を返す。
+        if (firstOverflow != null) {
+            throw firstOverflow;
+        }
+        throw new IllegalStateException(
+                "compiled input slot has no BigInteger alternative");
+    }
+
+    private int alternativeRank(
+            int child,
+            BigInteger required,
+            BigInteger available,
+            boolean craftingTableOnly) {
+        // このslotを現在在庫だけで満たせる候補を最優先する。
+        if (available.compareTo(required) >= 0) {
+            return ALTERNATIVE_RANK_AVAILABLE;
+        }
+        CompiledPattern<K> childPattern = patternAt(child);
+        // 作業台限定経路では、加工機へpushする下位Patternを選択対象にしない。
+        if (childPattern != null
+                && (!craftingTableOnly
+                        || !childPattern.externalPush())) {
+            return ALTERNATIVE_RANK_CRAFTABLE;
+        }
+        // 通常PlannerだけはEmitterをAE2と同じ供給可能候補として扱う。
+        if (!craftingTableOnly && emittable[child]) {
+            return ALTERNATIVE_RANK_CRAFTABLE;
+        }
+        // 不足を減らせる部分在庫は、完全に存在しない終端候補より先に使う。
+        if (available.signum() > 0) {
+            return ALTERNATIVE_RANK_PARTIAL;
+        }
+        // 作業台限定経路で使えない供給経路は、通常の不足終端より後に置く。
+        if (craftingTableOnly
+                && (childPattern != null
+                        || emittable[child])) {
+            return ALTERNATIVE_RANK_UNSUPPORTED;
+        }
+        return ALTERNATIVE_RANK_MISSING;
+    }
+
     private void requireSnapshot(InventorySnapshot<K> snapshot) {
         Objects.requireNonNull(snapshot, "inventory");
         // 別のルートプログラムで採取した添字配列を誤用するとキーがずれるため拒否する。
@@ -836,23 +1034,81 @@ public final class CompiledRootProgram<K> {
     }
 
     public int inputCountAt(int node) {
+        Objects.checkIndex(node, keys.size());
         return inputOffsets[node + 1] - inputOffsets[node];
     }
 
     public K inputKeyAt(int node, int input) {
-        int edge = checkedEdge(node, input);
+        int edge = checkedSingleAlternative(node, input);
         return keys.get(inputIndices[edge]);
     }
 
     public long inputAmountAt(int node, int input) {
-        return inputAmounts[checkedEdge(node, input)];
+        return inputAmounts[checkedSingleAlternative(node, input)];
     }
 
-    private int checkedEdge(int node, int input) {
+    public int inputAlternativeCountAt(int node, int input) {
+        int slot = checkedSlot(node, input);
+        return alternativeOffsets[slot + 1]
+                - alternativeOffsets[slot];
+    }
+
+    public K inputAlternativeKeyAt(
+            int node,
+            int input,
+            int alternative) {
+        int edge = checkedAlternative(
+                node,
+                input,
+                alternative);
+        return keys.get(inputIndices[edge]);
+    }
+
+    public long inputAlternativeAmountAt(
+            int node,
+            int input,
+            int alternative) {
+        return inputAmounts[checkedAlternative(
+                node,
+                input,
+                alternative)];
+    }
+
+    private int checkedSlot(int node, int input) {
         Objects.checkIndex(node, keys.size());
         int count = inputCountAt(node);
         Objects.checkIndex(input, count);
         return inputOffsets[node] + input;
+    }
+
+    private int checkedAlternative(
+            int node,
+            int input,
+            int alternative) {
+        int slot = checkedSlot(node, input);
+        int count = alternativeOffsets[slot + 1]
+                - alternativeOffsets[slot];
+        Objects.checkIndex(alternative, count);
+        return alternativeOffsets[slot] + alternative;
+    }
+
+    private int checkedSingleAlternative(
+            int node,
+            int input) {
+        int count = inputAlternativeCountAt(
+                node,
+                input);
+        // 単一候補専用APIで複数候補を暗黙に先頭へ縮退させない。
+        if (count != 1) {
+            throw new IllegalStateException(
+                    "compiled input slot has "
+                            + count
+                            + " alternatives");
+        }
+        return checkedAlternative(
+                node,
+                input,
+                0);
     }
 
     public Map<K, CompiledPattern<K>> patternsByOutput() {
@@ -869,6 +1125,7 @@ public final class CompiledRootProgram<K> {
             Map<K, BigInteger> boundaryOutputs,
             Map<K, BigInteger> missing,
             List<String> requiredPatternIds,
+            List<DeterministicPatternStep<K>> patternSteps,
             BigInteger logicalExecutions,
             int logicalStageCount) {
         public DeterministicCraftingBigPlan {
@@ -885,6 +1142,15 @@ public final class CompiledRootProgram<K> {
                     Objects.requireNonNull(
                             requiredPatternIds,
                             "requiredPatternIds"));
+            patternSteps = List.copyOf(
+                    Objects.requireNonNull(
+                            patternSteps,
+                            "patternSteps"));
+            // Pattern ID一覧と実行Step一覧は同じ固有Pattern集合を表す。
+            if (patternSteps.size() != requiredPatternIds.size()) {
+                throw new IllegalArgumentException(
+                        "pattern step count does not match required patterns");
+            }
             BigCountMath.requireNonNegative(
                     logicalExecutions,
                     "deterministic-crafting/logicalExecutions");
@@ -920,6 +1186,59 @@ public final class CompiledRootProgram<K> {
                 copy.put(key, amount);
             }
             return Collections.unmodifiableMap(copy);
+        }
+    }
+
+    /**
+     * 一つの作業台Patternを数量非依存の物理仕事へ変換するための実行係数。
+     *
+     * <p>depthが大きいほど材料側であり、実行時は深度降順に処理する。</p>
+     */
+    public record DeterministicPatternStep<K>(
+            String patternId,
+            int depth,
+            BigInteger executions,
+            List<DeterministicInput<K>> selectedInputs) {
+        public DeterministicPatternStep {
+            patternId = Objects.requireNonNull(
+                    patternId,
+                    "patternId").trim();
+            selectedInputs = List.copyOf(
+                    Objects.requireNonNull(
+                            selectedInputs,
+                            "selectedInputs"));
+            if (patternId.isEmpty()
+                    || depth <= 0
+                    || BigCountMath.requireNonNegative(
+                                    executions,
+                                    "pattern step executions")
+                            .signum() == 0
+                    || selectedInputs.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "invalid deterministic pattern step");
+            }
+            // 各slotはPlannerが選択した正数の具体キーを一件だけ保持する。
+            for (DeterministicInput<K> input : selectedInputs) {
+                Objects.requireNonNull(
+                        input,
+                        "selected input");
+            }
+        }
+    }
+
+    /** Pattern slot一件で選択された、一回実行当たりの具体入力。 */
+    public record DeterministicInput<K>(
+            K key,
+            long amount) {
+        public DeterministicInput {
+            Objects.requireNonNull(
+                    key,
+                    "key");
+            // 一回入力量はAE2 Pattern APIのsigned long正数だけを保存する。
+            if (amount <= 0L) {
+                throw new IllegalArgumentException(
+                        "deterministic input amount must be positive");
+            }
         }
     }
 

@@ -87,9 +87,6 @@ class VectorBatchPlannerTest {
                 program,
                 inventory,
                 executions,
-                1,
-                BigInteger.valueOf(640L),
-                BigInteger.ZERO,
                 "aco:test_nine_slot_long_max",
                 1L,
                 1L,
@@ -161,9 +158,6 @@ class VectorBatchPlannerTest {
                 program,
                 inventory,
                 BigInteger.valueOf(5L),
-                1,
-                BigInteger.valueOf(640L),
-                BigInteger.ZERO,
                 "aco:test_multi_stage",
                 2L,
                 2L,
@@ -187,7 +181,6 @@ class VectorBatchPlannerTest {
                 plan.remainingOutputs().get(0).amount());
         assertEquals(BigInteger.valueOf(9L), plan.logicalExecutions());
         assertEquals(2, plan.logicalStageCount());
-        assertEquals(2, plan.durationTicks());
     }
 
     @Test
@@ -245,9 +238,6 @@ class VectorBatchPlannerTest {
                         program,
                         inventory,
                         BigInteger.valueOf(5L),
-                        1,
-                        BigInteger.valueOf(640L),
-                        BigInteger.ZERO,
                         "aco:test_missing",
                         3L,
                         3L,
@@ -303,9 +293,6 @@ class VectorBatchPlannerTest {
                 program,
                 inventory,
                 requested,
-                1,
-                BigInteger.valueOf(640L),
-                BigInteger.ZERO,
                 "aco:test_twenty_stage",
                 4L,
                 4L,
@@ -329,7 +316,120 @@ class VectorBatchPlannerTest {
                 requested.multiply(BigInteger.valueOf(compressionStages)),
                 plan.logicalExecutions());
         assertEquals(compressionStages, plan.logicalStageCount());
-        assertEquals(compressionStages, plan.durationTicks());
+        assertEquals(compressionStages, plan.craftingSteps().size());
+        // Vector計画にも材料側20から完成品側1までの実Worker順が保存される。
+        for (int step = 0;
+                step < compressionStages;
+                step++) {
+            assertEquals(
+                    compressionStages - step,
+                    plan.craftingSteps().get(step).depth());
+            assertEquals(
+                    requested,
+                    plan.craftingSteps().get(step).executions());
+        }
+    }
+
+    @Test
+    void persistsTheExactTagAlternativeSelectedFromBigIntegerInventory() {
+        TestKey unavailableLog =
+                new TestKey(
+                        "unavailable_log");
+        TestKey availableLog =
+                new TestKey(
+                        "available_log");
+        TestKey output =
+                new TestKey(
+                        "tag_output");
+        CompiledPattern<AEKey> pattern =
+                new CompiledPattern<>(
+                        "aco:test_tag_alternative",
+                        List.of(
+                                new CompiledPattern.InputSlot<>(
+                                        List.of(
+                                                new CompiledPattern.Stack<>(
+                                                        unavailableLog,
+                                                        1L),
+                                                new CompiledPattern.Stack<>(
+                                                        availableLog,
+                                                        1L)))),
+                        Map.of(
+                                output,
+                                1L),
+                        false);
+        CompiledRootProgram<AEKey> program =
+                CompiledRootProgram.tryCompile(
+                                CompiledCraftingGraph.compile(
+                                        5L,
+                                        List.of(
+                                                pattern)),
+                                output,
+                                ignored -> false)
+                        .orElseThrow();
+        /** AQE既定64桁と同じ桁数で、longを十分に越える選択入力試験値。 */
+        BigInteger requested =
+                BigInteger.TEN
+                        .pow(64)
+                        .subtract(
+                                BigInteger.ONE);
+        CompiledRootProgram.BigInventorySnapshot<AEKey> inventory =
+                program.captureBigInventory(
+                        key ->
+                                key.equals(
+                                                availableLog)
+                                        ? requested
+                                        : BigInteger.ZERO,
+                        TEST_MAXIMUM_BITS);
+
+        var plan =
+                VectorBatchPlanner.prepare(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        program,
+                        inventory,
+                        requested,
+                        "aco:test_tag_alternative",
+                        5L,
+                        5L,
+                        TEST_MAXIMUM_BITS,
+                        (programFingerprint,
+                                        requestedAmount,
+                                        totalInputs,
+                                        totalOutputs) ->
+                                "aco:test_tag_alternative_fingerprint");
+
+        assertEquals(
+                1,
+                plan.totalInputs()
+                        .size());
+        assertEquals(
+                availableLog,
+                plan.totalInputs()
+                        .get(0)
+                        .key());
+        assertEquals(
+                requested,
+                plan.totalInputs()
+                        .get(0)
+                        .amount());
+        assertEquals(
+                1,
+                plan.craftingSteps()
+                        .size());
+        assertEquals(
+                availableLog,
+                plan.craftingSteps()
+                        .get(0)
+                        .selectedInputs()
+                        .get(0)
+                        .key());
+        assertEquals(
+                1L,
+                plan.craftingSteps()
+                        .get(0)
+                        .selectedInputs()
+                        .get(0)
+                        .amountPerExecution());
     }
 
     /** Minecraft Registry初期化なしでPlannerを試験する最小AEKey。 */

@@ -14,11 +14,14 @@ import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchBudget;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchContext;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchCpuAccountingMode;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchEnergyAccountingMode;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceipt;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchCommit;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchV2Api;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PreparedPatternBatch;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.ProviderOwnedPatternBatchTarget;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.SourceRecoveryResult;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.TransactionalPatternBatchAdapter;
 import com.syaru.ae2craftingoptimizer.access.CraftingJobTransactionAccess;
@@ -32,8 +35,10 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionCoordinator;
 import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord;
 import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +70,7 @@ public final class TransactionalCraftingExecutorV2 {
             Level level) {
         if (!ACOConfig.enableTransactionalBatchingV2()
                 || logic == null
-                || maxPatterns < 2
+                || maxPatterns < 1
                 || craftingService == null
                 || energyService == null
                 || level == null) {
@@ -137,7 +142,7 @@ public final class TransactionalCraftingExecutorV2 {
         }
         if (!ACOConfig.enableTransactionalBatchingV2()
                 || !(level instanceof ServerLevel serverLevel)
-                || maxPatterns < 2
+                || maxPatterns < 1
                 || craftingService == null
                 || energyService == null) {
             return NOT_HANDLED;
@@ -178,25 +183,57 @@ public final class TransactionalCraftingExecutorV2 {
                     return 0;
                 }
                 long remaining = progress.aco$getTaskProgress();
-                if (remaining < 2L) {
+                // 一回だけの作業台クラフトもAAC実Workerへ渡し、注文量で実行経路を変えない。
+                if (remaining < 1L) {
                     continue;
                 }
-                ExactPlan plan = ExactPlan.create(details, level);
+                ExactPlan plan = ExactPlan.create(details, inventory, level);
                 if (plan == null) {
                     continue;
                 }
-                V2Selection selection = selectProvider(craftingService, details, plan, level);
+                V2Selection selection = selectProvider(
+                        craftingService,
+                        details,
+                        plan,
+                        jobAccess.aco$getCraftingJobId(),
+                        level);
                 if (selection == null) {
                     continue;
                 }
 
-                long requested = Math.min(remaining, (long) maxPatterns);
-                requested = Math.min(requested, ACOConfig.getNativeBatchMaximumExecutions());
+                BatchCpuAccountingMode accountingMode =
+                        selection.adapter().cpuAccountingMode();
+                /*
+                 * 通常Adapterは従来どおり論理回数をCPU予算へ数える。
+                 * 実ワーカーが一つの仕事として所有するAdapterだけ、論理long回数を
+                 * maxPatternsから切り離し、CPUには物理配送一回として返す。
+                 */
+                long requested = BatchExecutionOffer.select(
+                        remaining,
+                        maxPatterns,
+                        accountingMode,
+                        ACOConfig.getNativeBatchMaximumExecutions());
                 requested = plan.safeBatchSize(requested);
                 requested = selection.adapter().limitExecutions(selection.context(), requested);
-                requested = limitByEnergy(plan.inputsPerExecution(), requested, energyService);
-                requested = limitByInventory(plan.totalInputsPerExecution(), requested, inventory);
-                if (requested < 2L) {
+                requested = limitByWaitingFor(
+                        plan,
+                        requested,
+                        jobAccess);
+                BatchEnergyAccountingMode energyMode =
+                        selection.adapter().energyAccountingMode();
+                /*
+                 * 実Workerが電力と進捗を所有する場合、AE2 CPU側で論理N回分を
+                 * 二重課金しない。その他のAdapterは従来の送信元電力会計を維持する。
+                 */
+                if (energyMode
+                        == BatchEnergyAccountingMode.SOURCE_LOGICAL_EXECUTIONS) {
+                    requested = limitByEnergy(
+                            plan.inputsPerExecution(),
+                            requested,
+                            energyService);
+                }
+                requested = limitByInventory(plan.inputsPerExecution(), requested, inventory);
+                if (requested < 1L) {
                     continue;
                 }
 
@@ -211,15 +248,20 @@ public final class TransactionalCraftingExecutorV2 {
                             "V2 adapter returned a mismatched transaction id or exceeded its execution budget");
                 }
                 requested = prepared.offeredExecutions();
-                if (requested < 2L) {
+                if (requested < 1L) {
                     continue;
                 }
                 if (!matchesPreparedBatch(prepared, plan, requested)) {
                     throw new IllegalStateException(
                             "V2 adapter prepared inputs or outputs that do not match the exact AE2 pattern plan");
                 }
-                double power = CraftingCpuHelper.calculatePatternPower(
-                        scaleCounters(plan.inputsPerExecution(), requested));
+                double power = energyMode
+                                == BatchEnergyAccountingMode.TARGET_PHYSICAL_OPERATION
+                        ? 0.0D
+                        : CraftingCpuHelper.calculatePatternPower(
+                                scaleCounters(
+                                        plan.inputsPerExecution(),
+                                        requested));
                 if (!Double.isFinite(power) || power < 0.0D) {
                     continue;
                 }
@@ -344,7 +386,9 @@ public final class TransactionalCraftingExecutorV2 {
                             selection.context(),
                             resolvedRecord);
                     OptimizationMetrics.recordNativePatternBatch(selection.adapter().id().toString(), accepted);
-                    return Math.toIntExact(accepted);
+                    return accountingMode == BatchCpuAccountingMode.SINGLE_PHYSICAL_OPERATION
+                            ? 1
+                            : Math.toIntExact(accepted);
                 } catch (Throwable failure) {
                     if (!targetAccepted && !commitStarted) {
                         try {
@@ -402,10 +446,27 @@ public final class TransactionalCraftingExecutorV2 {
             CraftingService service,
             IPatternDetails details,
             ExactPlan plan,
+            UUID craftingJobId,
             Level level) {
         for (ICraftingProvider provider : PatternProviderRoutingCache.candidates(service, details)) {
             if (provider.isBusy()) {
                 continue;
+            }
+            if (provider instanceof ProviderOwnedPatternBatchTarget ownedTarget) {
+                PatternBatchContext ownedContext = PatternBatchContext.providerOwned(
+                        provider,
+                        details,
+                        plan.inputsPerExecution(),
+                        plan.outputsPerExecution(),
+                        plan.remainingOutputsPerExecution(),
+                        level,
+                        ownedTarget.aco$getProviderOwnedBatchTarget(),
+                        craftingJobId);
+                TransactionalPatternBatchAdapter ownedAdapter =
+                        PatternBatchV2Api.find(ownedContext).orElse(null);
+                if (ownedAdapter != null) {
+                    return new V2Selection(ownedAdapter, ownedContext);
+                }
             }
             PatternProviderBatchEligibility.BatchTarget target =
                     PatternProviderBatchEligibility.inspectV2(provider, details, level);
@@ -451,17 +512,80 @@ public final class TransactionalCraftingExecutorV2 {
     }
 
     private static long limitByInventory(
-            KeyCounter perExecution,
+            KeyCounter[] perExecution,
             long requested,
             ICraftingInventory inventory) {
-        long limited = requested;
-        for (var input : perExecution) {
-            long amount = input.getLongValue();
-            long available = inventory.extract(
-                    input.getKey(), Math.multiplyExact(amount, limited), Actionable.SIMULATE);
-            limited = Math.min(limited, available / amount);
+        Map<AEKey, BigInteger> totals = new java.util.HashMap<>();
+        /*
+         * 同じ素材が複数slotにある時も一回分の合計へ畳み込む。
+         * slotごとに同じ在庫残量を再利用すると、9枠レシピを最大9倍過大評価するため。
+         */
+        for (KeyCounter slot : perExecution) {
+            for (var input : slot) {
+                if (input.getLongValue() <= 0L) {
+                    return 0L;
+                }
+                totals.merge(
+                        input.getKey(),
+                        BigInteger.valueOf(input.getLongValue()),
+                        BigInteger::add);
+            }
         }
-        return limited;
+
+        return ExactBatchInputLimiter.limit(
+                requested,
+                totals,
+                (key, requestedAmount) -> inventory.extract(
+                        key,
+                        requestedAmount,
+                        Actionable.SIMULATE));
+    }
+
+    private static long limitByWaitingFor(
+            ExactPlan plan,
+            long requested,
+            CraftingJobTransactionAccess job) {
+        Map<AEKey, BigInteger> perExecution =
+                new java.util.HashMap<>();
+        appendCounterTotals(
+                perExecution,
+                plan.outputsPerExecution());
+        appendCounterTotals(
+                perExecution,
+                plan.remainingOutputsPerExecution());
+
+        BigInteger safe = BigInteger.valueOf(requested);
+        BigInteger maximum = BigInteger.valueOf(Long.MAX_VALUE);
+        for (Map.Entry<AEKey, BigInteger> output :
+                perExecution.entrySet()) {
+            long current =
+                    job.aco$getWaitingForAmount(output.getKey());
+            // 負数は既に会計が壊れているため、新しいBatchを一切積まない。
+            if (current < 0L
+                    || output.getValue().signum() <= 0) {
+                return 0L;
+            }
+            BigInteger headroom =
+                    maximum.subtract(BigInteger.valueOf(current));
+            safe = safe.min(
+                    headroom.divide(output.getValue()));
+        }
+        return safe.longValueExact();
+    }
+
+    private static void appendCounterTotals(
+            Map<AEKey, BigInteger> target,
+            KeyCounter source) {
+        for (var entry : source) {
+            /*
+             * 主出力と返却物が同じキーでも中間合計をlongへ落とさず、
+             * 最後にwaitingForのsigned-long余白と比較する。
+             */
+            target.merge(
+                    entry.getKey(),
+                    BigInteger.valueOf(entry.getLongValue()),
+                    BigInteger::add);
+        }
     }
 
     private static boolean extractBatch(
@@ -517,26 +641,36 @@ public final class TransactionalCraftingExecutorV2 {
             PreparedPatternBatch prepared,
             ExactPlan plan,
             long executions) {
-        return stackTotals(prepared.aggregateInputs()).equals(counterTotals(
-                        scaleCounter(plan.totalInputsPerExecution(), executions)))
-                && stackTotals(prepared.expectedOutputs()).equals(counterTotals(
-                        scaleCounter(plan.outputsPerExecution(), executions)));
+        return normalizedStacks(prepared.aggregateInputs()).equals(normalizedStacks(
+                        flattenCounters(scaleCounters(plan.inputsPerExecution(), executions))))
+                && normalizedStacks(prepared.expectedOutputs()).equals(normalizedStacks(
+                        plan.scaleExpectedOutputs(executions)));
     }
 
-    private static Map<AEKey, Long> stackTotals(List<GenericStack> stacks) {
-        Map<AEKey, Long> result = new HashMap<>();
+    private static List<GenericStack> flattenCounters(KeyCounter[] counters) {
+        List<GenericStack> result = new ArrayList<>();
+        for (KeyCounter counter : counters) {
+            for (var entry : counter) {
+                result.add(new GenericStack(entry.getKey(), entry.getLongValue()));
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<ComparableStack> normalizedStacks(List<GenericStack> stacks) {
+        List<ComparableStack> result = new ArrayList<>(stacks.size());
         for (GenericStack stack : stacks) {
-            result.merge(stack.what(), stack.amount(), Math::addExact);
+            if (stack == null || stack.amount() <= 0L) {
+                throw new IllegalArgumentException(
+                        "prepared batch contains a null or non-positive stack");
+            }
+            result.add(new ComparableStack(
+                    stack.what().toTagGeneric().toString(),
+                    stack.amount()));
         }
-        return result;
-    }
-
-    private static Map<AEKey, Long> counterTotals(KeyCounter counter) {
-        Map<AEKey, Long> result = new HashMap<>();
-        for (var entry : counter) {
-            result.put(entry.getKey(), entry.getLongValue());
-        }
-        return result;
+        result.sort(Comparator.comparing(ComparableStack::key)
+                .thenComparingLong(ComparableStack::amount));
+        return List.copyOf(result);
     }
 
     private static void logFailure(Class<?> logicClass, Throwable failure) {
@@ -627,34 +761,47 @@ public final class TransactionalCraftingExecutorV2 {
             PatternBatchContext context) {
     }
 
+    private record ComparableStack(String key, long amount) {
+    }
+
     private record ExactPlan(
             KeyCounter[] inputsPerExecution,
-            KeyCounter totalInputsPerExecution,
-            KeyCounter outputsPerExecution) {
+            KeyCounter outputsPerExecution,
+            KeyCounter remainingOutputsPerExecution) {
         @Nullable
-        private static ExactPlan create(IPatternDetails details, Level level) {
-            if (!details.supportsPushInputsToExternalInventory()) {
+        private static ExactPlan create(
+                IPatternDetails details,
+                ICraftingInventory inventory,
+                Level level) {
+            /*
+             * 通常作業台PatternはIMolecularAssemblerSupportedPattern側で
+             * supportsPushInputsToExternalInventory=falseを返す。加工Pattern判定を
+             * ここへ流用せず、作業台Patternかどうかを型で判定する。
+             */
+            if (!(details instanceof appeng.blockentity.crafting.IMolecularAssemblerSupportedPattern)) {
                 return null;
             }
             KeyCounter[] inputs = new KeyCounter[details.getInputs().length];
-            KeyCounter total = new KeyCounter();
             try {
                 for (int index = 0; index < details.getInputs().length; index++) {
                     IPatternDetails.IInput input = details.getInputs()[index];
                     var possible = input.getPossibleInputs();
-                    if (input.getMultiplier() <= 0L || possible.length != 1) {
+                    if (input.getMultiplier() <= 0L || possible.length == 0) {
                         return null;
                     }
-                    var concrete = possible[0];
-                    if (concrete.amount() <= 0L
-                            || !input.isValid(concrete.what(), level)
-                            || input.getRemainingKey(concrete.what()) != null) {
+                    GenericStack selected = selectConcreteInput(
+                            input,
+                            possible,
+                            inventory,
+                            level);
+                    if (selected == null) {
                         return null;
                     }
-                    long amount = Math.multiplyExact(concrete.amount(), input.getMultiplier());
+                    long amount = Math.multiplyExact(
+                            selected.amount(),
+                            input.getMultiplier());
                     KeyCounter slot = inputs[index] = new KeyCounter();
-                    slot.add(concrete.what(), amount);
-                    total.set(concrete.what(), Math.addExact(total.get(concrete.what()), amount));
+                    slot.add(selected.what(), amount);
                 }
                 KeyCounter outputs = new KeyCounter();
                 for (var output : details.getOutputs()) {
@@ -664,21 +811,107 @@ public final class TransactionalCraftingExecutorV2 {
                     outputs.set(
                             output.what(), Math.addExact(outputs.get(output.what()), output.amount()));
                 }
-                return new ExactPlan(inputs, total, outputs);
+                KeyCounter remainingOutputs = new KeyCounter();
+                for (int index = 0; index < details.getInputs().length; index++) {
+                    IPatternDetails.IInput input = details.getInputs()[index];
+                    AEKey selectedKey = firstKey(inputs[index]);
+                    AEKey remainingKey = input.getRemainingKey(selectedKey);
+                    if (remainingKey != null) {
+                        long amount = input.getMultiplier();
+                        remainingOutputs.set(
+                                remainingKey,
+                                Math.addExact(
+                                        remainingOutputs.get(remainingKey),
+                                        amount));
+                    }
+                }
+                return new ExactPlan(inputs, outputs, remainingOutputs);
             } catch (ArithmeticException ignored) {
                 return null;
             }
         }
 
+        @Nullable
+        private static GenericStack selectConcreteInput(
+                IPatternDetails.IInput input,
+                GenericStack[] candidates,
+                ICraftingInventory inventory,
+                Level level) {
+            GenericStack selected = null;
+            long selectedCrafts = -1L;
+            for (GenericStack candidate : candidates) {
+                if (candidate == null
+                        || candidate.amount() <= 0L
+                        || !input.isValid(candidate.what(), level)) {
+                    continue;
+                }
+                long perCraft;
+                try {
+                    perCraft = Math.multiplyExact(
+                            candidate.amount(),
+                            input.getMultiplier());
+                } catch (ArithmeticException overflow) {
+                    continue;
+                }
+                long available = inventory.extract(
+                        candidate.what(),
+                        Long.MAX_VALUE,
+                        Actionable.SIMULATE);
+                long crafts = available / perCraft;
+                // 在庫が最も多い一種類だけを選び、同じBatch内で代替素材を混在させない。
+                if (crafts > selectedCrafts) {
+                    selected = candidate;
+                    selectedCrafts = crafts;
+                }
+            }
+            return selected;
+        }
+
+        private static AEKey firstKey(KeyCounter counter) {
+            for (var entry : counter) {
+                return entry.getKey();
+            }
+            throw new IllegalStateException(
+                    "exact pattern input slot is unexpectedly empty");
+        }
+
         private long safeBatchSize(long requested) {
             long safe = requested;
-            for (var input : totalInputsPerExecution) {
-                safe = Math.min(safe, Long.MAX_VALUE / input.getLongValue());
+            // 各slotは個別に抽出・Receipt保存するため、同一キーが複数slotにあっても合算しない。
+            for (KeyCounter slot : inputsPerExecution) {
+                for (var input : slot) {
+                    safe = Math.min(
+                            safe,
+                            Long.MAX_VALUE / input.getLongValue());
+                }
             }
             for (var output : outputsPerExecution) {
                 safe = Math.min(safe, Long.MAX_VALUE / output.getLongValue());
             }
+            for (var output : remainingOutputsPerExecution) {
+                safe = Math.min(safe, Long.MAX_VALUE / output.getLongValue());
+            }
             return safe;
+        }
+
+        private List<GenericStack> scaleExpectedOutputs(long executions) {
+            List<GenericStack> result = new ArrayList<>();
+            appendScaled(result, outputsPerExecution, executions);
+            appendScaled(result, remainingOutputsPerExecution, executions);
+            return List.copyOf(result);
+        }
+
+        private static void appendScaled(
+                List<GenericStack> target,
+                KeyCounter source,
+                long executions) {
+            for (var entry : source) {
+                target.add(new GenericStack(
+                        entry.getKey(),
+                        Math.multiplyExact(
+                                entry.getLongValue(),
+                                executions)));
+            }
         }
     }
 }

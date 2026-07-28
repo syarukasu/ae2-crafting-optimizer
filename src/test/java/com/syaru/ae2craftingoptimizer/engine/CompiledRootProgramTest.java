@@ -165,6 +165,57 @@ class CompiledRootProgramTest {
     }
 
     @Test
+    void usesTheAvailableExplicitAlternativeInTheLongPlanner() {
+        var alternativeSlot =
+                new CompiledPattern.InputSlot<>(
+                        List.of(
+                                new CompiledPattern.Stack<>(
+                                        "missing-log",
+                                        1L),
+                                new CompiledPattern.Stack<>(
+                                        "stored-log",
+                                        1L)));
+        var output =
+                new CompiledPattern<>(
+                        "tagged-planks",
+                        List.of(
+                                alternativeSlot),
+                        Map.of(
+                                "planks",
+                                1L),
+                        false);
+        var program =
+                compile(
+                        List.of(
+                                output),
+                        "planks");
+        var inventory =
+                program.captureLongInventory(
+                        key ->
+                                key.equals(
+                                                "stored-log")
+                                        ? 8L
+                                        : 0L);
+
+        LongCraftingPlan<String> plan =
+                program.planLong(
+                        8L,
+                        inventory,
+                        PlanningGuard.none());
+
+        assertTrue(
+                plan.craftable());
+        assertEquals(
+                Map.of(
+                        "stored-log",
+                        8L),
+                plan.usedInventory());
+        assertTrue(
+                plan.missing()
+                        .isEmpty());
+    }
+
+    @Test
     void enforcesTheExactSixteenThousandDigitMaximum() {
         BigInteger maximum = BigInteger.TEN
                 .pow(BigCountMath.HARD_MAXIMUM_DECIMAL_DIGITS)

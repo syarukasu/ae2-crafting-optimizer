@@ -14,6 +14,25 @@ public interface TransactionalPatternBatchAdapter {
         return 0;
     }
 
+    /**
+     * CPUのtick予算へBatchをどう数えるか。
+     *
+     * <p>既存Adapterとの互換性を保つため、既定値は論理実行数である。</p>
+     */
+    default BatchCpuAccountingMode cpuAccountingMode() {
+        return BatchCpuAccountingMode.LOGICAL_EXECUTIONS;
+    }
+
+    /**
+     * 電力会計の所有者。
+     *
+     * <p>既存AdapterはAE2送信元会計を維持する。NeoECO Workerのように
+     * 実機側で電力と進捗を持つAdapterだけがTARGETを明示する。</p>
+     */
+    default BatchEnergyAccountingMode energyAccountingMode() {
+        return BatchEnergyAccountingMode.SOURCE_LOGICAL_EXECUTIONS;
+    }
+
     boolean supports(PatternBatchContext context);
 
     default long limitExecutions(PatternBatchContext context, long offeredExecutions) {

@@ -220,6 +220,94 @@ class BigCraftingJobTest {
                 () -> job.rollbackPreparedVector(first));
     }
 
+    @Test
+    void vectorLeasePersistsAuthoritativeTreeStateAndDisplaysPhysicalProgress() {
+        BigInteger amount =
+                BigInteger.TEN.pow(64);
+        BigCraftingJob<String> job =
+                BigCraftingJob.rootWindowed(
+                        UUID.randomUUID(),
+                        "output",
+                        amount,
+                        BigInteger.ONE);
+        UUID transactionId =
+                UUID.randomUUID();
+        CompoundTag treeState =
+                new CompoundTag();
+        treeState.putInt(
+                "stepCursor",
+                7);
+        job.prepareVectorExecution(
+                transactionId,
+                "aco:crafting-table-tree-v1",
+                "tree-plan",
+                treeState,
+                25,
+                100);
+
+        /*
+         * 呼出側が返却Tagを書き換えても、親Job内の正本状態と保存内容は変わらない。
+         */
+        job.preparedVectorExecution()
+                .executionState()
+                .putInt(
+                        "stepCursor",
+                        99);
+        BigCraftingJob<String> restored =
+                BigCraftingJob.load(
+                        job.save(
+                                STRINGS,
+                                512),
+                        STRINGS,
+                        512);
+
+        assertEquals(
+                7,
+                restored.preparedVectorExecution()
+                        .executionState()
+                        .getInt(
+                                "stepCursor"));
+        assertEquals(
+                amount.multiply(
+                                BigInteger.valueOf(75L))
+                        .divide(
+                                BigInteger.valueOf(100L)),
+                restored.compactStatusSnapshot()
+                        .remainingExecutions());
+        assertEquals(
+                amount,
+                restored.remainingExecutionTotal());
+    }
+
+    @Test
+    void vectorProgressRejectsZeroDenominatorAndValuesAboveOneHundredPercent() {
+        BigCraftingJob<String> job =
+                BigCraftingJob.rootWindowed(
+                        UUID.randomUUID(),
+                        "output",
+                        BigInteger.TEN,
+                        BigInteger.ONE);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> job.prepareVectorExecution(
+                        UUID.randomUUID(),
+                        "aco:crafting-table-tree-v1",
+                        "tree-plan",
+                        new CompoundTag(),
+                        0,
+                        0));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> job.prepareVectorExecution(
+                        UUID.randomUUID(),
+                        "aco:crafting-table-tree-v1",
+                        "tree-plan",
+                        new CompoundTag(),
+                        101,
+                        100));
+    }
+
     private static BigCraftingJob<String> job(BigInteger count) {
         return new BigCraftingJob<>(
                 UUID.randomUUID(),

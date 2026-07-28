@@ -17,8 +17,6 @@ import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftConfirmMenuBridge;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingPlanSummary;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
-import com.syaru.ae2craftingoptimizer.menu.BigCraftingMenuOpenRequest;
-import com.syaru.ae2craftingoptimizer.menu.BigCraftingStatusMenus;
 import java.util.Objects;
 import java.util.concurrent.Future;
 import net.minecraft.server.level.ServerPlayer;
@@ -71,35 +69,6 @@ public abstract class CraftConfirmMenuLongAmountMixin
             org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
         // 本家int計画が始まる時は、以前のlong値をreplan/backへ持ち越さない。
         this.aco$longRootAmount = 0L;
-    }
-
-    @Inject(method = "startJob", at = @At("HEAD"), require = 1)
-    private void aco$clearStaleBigStatusOpenRequest(CallbackInfo ci) {
-        CraftConfirmMenu menu = (CraftConfirmMenu) (Object) this;
-        // Client action送信側にはServer ThreadLocalが存在しない。
-        if (!menu.isClientSide()) {
-            BigCraftingMenuOpenRequest.clear();
-        }
-    }
-
-    @Inject(method = "startJob", at = @At("RETURN"), require = 1)
-    private void aco$openSubmittedBigParentStatus(CallbackInfo ci) {
-        CraftConfirmMenu menu = (CraftConfirmMenu) (Object) this;
-        if (menu.isClientSide()
-                || !(menu.getPlayer()
-                        instanceof ServerPlayer serverPlayer)) {
-            return;
-        }
-        /*
-         * BigInteger親Jobが成功した呼出しだけRequestを持つ。
-         * Advanced AE/AE2の通常Jobでは既存の戻り先を変更しない。
-         */
-        BigCraftingMenuOpenRequest.consume(serverPlayer)
-                .ifPresent(request ->
-                        BigCraftingStatusMenus.open(
-                                serverPlayer,
-                                request.host(),
-                                request.jobId()));
     }
 
     @Override

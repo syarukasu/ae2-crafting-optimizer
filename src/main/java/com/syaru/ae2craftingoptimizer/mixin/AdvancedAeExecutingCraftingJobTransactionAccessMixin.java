@@ -1,27 +1,42 @@
 package com.syaru.ae2craftingoptimizer.mixin;
 
-import appeng.api.config.Actionable;
 import appeng.api.crafting.IPatternDetails;
+import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
-import appeng.api.stacks.GenericStack;
 import appeng.crafting.CraftingLink;
 import appeng.crafting.inv.ICraftingInventory;
 import appeng.crafting.inv.ListCraftingInventory;
-import com.syaru.ae2craftingoptimizer.access.CraftingIslandJobAccess;
+import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingJobTransactionAccess;
-import com.syaru.ae2craftingoptimizer.api.execution.CraftingIslandStateUncertainException;
-import com.syaru.ae2craftingoptimizer.engine.CheckedLongMath;
+import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
+import com.syaru.ae2craftingoptimizer.access.ExactCraftingInventoryAccess;
+import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
+import com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobLedger;
+import com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState;
+import java.math.BigInteger;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import net.pedroksl.advanced_ae.common.logic.ElapsedTimeTracker;
+import java.util.UUID;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 
+/**
+ * Advanced AEの実Job会計をV2 Pattern Batchへ公開する最小Accessor。
+ */
 @Pseudo
 @Mixin(targets = "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob", remap = false)
 public abstract class AdvancedAeExecutingCraftingJobTransactionAccessMixin
-        implements CraftingJobTransactionAccess, CraftingIslandJobAccess {
+        implements CraftingJobTransactionAccess, AdvancedAeExactCraftingJobAccess {
+    @Unique
+    private static final String ACO_EXACT_JOB_NBT =
+            "acoExactCraftingJob";
+
     @Shadow
     @Final
     private Map<IPatternDetails, Object> tasks;
@@ -32,17 +47,18 @@ public abstract class AdvancedAeExecutingCraftingJobTransactionAccessMixin
 
     @Shadow
     @Final
-    private ElapsedTimeTracker timeTracker;
-
-    @Shadow
-    @Final
     private CraftingLink link;
 
     @Shadow
-    private GenericStack finalOutput;
-
-    @Shadow
     private long remainingAmount;
+
+    /** nullは通常Advanced AE Job、非nullは同じ実Jobへ付随するBigInteger正本。 */
+    @Unique
+    private ExactCraftingJobState aco$exactState;
+
+    /** Advanced AEのremainingAmountをBigIntegerへ拡張した、同じ実Job上の正確な残数。 */
+    @Unique
+    private BigInteger aco$exactRemainingAmount;
 
     @Override
     public Map<IPatternDetails, Object> aco$getTasks() {
@@ -55,136 +71,213 @@ public abstract class AdvancedAeExecutingCraftingJobTransactionAccessMixin
     }
 
     @Override
-    public Map<IPatternDetails, Object> aco$getIslandTasks() {
-        return tasks;
+    public long aco$getWaitingForAmount(AEKey key) {
+        return waitingFor.list.get(key);
     }
 
     @Override
-    public GenericStack aco$getIslandFinalOutput() {
-        return finalOutput;
+    public UUID aco$getCraftingJobId() {
+        return link.getCraftingID();
     }
 
     @Override
-    public long aco$getIslandRemainingAmount() {
-        return remainingAmount;
-    }
-
-    @Override
-    public boolean aco$canAcceptIslandOutput(AEKey key, long amount) {
-        // 0以下の値やwaitingForをwrapさせる加算は、CPU会計へ一切入れない。
-        if (key == null || amount <= 0L) {
-            return false;
-        }
-        long currentWaiting = waitingFor.list.get(key);
-        try {
-            CheckedLongMath.add(
-                    currentWaiting,
-                    amount,
-                    "AdvancedAE island waitingFor");
-        } catch (ArithmeticException overflow) {
-            return false;
-        }
-
-        boolean finalOutputKey =
-                finalOutput != null && key.matches(finalOutput);
-        if (!finalOutputKey) {
-            return true;
-        }
-        // 既に配送済みの最終出力と今回分の合計が、Job残量を超える島を拒否する。
-        if (remainingAmount < amount
-                || currentWaiting > remainingAmount - amount) {
-            return false;
-        }
-        return link.insert(key, amount, Actionable.SIMULATE) == amount;
-    }
-
-    @Override
-    public void aco$stageIslandOutput(AEKey key, long amount) {
-        long previousWaiting = waitingFor.list.get(key);
-        // prepare後の変化も同じ検査へ通し、確認不能な部分stageを作らない。
-        if (!aco$canAcceptIslandOutput(key, amount)) {
+    public void aco$installExactState(
+            BigIntegerCraftingPlan plan) {
+        if (aco$exactState != null) {
             throw new IllegalStateException(
-                    "AdvancedAE island output can no longer be staged safely");
+                    "Advanced AE job already has exact accounting");
         }
-        long nextWaiting = CheckedLongMath.add(
-                previousWaiting,
-                amount,
-                "AdvancedAE island waitingFor");
-        try {
-            waitingFor.insert(key, amount, Actionable.MODULATE);
-            // listener呼出しを含め、実カウンタが事前計算と一致した時だけ成功とする。
-            if (waitingFor.list.get(key) != nextWaiting) {
-                throw new IllegalStateException(
-                        "AdvancedAE island waitingFor changed during output staging");
-            }
-        } catch (RuntimeException stagingFailure) {
-            long currentWaiting = waitingFor.list.get(key);
-            // 値が変わる前の例外なら追加のcallback rollbackは不要。
-            boolean callbackRollbackComplete =
-                    currentWaiting == previousWaiting;
-            // 実際に全量stageされた場合だけ、公開APIで逆差分を通知して戻す。
-            if (!callbackRollbackComplete
-                    && currentWaiting == nextWaiting) {
-                try {
-                    long removed = waitingFor.extract(
-                            key,
-                            amount,
-                            Actionable.MODULATE);
-                    callbackRollbackComplete =
-                            removed == amount
-                                    && waitingFor.list.get(key) == previousWaiting;
-                } catch (RuntimeException rollbackFailure) {
-                    stagingFailure.addSuppressed(rollbackFailure);
-                }
-            }
-            waitingFor.list.set(key, previousWaiting);
-            waitingFor.list.removeZeros();
-            if (!callbackRollbackComplete) {
-                throw new CraftingIslandStateUncertainException(
-                        "AdvancedAE island output staging callback could not be rolled back exactly",
-                        stagingFailure);
-            }
-            throw stagingFailure;
-        }
+        aco$exactState = ExactCraftingJobState.fromPlan(plan);
+        aco$applyExactRuntimeCounters();
     }
 
     @Override
-    public void aco$unstageIslandOutput(AEKey key, long amount) {
-        long previousWaiting = waitingFor.list.get(key);
-        // 登録済み量より大きい逆差分は、別処理が会計を変更した状態として拒否する。
-        if (amount <= 0L || previousWaiting < amount) {
+    public void aco$loadExactState(
+            CompoundTag owner) {
+        if (!owner.contains(
+                ACO_EXACT_JOB_NBT,
+                Tag.TAG_COMPOUND)) {
+            aco$exactState = null;
+            return;
+        }
+        aco$exactState = ExactCraftingJobState.load(
+                owner.getCompound(ACO_EXACT_JOB_NBT),
+                ACOConfig.getBigIntegerMaximumBits());
+        aco$applyExactRuntimeCounters();
+    }
+
+    @Override
+    public void aco$writeExactState(
+            CompoundTag owner) {
+        if (aco$exactState == null) {
+            return;
+        }
+        /*
+         * 実行時の正本はTaskProgress、waitingFor、remainingAmount拡張である。
+         * 保存前に永続Journalとの完全一致だけを検証し、どちらの値も補正しない。
+         */
+        aco$exactState.verifyRuntimeCounters(
+                aco$getExactRemainingTasks(),
+                aco$getExactWaitingFor(),
+                aco$getExactRemainingOutput());
+        owner.put(
+                ACO_EXACT_JOB_NBT,
+                aco$exactState.save(
+                        ACOConfig.getBigIntegerMaximumBits()));
+    }
+
+    @Override
+    public boolean aco$isExactJob() {
+        return aco$exactState != null;
+    }
+
+    @Override
+    public ExactCraftingJobState aco$getExactState() {
+        return aco$exactState;
+    }
+
+    @Override
+    public void aco$reconcileExactAccounting(
+            Map<AEItemKey, BigInteger> dispatchedTasks,
+            Map<AEKey, BigInteger> introducedOutputs,
+            Map<AEKey, BigInteger> creditedOutputs,
+            BigInteger remainingOutput) {
+        ExactCraftingJobState state = aco$requireExactState();
+        state.reconcile(
+                dispatchedTasks,
+                introducedOutputs,
+                creditedOutputs,
+                remainingOutput);
+        aco$applyExactRuntimeCounters();
+    }
+
+    @Override
+    public Map<AEItemKey, BigInteger> aco$getExactRemainingTasks() {
+        aco$requireExactState();
+        Map<AEItemKey, BigInteger> remaining =
+                new LinkedHashMap<>();
+        // 実Jobの各TaskProgressを定義Item単位へまとめ、正確な残タスク数として返す。
+        for (var entry : tasks.entrySet()) {
+            if (!(entry.getValue()
+                    instanceof CraftingTaskProgressAccess progress)) {
+                throw new IllegalStateException(
+                        "Advanced AE task progress access is missing");
+            }
+            BigInteger amount =
+                    progress.aco$getExactTaskProgress();
+            if (amount.signum() < 0) {
+                throw new IllegalStateException(
+                        "Advanced AE exact task progress is negative");
+            }
+            if (amount.signum() > 0) {
+                remaining.merge(
+                        entry.getKey().getDefinition(),
+                        amount,
+                        BigInteger::add);
+            }
+        }
+        return Map.copyOf(remaining);
+    }
+
+    @Override
+    public Map<AEKey, BigInteger> aco$getExactWaitingFor() {
+        aco$requireExactState();
+        if (!(waitingFor
+                instanceof ExactCraftingInventoryAccess exactInventory)
+                || !exactInventory.aco$hasExactCounts()) {
             throw new IllegalStateException(
-                    "AdvancedAE island staged output cannot be rolled back exactly");
+                    "Advanced AE waitingFor has no exact accounting");
         }
-        try {
-            long removed = waitingFor.extract(
-                    key,
-                    amount,
-                    Actionable.MODULATE);
-            if (removed != amount) {
+        return exactInventory.aco$getExactCounts();
+    }
+
+    @Override
+    public BigInteger aco$getExactRemainingOutput() {
+        aco$requireExactState();
+        if (aco$exactRemainingAmount == null) {
+            throw new IllegalStateException(
+                    "Advanced AE final output has no exact accounting");
+        }
+        return aco$exactRemainingAmount;
+    }
+
+    @Override
+    public boolean aco$isExactAccountingBalanced() {
+        return aco$getExactRemainingTasks().isEmpty()
+                && aco$getExactWaitingFor().isEmpty()
+                && aco$getExactRemainingOutput().signum() == 0;
+    }
+
+    @Unique
+    private ExactCraftingJobState aco$requireExactState() {
+        if (aco$exactState == null) {
+            throw new IllegalStateException(
+                    "Advanced AE job has no exact accounting");
+        }
+        return aco$exactState;
+    }
+
+    @Unique
+    private void aco$applyExactRuntimeCounters() {
+        ExactCraftingJobState state = aco$requireExactState();
+        Map<AEItemKey, BigInteger> remaining =
+                state.remainingTasks();
+        Map<AEItemKey, CraftingTaskProgressAccess> taskCounters =
+                new LinkedHashMap<>();
+        /*
+         * 第一巡目では実カウンタを一切変更せず、全TaskProgressとPattern定義の一対一対応を証明する。
+         * Map走査順や再起動後のPatternインスタンス同一性には依存しない。
+         */
+        for (var entry : tasks.entrySet()) {
+            AEItemKey definition = entry.getKey().getDefinition();
+            // TaskProgress Mixinが欠けるJobは、一件も変更する前に拒否する。
+            if (!(entry.getValue()
+                    instanceof CraftingTaskProgressAccess progress)) {
                 throw new IllegalStateException(
-                        "AdvancedAE island waitingFor changed during output rollback");
+                        "Advanced AE task progress access is missing");
             }
-            waitingFor.list.removeZeros();
-        } catch (RuntimeException rollbackFailure) {
-            // callback例外後も数値は元へ戻し、不確定状態を上位のJob停止処理へ渡す。
-            waitingFor.list.set(key, previousWaiting);
-            waitingFor.list.removeZeros();
-            throw rollbackFailure;
+            // 一つの定義を二つのTaskProgressへ重複投影すると残数が倍になるため拒否する。
+            if (taskCounters.putIfAbsent(
+                            definition,
+                            progress)
+                    != null) {
+                throw new IllegalStateException(
+                        "Advanced AE exact job contains duplicate pattern definitions");
+            }
         }
-    }
-
-    @Override
-    public void aco$decrementIslandInternalOutput(AEKey key, long amount) {
-        ((AdvancedAeElapsedTimeTrackerAccessor) (Object) timeTracker)
-                .aco$invokeDecrementItems(amount, key.getType());
-    }
-
-    @Override
-    public void aco$setIslandSuspended(boolean suspended) {
-        // AdvancedAEにsuspended状態がないため、不確定Jobはcancel印を付けて次tickに安全終了させる。
-        if (suspended) {
-            link.cancel();
+        // 初期タスク集合まで完全一致させ、完了済み0タスクの欠落も見逃さない。
+        if (!taskCounters.keySet().equals(
+                state.taskTotals().keySet())) {
+            throw new IllegalStateException(
+                    "exact task definitions do not match the Advanced AE job");
         }
+
+        // waitingFor MixinもTaskProgress変更前に検証し、部分反映を作らない。
+        if (!(waitingFor
+                instanceof ExactCraftingInventoryAccess exactInventory)) {
+            throw new IllegalStateException(
+                    "Advanced AE waitingFor exact mixin is missing");
+        }
+        /*
+         * 第二巡目で、同じ実TaskProgressへBigInteger正確値と飽和long互換値を同時に設置する。
+         * 完了済みTaskも0へ更新するため、初期タスク集合を全件走査する。
+         */
+        for (var entry : taskCounters.entrySet()) {
+            entry.getValue().aco$setExactTaskProgress(
+                    remaining.getOrDefault(
+                            entry.getKey(),
+                            BigInteger.ZERO));
+        }
+        /*
+         * Listener通知が例外になっても三つの実会計値が食い違わないよう、
+         * final-output正確値をwaitingFor差分通知より先に確定する。
+         */
+        aco$exactRemainingAmount =
+                state.remainingOutput();
+        remainingAmount = ExactCraftingJobLedger.saturatedLong(
+                aco$exactRemainingAmount);
+        // 同じListCraftingInventoryへ正確な待機量を設置し、内部KeyCounterだけをlong投影する。
+        exactInventory.aco$replaceExactCounts(
+                state.waitingFor());
     }
 }

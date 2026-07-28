@@ -43,6 +43,29 @@ public final class NativePatternBatchSupport {
         return List.copyOf(result);
     }
 
+    public static List<GenericStack> scaleRemainingOutputs(
+            PatternBatchContext context,
+            long executions) {
+        List<GenericStack> result = new ArrayList<>();
+        for (var entry : context.copyRemainingOutputsPerExecution()) {
+            result.add(new GenericStack(
+                    entry.getKey(),
+                    Math.multiplyExact(
+                            entry.getLongValue(),
+                            executions)));
+        }
+        return List.copyOf(result);
+    }
+
+    public static List<GenericStack> scaleAllExpectedOutputs(
+            PatternBatchContext context,
+            long executions) {
+        List<GenericStack> result = new ArrayList<>();
+        result.addAll(scaleOutputs(context, executions));
+        result.addAll(scaleRemainingOutputs(context, executions));
+        return List.copyOf(result);
+    }
+
     public static long safeExecutionLimit(PatternBatchContext context, long offered) {
         long safe = offered;
         for (KeyCounter counter : context.copyInputsPerExecution()) {
@@ -74,10 +97,24 @@ public final class NativePatternBatchSupport {
                     .append('@')
                     .append(entry.getLongValue());
         }
+        for (var entry : context.copyRemainingOutputsPerExecution()) {
+            value.append("|r:")
+                    .append(entry.getKey().toTagGeneric())
+                    .append('@')
+                    .append(entry.getLongValue());
+        }
+        value.append("|owner=")
+                .append(context.providerOwnedTarget());
         return StableFingerprint.sha256(value) + ':' + context.pattern().getDefinition().getId();
     }
 
     public static CompoundTag targetMetadata(PatternBatchContext context) {
+        if (context.providerOwnedTarget()
+                || context.providerSide() == null
+                || context.targetSide() == null) {
+            throw new IllegalArgumentException(
+                    "external target metadata cannot be created for a provider-owned batch");
+        }
         CompoundTag data = new CompoundTag();
         data.putInt("schema", 2);
         data.putLong("providerPos", context.target().getBlockPos().relative(context.targetSide()).asLong());

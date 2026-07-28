@@ -36,6 +36,9 @@ public interface ExtendedAePlusBigIntegerCellInventoryAccessor {
     @Invoker("hasUUID")
     boolean aco$hasExactStorageUuid();
 
+    @Invoker("getUUID")
+    UUID aco$getExactStorageUuid();
+
     @Invoker("assignNewUUID")
     UUID aco$assignExactStorageUuid();
 }

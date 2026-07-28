@@ -175,10 +175,65 @@ public final class BigCraftingRuntime<K> {
             UUID transactionId,
             String executorId,
             String planFingerprint) {
+        return prepareVector(
+                jobId,
+                transactionId,
+                executorId,
+                planFingerprint,
+                new CompoundTag(),
+                0,
+                1);
+    }
+
+    /**
+     * ACO所有の実作業台Tree状態を、入力所有権移転より前に親Jobへ保存する。
+     */
+    public synchronized VectorExecutionLease<K> prepareVector(
+            UUID jobId,
+            UUID transactionId,
+            String executorId,
+            String planFingerprint,
+            CompoundTag executionState,
+            int progressNumerator,
+            int progressDenominator) {
         BigCraftingJob<K> job = requireJob(jobId);
         BigCraftingJob.PreparedVectorExecution prepared =
                 job.prepareVectorExecution(
-                        transactionId, executorId, planFingerprint);
+                        transactionId,
+                        executorId,
+                        planFingerprint,
+                        executionState,
+                        progressNumerator,
+                        progressDenominator);
+        return new VectorExecutionLease<>(
+                runtimeId,
+                job.id(),
+                job.requestedKey(),
+                job.requestedAmount(),
+                job.reservedCapacity(),
+                job.patternGeneration(),
+                job.recipeGeneration(),
+                job.planningEpoch(),
+                job.programFingerprint(),
+                prepared);
+    }
+
+    /**
+     * 既存Leaseの実作業台Tree状態だけを更新し、Task正本残量は変更しない。
+     */
+    public synchronized VectorExecutionLease<K> updateVector(
+            UUID jobId,
+            UUID transactionId,
+            CompoundTag executionState,
+            int progressNumerator,
+            int progressDenominator) {
+        BigCraftingJob<K> job = requireJob(jobId);
+        BigCraftingJob.PreparedVectorExecution prepared =
+                job.updatePreparedVectorExecution(
+                        transactionId,
+                        executionState,
+                        progressNumerator,
+                        progressDenominator);
         return new VectorExecutionLease<>(
                 runtimeId,
                 job.id(),

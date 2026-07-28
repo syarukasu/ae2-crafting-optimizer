@@ -15,7 +15,7 @@ import net.minecraft.nbt.Tag;
  * 保存上の残量はBigIntegerのまま維持し、機械へ渡す時だけ上限付きlong実行Windowとして貸し出す。
  */
 public final class BigCraftingJob<K> {
-    public static final int SCHEMA_VERSION = 6;
+    public static final int SCHEMA_VERSION = 7;
     public static final long MAX_EXECUTIONS_PER_WINDOW = 1_048_576L;
     /**
      * BigInteger注文を標準AE2 Jobへ分割する時だけ使う予約済みTask ID。
@@ -334,6 +334,28 @@ public final class BigCraftingJob<K> {
             UUID transactionId,
             String executorId,
             String planFingerprint) {
+        return prepareVectorExecution(
+                transactionId,
+                executorId,
+                planFingerprint,
+                new CompoundTag(),
+                0,
+                1);
+    }
+
+    /**
+     * 親Jobの未完了量全体と、再起動可能な実作業台Tree状態を一件のLeaseへ保存する。
+     *
+     * <p>executionStateは外部設備の状態ではない。ACOが所有する入力Escrow、
+     * 実Worker出力から成る中間在庫、現在Step、物理Receipt識別子の正本である。</p>
+     */
+    public synchronized PreparedVectorExecution prepareVectorExecution(
+            UUID transactionId,
+            String executorId,
+            String planFingerprint,
+            CompoundTag executionState,
+            int progressNumerator,
+            int progressDenominator) {
         ensureRunnable();
         if (hasPreparedExecution()) {
             throw new IllegalStateException(
@@ -353,7 +375,37 @@ public final class BigCraftingJob<K> {
                 checkedMetadata(executorId, "executorId"),
                 checkedMetadata(planFingerprint, "planFingerprint"),
                 task.completed(),
-                task.remaining());
+                task.remaining(),
+                executionState,
+                progressNumerator,
+                progressDenominator);
+        return preparedVectorExecution;
+    }
+
+    /**
+     * 実作業台Treeの永続状態と表示専用進捗を、同じLeaseのまま置き換える。
+     *
+     * <p>Task残量はここでは変更しない。最終出力をMEへ確定した後の
+     * {@link #commitPreparedVector(UUID)}だけが正本進捗を完了させる。</p>
+     */
+    public synchronized PreparedVectorExecution updatePreparedVectorExecution(
+            UUID transactionId,
+            CompoundTag executionState,
+            int progressNumerator,
+            int progressDenominator) {
+        ensureRunnable();
+        PreparedVectorExecution current =
+                requirePreparedVector(transactionId);
+        preparedVectorExecution =
+                new PreparedVectorExecution(
+                        current.transactionId(),
+                        current.executorId(),
+                        current.planFingerprint(),
+                        current.offset(),
+                        current.executions(),
+                        executionState,
+                        progressNumerator,
+                        progressDenominator);
         return preparedVectorExecution;
     }
 
@@ -476,6 +528,15 @@ public final class BigCraftingJob<K> {
                     "executions",
                     preparedVectorExecution.executions(),
                     maximumBits);
+            prepared.put(
+                    "executionState",
+                    preparedVectorExecution.executionState());
+            prepared.putInt(
+                    "progressNumerator",
+                    preparedVectorExecution.progressNumerator());
+            prepared.putInt(
+                    "progressDenominator",
+                    preparedVectorExecution.progressDenominator());
             tag.put("preparedVector", prepared);
         }
 
@@ -663,13 +724,33 @@ public final class BigCraftingJob<K> {
     }
 
     public synchronized CompactStatusSnapshot<K> compactStatusSnapshot() {
+        BigInteger displayedRemaining = remainingExecutionTotal;
+        /*
+         * Vector親Jobの正本残量は最終commitまで不変に保つ。
+         * 状態画面だけはNeoECOの実Thread進捗に比例した見かけ残量を示す。
+         */
+        if (preparedVectorExecution != null
+                && preparedVectorExecution.progressNumerator() > 0) {
+            BigInteger displayedCompleted =
+                    preparedVectorExecution.executions()
+                            .multiply(BigInteger.valueOf(
+                                    preparedVectorExecution.progressNumerator()))
+                            .divide(BigInteger.valueOf(
+                                    preparedVectorExecution.progressDenominator()));
+            displayedRemaining =
+                    remainingExecutionTotal.subtract(displayedCompleted);
+            // 丸めまたは破損状態で負数を表示しない。
+            if (displayedRemaining.signum() < 0) {
+                displayedRemaining = BigInteger.ZERO;
+            }
+        }
         return new CompactStatusSnapshot<>(
                 id,
                 requestedKey,
                 requestedAmount,
                 reservedCapacity,
                 state,
-                remainingExecutionTotal,
+                displayedRemaining,
                 waitingFor.totalAmount(),
                 remainingTaskTypes,
                 waitingFor.distinctKeys(),
@@ -824,6 +905,18 @@ public final class BigCraftingJob<K> {
             throw new IllegalArgumentException(
                     "Exact Vector execution is missing its transaction id");
         }
+        CompoundTag executionState =
+                owner.getInt("schema") >= 7
+                        ? tag.getCompound("executionState")
+                        : new CompoundTag();
+        int progressNumerator =
+                owner.getInt("schema") >= 7
+                        ? tag.getInt("progressNumerator")
+                        : 0;
+        int progressDenominator =
+                owner.getInt("schema") >= 7
+                        ? tag.getInt("progressDenominator")
+                        : 1;
         return new PreparedVectorExecution(
                 tag.getUUID("transaction"),
                 checkedMetadata(tag.getString("executor"), "executorId"),
@@ -834,7 +927,10 @@ public final class BigCraftingJob<K> {
                 positive(
                         BigIntegerNbtCodec.getNonNegative(
                                 tag, "executions", maximumBits),
-                        "vector executions"));
+                        "vector executions"),
+                executionState,
+                progressNumerator,
+                progressDenominator);
     }
 
     private static void validatePrepared(
@@ -1039,7 +1135,10 @@ public final class BigCraftingJob<K> {
             String executorId,
             String planFingerprint,
             BigInteger offset,
-            BigInteger executions) {
+            BigInteger executions,
+            CompoundTag executionState,
+            int progressNumerator,
+            int progressDenominator) {
         public PreparedVectorExecution {
             Objects.requireNonNull(transactionId, "transactionId");
             executorId = checkedMetadata(executorId, "executorId");
@@ -1047,6 +1146,25 @@ public final class BigCraftingJob<K> {
                     checkedMetadata(planFingerprint, "planFingerprint");
             BigCountMath.requireNonNegative(offset, "vector offset");
             positive(executions, "vector executions");
+            executionState = Objects.requireNonNull(
+                            executionState,
+                            "executionState")
+                    .copy();
+            /*
+             * 分母0、負数、100%超過は表示だけでなく再開位置の破損を示すため、
+             * 保存境界で拒否する。
+             */
+            if (progressDenominator <= 0
+                    || progressNumerator < 0
+                    || progressNumerator > progressDenominator) {
+                throw new IllegalArgumentException(
+                        "invalid vector execution progress");
+            }
+        }
+
+        @Override
+        public CompoundTag executionState() {
+            return executionState.copy();
         }
     }
 

@@ -49,6 +49,48 @@ public final class ExactBigIntegerCellConsistency {
         }
     }
 
+    /**
+     * 同じ共有Mapを参照する全Inventory wrapperで使う正確な総量を返す。
+     *
+     * <p>ACOがまだ触れていないMapだけは全キーを一巡して正本を作る。それ以降は
+     * 通常搬入出とACO直接変更の双方が{@link #record(Object, BigInteger)}を更新するため、
+     * wrapperごとに古くなり得るcached totalを参照しない。</p>
+     */
+    public static BigInteger authoritativeTotal(
+            Map<?, BigInteger> amounts) {
+        Objects.requireNonNull(
+                amounts,
+                "amounts");
+        Optional<BigInteger> recorded =
+                expectedTotal(
+                        amounts);
+        // 同じ共有Mapで既に証明した総量があれば、登録キー全件を再走査しない。
+        if (recorded.isPresent()) {
+            return recorded.get();
+        }
+
+        BigInteger total =
+                BigInteger.ZERO;
+        // 初回だけ全登録キーを加算し、第三者MODが保存したcached totalの不整合を修復する。
+        for (BigInteger amount :
+                amounts.values()) {
+            // 保存Mapにnullまたは非正数があれば、推測した総量で直接変更を続けない。
+            if (amount == null
+                    || amount.signum()
+                            <= 0) {
+                throw new IllegalStateException(
+                        "exact cell map contains a non-positive amount");
+            }
+            total =
+                    total.add(
+                            amount);
+        }
+        record(
+                amounts,
+                total);
+        return total;
+    }
+
     public static void clear() {
         synchronized (EXPECTED_TOTALS) {
             EXPECTED_TOTALS.clear();

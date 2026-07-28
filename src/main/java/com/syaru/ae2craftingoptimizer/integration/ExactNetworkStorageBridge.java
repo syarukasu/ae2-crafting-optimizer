@@ -16,12 +16,15 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * AE2 NetworkStorageのmount優先順を保ったまま、監査済みBigIntegerセルだけを正確に操作する。
@@ -71,6 +74,370 @@ public final class ExactNetworkStorageBridge {
             BigInteger amount,
             IActionSource source) {
         return mutate(grid, key, amount, source, Direction.INSERT);
+    }
+
+    public static boolean canExtractAll(
+            IGrid grid,
+            Map<AEKey, BigInteger> amounts,
+            IActionSource source) {
+        return canMutateAll(
+                grid,
+                amounts,
+                source,
+                Direction.EXTRACT);
+    }
+
+    public static boolean canInsertAll(
+            IGrid grid,
+            Map<AEKey, BigInteger> amounts,
+            IActionSource source) {
+        return canMutateAll(
+                grid,
+                amounts,
+                source,
+                Direction.INSERT);
+    }
+
+    public static ExactStorageMutationResult extractAll(
+            IGrid grid,
+            Map<AEKey, BigInteger> amounts,
+            IActionSource source) {
+        return mutateAll(
+                grid,
+                amounts,
+                source,
+                Direction.EXTRACT);
+    }
+
+    public static ExactStorageMutationResult insertAll(
+            IGrid grid,
+            Map<AEKey, BigInteger> amounts,
+            IActionSource source) {
+        return mutateAll(
+                grid,
+                amounts,
+                source,
+                Direction.INSERT);
+    }
+
+    /**
+     * 監査済みBigIntegerセル群が現在保持する、指定キーの正確な合計量を返す。
+     *
+     * <p>クラフトTransactionはこの値を事前保存し、停止後に境界操作が適用済みかを
+     * before/afterで再照合する。通常セルのlong値を混ぜて推測しない。</p>
+     */
+    public static Optional<BigInteger> exactStoredAmount(
+            IGrid grid,
+            AEKey key) {
+        Objects.requireNonNull(
+                grid,
+                "grid");
+        Objects.requireNonNull(
+                key,
+                "key");
+        MEStorage networkInventory =
+                grid.getStorageService()
+                        .getInventory();
+        // NetworkStorageのmount一覧を取得できない実装では、正確な再照合を行わない。
+        if (!(networkInventory
+                        instanceof NetworkStorage)
+                || !(networkInventory
+                        instanceof NetworkStorageMountsAccessor accessor)) {
+            return Optional.empty();
+        }
+
+        BigInteger total =
+                BigInteger.ZERO;
+        boolean found =
+                false;
+        Set<ExactStorageIdentity> visitedExactCells =
+                new LinkedHashSet<>();
+        /*
+         * 優先度は合計値へ影響しないが、AE2のmount順を維持して決定的に走査する。
+         * 同じunderlying cellを複数wrapperが公開しても一度だけ数える。
+         */
+        for (List<MEStorage> priority :
+                accessor.aco$getPriorityInventory()
+                        .values()) {
+            // 同一priority内の各mountを一度だけ正確なセルへ解決する。
+            for (MEStorage mount :
+                    priority) {
+                ResolvedExactStorage resolved =
+                        resolveExactStorage(
+                                mount);
+                // 非対応mountまたは既に数えた同一セルは合計へ加えない。
+                if (resolved == null
+                        || !visitedExactCells.add(
+                                resolved.storageIdentity())) {
+                    continue;
+                }
+                found =
+                        true;
+                total =
+                        total.add(
+                                resolved.currentAmount(
+                                        key));
+            }
+        }
+        return found
+                ? Optional.of(
+                        total)
+                : Optional.empty();
+    }
+
+    /**
+     * 一つのmount走査で、指定された全AEKeyの正確な在庫量を返す。
+     */
+    public static Optional<Map<AEKey, BigInteger>> exactStoredAmounts(
+            IGrid grid,
+            Set<AEKey> keys) {
+        Objects.requireNonNull(
+                grid,
+                "grid");
+        Set<AEKey> checkedKeys =
+                Collections.unmodifiableSet(
+                        new LinkedHashSet<>(
+                                Objects.requireNonNull(
+                                        keys,
+                                        "keys")));
+        // 空の境界操作は呼出側の状態不整合なので受理しない。
+        if (checkedKeys.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "exact storage key set must not be empty");
+        }
+        MEStorage networkInventory =
+                grid.getStorageService()
+                        .getInventory();
+        // NetworkStorageのmount一覧を取得できない実装では、正確な再照合を行わない。
+        if (!(networkInventory
+                        instanceof NetworkStorage)
+                || !(networkInventory
+                        instanceof NetworkStorageMountsAccessor accessor)) {
+            return Optional.empty();
+        }
+        Map<AEKey, BigInteger> totals =
+                new java.util.LinkedHashMap<>();
+        // 要求キーの順序を維持し、未保有キーも0として結果へ残す。
+        for (AEKey key :
+                checkedKeys) {
+            totals.put(
+                    Objects.requireNonNull(
+                            key,
+                            "exact storage key"),
+                    BigInteger.ZERO);
+        }
+        boolean found =
+                false;
+        Set<ExactStorageIdentity> visitedExactCells =
+                new LinkedHashSet<>();
+        // 同じ正確セルを一度だけ解決し、その中の要求キーだけを合算する。
+        for (List<MEStorage> priority :
+                accessor.aco$getPriorityInventory()
+                        .values()) {
+            // 同一priority内の各mountを一度だけ正確なセルへ解決する。
+            for (MEStorage mount :
+                    priority) {
+                ResolvedExactStorage resolved =
+                        resolveExactStorage(
+                                mount);
+                // 非対応mountまたは既に数えた同一セルは合計へ加えない。
+                if (resolved == null
+                        || !visitedExactCells.add(
+                                resolved.storageIdentity())) {
+                    continue;
+                }
+                found =
+                        true;
+                // 要求キー数だけを走査し、セル内の全登録キーは列挙しない。
+                for (AEKey key :
+                        checkedKeys) {
+                    totals.merge(
+                            key,
+                            resolved.currentAmount(
+                                    key),
+                            BigInteger::add);
+                }
+            }
+        }
+        return found
+                ? Optional.of(
+                        Collections.unmodifiableMap(
+                                new LinkedHashMap<>(
+                                        totals)))
+                : Optional.empty();
+    }
+
+    private static boolean canMutateAll(
+            IGrid grid,
+            Map<AEKey, BigInteger> amounts,
+            IActionSource source,
+            Direction direction) {
+        Map<AEKey, BigInteger> checked =
+                checkedBatchAmounts(
+                        amounts);
+        synchronized (MUTATION_LOCK) {
+            // 全キーが現在のfilter・優先度・容量で処理できる場合だけtrueを返す。
+            for (Map.Entry<AEKey, BigInteger> entry :
+                    checked.entrySet()) {
+                // 一キーでも全量routeを作れない場合は、境界Batch全体を拒否する。
+                if (prepare(
+                                grid,
+                                entry.getKey(),
+                                entry.getValue(),
+                                source,
+                                direction)
+                        == null) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    private static ExactStorageMutationResult mutateAll(
+            IGrid grid,
+            Map<AEKey, BigInteger> amounts,
+            IActionSource source,
+            Direction direction) {
+        Map<AEKey, BigInteger> checked =
+                checkedBatchAmounts(
+                        amounts);
+        synchronized (MUTATION_LOCK) {
+            /*
+             * 一キーも変更する前に全routeを検証する。
+             * 注文数量ではなく境界AEKey数だけを一巡する。
+             */
+            for (Map.Entry<AEKey, BigInteger> entry :
+                    checked.entrySet()) {
+                // 一キーでも扱えなければ、セルを一切変更せずBatchを拒否する。
+                if (prepare(
+                                grid,
+                                entry.getKey(),
+                                entry.getValue(),
+                                source,
+                                direction)
+                        == null) {
+                    return ExactStorageMutationResult.rejected(
+                            "no exact BigInteger storage route can accept the complete key batch");
+                }
+            }
+
+            List<Map.Entry<AEKey, BigInteger>> applied =
+                    new ArrayList<>();
+            // 同じ排他区間内で各キーを確定し、途中失敗時は逆順に全量を戻す。
+            for (Map.Entry<AEKey, BigInteger> entry :
+                    checked.entrySet()) {
+                ExactStorageMutationResult result =
+                        mutate(
+                                grid,
+                                entry.getKey(),
+                                entry.getValue(),
+                                source,
+                                direction);
+                // 成功したキーだけをRollback台帳へ積む。
+                if (result.successful()) {
+                    applied.add(
+                            entry);
+                    continue;
+                }
+                boolean rolledBack =
+                        rollbackBatch(
+                                grid,
+                                source,
+                                direction,
+                                applied);
+                // 元の失敗またはRollbackのどちらかが不確定なら、親Jobへ隔離を要求する。
+                if (result.stateUncertain()
+                        || !rolledBack) {
+                    return ExactStorageMutationResult.uncertain(
+                            "exact storage key batch failed and rollback could not be proven");
+                }
+                return ExactStorageMutationResult.rejected(
+                        result.detail());
+            }
+            return ExactStorageMutationResult.success(
+                    sumAmounts(
+                            checked));
+        }
+    }
+
+    private static boolean rollbackBatch(
+            IGrid grid,
+            IActionSource source,
+            Direction appliedDirection,
+            List<Map.Entry<AEKey, BigInteger>> applied) {
+        Direction rollbackDirection =
+                appliedDirection == Direction.EXTRACT
+                        ? Direction.INSERT
+                        : Direction.EXTRACT;
+        // 最後に適用したキーから逆順で、正確な同量を戻す。
+        for (int index = applied.size() - 1;
+                index >= 0;
+                index--) {
+            Map.Entry<AEKey, BigInteger> entry =
+                    applied.get(
+                            index);
+            ExactStorageMutationResult rollback =
+                    mutate(
+                            grid,
+                            entry.getKey(),
+                            entry.getValue(),
+                            source,
+                            rollbackDirection);
+            // 一件でも戻せなければ、それ以前を推測で成功扱いしない。
+            if (!rollback.successful()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Map<AEKey, BigInteger> checkedBatchAmounts(
+            Map<AEKey, BigInteger> amounts) {
+        Map<AEKey, BigInteger> checked =
+                new LinkedHashMap<>();
+        Objects.requireNonNull(
+                        amounts,
+                        "amounts")
+                .forEach(
+                        (key, amount) -> {
+                            Objects.requireNonNull(
+                                    key,
+                                    "exact storage batch key");
+                            // 一キー一正数だけを受理し、0量や重複を境界操作へ流さない。
+                            if (amount == null
+                                    || amount.signum()
+                                            <= 0
+                                    || checked.putIfAbsent(
+                                                    key,
+                                                    amount)
+                                            != null) {
+                                throw new IllegalArgumentException(
+                                        "invalid exact storage batch amount");
+                            }
+                        });
+        // 空Batchは成功量0になり、Receipt状態を曖昧にするため拒否する。
+        if (checked.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "exact storage batch must not be empty");
+        }
+        return Collections.unmodifiableMap(
+                new LinkedHashMap<>(
+                        checked));
+    }
+
+    private static BigInteger sumAmounts(
+            Map<AEKey, BigInteger> amounts) {
+        BigInteger total =
+                BigInteger.ZERO;
+        // 結果用合計もBigIntegerで計算し、複数キー合計のlong overflowを起こさない。
+        for (BigInteger amount :
+                amounts.values()) {
+            total =
+                    total.add(
+                            amount);
+        }
+        return total;
     }
 
     private static ExactStorageMutationResult mutate(
@@ -144,12 +511,14 @@ public final class ExactNetworkStorageBridge {
 
         BigInteger remaining = amount;
         List<MutationStep> steps = new ArrayList<>();
-        Set<Object> visitedExactCells =
-                Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<ExactStorageIdentity> visitedExactCells =
+                new LinkedHashSet<>();
         // 同じunderlying cellが複数wrapperから見えても、一度だけ在庫へ数える。
         for (MEStorage mount : ordered) {
             ResolvedExactStorage resolved = resolveExactStorage(mount);
-            if (resolved == null || !visitedExactCells.add(resolved.accessor())) {
+            if (resolved == null
+                    || !visitedExactCells.add(
+                            resolved.storageIdentity())) {
                 continue;
             }
             BigInteger available = capacity(
@@ -158,12 +527,19 @@ public final class ExactNetworkStorageBridge {
                 continue;
             }
             BigInteger selected = available.min(remaining);
+            Object2ObjectMap<AEKey, BigInteger> amounts =
+                    resolved.currentMap();
             steps.add(new MutationStep(
                     resolved.accessor(),
+                    amounts,
                     key,
-                    resolved.currentAmount(key),
-                    resolved.accessor().aco$getExactStoredTotal(),
-                    resolved.accessor().aco$getExactStoredTypeCount(),
+                    amounts.getOrDefault(
+                            key,
+                            BigInteger.ZERO),
+                    authoritativeTotal(
+                            resolved.accessor(),
+                            amounts),
+                    amounts.size(),
                     selected));
             remaining = remaining.subtract(selected);
             // 全量を確保できた時点で残りmountを走査しない。
@@ -289,8 +665,17 @@ public final class ExactNetworkStorageBridge {
         }
         Object2ObjectMap<AEKey, BigInteger> amounts =
                 accessor.aco$getExactStoredAmounts();
+        // simulation後に保存Map自体が交換された場合は、別セルへ変更を適用しない。
+        if (amounts
+                != step.amounts()) {
+            throw new IllegalStateException(
+                    "exact cell storage map changed between simulation and commit");
+        }
         BigInteger current = amounts.getOrDefault(step.key(), BigInteger.ZERO);
-        BigInteger total = accessor.aco$getExactStoredTotal();
+        BigInteger total =
+                authoritativeTotal(
+                        accessor,
+                        amounts);
         // simulate後に対象キーまたはセル総量が変わった場合は、直接変更を始めない。
         if (!current.equals(step.beforeAmount())
                 || !total.equals(step.beforeTotal())
@@ -332,11 +717,21 @@ public final class ExactNetworkStorageBridge {
             try {
                 Object2ObjectMap<AEKey, BigInteger> amounts =
                         step.accessor().aco$getExactStoredAmounts();
+                // 保存Mapが交換済みなら、別セルへ古い値を上書きしない。
+                if (amounts
+                        != step.amounts()) {
+                    complete = false;
+                    continue;
+                }
+                BigInteger currentTotal =
+                        authoritativeTotal(
+                                step.accessor(),
+                                amounts);
                 // 他のcallbackが変更した場合は上書きせず、不確定として隔離する。
                 if (!amounts.getOrDefault(step.key(), BigInteger.ZERO)
                                 .equals(change.afterAmount())
-                        || !step.accessor().aco$getExactStoredTotal()
-                                .equals(change.afterTotal())) {
+                        || !currentTotal.equals(
+                                change.afterTotal())) {
                     complete = false;
                     continue;
                 }
@@ -357,6 +752,30 @@ public final class ExactNetworkStorageBridge {
         return complete;
     }
 
+    private static BigInteger authoritativeTotal(
+            ExtendedAePlusBigIntegerCellInventoryAccessor accessor,
+            Object2ObjectMap<AEKey, BigInteger> amounts) {
+        BigInteger total =
+                ExactBigIntegerCellConsistency.authoritativeTotal(
+                        amounts);
+        int typeCount =
+                amounts.size();
+        /*
+         * Inventory wrapper固有cacheだけが古い場合は、共有Mapの正本へ同期する。
+         * この修復は在庫Mapを変更しないため、simulate中にも安全に行える。
+         */
+        if (!total.equals(
+                        accessor.aco$getExactStoredTotal())
+                || typeCount
+                        != accessor.aco$getExactStoredTypeCount()) {
+            accessor.aco$setExactStoredTotal(
+                    total);
+            accessor.aco$setExactStoredTypeCount(
+                    typeCount);
+        }
+        return total;
+    }
+
     private enum Direction {
         INSERT,
         EXTRACT
@@ -374,6 +793,7 @@ public final class ExactNetworkStorageBridge {
 
     private record MutationStep(
             ExtendedAePlusBigIntegerCellInventoryAccessor accessor,
+            Object2ObjectMap<AEKey, BigInteger> amounts,
             AEKey key,
             BigInteger beforeAmount,
             BigInteger beforeTotal,
@@ -389,9 +809,98 @@ public final class ExactNetworkStorageBridge {
 
     private record ResolvedExactStorage(
             ExtendedAePlusBigIntegerCellInventoryAccessor accessor) {
+        private Object2ObjectMap<AEKey, BigInteger> currentMap() {
+            return accessor.aco$getExactStoredAmounts();
+        }
+
+        private ExactStorageIdentity storageIdentity() {
+            UUID storageUuid =
+                    accessor.aco$getExactStorageUuid();
+            // 保存UUIDがあれば、別wrapperや空Mapでも同じunderlying cellとして扱う。
+            if (storageUuid != null) {
+                return ExactStorageIdentity.saved(
+                        storageUuid);
+            }
+            Object2ObjectMap<AEKey, BigInteger> amounts =
+                    currentMap();
+            /*
+             * UUID未割当セルは共有Mapのidentityで重複排除する。
+             * 空セルは共通empty mapを返し得るためwrapper自身を一時identityに使う。
+             */
+            return ExactStorageIdentity.unsaved(
+                    amounts.isEmpty()
+                            ? accessor
+                            : amounts);
+        }
+
         private BigInteger currentAmount(AEKey key) {
-            return accessor.aco$getExactStoredAmounts()
+            return currentMap()
                     .getOrDefault(key, BigInteger.ZERO);
+        }
+    }
+
+    /**
+     * 保存済みセルはUUIDの値、未保存セルはMapまたはwrapperのidentityで比較する。
+     */
+    private static final class ExactStorageIdentity {
+        private final UUID storageUuid;
+        private final Object transientIdentity;
+
+        private ExactStorageIdentity(
+                UUID storageUuid,
+                Object transientIdentity) {
+            this.storageUuid =
+                    storageUuid;
+            this.transientIdentity =
+                    transientIdentity;
+        }
+
+        private static ExactStorageIdentity saved(
+                UUID storageUuid) {
+            return new ExactStorageIdentity(
+                    Objects.requireNonNull(
+                            storageUuid,
+                            "storageUuid"),
+                    null);
+        }
+
+        private static ExactStorageIdentity unsaved(
+                Object transientIdentity) {
+            return new ExactStorageIdentity(
+                    null,
+                    Objects.requireNonNull(
+                            transientIdentity,
+                            "transientIdentity"));
+        }
+
+        @Override
+        public int hashCode() {
+            return storageUuid != null
+                    ? storageUuid.hashCode()
+                    : System.identityHashCode(
+                            transientIdentity);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            // 同じ識別子インスタンスは追加比較なしで一致する。
+            if (this == other) {
+                return true;
+            }
+            // 保存/未保存セル以外の任意オブジェクトを同一セルとして扱わない。
+            if (!(other
+                    instanceof ExactStorageIdentity identity)) {
+                return false;
+            }
+            // 片方でも保存済みなら、両方のUUID値が一致する場合だけ同じセルとする。
+            if (storageUuid != null
+                    || identity.storageUuid != null) {
+                return storageUuid != null
+                        && storageUuid.equals(
+                                identity.storageUuid);
+            }
+            return transientIdentity
+                    == identity.transientIdentity;
         }
     }
 }

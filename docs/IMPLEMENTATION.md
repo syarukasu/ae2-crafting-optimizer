@@ -1,814 +1,292 @@
 # Implementation
 
-## Scope
+## Design Goal
 
-This mod keeps AE2's final crafting result authoritative. Active 1.2.2 behavior includes diagnostics, calculation de-duplication, short-lived missing/simulation plan caching, pattern lookup caching, crafting CPU execution pacing, Pattern Provider intent capture, and GTCEu/Mekanism item/fluid/chemical recipe intent fast paths. ACO leaves AE2's mutable storage, terminal craftable, storage-watcher, aggregate refresh, terminal packet, Import/Export Bus, and IO Port paths untouched because the corresponding Mixins are unregistered.
+ACO must make very large deterministic crafting-table orders scale with the
+number of distinct recipe nodes, not requested quantity, without changing
+inventory results or hiding physical progress.
 
-The source-only next-generation compiled planner, V2 durable native batching,
-fair scheduler, and BigInteger CPU sidecar API are documented separately in
-[EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md). Their master and
-behavior-changing switches remain disabled, and they are not part of the active
-1.2.2 behavior described below.
+It therefore separates:
 
-## AppliedE Compatibility Boundary
+- formula compilation;
+- exact ownership accounting;
+- physical recipe execution;
+- parent CPU completion.
 
-AppliedE `0.14.3` and AppliedE TPS Fix `0.14.7-fix2` use the same mod ID and
-shared implementation names. Their `TransmutationPattern` is not a fixed AE2
-recipe: AppliedE replaces it inside `CraftingTreeNode` with a request-sized
-temporary pattern, publishes that pattern through its `KnowledgeService`, and
-removes it after completion or cancellation.
+## Compiled Formula
 
-ACO therefore applies three conservative rules when `appliede` is present:
+`CompiledRootProgram` is generation-keyed. For an eligible root it records:
 
-1. `TransmutationPattern` is marked incompletely compiled before its inputs are
-   fingerprinted, so Compiled, Shadow, authoritative, atomic-capacity, and
-   BigInteger planning all return to AE2.
-2. A root touching that excluded output is rejected before Shadow evaluation.
-   The excluded recipe cannot be misread as an ordinary missing terminal.
-3. `EMCModulePart` is treated as a dynamic provider. Same-tick requests are
-   still coalesced by node identity, but the final request is always delivered
-   and advances ACO's provider generation without enumerating every known EMC
-   pattern for equality.
-4. A completed plan containing `TransmutationPattern` is never retained in
-   ACO's completed-plan cache. A later request must run AppliedE's temporary
-   registration lifecycle again.
+- one producer per output;
+- selected input for every Pattern slot;
+- exact output quantity per execution;
+- dependency depth;
+- material-side to root-side execution order.
 
-The integration uses only AE2 interfaces and exact class-name guards. AppliedE
-is neither a hard dependency nor a compile-time dependency, and ACO never reads
-or mutates EMC, knowledge, provider output queues, or temporary-pattern state.
-
-## 1.4.1 Implementation Boundary
-
-The development backend is additive. It does not replace AE2's standard
-`CraftingTreeNode`, standard job NBT, terminal packets, or mutable storage paths.
-An unsupported or unproven calculation returns to AE2 before execution.
-
-The compiled planning layer consists of:
-
-- `CompiledCraftingGraph`, immutable pattern nodes, output indexes, and SCC data;
-- `GenerationAwareGraphCache` and `Ae2CompiledCraftingGraphCache`, which publish
-  a graph only if the provider generation remains unchanged, then retain one
-  `CompiledRootProgram` per requested output and generation;
-- `CompiledRootProgram`, which flattens the deterministic root DAG into key,
-  Pattern, output, and input-edge arrays and evaluates each reachable node once;
-- `LongCraftingPlanner`, `BigCraftingPlanner`, and
-  `OverflowPromotingCraftingPlanner`, which keep small jobs on checked `long`
-  arithmetic and restart only overflowed deterministic plans on the same
-  immutable root program with `BigInteger` arrays;
-- `CompiledPlanningSession`, `PlanningGuard`, and generation/cancellation tokens,
-  which share one inventory snapshot and discard stale work;
-- `Ae2ReferencedInventory`, which captures and revalidates only root-referenced
-  AE keys rather than copying and rescanning the complete ME inventory;
-- `Ae2CraftingShadowValidator` and `CompiledRootQualificationRegistry`, which
-  compare complete accounting only after AE2 has produced its authoritative
-  result and require 64 matches by default before ordinary replacement.
-
-V2 execution uses Accessor Mixin contracts instead of field-name reflection:
-
-- `CraftingLogicTransactionAccess` exposes the current job, owner, and inventory;
-- `CraftingJobTransactionAccess` exposes task and waiting-output state;
-- `CraftingTaskProgressAccess` exposes the exact task counter;
-- `CraftingOwnerTransactionAccess` and cluster-host accessors locate a persisted
-  CPU again after chunk/server reload;
-- `PatternProviderTransactionAccess` exposes the real provider host and facing;
-- source and native receipt-store interfaces persist forward-only ledgers.
-
-Optional GTCEu and Mekanism implementation classes are loaded reflectively only
-to preserve optional class loading. After loading, their recipe and machine
-logic is typed. Registration requires the exact versions recorded in
-`RESEARCH_FINAL_ENGINE.md`. Missing transformations fail fast when the matching
-experimental feature is enabled.
-
-The source receipt uses schema 3 to persist the exact amount returned by every
-successful `extract(MODULATE)` call. A schema-2 transaction recovered in
-`EXTRACTING` restores only that proven partial list; legacy schema-1 data without
-the list remains quarantined. `ENERGY_ACCOUNTING` and per-output
-`OUTPUT_ACCOUNTING` stay as uncertainty barriers because those AE2 side effects
-have no idempotent transaction key. Terminal source and target receipts are
-removed only after the overworld journal has reached and removed its terminal
-record; cleanup failure leaves bounded evidence instead of removing the last
-proof first.
-
-`BigCraftingEngineApi` is deliberately a host API, not an automatic Advanced AE
-patch. It creates a versioned `BigCraftingRuntime`, reserves BigInteger capacity,
-schedules bounded execution windows, persists jobs, and emits bounded status
-pages. AQE or another CPU add-on must explicitly own that runtime and its GUI;
-normal AE2 and Advanced AE continue to expose their original long-based jobs.
-
-When both Advanced AE and AQE are loaded, the AQE profile permits two exact
-wide-plan forms:
-
-- `BigCapacityCraftingPlan` when every individual counter fits `long` but the
-  exact CPU byte reservation does not;
-- `BigIntegerCraftingPlan` when at least one AEKey or Pattern execution counter
-  itself exceeds `long`.
-
-`NetworkStorageBigIntegerSnapshotMixin` obtains every mounted storage
-contribution separately. It adds an exact BigInteger value to
-`BigKeyCounterSidecars` and independently saturates AE2's public `KeyCounter`,
-so repeated mounts cannot wrap the visible amount negative. The optional
-`ExtendedAePlusBigIntegerCellInventoryAccessor` reads exact per-key values from
-Infinity BigInteger Cells without a compile-time or load-time dependency.
-`NetworkCraftingSimulationStateBigIntegerSnapshotMixin` then copies only keys
-accepted by AE2's normal simulation into the crafting snapshot.
-
-The latter is a parent-only object. Standard AE2 CPUs reject it, while the
-Advanced AE boundary atomically transfers its exact `BigCraftingJob` to the
-registered AQE host. The parent is never flattened into a saturated execution
-map. `Ae2BigCraftingPlanFactory` instead plans empty-inventory child candidates
-and uses a bounded binary search to find the largest completed-root window whose
-Pattern, used, emitted, and missing counters all convert with
-`longValueExact()`. That recipe-specific limit is persisted with every job.
-
-Child jobs consume capacity already reserved by the parent. The submission
-thread carries both Advanced AE's long-compatible allowance and the exact
-BigInteger child reservation; the ordinary reservation is removed as soon as
-the child CPU is bound to its parent transaction. This prevents transient
-double charging without granting capacity to unrelated submissions.
-
-Provider and recipe generation numbers are process-local. Job schema 5 stores a
-process epoch and a normalized SHA-256 fingerprint of the deterministic AEKey
-program. A change during the same process invalidates immediately. After a
-restart, ACO recompiles the root and resumes only if its fingerprint exactly
-matches; legacy jobs without this proof fail closed.
-
-`BigCapacityCraftingPlan` handles a narrower interoperable boundary: all AEKey
-quantities and Pattern execution counts remain exact signed `long` values, while
-aggregate demand and CPU-byte arithmetic are evaluated with `BigInteger`. When
-the exact byte reservation exceeds `Long.MAX_VALUE`, Advanced AE first creates
-its normal child CPU with a saturated compatibility value; ACO then atomically
-replaces that reservation in the AQE host ledger with the exact value. A failed
-promotion cancels the child through Advanced AE before it can run. Reconciliation
-and NBT reload preserve the exact sidecar value until that CPU disappears.
-Configured bit limits are enforced during intermediate planner arithmetic as
-well as runtime submission, NBT decode, and packet decode.
-The implementation also applies an exact global maximum of `10^16384 - 1`, so
-the boundary bit length cannot admit a value with 16,385 decimal digits.
-
-## AE2 Crafting Tree Summary Compatibility
-
-ACO returns a prebuilt `CraftingPlanSummary` for wide plans before AE2 performs
-its signed-long aggregation. This intentionally cancels the remainder of
-`CraftingPlanSummary.fromJob`, including AE2 Crafting Tree's tail injection that
-normally initializes its `RecipeHelper`.
-
-When AE2 Crafting Tree is installed, `Ae2CraftingTreeCompatibility` rebuilds the
-helper from ACO's genuine AE2 `CraftingPlan` facade and stores it through the
-add-on's public summary interface before the summary is serialized. Reflection
-metadata is resolved once and cached. Standard plans, installations without
-AE2 Crafting Tree, and the add-on's own packet format remain unchanged. An
-incompatible detected API fails with an explicit integration error instead of
-serializing a null helper.
-
-## Delegating BigInteger Storage
-
-AE2 mounts drive cells through `DriveWatcher`, which delegates to the actual
-cell inventory. ACO unwraps only AE2's typed `DelegatingMEInventory` chain,
-then reads an ExtendedAE Plus BigInteger cell through its optional Accessor.
-The exact map is intersected with the wrapper's already-filtered long facade,
-so partition and extraction visibility rules remain authoritative.
-
-## Long Root Amount Boundary
-
-AE2 15.4.10's `NumberEntryWidget` and
-`ICraftingService.beginCraftingCalculation` can represent signed `long`, while
-`CraftAmountScreen`, `ConfirmAutoCraftPacket`, `CraftAmountMenu`, and the
-`CraftConfirmMenu.amount` field narrow the root order to `int`.
-
-ACO keeps the two routes separate:
+`VectorBatchPlanner` performs one deterministic arithmetic traversal. For each
+active node:
 
 ```text
-amount <= Integer.MAX_VALUE
-  -> unchanged CraftAmountScreen.confirm()
-  -> unchanged ConfirmAutoCraftPacket(int, ...)
-  -> unchanged CraftAmountMenu.confirm(int, ...)
-
-amount > Integer.MAX_VALUE
-  -> exact BigDecimal-to-long client validation
-  -> ACO LongCraftAmountRequestMessage(containerId, long, flags)
-  -> server validates active CraftAmountMenu and containerId
-  -> LongCraftConfirmMenuBridge
-  -> unchanged ICraftingService.beginCraftingCalculation(..., long, ...)
+deficit = demand - usable inventory
+executions = ceilDiv(deficit, output per execution)
+child demand += executions * selected input per execution
 ```
 
-`CraftAmountScreenLongAmountMixin` only cancels `confirm()` for invalid input or
-an amount above the int boundary. It leaves every valid int amount to the
-original method. `NumberEntryWidgetAccessor` reads the existing text and
-locale-aware decimal formatter so ACO can use `longValueExact()` rather than
-AE2's wrapping `longValue()` conversion at this enlarged boundary.
+All additions, multiplications, and divisions are checked. The normal route
+uses `long`; overflow promotes the calculation to bounded `BigInteger`.
 
-`CraftAmountMenuLongAmountMixin` keeps the root key and performs the existing
-exact-amount (`=`) inventory subtraction with non-negative checked-long
-arithmetic. `CraftConfirmMenuLongAmountMixin` stores the true amount in a
-sidecar; the original int field contains only the compatibility sentinel
-`Integer.MAX_VALUE`. Replan and back actions are intercepted only while that
-sidecar is above the int boundary. Back navigation sends a separate
-container-ID-scoped state message because an `ItemStack` cannot carry the
-long amount.
+The resulting `PreparedVectorBatch` contains formulas and identities only. It
+does not contain synthetic duration, energy, coolant, or completed output.
 
-The C2S handler validates configuration, positive extended range, current menu
-type, and container ID on the server thread. A stale packet never starts a
-calculation. The upper bound is `Long.MAX_VALUE`; BigInteger GUI input is not
-part of this route.
+## Physical Transaction
 
-Adding these messages changes ACO's Forge channel protocol from `2` to `3`.
-Client and server must use the same build. The status-page payload codec remains
-version `1`.
-
-## Mixins
-
-- `CraftAmountScreenLongAmountMixin`
-  - Extends only the amount widget's accepted maximum and exact validation.
-  - Sends the ACO request only above `Integer.MAX_VALUE`.
-- `CraftAmountMenuLongAmountMixin`
-  - Revalidates the server menu and preserves exact-amount inventory subtraction.
-  - Opens the normal AE2 confirmation menu and invokes its long bridge.
-- `CraftConfirmMenuLongAmountMixin`
-  - Keeps the true root amount in a long sidecar for plan, replan, and back.
-  - Calls AE2's existing long calculation API without changing job submission.
-- `CraftingCalculationDiagnosticsMixin`
-  - Times `CraftingCalculation.run`.
-  - Logs only calculations slower than `slowCraftCalculationMillis`.
-- `CraftingServiceCalculationDeduplicationMixin`
-  - Injects at the start of AE2's `CraftingService.beginCraftingCalculation`.
-  - If the same `CraftingService`, same requester object, same dimension, same output key, same amount, and same `CalculationStrategy` already has an unfinished calculation, returns that active `Future<ICraftingPlan>`.
-  - Optionally performs strict deterministic missing fast-fail when no active calculation exists.
-  - Injects at method return to remember newly started unfinished calculations.
-  - Can cache short-lived completed missing/simulation plans.
-  - Successful completed plans are not cached unless `cacheSuccessfulCompletedCraftingPlans = true`.
-  - Does not synthesize successful `ICraftingPlan` results.
-- `CraftingServicePatternLookupCacheMixin`
-  - Caches `CraftingService.getCraftingFor(output)` results until crafting providers or nodes change.
-  - Stores immutable snapshots of the returned pattern collections.
-- `MEStorageMenuSyncOptimizationMixin`
-  - Redirects open ME terminal `MEStorage.getAvailableStacks()` calls through a per-menu snapshot for a few ticks.
-  - Caches the private terminal craftable set for a few ticks.
-  - Does not affect live insertion/extraction or storage mutation.
-  - Retained only as compatibility source and remains unregistered in 1.2.2 because a stale zero-stock generation can conflict with clickable virtual slots in heavily modified clients.
-- `IncrementalUpdateHelperDeepRangeMixin` and `MEInventoryUpdatePacketBuilderRangeMixin`
-  - Drain terminal full/delta changes in bounded rolling ranges.
-  - Keep AE2's packet format, serial mapping, filters, and final values.
-  - Retain unsent keys for the next menu tick instead of discarding them.
-  - Remain unregistered in 1.2.2 so one interactive terminal generation stays coherent.
-- `StorageServiceDeepCoalescingMixin`
-  - Coalesces the aggregate `StorageService.onServerEndTick` rebuild into a configurable interval.
-  - Direct storage insertion/extraction is untouched.
-  - Remains unregistered in 1.2.2.
-- `P2PServiceTopologyDeduplicationMixin`
-  - AE2 15.4.10 already runs topology callbacks only for add/remove/frequency changes, so those callbacks remain untouched.
-  - Coalesces duplicate full `wakeInputTunnels` sweeps from boot/power events inside the configured tick window.
-- `CraftingCpuHelperFluidFastPathMixin`
-  - Handles a single exact fluid input without building AE2's fuzzy substitute list.
-  - Falls back for substitutions or fuzzy-capable keys.
-- `MultiCraftingTrackerCraftRequestThrottleMixin`
-  - Watches AE2's `MultiCraftingTracker.handleCrafting`.
-  - If an already-finished job returns without creating a crafting link, records a short cooldown for that exact owner, slot, key, and amount.
-  - Suppresses only the next identical no-job/no-link retry during that cooldown.
-- `PatternProviderLogicIntentCaptureMixin`
-  - Injects at return of AE2's `PatternProviderLogic.pushPattern`.
-  - Records only successful Pattern Provider pushes.
-  - Stores short-lived provider-side recipe intent for adjacent target candidates.
-  - Does not change item insertion, pattern validity, or machine recipe selection.
-- `GTCEuRecipeLogicIntentFastPathMixin`
-  - Pseudo-mixin targeting `com.gregtechceu.gtceu.api.machine.trait.RecipeLogic`.
-  - Injects at return of `searchRecipe`.
-  - Wraps GTCEu's original recipe iterator with a small intent-derived candidate prefix.
-  - Does not consume inputs, setup recipes, or bypass GTCEu `checkRecipe`.
-  - Falls back to GTCEu's original iterator when no intent/candidate exists or reflection/indexing fails.
-- `MekanismRecipeIntentFastPathMixin`
-  - Pseudo-mixin targeting Mekanism recipe machine `getRecipe(int)` bridge methods.
-  - Tries output-indexed item, fluid, and chemical candidates for the target machine position.
-  - Returns a candidate only after Mekanism's own recipe `test` accepts the current machine inputs.
-  - Falls back to Mekanism's original recipe lookup when no safe candidate exists.
-- `AdvancedAeReactionChamberRecipeCacheMixin`
-  - Observes the return value of AdvancedAE `ReactionChamberEntity.findRecipe`.
-  - Stores that exact recipe in AdvancedAE's existing `cachedTask` field so the following `getTask` call does not search the unchanged inputs again.
-  - Does not select a different recipe or bypass AdvancedAE's own finder.
-- `Ae2OverclockRuntimeCacheMixin` and `Ae2OverclockParallelRuntimeCacheMixin`
-  - Cache reflection metadata used by AE2 Overclock's own runtime helper classes through `ClassValue` tables.
-  - Invoke cached helper Methods through MethodHandles with reflection fallback.
-  - Cache overclock and parallel card counts per machine for one server tick.
-  - Do not alter process time, parallel multiplier, energy use, input consumption, or output insertion.
-- `Ae2OverclockMachineReflectionCacheMixin` is intentionally not registered in 1.1.0.
-  - AE2 Overclock adds the target Reaction Chamber and Circuit Cutter handlers through its own higher-priority Mixins.
-  - Forge Mixin rejects redirects into methods merged by another Mixin, so ACO leaves those reflection calls untouched instead of producing startup injection warnings.
-- `ExtendedAeAssemblerMatrixCrafterCacheMixin`
-  - Reuses `usedThread()` within one server tick.
-  - Invalidates before thread execution and on jobs, inventory changes, thread-state changes, loading, and stopping.
-- `ExtendedAeAssemblerMatrixClusterCacheMixin`
-  - Runs before ExtendedAE Plus's default-priority `getBusyCrafterAmount` handler so a same-tick cache hit can return before another full scan.
-  - Reuses `getBusyCrafterAmount()` within one server tick and invalidates on crafter updates.
-  - Coalesces only an identical `updateStatus(boolean)` call on the same cluster in the same tick.
-  - Does not intercept matrix formation, destruction, pattern registration, or crafting thread execution.
-- `ExtendedAePlusAssemblerMatrixBusyCaptureMixin`
-  - Runs after ExtendedAE Plus and captures the add-on's own 8/32-thread-aware busy total.
-  - Feeds that exact result into the shared one-tick matrix cache; ACO does not reimplement or flatten ExtendedAE Plus crafter capacity.
-- `StorageServiceWatcherThrottleMixin`
-  - Redirects storage watcher `onStackChange` calls through a small buffer when `throttleStorageWatcherUpdates = true`.
-  - Flushes on `StorageService.onServerEndTick`, storage node changes, and cache invalidation.
-  - Remains unregistered in 1.2.2.
-- `CraftingCpuLogicExecutionBudgetMixin`
-  - Redirects AE2's `CraftingCPUCluster.getCoProcessors()` call inside `CraftingCpuLogic.tickCraftingLogic`.
-  - Caps the effective execution window before AE2 calls `executeCrafting`.
-  - Routes each original `executeCrafting` wave through `SequentialInstantDispatcher` and records elapsed server-side execution time for adaptive pacing.
-  - Applies a second, shared budget keyed by `CraftingService`, which corresponds to one ME grid's crafting service.
-  - Uses an exponentially weighted nanoseconds-per-operation estimate to fit later CPU bursts into the remaining grid budget.
-  - Never aggregates pattern inputs; every accepted operation is still accounted by AE2's original method.
-  - Grants every active CPU `minimumSharedOperationsPerCpu` after the shared budget is consumed to avoid starvation.
-  - Does not change the CPU's real co-processor count, display value, storage, job validation, or crafting result.
-  - Enabled by default because AE2 co-processors increase pattern push throughput, not craft calculation speed.
-- `AdvancedAeCraftingCpuLogicExecutionBudgetMixin`
-  - Redirects `AdvCraftingCPU.getCoProcessors()` and the original `executeCrafting` wave boundary inside the server crafting tick.
-  - Applies the same hard cap and Sequential Instant CPU/Grid budgets without reflection or menu code.
-  - Leaves Quantum Computer storage, displayed statistics, structure formation, and job state unchanged.
-- `NeoEcoCraftingCpuExecutionBudgetMixin`
-  - Optional pseudo-mixin targeting Neo ECO AE Extension 20.3.x `ECOCraftingCPULogic`.
-  - Caps the return values of Neo ECO's own `getOperationLimit()` and `effectiveFastPathTickLimit()` methods through ACO's existing adaptive per-CPU and shared per-grid budgets.
-  - Measures `executeCrafting(...)` and records Neo ECO's returned pattern-push count, so later ticks use measured cost rather than a guessed operation cost.
-  - Uses ACO's server tick clock, shared with the standard AE2 execution wrapper, so both CPU implementations debit the same `CraftingService` budget in one tick.
-  - With Compiled Crafting Islands disabled or no explicit backend present, it does not replace Neo ECO's normal, batch, or aggressive fast path.
-  - With the island switch and an explicit backend enabled, it permits one proven atomic island wave to replace the corresponding original `executeCrafting` pass; every unsupported or waiting case returns `NOT_HANDLED`.
-  - Is absent at runtime when `neoecoae` is not installed. Neo ECO 20.3.0 is present only as a compile-time signature target and is not bundled.
-- `CraftingCpuLogicTransactionalBatchV2Mixin` / `AdvancedAeCraftingCpuLogicTransactionalBatchV2Mixin`
-  - Are isolated behind the default-off experimental master and V2 switches.
-  - Pause a CPU with unresolved source receipts even if feature switches are later disabled.
-  - Do not call the removed 1.2.0/1.2.1 transactional executor.
-- `AdvancedAePatternProviderIntentCaptureMixin`
-  - Captures the same short-lived input/output intent from Advanced AE Pattern Providers as from standard AE2 providers.
-- Grid tick, Import/Export Bus, IO Port, capability, and storage-simulation
-  Mixins are unregistered in 1.2.2. Their configuration keys are compatibility
-  no-ops; AE2 owns every live transfer and rollback.
-- `CraftingServiceInvalidationMixin`
-  - Clears adaptive execution state, calculation de-duplication state, completed plan cache, failed craft-request throttle state, and pattern lookup cache when crafting providers or nodes change.
-  - The compatibility craftable-cache helper is also cleared defensively, but no craftable-set Mixin is registered.
-
-The build intentionally does not include the previous Craft Confirm GUI or CraftingTreeNode solver replacement mixins.
-
-## Active Calculation Single-Flight
-
-Large AE2 craft requests can be accidentally started more than once while the first worker calculation is still running. This is especially easy when a player retries a request because the confirmation screen still says it is calculating.
-
-The optimizer applies a single-flight table around AE2's own calculation future. The key is deliberately narrow:
+`PhysicalCraftingTreeTransaction` is the ACO-owned state machine:
 
 ```text
-CraftingService identity
-Level dimension
-Requester class + requester identity
-AEKey output
-requested amount
-CalculationStrategy
+VALIDATING
+  -> RESERVING_BOUNDARY_INPUTS
+  -> EXECUTING_RECIPES
+  -> RETURNING_RESULTS
+  -> COMPLETE
 ```
 
-This avoids sharing plans across different requesters while still suppressing exact duplicate in-flight requests from the same screen/requester path.
-
-Entries are ignored once the future is done, cancelled, or older than `activeCalculationDeduplicationWindowTicks`. The table is also cleared when AE2 crafting providers or network nodes change.
-
-## Completed Plan Cache
-
-The completed plan cache is intentionally short-lived. Its default TTL is `40` ticks.
-
-By default it stores only:
-
-- simulation plans,
-- plans with missing items.
-
-Successful plans are not cached unless `cacheSuccessfulCompletedCraftingPlans = true`. That option exists for explicit stress testing, but it is not the safe default because successful plans can become stale when storage contents change between calculation and submission.
-
-Storage cache invalidation and crafting provider invalidation clear the completed plan cache.
-
-## Deterministic Missing Fast-Fail
-
-The fast-fail path is disabled by default. When explicitly enabled, it only runs for `CalculationStrategy.REPORT_MISSING_ITEMS` and requests at least `minimumRequestedAmountForFastFail` (default `1`). Item, fluid, and chemical keys use the same generic AEKey proof path.
-
-It recursively follows only strict deterministic pattern paths:
-
-- exactly one pattern for the requested key,
-- no emitable item shortcuts,
-- exactly one pattern output,
-- exactly one possible input per input slot,
-- positive output and input amounts,
-- no recursion,
-- under configured depth and node limits.
-
-If any condition is not met, the preflight returns control to AE2's normal solver.
-
-When a raw missing ingredient is found, the optimizer verifies the missing stack against AE2's live `MEStorage.extract(..., Actionable.SIMULATE, ...)` before returning a missing-only `ICraftingPlan`.
-
-This path never returns a successful plan. It only answers "this request cannot complete because this one ingredient is missing" and intentionally ends AE2's full missing-item calculation for that request. It is therefore an opt-in diagnostic shortcut, not the normal player-facing path.
-
-## Pattern Lookup Cache
-
-The pattern lookup cache wraps `CraftingService.getCraftingFor(AEKey)` with a weakly keyed per-service cache.
-
-This follows the UEL-style principle of reusing provider lookups until provider topology changes. It does not change pattern validity.
-
-The cache is cleared when `CraftingService.refreshNodeCraftingProvider`, `addNode`, or `removeNode` runs.
-
-## Craftable Set Cache
-
-The source key remains for configuration compatibility, but
-`CraftingServiceCraftableSetCacheMixin` is unregistered in 1.2.2. AE2 computes
-terminal craftables directly from its current repository generation.
-
-## Storage Watcher Sync Throttle
-
-The storage watcher throttle has been compatibility-disabled since 1.2.1. Its
-config key remains readable and defaults to false, but
-`StorageServiceWatcherThrottleMixin` remains unregistered in 1.2.2.
-
-The retained historical implementation buffered
-`IStorageWatcherNode.onStackChange` by watcher and key. It is not reachable from
-the current runtime Mixin list.
-
-The retained implementation is not reachable at runtime. A replacement must preserve a coherent terminal generation and prove that a zero-stock insertion cannot be dropped before this path is registered again.
-
-## Terminal Snapshot Pacing
-
-`MEStorageMenu` normally refreshes craftables and calls `MEStorage.getAvailableStacks()` on every server-side broadcast tick while the terminal is open.
-
-The retained historical implementation could reuse a per-menu `KeyCounter`
-snapshot and craftable set for a few ticks.
-
-The returned `KeyCounter` is copied before reuse so AE2's later diffing does not mutate the cached snapshot.
-
-The deep range path keeps AE2's packet protocol but drains the helper's pending changes in bounded rolling ranges. It is not a client-requested virtual-page protocol; every key is still synchronized and searchable after the range completes.
-
-Snapshot pacing, craftable-set reuse, client view coalescing, and rolling ranges
-remain unregistered in 1.2.2. Their config keys are no-ops for existing TOML
-compatibility.
-
-## Crafting Execution Budget
-
-AE2 calculates an execution window from `getCoProcessors() + 1`, subtracts recent `usedOps`, then calls `executeCrafting(maxOps, ...)`. `executeCrafting` can push up to that many patterns through available providers.
-
-For normal CPUs this is fine. For CrazyAE-class hardware numbers, returning a huge co-processor count directly can create a very large server-tick burst.
-
-The optimizer caps only the effective co-processor value seen by AE2's normal crafting tick execution loop. CPU selection, GUI display, storage capacity, job submission, pattern providers, and AE2's final crafting state remain unchanged.
-
-This feature is enabled by default because it is the direct TPS protection for giant CPUs: the CPU can remain large, but it cannot spend an unbounded amount of one server tick pushing patterns.
-
-Advanced AE Quantum Computer execution receives the same hard effective co-processor cap and Sequential Instant wave controller. Its public original `executeCrafting` method still performs all extraction, Provider, energy, task, and waiting-output accounting; ACO only chooses the maximum size of the next measured wave. This execution-budget feature does not touch a menu class or use a reflective execution call.
-
-Neo ECO AE Extension 20.3.x uses a separate `ECOCraftingCPULogic`, so the standard AE2 redirect cannot see it. ACO injects only at Neo ECO's two existing limit-return methods and around its existing `executeCrafting(...)` call. The lower of Neo ECO's own limit and ACO's limit wins. The actual return value from Neo ECO remains the completed-operation count used for adaptive measurement.
-
-### Exact Vector Crafting Engine
-
-`com.syaru.ae2craftingoptimizer.api.vector` is API v1 and does not modify the
-existing BigInteger host API v3. `PreparedVectorBatch` stores all quantities as
-bounded non-negative `BigInteger` values and records the transaction UUID,
-parent UUID, ownership mode, critical path, exact input/output keys, required
-Pattern fingerprints, generation numbers, and fixed-point resource totals.
-
-`VectorBatchPlanner` delegates deterministic ordinary-crafting DAGs to
-`CompiledRootProgram.tryPlanDeterministicCraftingBig`. The method keeps one
-`BigInteger[]` demand vector and visits each reachable key once in the existing
-parent-before-child order. For each active Pattern it calculates
-`ceilDiv(deficit, outputAmount)` once, directly multiplies every fixed input by
-that execution count, and adds it to the child demand. The same pass records
-net ME-storage inputs, fixed surplus outputs, active Pattern IDs, total logical
-executions, and critical-path depth.
-
-The Exact Vector path therefore does not create the generic five quantity
-arrays, materialize a Pattern-execution map, rebuild produced/consumed maps, or
-walk the graph again for boundary and critical-path calculation. A twenty-stage
-chain performs twenty Pattern evaluations whether the root order is `1`,
-`Long.MAX_VALUE`, or a supported BigInteger value. Processing Patterns,
-emitters, ambiguous producers, substitutions, and cycles remain outside this
-path and fall back before ownership transfer.
-
-When a root's full recipe expansion requires wide arithmetic, ACO keeps its
-authoritative plan even if exact BigInteger intermediate stock reduces the
-current order to signed-long counters. Returning that order to AE2's saturated
-`KeyCounter` view could select a different set of intermediate crafts.
-
-`VectorBatchPlanValidator` and `PreparedVectorBatchCodec` enforce:
-
-- the configured BigInteger bit and exact decimal ceilings;
-- bounded Pattern, input-key, and output-key counts;
-- positive duration and stage values;
-- stable transaction and program fingerprints;
-- schema-versioned byte-array BigInteger encoding;
-- strict enum, key, duplicate, and NBT-size validation.
-
-`ExactVectorExecutorRegistry` weakly keys grids, owners, and executors. Existing
-receipts are discoverable even when an executor cannot accept new work. Standard
-and BigInteger parent jobs share the same active transaction count and per-grid
-start/completion/active-stage/time budgets.
-
-AdvancedAE standard jobs use `AqeStandardVectorExecutionRuntime` in
-`HOST_ESCROWED` mode. The runtime:
-
-1. compiles the already accepted live Job and proves every task is an exact
-   ordinary crafting Pattern;
-2. simulates every output and input before mutation;
-3. extracts each distinct CPU-inventory boundary key once and persists its
-   receipt;
-4. starts one external logical transaction and suppresses normal Pattern push
-   for that same Job;
-5. waits for the executor `ACCOUNTING` receipt;
-6. stages outputs reversibly, clears the exact saved tasks, updates elapsed
-   internal work, and calls AdvancedAE's normal output insertion path.
-
-The standard path is intentionally signed-long at the CPU inventory boundary.
-No amount is narrowed silently; any boundary that does not fit exactly falls
-back before extraction.
-
-The AdvancedAE status screen is not used as an accounting store. While a
-standard Exact Vector receipt is active, ACO derives each Pattern-output total
-from the immutable plan and projects it through
-`LongClampedProgressProjection`:
-
-- exact values at or below `Long.MAX_VALUE` retain their real display scale;
-- larger exact values use `Long.MAX_VALUE` as a display-only facade;
-- the facade follows the executor's authoritative active-stage receipt;
-- `inventory`, `waitingFor`, `TaskProgress`, and the exact receipt are never
-  changed by display projection.
-
-AAC may complete all logical work in one server tick. ACO does not postpone
-final accounting for animation after the executor reaches `ACCOUNTING`.
-The dedicated BigInteger parent menu reads the exact server runtime status and
-keeps display-only long saturation outside every accounting object.
-
-AQE BigInteger parent jobs use `AqeBigCraftingExecutionManager` in
-`NETWORK_STORAGE` mode. A proven root is offered directly before a child window
-is created. A compatible executor owns the exact network input/output transfer,
-while the AQE host keeps capacity and parent progress. A successful receipt
-commits the whole parent once with `BigInteger`; a rejection with a confirmed
-empty receipt may return to checked-long windows.
-
-After `start`, the persistent executor receipt is the source of truth.
-Mismatched IDs, missing receipts after a claimed start, unreadable receipts,
-interrupted input/output/energy calls, and uncertain accounting are quarantined.
-They never trigger speculative replay or normal-path fallback.
-
-`ExactNetworkStorageBridge` follows AE2 mount priority but admits only storage
-whose complete amount can be accessed exactly. The current implementation
-supports the inspected ExtendedAE Plus Infinity BigInteger Cell and subclasses
-such as Registry BigInteger Cell that explicitly implement
-`ExactVectorStoragePolicy`. It performs one direct mutation per participating
-mount rather than long-sized windows, records before/after totals, rolls back in
-reverse order, invalidates the AE2 storage cache once, and fail-fast checks its
-cache/SavedData consistency injection points.
-
-Repeated input slots are merged before this boundary. A nine-slot Pattern with
-the same key in every slot and `Long.MAX_VALUE` root executions therefore
-produces one `9 * Long.MAX_VALUE` exact input mutation, not nine long windows or
-`9 * Long.MAX_VALUE` loop iterations. The corresponding root output remains
-exactly `Long.MAX_VALUE`.
-
-`ExactVectorExecutionBudget` claims a continuous logical-stage range from the
-shared Grid budget. The first range is starvation-safe; later ranges defer after
-the soft wall-clock budget. `VectorEnergySchedule.microAeForRange` sums that
-range without a per-stage loop. The quotient and remainder still reconstruct
-the original BigInteger energy exactly.
-
-### Compiled Crafting Islands
-
-`Ae2CraftingIslandCompiler` reads the already accepted live Job and admits
-`AECraftingPattern` instances whose public Pattern API proves one fixed item
-output and fixed item inputs. It rejects substitutions, fluid substitution,
-multiple outputs, multiple candidates, remaining items, NBT/capability state,
-durability, duplicate producers, cycles, and invalid counts. It does not infer
-fixed behavior again from the original vanilla or KubeJS recipe class.
-
-`CompiledCraftingIsland` builds producer/dependent adjacency once, detects
-cycles with iterative Kahn traversal, divides safe Patterns into connected
-components, and computes each component's produced, consumed, internal,
-boundary-input, and boundary-output maps with checked `BigInteger` arithmetic.
-Processing Patterns are omitted from the graph and therefore become natural
-boundaries. Components with one Pattern remain on the existing vector path.
-
-This means a mixed job is work-conserving without skipping machines: an
-upstream ordinary-crafting island commits when ready, AE2 continues the
-processing Pattern through its original provider, and a downstream island waits
-until that real output appears in the CPU inventory.
-
-`CraftingIslandCompilationCache` weakly keys the compiled result by live Job.
-It reuses a waiting island only while recipe generation and every included Task
-count remain unchanged. A changed Task invalidates and recompiles the entry;
-the cache does not retain the Job after its CPU releases it.
-
-`Ae2CraftingIslandExecutor` performs:
-
-1. task, provider ownership, capacity, complete-input, complete-output, energy,
-   Job, and backend preflight;
-2. exact input extraction and power charge;
-3. reversible task removal and reversible staging of all boundary outputs;
-4. one full status notification, internal elapsed-work accounting, and
-   boundary delivery through the backend's original CPU insert path.
-
-Before delivery, a failure unstages outputs, restores Task order and progress,
-returns the exact extracted inputs, and refunds charged power. After delivery
-starts, a mismatch suspends the Job instead of allowing original execution to
-repeat uncertain work.
-
-ACO owns all qualification, graph, arithmetic, transaction ordering, and
-fallback behavior. The backend owns only structure capacity, power constants,
-and its configured same-Grid or controller-local Pattern scope. ACO's CPU
-adapter owns the
-version-specific Job, inventory, and output calls.
-
-`CraftingIslandBackendRegistry` separates CPU ownership from execution
-hardware. AAC registers a short-lived session when a formed controller exists
-on the same Grid; its optional strict mode additionally requires controller
-Pattern Bus ownership. AdvancedAE/AQE CPU logic binds that session before input
-extraction, then revalidates structure and configured Pattern scope immediately
-before commit. Without a matching session it returns `NOT_HANDLED` and runs the
-original Sequential path.
-
-AdvancedAE's `ExecutingCraftingJob` is adapted to the same reversible contract:
-checked `waitingFor` staging, exact rollback, final-requester simulation,
-elapsed-work decrement, one listener notification, and fail-closed link
-cancellation after an uncertain irreversible failure. The AdvancedAE atomic
-wave is charged as one measured operation against ACO's shared Grid time
-budget, regardless of the island's logical recipe count.
-
-The generated default cap is `264192` effective co-processors per CPU. This keeps the optimizer safe by default while matching AQE's non-experimental full structure.
-
-Sequential Instant does not introduce a low per-tick operation cap. It starts with a bounded probe wave, derives nanoseconds per completed operation, and repeatedly permits additional waves until the original `maxPatterns`, Provider backpressure, the per-CPU wall-clock budget, or the shared grid wall-clock budget is exhausted. GTCEu and Mekanism therefore receive normal one-pattern pushes instead of one count-scaled aggregate input.
-
-For explicit AQE experimental-core stress testing, set `maxEffectiveCoprocessorsPerCpu = 2147483646`, which is `Integer.MAX_VALUE - 1`. This lets AQE's experimental maximum-value core reach AE2's execution loop while still allowing AE2 to add one execution slot without integer overflow.
-
-When `adaptiveCraftingExecutionBudget = true`, the hard cap above is treated as the maximum. Each active crafting CPU also receives a weakly keyed adaptive cap. If its execution burst takes longer than `targetCraftingExecutionMillis`, the adaptive cap is reduced proportionally and bounded by `minimumAdaptiveCoprocessorsPerCpu`. If it is below half the target and consumes its whole budget, the cap recovers gradually.
-
-When `sharedCraftingExecutionBudget = true`, ACO additionally keeps a weakly keyed budget state per `CraftingService`. Actual elapsed execution time is accumulated for the current game tick. Later CPUs on that grid are limited using the owning CPU's measured cost per operation. Once the shared target is consumed, each remaining active CPU receives only the configured minimum progress allowance for that tick.
-
-The first observed burst for a CPU has no cost estimate, so it still uses the existing per-CPU cap. Its measured cost is then available for subsequent ticks. This avoids guessing a universal operation cost across very different pattern providers and modded machines.
-
-This is the mod's CrazyAE-style safety layer: giant CPU values are allowed, but execution is paced by measured server cost instead of assuming every possible operation should happen in one tick.
-
-### Transactional Pattern Batching
-
-The 1.2.0/1.2.1 `CraftingCpuLogicTransactionalBatchMixin` classes are removed in
-1.2.2. The legacy API and config remain source-compatible, but no standard or
-Advanced AE CPU invokes `BatchedCraftingExecutor`.
-
-The new V2 path is a separate prepare/accept/account/reconcile protocol with
-durable source, target, and world-journal state. It is disabled at both master
-and child levels and is documented in
-[EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md). It must not be treated as an
-active 1.2.2 feature until the copied-world recovery matrix passes.
-
-AQE's non-experimental full default structure remains:
+Cancellation uses:
 
 ```text
-(4096 modified core + 121 * 512 modified accelerators) * 4 Multi-Threader = 264192
+CANCELLING_THREADS
+  -> RETURNING_CANCELLED_ESCROW
+  -> CANCELLED
 ```
 
-If the server shows MSPT spikes during real large crafts, the first fallback values are `264192`, `131072`, and `65536`.
+Any unprovable ownership state enters `QUARANTINED`.
 
-For the adaptive path, the first fallback is lowering `targetCraftingExecutionMillis` from `4` to `2`; if crafts become too slow, raise it back to `4` or `6`.
+### Boundary Reservation
 
-## Compatibility-Disabled Grid And I/O Budget
+All distinct boundary input keys are preflighted, then moved as one exact
+batch into `ExactCraftingEscrow`.
 
-The grid-tick deferral and I/O operation-cap Mixins are unregistered in 1.2.2.
-Their keys remain readable no-ops. The separate failed automatic-craft request
-cooldown still hooks `MultiCraftingTracker`, but it does not alter a live bus
-transfer.
+The cursor is binary:
 
-## AE2-UEL-Inspired Safe Optimization Layer
+- `0`: the batch is not committed to parent accounting;
+- full key count: every key is committed.
 
-Version 1.2.2 retains only non-mutating calculation, provider-refresh,
-recipe-validation, and machine-intent optimizations. Capability, terminal
-craftable-set, Import/Export Bus, IO Port, storage simulation, and live transfer
-Mixins are removed. AE2 remains the sole owner of mutable storage amounts and
-every insertion, extraction, rollback, cell transfer, and terminal repository
-generation.
+Intermediate cursor values are invalid because the mutation is a single
+logical ownership transfer.
 
-## Machine Intent Boundary
+### Recipe Scheduling
 
-The requested "intent" direction for GT/Mekanism-style machine lines is now represented inside ACO at the AE2 Pattern Provider boundary.
+Each `ExactCraftingStep` has a durable `StepReceipt`.
 
-Implemented in this mod:
+A step may reserve inputs only when escrow contains the full exact amount.
+After reservation, ACO selects a Provider-owned AAC Pattern Bus and sends one
+`CraftingTableBatchRequest`.
 
-- successful Pattern Provider push capture,
-- successful Advanced AE Pattern Provider push capture,
-- short-lived recipe intent registry keyed by dimension, target position, and target side,
-- execution-count aggregation and chunk-bucketed spatial lookup,
-- `/aco intents` diagnostics,
-- GTCEu item/fluid output-indexed candidate prefixing before the normal recipe iterator,
-- Mekanism item/fluid/chemical output-indexed candidate selection before the normal machine recipe lookup,
-- pattern lookup reuse,
-- exact duplicate craft calculation de-duplication,
-- short-lived missing/simulation plan reuse,
-- export-bus-style failed craft retry cooldown.
+The request contains:
 
-Compatibility-disabled and still unregistered in 1.2.2:
+- parent and step transaction IDs;
+- payload digest;
+- encoded AE2 Pattern;
+- exact execution coefficient;
+- selected per-slot inputs;
+- expected exact outputs.
 
-- terminal snapshot pacing,
-- terminal craftable reuse,
-- storage watcher pacing,
-- aggregate storage refresh coalescing,
-- rolling terminal range packets,
-- client terminal view coalescing.
+Order quantity never determines loop count or Thread count.
 
-Also unregistered in 1.2.2:
+The selected concrete key for every tag or alternative-input slot is persisted
+with the step. After restart, ACO requires that exact key and amount to remain
+valid for the encoded Pattern; it never silently switches to another tag
+member.
 
-- terminal craftable-set reuse,
-- grid-tick deferral and idle backoff,
-- Import/Export Bus operation caps and mutable caches,
-- IO Port incremental transfer,
-- adjacent capability and storage-simulation caches.
+Resolved one-craft formulas are cached as an indexed array for the currently
+validated provider and recipe generations. Polling an active transaction does
+not rebuild Pattern formulas until either generation changes.
 
-Implemented deep AE2 rewrite flags under `[deepAe2Rewrite]`:
+### Physical Output
 
-- `patternSelectionByAvailability`
-- `networkForceUpdateCoalescing`
-- `visibleTerminalRangeSync`
-- `p2pTopologyChangeOnlyRecheck`
-- `busSearchRewrite`
-- `fluidPatternRework`
+AAC runs one real recipe assemble through Neo ECO. ACO accepts output only when
+the Worker's exact receipt equals the compiled per-step formula.
 
-`patternSelectionByAvailability`, `p2pTopologyChangeOnlyRecheck`, and
-`fluidPatternRework` gate active implementations and return directly to AE2's
-original path when disabled. `networkForceUpdateCoalescing`,
-`visibleTerminalRangeSync`, and `busSearchRewrite` remain readable compatibility
-keys but have no registered Mixins in 1.2.2. The master switch disables every
-active deep path at once.
+The output is credited to escrow once. Dependent steps become runnable only
+after that credit.
 
-Not implemented in this mod:
+The final root and fixed remaining outputs must be the complete escrow content.
+ACO then inserts that exact content into ME storage. There is no code path that
+creates final output from `PreparedVectorBatch.finalOutputs()`.
 
-- rewriting Create machine recipe execution,
-- replacing the terminal protocol with client-requested virtual pages,
-- replacing AE2's graph solver or provider priority model,
-- replacing import/export transfer validation,
-- replacing AE2 15.4.10's existing first-class `GenericStack` fluid model,
-- forcing a captured intent directly into GTCEu, Mekanism, or Create recipe execution without each mod's own validation path,
-- replacing pattern providers with a custom machine scheduler,
-- batching dedicated crafting-machine plans or bypassing AE2's storage/crafting APIs,
-- changing machine inventory insertion/extraction semantics.
+## Worker Receipt Protocol
 
-Create remains reserved behind a config-visible fast path switch. Mekanism is implemented conservatively: ACO only returns candidates that Mekanism's own recipe `test` accepts for the current machine inputs.
-
-## GTCEu Recipe Intent Fast Path
-
-The GTCEu path follows the GTNH/UEL-style intent idea without replacing GTCEu's machine logic.
-
-Flow:
+The physical target states are:
 
 ```text
-AE2 Pattern Provider push succeeds
-ACO records target position + concrete input/output intent
-GTCEu RecipeLogic.searchRecipe runs on that target machine
-ACO finds exact or nearby input-bus/hatch intents through chunk buckets
-ACO resolves intent output ids and prioritizes candidates containing the concrete pushed input ids
-ACO prepends matching candidates to GTCEu's original iterator
-GTCEu handleSearchingRecipes/checkMatchedRecipeAvailable/checkRecipe/setupRecipe stay unchanged
+RUNNING
+OUTPUT_READY
+ACKNOWLEDGED
+CANCELLED
+QUARANTINED
 ```
 
-Safety rules:
+`OUTPUT_READY` and `ACKNOWLEDGED` both require a non-empty exact output map.
 
-- If the intent is missing or expired, original GTCEu search runs.
-- If the output index has no candidates, original GTCEu search runs.
-- If a candidate no longer matches the machine inputs, GTCEu rejects it and the original iterator continues.
-- If reflection fails because GTCEu changed internals, the original iterator is returned.
-- Candidate count is capped by `gtceuRecipeIntentMaximumCandidates`.
-- Nearby matching is capped by `gtceuRecipeIntentSearchRadius` and `gtceuRecipeIntentNearbyMaximumEntries`.
-- The output index is cleared on server stop and `/aco intents clear`.
-- Output-index and resolved-candidate caches are also cleared after a server datapack recipe reload.
-- Repeated searches for the same target and fresh output-key set reuse an immutable candidate prefix; GTCEu still validates every candidate.
+The acknowledgement order is:
 
-This reduces repeated full recipe discovery when AE2 has just pushed a known processing pattern into a GTCEu machine, while preserving GTCEu as the final validator and executor.
+1. Worker records exact terminal output in its own Block Entity NBT.
+2. Worker releases the Neo ECO Thread.
+3. ACO observes the terminal receipt.
+4. ACO credits output exactly once.
+5. ACO asks the Worker to forget the receipt.
 
-## Mekanism Recipe Intent Fast Path
+This ordering supports either parent-first or Worker-first chunk saving.
 
-The Mekanism path uses the same Pattern Provider intent but hooks Mekanism machine `getRecipe(int)` bridge methods instead of the shared cache classes. This is required because the cache classes do not know the machine position, while the intent registry is keyed by target block position.
+AAC keeps transient transaction-to-Worker and transaction-to-Thread indexes.
+The first lookup after restart or structure replacement rebuilds an index from
+persisted Neo ECO state; ordinary progress polling is direct lookup.
 
-Flow:
+## Exact Storage Mutation
 
-```text
-AE2 Pattern Provider push succeeds
-ACO records target position + concrete input/output intent
-Mekanism machine getRecipe(int) runs on that target machine
-ACO finds fresh intents for the machine position
-ACO resolves intent output item/fluid/chemical ids against a cached per-Mekanism recipe type output index
-ACO reads the current Mekanism input handlers for that machine/cache index
-ACO returns a candidate only if Mekanism's recipe test accepts those live inputs
-Mekanism CachedRecipe creation, operation tracking, input consumption, output insertion, and energy use stay unchanged
-```
+`ExactNetworkStorageBridge` accesses only audited storage mounts whose complete
+quantity is available as `BigInteger`.
 
-Safety rules:
+Before mutation, ACO stores:
 
-- If the intent is missing or expired, original Mekanism lookup runs.
-- If no output-indexed candidates exist, original Mekanism lookup runs.
-- If candidates do not match the current item, fluid, gas, infusion, pigment, or slurry inputs, original Mekanism lookup runs.
-- If reflection fails because Mekanism changed internals, original Mekanism lookup runs.
-- Candidate count is capped by `mekanismRecipeIntentMaximumCandidates`.
-- The output index is cleared on server stop and `/aco intents clear`.
-- Output-index and resolved-recipe caches are also cleared after a server datapack recipe reload.
-- Input-handler field discovery and recipe `test` method discovery are cached per Java class.
-- A resolved recipe is reused only while the latest intent signature matches and Mekanism's live recipe `test` still accepts current inputs.
+- operation UUID;
+- direction and purpose;
+- exact amount per key;
+- exact before amount per key;
+- derived exact after amount per key.
 
-This targets machines such as enrichment/crushing/smelting factories, combiner, metallurgic infuser, purification/injection/osmium compressor, chemical crystallizer, chemical infuser, washer, oxidizer, electrolytic separator, pressurized reaction chamber, rotary condensentrator, pigment machines, and related Mekanism recipe machines.
+On recovery, `ExactMutationReconciler` classifies every key:
 
-## Safety Boundaries
+- current equals before: retry this key;
+- current equals after: do not replay this key;
+- neither: quarantine.
 
-The mod does not:
+After retry, ACO re-reads all keys and requires the complete after map before
+advancing parent escrow. Work is proportional to distinct keys, never amount.
 
-- mutate AE2 inventory state,
-- alter recipe registration,
-- replace AE2's crafting tree solver,
-- return a successful handcrafted plan,
-- bypass AE2 submit validation,
-- change AE2 CPU storage or co-processor accounting,
-- alter bus filters, inventories, redstone behavior, or transfer validity.
+## Parent Job Commit
+
+The physical transaction inserts final output into ME before
+`BigCraftingJob.commitPreparedVector` runs.
+
+The parent commit only:
+
+- validates transaction identity and unchanged task offset;
+- completes the exact parent task count;
+- releases reserved capacity;
+- updates the parent state.
+
+It does not create or insert output.
+
+## Advanced AE Exact Job Accounting
+
+Gameplay orders whose individual Pattern or storage counters exceed signed
+`long` still create one normal Advanced AE CPU and one normal `CraftingLink`.
+ACO does not create a second completion job for them.
+
+Normal `long` jobs and exact `BigInteger` jobs use the same Advanced AE
+`ExecutingCraftingJob` accounting lifecycle. The same runtime objects hold both
+views:
+
+- each Advanced AE `TaskProgress` stores the exact remaining Pattern count;
+- the real `ListCraftingInventory waitingFor` stores exact expected output;
+- the real `ExecutingCraftingJob` stores exact final-output remaining;
+- the original `long` fields contain only `0..Long.MAX_VALUE` compatibility
+  projections for unchanged AE2 and Advanced AE APIs.
+
+Physical receipts follow the normal Advanced AE accounting order:
+
+1. accepted Pattern work decreases its real task count;
+2. that Pattern's expected output is added to the real `waitingFor`;
+3. credited physical output is removed from the same `waitingFor`;
+4. returned final output decreases the real final-output counter;
+5. only when all three counters are terminal does the normal
+   `CraftingLink` finish.
+
+While an exact physical transaction owns the job, unsolicited matching stacks
+from the generic Advanced AE `insert` route are rejected. Only a verified
+physical receipt may advance the same real counters, preventing an unrelated
+machine output from being counted twice.
+
+The saved exact receipt ledger is replay protection, not a second completion
+authority. It stores cumulative absolute dispatch, introduced-output, and
+credited-output totals in the same job NBT. On load and save, ACO requires the
+ledger and real runtime counters to match exactly. It never force-zeroes a
+counter because a physical transaction merely reports `COMPLETE`.
+
+## Fallback
+
+Fallback is valid only before `prepareVectorExecution` transfers ownership.
+
+After a receipt exists:
+
+- missing hardware waits;
+- a generation mismatch starts exact cancellation;
+- a completed receipt resumes;
+- an uncertain mutation quarantines.
+
+The checked-long child-window route is never started for the same owned parent.
+
+## Normal Long Jobs
+
+Normal AE2 and Advanced AE jobs use the same public
+`CraftingTableBatchRequest` and the same AAC/NeoECO one-assemble proof through
+Transactional Batch V2.
+
+Their CPU inventory and task accounting remain AE2/Advanced AE authoritative.
+The adapter reports one physical operation while preserving the exact accepted
+execution count.
+
+## Processing Patterns
+
+GTCEu, Mekanism, fluid, and chemical processing Patterns are not executed by
+the physical crafting-table adapter.
+
+They remain real machine boundaries. A downstream crafting-table step cannot
+reserve a machine output until that output is present in the owning CPU or ME
+inventory through the original machine path.
+
+## BigInteger Persistence
+
+Counts are encoded as canonical signed-magnitude byte arrays with:
+
+- schema version;
+- fixed maximum byte length;
+- non-negative or positive validation as appropriate;
+- no `longValue()` truncation;
+- exact conversion only with checked boundaries.
+
+The implementation decimal ceiling is `10^16384 - 1`.
+
+## TPS Boundaries
+
+- Formula work scales with reached nodes.
+- Storage work scales with distinct boundary keys.
+- Worker work scales with accepted physical recipe steps.
+- Requested quantity is a multiplication coefficient only.
+- New transaction starts, active steps, and active transactions are bounded per
+  ME grid.
+- A soft wall-clock budget defers additional scheduler work.
+
+## Removed Architecture
+
+The following implementation paths were deleted:
+
+- direct whole-tree final-output conversion;
+- `ExactVectorExecutorRegistry`;
+- `AqeStandardVectorExecutionRuntime`;
+- Compiled Crafting Islands and their backend registry;
+- synthetic Vector duration;
+- synthetic fixed tree-energy and coolant schedules;
+- display-only completion delays.
+
+Old schema data from those executors is not resumed as current physical work.
+It is rejected or quarantined rather than interpreted under a new ownership
+contract.
+
+## Dedicated Server Safety
+
+Common code does not reference Minecraft client classes. ACO uses no Bukkit,
+Paper, Spigot, or Arclight API.
+
+Version-sensitive Mixins are pinned to the documented dependency series and
+must fail closed when their required target disappears.

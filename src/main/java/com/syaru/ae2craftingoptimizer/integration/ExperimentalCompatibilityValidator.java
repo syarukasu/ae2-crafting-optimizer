@@ -1,22 +1,20 @@
 package com.syaru.ae2craftingoptimizer.integration;
 
+import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingJobAccess;
+import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingLogicAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterHostTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterRecoveryAccess;
-import com.syaru.ae2craftingoptimizer.access.CraftingIslandJobAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingJobTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
 import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
-import com.syaru.ae2craftingoptimizer.access.AqeStandardVectorHost;
-import com.syaru.ae2craftingoptimizer.access.AqeVectorElapsedTimeDisplay;
+import com.syaru.ae2craftingoptimizer.access.ExactCraftingInventoryAccess;
 import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.mixin.MekanismCachedRecipeAccessor;
-import com.syaru.ae2craftingoptimizer.mixin.AdvancedAeCraftingCpuLogicIslandAccessor;
-import com.syaru.ae2craftingoptimizer.mixin.AdvancedAeElapsedTimeTrackerAccessor;
 import com.syaru.ae2craftingoptimizer.scheduler.FairSchedulerStateStore;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,8 +31,7 @@ public final class ExperimentalCompatibilityValidator {
     public static void validateEnabledFeatures() {
         // Experimental全体またはAQE専用経路のどちらも無効なら、深いMixin契約の監査は不要。
         if (!ACOConfig.enableExperimentalCraftingEngine()
-                && !ACOConfig.enableAqeBigCraftingProfile()
-                && !ACOConfig.enableAqeStandardVectorJobs()) {
+                && !ACOConfig.enableAqeBigCraftingProfile()) {
             return;
         }
         List<String> failures = new ArrayList<>();
@@ -42,64 +39,24 @@ public final class ExperimentalCompatibilityValidator {
         if ((ACOConfig.enableTransactionalBatchingV2()
                         || ACOConfig.enableFairCraftingJobScheduler()
                         || ACOConfig.enableAtomicBigCapacityPlans()
-                        || ACOConfig.enableAqeStandardVectorJobs())
+                        || ACOConfig.enableBigIntegerGameplayExecution())
                 && ModList.get().isLoaded("advanced_ae")) {
             requireExactVersion(failures, "advanced_ae", "1.3.5-1.20.1");
-        }
-        /*
-         * AQE標準Vector経路はTask会計に加え、表示専用long Facadeも
-         * Advanced AE内部へ適用済みでなければ起動を続けない。
-         */
-        if (ACOConfig.enableAqeStandardVectorJobs()
-                && ModList.get().isLoaded("advanced_ae")) {
-            require(
-                    failures,
-                    "net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic",
-                    AqeStandardVectorHost.class,
-                    AdvancedAeCraftingCpuLogicIslandAccessor.class);
-            require(
-                    failures,
-                    "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob",
-                    CraftingIslandJobAccess.class);
-            require(
-                    failures,
-                    "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob$TaskProgress",
-                    CraftingTaskProgressAccess.class);
-            require(
-                    failures,
-                    "net.pedroksl.advanced_ae.common.logic.ElapsedTimeTracker",
-                    AdvancedAeElapsedTimeTrackerAccessor.class,
-                    AqeVectorElapsedTimeDisplay.class);
         }
         // Wide計画を有効にする時は、受理側と拒否側の両境界Mixinを起動時に証明する。
         if (ACOConfig.enableAtomicBigCapacityPlans()) {
             require(failures, "appeng.me.cluster.implementations.CraftingCPUCluster",
                     BigCapacityPlanBoundaryAccess.class);
-            // Advanced AEが存在する時だけ、AQE用の正確な容量予約境界も適用済みか確認する。
-            if (ModList.get().isLoaded("advanced_ae")) {
-                require(failures, "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster",
-                        BigCapacityPlanBoundaryAccess.class);
-            }
         }
-        // AdvancedAE CPUからCompiled Islandを実行する時は、Job会計と非公開通知APIを全て確認する。
-        if (ACOConfig.enableCompiledCraftingIslands()
+        /*
+         * Advanced AEのBigInteger提出境界はAtomic long計画とExact計画の双方が使用する。
+         * どちらか一方でも有効なら、Cluster Mixinが実在することを監査する。
+         */
+        if ((ACOConfig.enableAtomicBigCapacityPlans()
+                        || ACOConfig.enableBigIntegerGameplayExecution())
                 && ModList.get().isLoaded("advanced_ae")) {
-            require(
-                    failures,
-                    "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob",
-                    CraftingIslandJobAccess.class);
-            require(
-                    failures,
-                    "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob$TaskProgress",
-                    CraftingTaskProgressAccess.class);
-            require(
-                    failures,
-                    "net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic",
-                    AdvancedAeCraftingCpuLogicIslandAccessor.class);
-            require(
-                    failures,
-                    "net.pedroksl.advanced_ae.common.logic.ElapsedTimeTracker",
-                    AdvancedAeElapsedTimeTrackerAccessor.class);
+            require(failures, "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster",
+                    BigCapacityPlanBoundaryAccess.class);
         }
         if (ACOConfig.enableTransactionalBatchingV2()) {
             require(failures, "appeng.crafting.execution.CraftingCpuLogic",
@@ -129,6 +86,21 @@ public final class ExperimentalCompatibilityValidator {
                 require(failures, "net.pedroksl.advanced_ae.common.logic.AdvPatternProviderLogic",
                         NativeBatchReceiptStore.class, PatternProviderTransactionAccess.class);
             }
+        }
+        /*
+         * BigInteger Jobは別CPUを作らず、Advanced AEの実Jobカウンタを直接拡張する。
+         * 三つの正本Mixinが一つでも欠ける状態ではlongへ縮退せず、起動時に明示的に拒否する。
+         */
+        if (ACOConfig.enableBigIntegerGameplayExecution()
+                && ModList.get().isLoaded("advanced_ae")) {
+            require(failures, "net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic",
+                    AdvancedAeExactCraftingLogicAccess.class);
+            require(failures, "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob",
+                    AdvancedAeExactCraftingJobAccess.class);
+            require(failures, "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob$TaskProgress",
+                    CraftingTaskProgressAccess.class);
+            require(failures, "appeng.crafting.inv.ListCraftingInventory",
+                    ExactCraftingInventoryAccess.class);
         }
         if (ACOConfig.enableFairCraftingJobScheduler()) {
             require(failures, "appeng.crafting.execution.CraftingCpuLogic",

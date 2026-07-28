@@ -1,7 +1,6 @@
 package com.syaru.ae2craftingoptimizer.config;
 
 import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Locale;
 import net.minecraftforge.common.ForgeConfigSpec;
@@ -178,9 +177,6 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue REQUIRE_AQE_BIG_PLAN_SHADOW_QUALIFICATION;
     private static final ForgeConfigSpec.BooleanValue ENABLE_COMPILED_CRAFTING_GRAPH;
     private static final ForgeConfigSpec.BooleanValue ENABLE_AUTHORITATIVE_COMPILED_PLANNER;
-    private static final ForgeConfigSpec.BooleanValue ENABLE_COMPILED_CRAFTING_ISLANDS;
-    private static final ForgeConfigSpec.IntValue MAXIMUM_COMPILED_CRAFTING_ISLAND_PATTERNS;
-    private static final ForgeConfigSpec.BooleanValue LOG_COMPILED_CRAFTING_ISLANDS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC;
     private static final ForgeConfigSpec.BooleanValue ENABLE_TRANSACTIONAL_BATCHING_V2;
     private static final ForgeConfigSpec.BooleanValue ENABLE_GTCEU_NATIVE_BATCHING;
@@ -204,22 +200,15 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_STATUS_PAGE_ENTRIES;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_RUNTIME_COUNT_BUDGET_MIB;
     private static final ForgeConfigSpec.BooleanValue ENABLE_EXACT_VECTOR_CRAFTING;
-    private static final ForgeConfigSpec.BooleanValue ENABLE_AQE_STANDARD_VECTOR_JOBS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_AQE_BIG_INTEGER_VECTOR_PARENTS;
-    private static final ForgeConfigSpec.LongValue EXACT_VECTOR_MINIMUM_EXECUTIONS;
-    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_TICKS_PER_LOGICAL_STAGE;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_PATTERN_NODES;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_INPUT_KEYS;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_OUTPUT_KEYS;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_STARTS_PER_GRID_TICK;
-    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_COMPLETIONS_PER_GRID_TICK;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_ACTIVE_STAGES_PER_GRID_TICK;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_ACTIVE_PER_GRID;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS;
-    private static final ForgeConfigSpec.IntValue EXACT_VECTOR_HARD_TIME_BUDGET_MILLIS;
-    private static final ForgeConfigSpec.BooleanValue EXACT_VECTOR_FALLBACK_BEFORE_OWNERSHIP;
     private static final ForgeConfigSpec.BooleanValue LOG_EXACT_VECTOR_DIAGNOSTICS;
-    private static final ForgeConfigSpec.LongValue EXACT_VECTOR_ENERGY_MICRO_AE_PER_LOGICAL_EXECUTION;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -785,34 +774,16 @@ public final class ACOConfig {
                         "Use a compiled plan only for the strictly provable single-pattern path. Any ambiguity, generation change, fuzzy input, overflow, or unsupported recipe falls back to AE2.",
                         "Kept false until the user completes live comparison testing.")
                 .define("enableAuthoritativeCompiledPlanner", false);
-        ENABLE_COMPILED_CRAFTING_ISLANDS = builder
-                .comment(
-                        "Collapse one or more exact ordinary crafting-table patterns into one atomic boundary transaction.",
-                        "Processing patterns, fluids, chemicals, substitutions, NBT, durability, container returns, cycles, and ambiguous producers always remain on the original AE2/Neo ECO path.",
-                        "This switch is independent from the authoritative planner and only runs when an optional execution backend such as AAC explicitly supplies atomic capacity.",
-                        "Kept false until live inventory, cancellation, restart, and TPS tests are complete.")
-                .define("enableCompiledCraftingIslands", false);
-        MAXIMUM_COMPILED_CRAFTING_ISLAND_PATTERNS = builder
-                .comment(
-                        "Maximum live job patterns inspected by the crafting-island compiler.",
-                        "Jobs above this limit fall back before allocating adjacency tables.")
-                .defineInRange(
-                        "maximumCompiledCraftingIslandPatterns",
-                        4096,
-                        1,
-                        1_048_576);
-        LOG_COMPILED_CRAFTING_ISLANDS = builder
-                .comment(
-                        "Log each unique crafting-island failure once. Successful waves are not logged per execution.")
-                .define("logCompiledCraftingIslands", true);
         ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC = builder
                 .comment(
                         "Reject AE2 tree calculations before unchecked long/double arithmetic can wrap or saturate.",
                         "This does not make a standard AE2 job BigInteger-capable; oversized work must use execution windows.")
                 .define("enableCheckedAe2CraftingArithmetic", true);
         ENABLE_TRANSACTIONAL_BATCHING_V2 = builder
-                .comment("Use the prepare/commit/account/reconcile transaction protocol. Kept false until recovery testing is complete.")
-                .define("enableTransactionalBatchingV2", false);
+                .comment(
+                        "Use the prepare/commit/account/reconcile transaction protocol for explicitly registered native adapters.",
+                        "This protocol is independent from the compiled-planner experiments. GTCEu and Mekanism still require their own switches.")
+                .define("enableTransactionalBatchingV2", true);
         ENABLE_GTCEU_NATIVE_BATCHING = builder
                 .comment("Allow the V2 transaction engine to use the exact-recipe GTCEu native batch adapter. Unsupported recipes always fall back.")
                 .define("enableGtceuNativeBatching", false);
@@ -903,22 +874,11 @@ public final class ACOConfig {
                         "Execute strictly deterministic ordinary crafting DAGs as one quantity-independent transaction.",
                         "Unsupported graphs fall back before input ownership is transferred.")
                 .define("enabled", true);
-        ENABLE_AQE_STANDARD_VECTOR_JOBS = builder
-                .comment(
-                        "Allow the Exact Vector path for ordinary signed-long Advanced AE jobs.",
-                        "The existing Advanced AE path remains authoritative when no executor accepts the plan.")
-                .define("enableAqeStandardJobs", true);
         ENABLE_AQE_BIG_INTEGER_VECTOR_PARENTS = builder
                 .comment(
                         "Try one Exact Vector parent transaction before creating checked-long child windows.",
                         "After input ownership transfer, failure is recovered or quarantined and never falls back.")
                 .define("enableAqeBigIntegerParents", true);
-        EXACT_VECTOR_MINIMUM_EXECUTIONS = builder
-                .comment("Minimum logical root executions required before trying an Exact Vector executor.")
-                .defineInRange("minimumExecutions", 1L, 1L, Long.MAX_VALUE);
-        EXACT_VECTOR_TICKS_PER_LOGICAL_STAGE = builder
-                .comment("Active ticks assigned to each node on the deterministic critical path.")
-                .defineInRange("ticksPerLogicalStage", 1, 1, 20 * 60);
         EXACT_VECTOR_MAXIMUM_PATTERN_NODES = builder
                 .comment("Maximum distinct deterministic pattern nodes in one Exact Vector plan.")
                 .defineInRange("maximumPatternNodes", 1024, 1, 1_048_576);
@@ -931,14 +891,12 @@ public final class ACOConfig {
         EXACT_VECTOR_MAXIMUM_STARTS_PER_GRID_TICK = builder
                 .comment("Maximum new Exact Vector ownership transfers per ME grid and server tick.")
                 .defineInRange("maximumStartsPerGridPerTick", 1, 1, 64);
-        EXACT_VECTOR_MAXIMUM_COMPLETIONS_PER_GRID_TICK = builder
-                .comment("Maximum Exact Vector parent-job commits per ME grid and server tick.")
-                .defineInRange("maximumCompletionsPerGridPerTick", 1, 1, 64);
         EXACT_VECTOR_MAXIMUM_ACTIVE_STAGES_PER_GRID_TICK = builder
                 .comment(
-                        "Maximum logical critical-path stages advanced per ME grid and server tick.",
-                        "Available stages are claimed as one range; request quantity never controls this loop.",
-                        "The soft time budget may defer remaining stages, while the first range avoids starvation.")
+                         "Maximum physical crafting-table recipe nodes inspected per ME grid and server tick.",
+                         "Available nodes are claimed as one range; request quantity never controls this loop.",
+                         "Trees up to 64 nodes are fully scanned each tick within this count limit.",
+                         "Dependency-blocked nodes return their unused claim to the same grid.")
                 .defineInRange(
                         "maximumActiveStagesPerGridPerTick",
                         256,
@@ -948,29 +906,13 @@ public final class ACOConfig {
                 .comment("Maximum concurrently owned Exact Vector transactions per ME grid.")
                 .defineInRange("maximumActiveTransactionsPerGrid", 4, 1, 1024);
         EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS = builder
-                .comment("Soft main-thread budget for Exact Vector start and completion work on one grid.")
+                .comment(
+                        "Soft main-thread budget for physical crafting-table scheduling on one grid.",
+                        "Timing begins at the first Exact Vector operation, not at server tick START.")
                 .defineInRange("gridTimeBudgetMillis", 2, 1, 45);
-        EXACT_VECTOR_HARD_TIME_BUDGET_MILLIS = builder
-                .comment("Hard main-thread budget after which no more Exact Vector work starts in this tick.")
-                .defineInRange("hardTimeBudgetMillis", 4, 1, 45);
-        EXACT_VECTOR_FALLBACK_BEFORE_OWNERSHIP = builder
-                .comment(
-                        "Permit the checked-long child-window path only while no executor owns inputs.",
-                        "Disabling this leaves rejected parent jobs planned for a later Exact Vector executor.")
-                .define("fallbackBeforeOwnershipTransfer", true);
         LOG_EXACT_VECTOR_DIAGNOSTICS = builder
-                .comment("Log bounded Exact Vector acceptance, rejection, recovery, and quarantine diagnostics.")
+                .comment("Log bounded physical crafting-tree acceptance, recovery, and quarantine diagnostics.")
                 .define("logVectorDiagnostics", false);
-        EXACT_VECTOR_ENERGY_MICRO_AE_PER_LOGICAL_EXECUTION = builder
-                .comment(
-                        "Exact fixed-point energy charged once per distinct compiled Pattern node.",
-                        "The legacy key name is retained for config compatibility; order quantity never multiplies this cost.",
-                        "The total remains BigInteger and is divided exactly over active ticks.")
-                .defineInRange(
-                        "energyMicroAePerLogicalExecution",
-                        640L,
-                        0L,
-                        Long.MAX_VALUE);
         builder.pop();
 
         builder.push("diagnostics");
@@ -1673,27 +1615,13 @@ public final class ACOConfig {
         return enableCompiledCraftingGraph() && ENABLE_AUTHORITATIVE_COMPILED_PLANNER.get();
     }
 
-    public static boolean enableCompiledCraftingIslands() {
-        return enableOptimizer() && ENABLE_COMPILED_CRAFTING_ISLANDS.get();
-    }
-
-    public static int getMaximumCompiledCraftingIslandPatterns() {
-        return Math.min(
-                1_048_576,
-                Math.max(2, MAXIMUM_COMPILED_CRAFTING_ISLAND_PATTERNS.get()));
-    }
-
-    public static boolean logCompiledCraftingIslands() {
-        return enableCompiledCraftingIslands() && LOG_COMPILED_CRAFTING_ISLANDS.get();
-    }
-
     public static boolean enableCheckedAe2CraftingArithmetic() {
         return ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC.get()
                 && (enableExperimentalCraftingEngine() || enableAqeBigCraftingProfile());
     }
 
     public static boolean enableTransactionalBatchingV2() {
-        return enableExperimentalCraftingEngine()
+        return enableOptimizer()
                 && ENABLE_TRANSACTIONAL_BATCHING_V2.get()
                 && PERSIST_BATCH_TRANSACTION_JOURNAL.get();
     }
@@ -1795,25 +1723,10 @@ public final class ACOConfig {
                 && ENABLE_EXACT_VECTOR_CRAFTING.get();
     }
 
-    public static boolean enableAqeStandardVectorJobs() {
-        return enableExactVectorCrafting()
-                && ENABLE_AQE_STANDARD_VECTOR_JOBS.get();
-    }
-
     public static boolean enableAqeBigIntegerVectorParents() {
         return enableExactVectorCrafting()
                 && enableBigIntegerGameplayExecution()
                 && ENABLE_AQE_BIG_INTEGER_VECTOR_PARENTS.get();
-    }
-
-    public static long getExactVectorMinimumExecutions() {
-        return Math.max(1L, EXACT_VECTOR_MINIMUM_EXECUTIONS.get());
-    }
-
-    public static int getExactVectorTicksPerLogicalStage() {
-        return Math.min(
-                20 * 60,
-                Math.max(1, EXACT_VECTOR_TICKS_PER_LOGICAL_STAGE.get()));
     }
 
     public static int getExactVectorMaximumPatternNodes() {
@@ -1842,14 +1755,6 @@ public final class ACOConfig {
                         EXACT_VECTOR_MAXIMUM_STARTS_PER_GRID_TICK.get()));
     }
 
-    public static int getExactVectorMaximumCompletionsPerGridTick() {
-        return Math.min(
-                64,
-                Math.max(
-                        1,
-                        EXACT_VECTOR_MAXIMUM_COMPLETIONS_PER_GRID_TICK.get()));
-    }
-
     public static int getExactVectorMaximumActiveStagesPerGridTick() {
         return Math.min(
                 1_048_576,
@@ -1870,40 +1775,9 @@ public final class ACOConfig {
                 Math.max(1, EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS.get()));
     }
 
-    public static int getExactVectorHardTimeBudgetMillis() {
-        return Math.max(
-                getExactVectorGridTimeBudgetMillis(),
-                Math.min(
-                        45,
-                        Math.max(
-                                1,
-                                EXACT_VECTOR_HARD_TIME_BUDGET_MILLIS.get())));
-    }
-
-    public static boolean exactVectorFallbackBeforeOwnershipTransfer() {
-        return enableExactVectorCrafting()
-                && EXACT_VECTOR_FALLBACK_BEFORE_OWNERSHIP.get();
-    }
-
     public static boolean logExactVectorDiagnostics() {
         return enableExactVectorCrafting()
                 && LOG_EXACT_VECTOR_DIAGNOSTICS.get();
     }
 
-    public static BigInteger getExactVectorEnergyMicroAePerPatternNode() {
-        return BigInteger.valueOf(
-                Math.max(
-                        0L,
-                        EXACT_VECTOR_ENERGY_MICRO_AE_PER_LOGICAL_EXECUTION.get()));
-    }
-
-    /**
-     * 旧API名を使う連携MODのバイナリ互換を維持する。
-     *
-     * @deprecated 値は論理実行回数ではなく固有Patternノード一件あたりである。
-     */
-    @Deprecated(forRemoval = false)
-    public static BigInteger getExactVectorEnergyMicroAePerLogicalExecution() {
-        return getExactVectorEnergyMicroAePerPatternNode();
-    }
 }

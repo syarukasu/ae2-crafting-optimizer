@@ -270,15 +270,31 @@ public final class Ae2BigCraftingPlanFactory {
                     .append(pattern == null ? "-" : pattern.id())
                     .append("|output=")
                     .append(program.outputAmountAt(node));
-            // 入力slot順はレシピ意味の一部なので維持し、子キーと量を無損失で含める。
+            // 入力slot順とslot内候補順を維持し、全候補のキーと量を指紋へ含める。
             for (int input = 0;
                     input < program.inputCountAt(node);
                     input++) {
-                descriptor.append("|in:")
-                        .append(encodeKey.apply(
-                                program.inputKeyAt(node, input)))
-                        .append('@')
-                        .append(program.inputAmountAt(node, input));
+                descriptor.append("|slot:")
+                        .append(input);
+                // 同じPattern世代で候補集合や順序が変わった場合も別Programとして検出する。
+                for (int alternative = 0;
+                        alternative
+                                < program.inputAlternativeCountAt(
+                                        node,
+                                        input);
+                        alternative++) {
+                    descriptor.append("|alt:")
+                            .append(encodeKey.apply(
+                                    program.inputAlternativeKeyAt(
+                                            node,
+                                            input,
+                                            alternative)))
+                            .append('@')
+                            .append(program.inputAlternativeAmountAt(
+                                    node,
+                                    input,
+                                    alternative));
+                }
             }
             nodes.add(descriptor.toString());
         }

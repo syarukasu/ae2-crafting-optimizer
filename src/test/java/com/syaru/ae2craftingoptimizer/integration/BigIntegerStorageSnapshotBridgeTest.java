@@ -176,6 +176,11 @@ class BigIntegerStorageSnapshotBridgeTest {
         }
 
         @Override
+        public UUID aco$getExactStorageUuid() {
+            return storageUuid;
+        }
+
+        @Override
         public UUID aco$assignExactStorageUuid() {
             // 実セルと同じく、未割当時だけ一意な保存IDを作る。
             if (storageUuid == null) {

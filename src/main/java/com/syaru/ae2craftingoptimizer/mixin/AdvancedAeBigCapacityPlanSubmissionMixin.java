@@ -5,24 +5,29 @@ import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.crafting.ICraftingSubmitResult;
 import appeng.api.networking.security.IActionSource;
+import appeng.api.stacks.KeyCounter;
+import appeng.crafting.CraftingPlan;
 import appeng.crafting.execution.CraftingSubmitResult;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
+import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
+import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRegistry;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext;
-import com.syaru.ae2craftingoptimizer.menu.BigCraftingMenuOpenRequest;
 import java.math.BigInteger;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPU;
 import net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster;
-import net.minecraft.server.level.ServerPlayer;
+import net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -30,11 +35,14 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 個別カウンタがlongに収まる大容量計画をAdvanced AEへ渡し、CPU容量予約だけを
- * ACO SidecarのBigInteger真値へ昇格する。
+ * Advanced AEが作る同じ実CPU Jobを維持したまま、容量と実行カウンタを正確値へ昇格する。
+ *
+ * <p>通常計画は既存long経路を変更しない。個別カウンタがlongを超える計画だけ、
+ * 一回分Facadeで実Jobを初期化してからBigInteger正本を同じJobへ設置する。</p>
  */
 @Pseudo
 @Mixin(targets = "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster", remap = false)
@@ -55,15 +63,40 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
             IActionSource source,
             ICraftingRequester requester,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
-        // 個別カウンタもlongを超える計画は、Advanced AE Jobを作らずBig親Jobへ移譲する。
+        /*
+         * 前回submitJobが例外終了してRETURNへ到達しなかった場合のPlan参照を先に破棄する。
+         * 同じサーバースレッド上でも、提出文脈は常に現在の一呼出しだけへ限定する。
+         */
+        ACO_SUBMISSION.remove();
+        // 個別カウンタもlongを超える計画は、同じAdvanced AE実JobへBigInteger Sidecarを装着する。
         BigIntegerCraftingPlan bigIntegerPlan =
                 Ae2CraftingPlanSidecars.bigInteger(plan).orElse(null);
         if (bigIntegerPlan != null) {
-            aco$submitBigIntegerParent(
-                    bigIntegerPlan,
-                    source,
-                    requester,
-                    cir);
+            // 自動要求は最終出力をCraftingLinkへ戻すExact転送が未対応なので、手動注文だけを受理する。
+            if (requester != null
+                    || !ACOConfig.enableBigIntegerGameplayExecution()
+                    || bigIntegerPlan.simulation()
+                    || !bigIntegerPlan.generationsAreCurrent()) {
+                cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
+                return;
+            }
+            var host = BigCraftingHostRegistry.find(this).orElse(null);
+            if (host == null
+                    || host.available().compareTo(bigIntegerPlan.exactBytes()) < 0) {
+                cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
+                return;
+            }
+            // 同じ確認画面の二重送信は、実CPU生成前に一件へ絞る。
+            if (!bigIntegerPlan.claimSubmission()) {
+                cir.setReturnValue(CraftingSubmitResult.CPU_BUSY);
+                return;
+            }
+            ACO_SUBMISSION.set(new SubmissionAttempt(
+                    this,
+                    plan,
+                    Set.copyOf(activeCpus.keySet()),
+                    false,
+                    bigIntegerPlan));
             return;
         }
         // 通常AE2計画には一切介入せず、Big容量マーカーだけを対象にする。
@@ -98,8 +131,59 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
         }
         ACO_SUBMISSION.set(new SubmissionAttempt(
                 this,
+                plan,
                 Set.copyOf(activeCpus.keySet()),
-                parentOwnedWindow));
+                parentOwnedWindow,
+                null));
+    }
+
+    /**
+     * Advanced AEには実JobとCraftingLinkを作らせる一方、初期抽出とlong積算には一回分Facadeだけを渡す。
+     */
+    @Redirect(
+            method = "submitJob",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/pedroksl/advanced_ae/common/logic/AdvCraftingCPULogic;trySubmitJob(Lappeng/api/networking/IGrid;Lappeng/api/networking/crafting/ICraftingPlan;Lappeng/api/networking/security/IActionSource;Lappeng/api/networking/crafting/ICraftingRequester;)Lappeng/api/networking/crafting/ICraftingSubmitResult;"),
+            require = 1)
+    private ICraftingSubmitResult aco$submitExactJobFacade(
+            AdvCraftingCPULogic logic,
+            IGrid grid,
+            ICraftingPlan plan,
+            IActionSource source,
+            ICraftingRequester requester) {
+        SubmissionAttempt attempt = ACO_SUBMISSION.get();
+        if (attempt == null
+                || attempt.cluster() != this
+                || attempt.originalPlan() != plan
+                || attempt.bigIntegerPlan() == null) {
+            return logic.trySubmitJob(
+                    grid,
+                    plan,
+                    source,
+                    requester);
+        }
+        try {
+            return logic.trySubmitJob(
+                    grid,
+                    aco$singleExecutionFacade(attempt.bigIntegerPlan()),
+                    source,
+                    requester);
+        } catch (RuntimeException | LinkageError failure) {
+            /*
+             * Advanced AEが実CPU生成途中で失敗した場合は、この提出だけが追加したCPUを閉じる。
+             * 次回submitのHEADへ後始末を先送りすると、容量予約と提出Claimが残留する。
+             */
+            Set<UUID> added = new LinkedHashSet<>(activeCpus.keySet());
+            added.removeAll(attempt.activeCpuIds());
+            // 失敗した一提出が追加した候補だけをAdvanced AE本来の取消経路へ渡す。
+            for (UUID cpuId : added) {
+                ((AdvCraftingCPUCluster) (Object) this).cancelJob(cpuId);
+            }
+            ACO_SUBMISSION.remove();
+            attempt.bigIntegerPlan().releaseSubmissionClaim();
+            throw failure;
+        }
     }
 
     @Inject(method = "submitJob", at = @At("RETURN"), cancellable = true, require = 1)
@@ -110,18 +194,30 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
             ICraftingRequester requester,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
         // 通常計画のRETURNではThreadLocalにも容量台帳にも触れない。
+        BigIntegerCraftingPlan bigIntegerPlan =
+                Ae2CraftingPlanSidecars.bigInteger(plan).orElse(null);
         BigCapacityCraftingPlan bigPlan =
                 Ae2CraftingPlanSidecars.bigCapacity(plan).orElse(null);
-        if (bigPlan == null) {
+        if (bigPlan == null && bigIntegerPlan == null) {
             return;
         }
         SubmissionAttempt attempt = ACO_SUBMISSION.get();
         ACO_SUBMISSION.remove();
+        boolean ownsBigIntegerClaim =
+                attempt != null
+                        && attempt.bigIntegerPlan() == bigIntegerPlan;
         // HEADで拒否された計画、またはAdvanced AE側が拒否した計画には予約が存在しない。
         if (attempt == null
                 || attempt.cluster() != this
                 || cir.getReturnValue() == null
                 || !cir.getReturnValue().successful()) {
+            /*
+             * 二重クリックでclaimSubmissionに失敗した呼出しは、先行提出のClaimを所有しない。
+             * 現在のSubmissionAttemptが同じPlanを所有する場合だけ解除する。
+             */
+            if (ownsBigIntegerClaim) {
+                bigIntegerPlan.releaseSubmissionClaim();
+            }
             return;
         }
 
@@ -136,6 +232,9 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
                     "ACO could not identify exactly one Advanced AE CPU for a Big-capacity plan; added={}",
                     added.size());
             cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
+            if (bigIntegerPlan != null) {
+                bigIntegerPlan.releaseSubmissionClaim();
+            }
             return;
         }
 
@@ -148,16 +247,48 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
             return;
         }
         var host = BigCraftingHostRegistry.find(this).orElse(null);
+        BigInteger exactBytes = bigIntegerPlan != null
+                ? bigIntegerPlan.exactBytes()
+                : bigPlan.exactBytes();
         boolean promoted = host != null
-                && host.promoteExternalReservation(cpuId, bigPlan.exactBytes());
+                && host.promoteExternalReservation(cpuId, exactBytes);
         // Sidecar昇格に失敗したJobを互換値Long.MAXのまま動かさず、Advanced AEの取消処理へ戻す。
         if (!promoted) {
             ((AdvCraftingCPUCluster) (Object) this).cancelJob(cpuId);
+            if (bigIntegerPlan != null) {
+                bigIntegerPlan.releaseSubmissionClaim();
+            }
             AE2CraftingOptimizer.LOGGER.error(
                     "ACO cancelled Advanced AE CPU {} because its exact BigInteger capacity reservation failed",
                     cpuId);
             cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
             return;
+        }
+
+        if (bigIntegerPlan != null) {
+            try {
+                AdvCraftingCPU cpu = activeCpus.get(cpuId);
+                Object job = cpu == null
+                        ? null
+                        : ((CraftingLogicTransactionAccess) (Object) cpu.craftingLogic)
+                                .aco$getExecutingJob();
+                if (!(job instanceof AdvancedAeExactCraftingJobAccess exactJob)) {
+                    throw new IllegalStateException(
+                            "Advanced AE exact-job access mixin is missing");
+                }
+                exactJob.aco$installExactState(bigIntegerPlan);
+                cpu.markDirty();
+            } catch (RuntimeException | LinkageError failure) {
+                ((AdvCraftingCPUCluster) (Object) this).cancelJob(cpuId);
+                host.releaseExternal(cpuId);
+                bigIntegerPlan.releaseSubmissionClaim();
+                AE2CraftingOptimizer.LOGGER.error(
+                        "ACO cancelled Advanced AE CPU {} because exact job accounting could not be installed",
+                        cpuId,
+                        failure);
+                cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
+                return;
+            }
         }
 
         AdvCraftingCPUCluster cluster = (AdvCraftingCPUCluster) (Object) this;
@@ -166,70 +297,30 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
     }
 
     @Unique
-    private void aco$submitBigIntegerParent(
-            BigIntegerCraftingPlan plan,
-            IActionSource source,
-            ICraftingRequester requester,
-            CallbackInfoReturnable<ICraftingSubmitResult> cir) {
-        // 自動要求は永続CraftingLinkを必要とするため、現段階ではrequesterなしの手動注文だけを受理する。
-        if (requester != null
-                || !ACOConfig.enableBigIntegerGameplayExecution()
-                || plan.simulation()
-                || !plan.generationsAreCurrent()) {
-            cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
-            return;
+    private static CraftingPlan aco$singleExecutionFacade(
+            BigIntegerCraftingPlan plan) {
+        Map<appeng.api.crafting.IPatternDetails, Long> oneExecution =
+                new LinkedHashMap<>();
+        // 固有Patternを一件ずつ登録し、Advanced AEのJob構造だけを安全に初期化する。
+        for (var pattern : plan.exactPatternTimes().keySet()) {
+            oneExecution.put(pattern, 1L);
         }
-        var host = BigCraftingHostRegistry.find(this).orElse(null);
-        // AQE BigInteger HostがないCPUまたは正確な空き容量不足では、Facade値を信用しない。
-        if (host == null || host.available().compareTo(plan.exactBytes()) < 0) {
-            cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
-            return;
-        }
-        // 同じ確認画面からの二重送信は、Hostへ所有権を渡す前に一件へ絞る。
-        if (!plan.claimSubmission()) {
-            cir.setReturnValue(CraftingSubmitResult.CPU_BUSY);
-            return;
-        }
-
-        var job = plan.preparedRoot().job();
-        try {
-            // Hostが容量予約とJob UUIDを原子的に受理した場合だけ成功を返す。
-            if (!host.submit(job)) {
-                plan.releaseSubmissionClaim();
-                cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
-                return;
-            }
-            AdvCraftingCPUCluster cluster = (AdvCraftingCPUCluster) (Object) this;
-            cluster.recalculateRemainingStorage();
-            cluster.markDirty();
-            /*
-             * 手動注文のServerPlayerだけを、現在のCraftConfirmMenu RETURNへ引き継ぐ。
-             * 自動要求やCommandには状態画面を勝手に開かない。
-             */
-            source.player()
-                    .filter(ServerPlayer.class::isInstance)
-                    .map(ServerPlayer.class::cast)
-                    .ifPresent(player ->
-                            BigCraftingMenuOpenRequest.record(
-                                    player,
-                                    host,
-                                    job.id()));
-            // CraftConfirmMenuの手動注文はrequester=nullなので、永続CraftingLinkを偽造しない。
-            cir.setReturnValue(CraftingSubmitResult.successful(null));
-        } catch (RuntimeException failure) {
-            // 提出途中の例外では親Jobを残さず、次回は再計算された新しいPlanからやり直す。
-            host.cancel(job.id());
-            AE2CraftingOptimizer.LOGGER.error(
-                    "ACO failed to submit BigInteger parent job {} to AQE",
-                    job.id(),
-                    failure);
-            cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
-        }
+        return new CraftingPlan(
+                plan.finalOutput(),
+                Long.MAX_VALUE,
+                false,
+                false,
+                new KeyCounter(),
+                new KeyCounter(),
+                new KeyCounter(),
+                Map.copyOf(oneExecution));
     }
 
     private record SubmissionAttempt(
             Object cluster,
+            ICraftingPlan originalPlan,
             Set<UUID> activeCpuIds,
-            boolean parentOwnedWindow) {
+            boolean parentOwnedWindow,
+            BigIntegerCraftingPlan bigIntegerPlan) {
     }
 }
