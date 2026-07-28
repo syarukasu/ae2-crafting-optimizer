@@ -16,7 +16,6 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -25,6 +24,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * AE2 NetworkStorageのmount優先順を保ったまま、監査済みBigIntegerセルだけを正確に操作する。
@@ -150,9 +150,8 @@ public final class ExactNetworkStorageBridge {
                 BigInteger.ZERO;
         boolean found =
                 false;
-        Set<Object> visitedExactCells =
-                Collections.newSetFromMap(
-                        new IdentityHashMap<>());
+        Set<ExactStorageIdentity> visitedExactCells =
+                new LinkedHashSet<>();
         /*
          * 優先度は合計値へ影響しないが、AE2のmount順を維持して決定的に走査する。
          * 同じunderlying cellを複数wrapperが公開しても一度だけ数える。
@@ -169,7 +168,7 @@ public final class ExactNetworkStorageBridge {
                 // 非対応mountまたは既に数えた同一セルは合計へ加えない。
                 if (resolved == null
                         || !visitedExactCells.add(
-                                resolved.accessor())) {
+                                resolved.storageIdentity())) {
                     continue;
                 }
                 found =
@@ -229,9 +228,8 @@ public final class ExactNetworkStorageBridge {
         }
         boolean found =
                 false;
-        Set<Object> visitedExactCells =
-                Collections.newSetFromMap(
-                        new IdentityHashMap<>());
+        Set<ExactStorageIdentity> visitedExactCells =
+                new LinkedHashSet<>();
         // 同じ正確セルを一度だけ解決し、その中の要求キーだけを合算する。
         for (List<MEStorage> priority :
                 accessor.aco$getPriorityInventory()
@@ -245,7 +243,7 @@ public final class ExactNetworkStorageBridge {
                 // 非対応mountまたは既に数えた同一セルは合計へ加えない。
                 if (resolved == null
                         || !visitedExactCells.add(
-                                resolved.accessor())) {
+                                resolved.storageIdentity())) {
                     continue;
                 }
                 found =
@@ -513,12 +511,14 @@ public final class ExactNetworkStorageBridge {
 
         BigInteger remaining = amount;
         List<MutationStep> steps = new ArrayList<>();
-        Set<Object> visitedExactCells =
-                Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<ExactStorageIdentity> visitedExactCells =
+                new LinkedHashSet<>();
         // 同じunderlying cellが複数wrapperから見えても、一度だけ在庫へ数える。
         for (MEStorage mount : ordered) {
             ResolvedExactStorage resolved = resolveExactStorage(mount);
-            if (resolved == null || !visitedExactCells.add(resolved.accessor())) {
+            if (resolved == null
+                    || !visitedExactCells.add(
+                            resolved.storageIdentity())) {
                 continue;
             }
             BigInteger available = capacity(
@@ -527,12 +527,19 @@ public final class ExactNetworkStorageBridge {
                 continue;
             }
             BigInteger selected = available.min(remaining);
+            Object2ObjectMap<AEKey, BigInteger> amounts =
+                    resolved.currentMap();
             steps.add(new MutationStep(
                     resolved.accessor(),
+                    amounts,
                     key,
-                    resolved.currentAmount(key),
-                    resolved.accessor().aco$getExactStoredTotal(),
-                    resolved.accessor().aco$getExactStoredTypeCount(),
+                    amounts.getOrDefault(
+                            key,
+                            BigInteger.ZERO),
+                    authoritativeTotal(
+                            resolved.accessor(),
+                            amounts),
+                    amounts.size(),
                     selected));
             remaining = remaining.subtract(selected);
             // 全量を確保できた時点で残りmountを走査しない。
@@ -658,8 +665,17 @@ public final class ExactNetworkStorageBridge {
         }
         Object2ObjectMap<AEKey, BigInteger> amounts =
                 accessor.aco$getExactStoredAmounts();
+        // simulation後に保存Map自体が交換された場合は、別セルへ変更を適用しない。
+        if (amounts
+                != step.amounts()) {
+            throw new IllegalStateException(
+                    "exact cell storage map changed between simulation and commit");
+        }
         BigInteger current = amounts.getOrDefault(step.key(), BigInteger.ZERO);
-        BigInteger total = accessor.aco$getExactStoredTotal();
+        BigInteger total =
+                authoritativeTotal(
+                        accessor,
+                        amounts);
         // simulate後に対象キーまたはセル総量が変わった場合は、直接変更を始めない。
         if (!current.equals(step.beforeAmount())
                 || !total.equals(step.beforeTotal())
@@ -701,11 +717,21 @@ public final class ExactNetworkStorageBridge {
             try {
                 Object2ObjectMap<AEKey, BigInteger> amounts =
                         step.accessor().aco$getExactStoredAmounts();
+                // 保存Mapが交換済みなら、別セルへ古い値を上書きしない。
+                if (amounts
+                        != step.amounts()) {
+                    complete = false;
+                    continue;
+                }
+                BigInteger currentTotal =
+                        authoritativeTotal(
+                                step.accessor(),
+                                amounts);
                 // 他のcallbackが変更した場合は上書きせず、不確定として隔離する。
                 if (!amounts.getOrDefault(step.key(), BigInteger.ZERO)
                                 .equals(change.afterAmount())
-                        || !step.accessor().aco$getExactStoredTotal()
-                                .equals(change.afterTotal())) {
+                        || !currentTotal.equals(
+                                change.afterTotal())) {
                     complete = false;
                     continue;
                 }
@@ -726,6 +752,30 @@ public final class ExactNetworkStorageBridge {
         return complete;
     }
 
+    private static BigInteger authoritativeTotal(
+            ExtendedAePlusBigIntegerCellInventoryAccessor accessor,
+            Object2ObjectMap<AEKey, BigInteger> amounts) {
+        BigInteger total =
+                ExactBigIntegerCellConsistency.authoritativeTotal(
+                        amounts);
+        int typeCount =
+                amounts.size();
+        /*
+         * Inventory wrapper固有cacheだけが古い場合は、共有Mapの正本へ同期する。
+         * この修復は在庫Mapを変更しないため、simulate中にも安全に行える。
+         */
+        if (!total.equals(
+                        accessor.aco$getExactStoredTotal())
+                || typeCount
+                        != accessor.aco$getExactStoredTypeCount()) {
+            accessor.aco$setExactStoredTotal(
+                    total);
+            accessor.aco$setExactStoredTypeCount(
+                    typeCount);
+        }
+        return total;
+    }
+
     private enum Direction {
         INSERT,
         EXTRACT
@@ -743,6 +793,7 @@ public final class ExactNetworkStorageBridge {
 
     private record MutationStep(
             ExtendedAePlusBigIntegerCellInventoryAccessor accessor,
+            Object2ObjectMap<AEKey, BigInteger> amounts,
             AEKey key,
             BigInteger beforeAmount,
             BigInteger beforeTotal,
@@ -758,9 +809,98 @@ public final class ExactNetworkStorageBridge {
 
     private record ResolvedExactStorage(
             ExtendedAePlusBigIntegerCellInventoryAccessor accessor) {
+        private Object2ObjectMap<AEKey, BigInteger> currentMap() {
+            return accessor.aco$getExactStoredAmounts();
+        }
+
+        private ExactStorageIdentity storageIdentity() {
+            UUID storageUuid =
+                    accessor.aco$getExactStorageUuid();
+            // 保存UUIDがあれば、別wrapperや空Mapでも同じunderlying cellとして扱う。
+            if (storageUuid != null) {
+                return ExactStorageIdentity.saved(
+                        storageUuid);
+            }
+            Object2ObjectMap<AEKey, BigInteger> amounts =
+                    currentMap();
+            /*
+             * UUID未割当セルは共有Mapのidentityで重複排除する。
+             * 空セルは共通empty mapを返し得るためwrapper自身を一時identityに使う。
+             */
+            return ExactStorageIdentity.unsaved(
+                    amounts.isEmpty()
+                            ? accessor
+                            : amounts);
+        }
+
         private BigInteger currentAmount(AEKey key) {
-            return accessor.aco$getExactStoredAmounts()
+            return currentMap()
                     .getOrDefault(key, BigInteger.ZERO);
+        }
+    }
+
+    /**
+     * 保存済みセルはUUIDの値、未保存セルはMapまたはwrapperのidentityで比較する。
+     */
+    private static final class ExactStorageIdentity {
+        private final UUID storageUuid;
+        private final Object transientIdentity;
+
+        private ExactStorageIdentity(
+                UUID storageUuid,
+                Object transientIdentity) {
+            this.storageUuid =
+                    storageUuid;
+            this.transientIdentity =
+                    transientIdentity;
+        }
+
+        private static ExactStorageIdentity saved(
+                UUID storageUuid) {
+            return new ExactStorageIdentity(
+                    Objects.requireNonNull(
+                            storageUuid,
+                            "storageUuid"),
+                    null);
+        }
+
+        private static ExactStorageIdentity unsaved(
+                Object transientIdentity) {
+            return new ExactStorageIdentity(
+                    null,
+                    Objects.requireNonNull(
+                            transientIdentity,
+                            "transientIdentity"));
+        }
+
+        @Override
+        public int hashCode() {
+            return storageUuid != null
+                    ? storageUuid.hashCode()
+                    : System.identityHashCode(
+                            transientIdentity);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            // 同じ識別子インスタンスは追加比較なしで一致する。
+            if (this == other) {
+                return true;
+            }
+            // 保存/未保存セル以外の任意オブジェクトを同一セルとして扱わない。
+            if (!(other
+                    instanceof ExactStorageIdentity identity)) {
+                return false;
+            }
+            // 片方でも保存済みなら、両方のUUID値が一致する場合だけ同じセルとする。
+            if (storageUuid != null
+                    || identity.storageUuid != null) {
+                return storageUuid != null
+                        && storageUuid.equals(
+                                identity.storageUuid);
+            }
+            return transientIdentity
+                    == identity.transientIdentity;
         }
     }
 }

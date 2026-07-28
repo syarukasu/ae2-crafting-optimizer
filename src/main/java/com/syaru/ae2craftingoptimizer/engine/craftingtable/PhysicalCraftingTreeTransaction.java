@@ -1620,8 +1620,6 @@ public final class PhysicalCraftingTreeTransaction {
     private boolean validateCompiledTree(
             Ae2CompiledCraftingGraphCache.Snapshot snapshot,
             Level level) {
-        resolvedStepCache =
-                List.of();
         try {
             List<ResolvedStep> resolvedSteps =
                     new ArrayList<>(
@@ -1677,7 +1675,10 @@ public final class PhysicalCraftingTreeTransaction {
                     virtual.snapshot()
                             .equals(
                                     expectedFinalOutputs());
-            // 全段の保存式と最終収支が一致した時だけ、実行tick用キャッシュを公開する。
+            /*
+             * 全段の保存式と最終収支が一致した時だけ、新世代のcacheへ原子的に交換する。
+             * 失敗時は進行中Transactionの取消・会計に必要な旧証明を保持する。
+             */
             if (valid) {
                 resolvedStepCache =
                         List.copyOf(
@@ -1685,8 +1686,6 @@ public final class PhysicalCraftingTreeTransaction {
             }
             return valid;
         } catch (RuntimeException | LinkageError invalid) {
-            resolvedStepCache =
-                    List.of();
             return false;
         }
     }
@@ -1706,9 +1705,12 @@ public final class PhysicalCraftingTreeTransaction {
             Ae2CompiledCraftingGraphCache.Snapshot snapshot,
             Level level,
             int index) {
-        // 同じProvider/Recipe世代では、Pattern式を再生成せず配列から直接返す。
-        if (isValidatedFor(
-                snapshot)) {
+        /*
+         * 一度証明した式は、再検証失敗後の取消・AE2会計でもTransactionの正本として使う。
+         * 新しい仕事を配送する前の世代一致はadvancePhysicalRecipes側で別途検査する。
+         */
+        if (resolvedStepCache.size()
+                == steps.size()) {
             return resolvedStepCache.get(
                     index);
         }
