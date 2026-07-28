@@ -787,7 +787,7 @@ public final class ACOConfig {
                 .define("enableAuthoritativeCompiledPlanner", false);
         ENABLE_COMPILED_CRAFTING_ISLANDS = builder
                 .comment(
-                        "Collapse a ready chain of two or more exact ordinary crafting-table patterns into one atomic boundary transaction.",
+                        "Collapse one or more exact ordinary crafting-table patterns into one atomic boundary transaction.",
                         "Processing patterns, fluids, chemicals, substitutions, NBT, durability, container returns, cycles, and ambiguous producers always remain on the original AE2/Neo ECO path.",
                         "This switch is independent from the authoritative planner and only runs when an optional execution backend such as AAC explicitly supplies atomic capacity.",
                         "Kept false until live inventory, cancellation, restart, and TPS tests are complete.")
@@ -799,7 +799,7 @@ public final class ACOConfig {
                 .defineInRange(
                         "maximumCompiledCraftingIslandPatterns",
                         4096,
-                        2,
+                        1,
                         1_048_576);
         LOG_COMPILED_CRAFTING_ISLANDS = builder
                 .comment(
@@ -963,11 +963,12 @@ public final class ACOConfig {
                 .define("logVectorDiagnostics", false);
         EXACT_VECTOR_ENERGY_MICRO_AE_PER_LOGICAL_EXECUTION = builder
                 .comment(
-                        "Exact fixed-point energy charged per summed logical pattern execution.",
+                        "Exact fixed-point energy charged once per distinct compiled Pattern node.",
+                        "The legacy key name is retained for config compatibility; order quantity never multiplies this cost.",
                         "The total remains BigInteger and is divided exactly over active ticks.")
                 .defineInRange(
                         "energyMicroAePerLogicalExecution",
-                        6_400_000_000L,
+                        640L,
                         0L,
                         Long.MAX_VALUE);
         builder.pop();
@@ -1889,10 +1890,20 @@ public final class ACOConfig {
                 && LOG_EXACT_VECTOR_DIAGNOSTICS.get();
     }
 
-    public static BigInteger getExactVectorEnergyMicroAePerLogicalExecution() {
+    public static BigInteger getExactVectorEnergyMicroAePerPatternNode() {
         return BigInteger.valueOf(
                 Math.max(
                         0L,
                         EXACT_VECTOR_ENERGY_MICRO_AE_PER_LOGICAL_EXECUTION.get()));
+    }
+
+    /**
+     * 旧API名を使う連携MODのバイナリ互換を維持する。
+     *
+     * @deprecated 値は論理実行回数ではなく固有Patternノード一件あたりである。
+     */
+    @Deprecated(forRemoval = false)
+    public static BigInteger getExactVectorEnergyMicroAePerLogicalExecution() {
+        return getExactVectorEnergyMicroAePerPatternNode();
     }
 }

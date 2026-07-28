@@ -12,8 +12,18 @@ public interface CraftingIslandBackendSession {
     /** セッション作成後も指定Patternの所有権が保たれているか再検証する。 */
     boolean acoSupportsPattern(IPatternDetails pattern);
 
-    /** 島内の一論理Pattern実行あたりに課すAE電力を返す。 */
+    /**
+     * 島内の固有Patternノード一件あたりに課すAE電力を返す。
+     *
+     * @deprecated 名前だけ旧論理実行単位を残す。値は数量ではなくノード一件あたり。
+     */
+    @Deprecated(forRemoval = false)
     double acoEnergyPerLogicalExecution();
+
+    /** 島内の固有Patternノード一件あたりに課すAE電力を返す。 */
+    default double acoEnergyPerPatternNode() {
+        return acoEnergyPerLogicalExecution();
+    }
 
     /** 構造、Grid接続、設定がcommit直前にも有効か再検証する。 */
     boolean acoStillAvailable();

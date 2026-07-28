@@ -229,7 +229,7 @@ public abstract class AdvancedAeCraftingCpuLogicExecutionBudgetMixin {
         public double acoIslandEnergyPerLogicalExecution() {
             return backendSession == null
                     ? Double.NaN
-                    : backendSession.acoEnergyPerLogicalExecution();
+                    : backendSession.acoEnergyPerPatternNode();
         }
 
         @Override

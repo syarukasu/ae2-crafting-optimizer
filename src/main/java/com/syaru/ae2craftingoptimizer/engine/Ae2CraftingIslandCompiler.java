@@ -1,27 +1,20 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import appeng.api.crafting.IPatternDetails;
+import appeng.api.networking.IGrid;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.crafting.pattern.AECraftingPattern;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.ShapedRecipe;
-import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,26 +22,10 @@ import org.jetbrains.annotations.Nullable;
  * 実行中AE2 Jobから、結果を証明できる通常作業台Patternだけを島コンパイラへ渡す。
  */
 public final class Ae2CraftingIslandCompiler {
-    /** AE2 15.4.xがPattern定義NBTへ保存する元CraftingRecipe IDキー。 */
-    private static final String PATTERN_RECIPE_ID_TAG = "recipe";
     /** AEItemKeyの追加状態を示す汎用NBTキー。 */
     private static final String ITEM_STATE_TAG = "tag";
     /** Forge Capability由来の追加状態を示す汎用NBTキー。 */
     private static final String ITEM_CAPABILITIES_TAG = "caps";
-    /** KubeJSが通常の整形作業台レシピへ使う実装クラス名。 */
-    private static final String KUBEJS_SHAPED_RECIPE =
-            "dev.latvian.mods.kubejs.recipe.special.ShapedKubeJSRecipe";
-    /** KubeJSが通常の不定形作業台レシピへ使う実装クラス名。 */
-    private static final String KUBEJS_SHAPELESS_RECIPE =
-            "dev.latvian.mods.kubejs.recipe.special.ShapelessKubeJSRecipe";
-    /** KubeJSの動的入力処理一覧を読む公開アクセサ名。 */
-    private static final String KUBEJS_INGREDIENT_ACTIONS_METHOD =
-            "kjs$getIngredientActions";
-    /** KubeJSの動的出力コールバックを読む公開アクセサ名。 */
-    private static final String KUBEJS_MODIFY_RESULT_METHOD =
-            "kjs$getModifyResult";
-    /** KubeJSのプレイヤーステージ条件を読む公開アクセサ名。 */
-    private static final String KUBEJS_STAGE_METHOD = "kjs$getStage";
 
     private Ae2CraftingIslandCompiler() {
     }
@@ -115,7 +92,12 @@ public final class Ae2CraftingIslandCompiler {
                 safeTasks.add(task);
             }
         }
-        return CompiledCraftingIsland.tryCompile(safeTasks, maximumBits);
+        /*
+         * 入出力式が一意なら一段だけでも数量非依存Batchとして成立する。
+         * 段数を安全条件にせず、曖昧性と会計可能性だけを下位コンパイラで検査する。
+         */
+        return CompiledCraftingIsland.tryCompileIncludingSingletons(
+                safeTasks, maximumBits);
     }
 
     /**
@@ -176,23 +158,221 @@ public final class Ae2CraftingIslandCompiler {
         return Optional.of(island);
     }
 
+    /**
+     * AdvancedAE標準Jobが既に選択した作業台Patternだけを、現在世代の固定式へ投影する。
+     *
+     * <p>同じ出力を作る未選択レシピは参照しない。各active TaskのPattern ID、固定係数、
+     * 残実行回数だけを結合するため、注文数に比例する展開を行わない。</p>
+     */
+    public static Optional<CompiledCraftingIsland<AEKey, IPatternDetails>>
+            tryCompileGenerationBackedWholeDeterministicJob(
+                    Map<IPatternDetails, Object> liveTasks,
+                    Level level,
+                    IGrid grid,
+                    int maximumPatterns,
+                    int maximumBits) {
+        Objects.requireNonNull(liveTasks, "liveTasks");
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(grid, "grid");
+        // 空Jobまたは設定上限を超えたJobでは、Graph参照前にAdvancedAEへ戻す。
+        if (liveTasks.isEmpty()
+                || liveTasks.size() > maximumPatterns) {
+            return Optional.empty();
+        }
+
+        Ae2CompiledCraftingGraphCache.Snapshot snapshot;
+        try {
+            snapshot =
+                    Ae2CompiledCraftingGraphCache.getOrCompile(grid, level);
+        } catch (StalePlanningSnapshotException staleGeneration) {
+            // Provider更新が連続したtickは古い式を採用せず、次tickの標準経路へ委譲する。
+            return Optional.empty();
+        }
+
+        List<CompiledCraftingIsland.Task<AEKey, IPatternDetails>>
+                selectedTasks = new ArrayList<>(liveTasks.size());
+        // 現在Jobが選択済みのTaskだけを、同じProvider世代の固定式へ一対一に接続する。
+        for (Map.Entry<IPatternDetails, Object> entry :
+                liveTasks.entrySet()) {
+            IPatternDetails details = entry.getKey();
+            // null PatternやAccessor未適用Taskは、会計を書き換えずAdvancedAEへ戻す。
+            if (details == null
+                    || !(entry.getValue()
+                            instanceof CraftingTaskProgressAccess progress)) {
+                return Optional.empty();
+            }
+            long executions = progress.aco$getTaskProgress();
+            // 標準Jobのactive Taskは必ず正数であり、0以下は同期途中として採用しない。
+            if (executions <= 0L) {
+                return Optional.empty();
+            }
+            String patternId = resolveCurrentPatternId(
+                    snapshot,
+                    details,
+                    level);
+            // 登録時またはNBT復元時の式と完全一致しないPatternは、数式Programへ接続しない。
+            if (patternId == null) {
+                return Optional.empty();
+            }
+            CompiledCraftingIsland.Task<AEKey, IPatternDetails> selected =
+                    tryCompileSelectedCraftingTask(
+                            snapshot,
+                            details,
+                            patternId,
+                            executions);
+            // 選択済みPattern自体が固定作業台式でなければ、Job全体をAdvancedAEへ戻す。
+            if (selected == null) {
+                return Optional.empty();
+            }
+            selectedTasks.add(selected);
+        }
+
+        Optional<List<CompiledCraftingIsland<AEKey, IPatternDetails>>> compiled =
+                CompiledCraftingIsland.tryCompileIncludingSingletons(
+                        selectedTasks,
+                        maximumBits);
+        // 一つのJobを複数Transactionへ分裂させず、全active Taskが連結する場合だけ採用する。
+        if (compiled.isEmpty()
+                || compiled.orElseThrow().size() != 1) {
+            return Optional.empty();
+        }
+        CompiledCraftingIsland<AEKey, IPatternDetails> island =
+                compiled.orElseThrow().get(0);
+        // 選択Taskが一件でも欠落した場合は部分実行せず、元のAdvancedAE会計を維持する。
+        if (island.tasks().size() != selectedTasks.size()) {
+            return Optional.empty();
+        }
+        return Optional.of(island);
+    }
+
+    @Nullable
+    private static CompiledCraftingIsland.Task<AEKey, IPatternDetails>
+            tryCompileSelectedCraftingTask(
+                    Ae2CompiledCraftingGraphCache.Snapshot snapshot,
+                    IPatternDetails details,
+                    String patternId,
+                    long executions) {
+        CompiledPattern<AEKey> selected =
+                snapshot.compiledPattern(patternId);
+        // 外部機械Patternと複数出力Patternは、作業台の原子的な一出力式ではない。
+        if (selected == null
+                || selected.externalPush()
+                || selected.outputs().size() != 1) {
+            return null;
+        }
+
+        List<CompiledCraftingIsland.Input<AEKey>> inputs =
+                new ArrayList<>(selected.inputs().size());
+        // エンコード済みPatternの各slotから、実際に固定された一つの入力だけを取得する。
+        for (CompiledPattern.InputSlot<AEKey> slot :
+                selected.inputs()) {
+            // 代替許可が残るslotだけは、実際に消費されたキーをTask Mapから証明できない。
+            if (slot.alternatives().size() != 1) {
+                return null;
+            }
+            CompiledPattern.Stack<AEKey> input =
+                    slot.alternatives().get(0);
+            inputs.add(new CompiledCraftingIsland.Input<>(
+                    input.key(),
+                    input.amount()));
+        }
+
+        Map.Entry<AEKey, Long> output =
+                selected.outputs().entrySet().iterator().next();
+        return new CompiledCraftingIsland.Task<>(
+                details,
+                patternId,
+                output.getKey(),
+                output.getValue(),
+                inputs,
+                BigInteger.valueOf(executions));
+    }
+
+    @Nullable
+    private static String resolveCurrentPatternId(
+            Ae2CompiledCraftingGraphCache.Snapshot snapshot,
+            IPatternDetails details,
+            Level level) {
+        String identityId = snapshot.id(details);
+        // 新規Jobは登録済みPattern参照を保持するため、通常はIdentity索引だけで確定する。
+        if (identityId != null
+                && snapshot.pattern(identityId) == details) {
+            return identityId;
+        }
+
+        /*
+         * AdvancedAEは再起動時にPattern itemのNBTからIPatternDetailsを再デコードする。
+         * 別オブジェクトでも定義NBT、入出力、候補、倍率、外部push属性が全て一致する時だけ
+         * 現世代の登録Patternへ戻し、保存済み標準Jobを不要にFallbackさせない。
+         */
+        try {
+            String decodedId = patternFingerprint(details);
+            IPatternDetails registered = snapshot.pattern(decodedId);
+            // 現世代に同じ定義が登録されていなければ、削除・変更済みPatternとして拒否する。
+            if (registered == null) {
+                return null;
+            }
+            CompiledPattern<AEKey> decoded =
+                    Ae2CompiledPatternFactory.compile(
+                            details,
+                            decodedId,
+                            level);
+            CompiledPattern<AEKey> current =
+                    Ae2CompiledPatternFactory.compile(
+                            registered,
+                            decodedId,
+                            level);
+            // コンパイル不能または一箇所でも式が異なる復元Patternは、AE2標準経路へ戻す。
+            if (decoded == null
+                    || current == null
+                    || !sameCompiledFormula(decoded, current)) {
+                return null;
+            }
+            return decodedId;
+        } catch (RuntimeException invalidDecodedPattern) {
+            // 動的Pattern APIが検証中に失敗した場合も、起動を落とさず該当JobだけFallbackする。
+            return null;
+        }
+    }
+
+    private static boolean sameCompiledFormula(
+            CompiledPattern<AEKey> first,
+            CompiledPattern<AEKey> second) {
+        // 出力、外部機械push属性、入力slot数が違うPatternは同じ数式ではない。
+        if (first.externalPush() != second.externalPush()
+                || !first.outputs().equals(second.outputs())
+                || first.inputs().size() != second.inputs().size()) {
+            return false;
+        }
+        // slot順と全候補Stackを比較し、タグ候補等の並び替えも別式として扱う。
+        for (int slot = 0; slot < first.inputs().size(); slot++) {
+            List<CompiledPattern.Stack<AEKey>> firstAlternatives =
+                    first.inputs().get(slot).alternatives();
+            List<CompiledPattern.Stack<AEKey>> secondAlternatives =
+                    second.inputs().get(slot).alternatives();
+            // 候補キーまたは一回入力量が一つでも異なれば、同じProgramへ接続しない。
+            if (!firstAlternatives.equals(secondAlternatives)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Nullable
     private static CompiledCraftingIsland.Task<AEKey, IPatternDetails>
             tryCompileExactCraftingTask(
                     IPatternDetails details,
                     long executions,
                     Level level) {
-        // AECraftingPatternそのもの以外は独自機械またはアドオンPatternとして境界にする。
-        if (details.getClass() != AECraftingPattern.class) {
+        /*
+         * AE2の作業台Pattern APIを実装する派生型も、公開された固定入出力を同じ規則で検査する。
+         * class完全一致はラッパーや互換実装を不要にFallbackさせるため使用しない。
+         */
+        if (!(details instanceof AECraftingPattern crafting)) {
             return null;
         }
-        AECraftingPattern crafting = (AECraftingPattern) details;
         // 代替素材・液体代替は在庫状態で選択結果が変わるため島へ入れない。
         if (crafting.canSubstitute || crafting.canSubstituteFluids) {
-            return null;
-        }
-        // 特殊レシピはNBTやワールド状態から出力が変わり得るため固定式にしない。
-        if (!isOrdinaryFixedRecipe(crafting, level)) {
             return null;
         }
 
@@ -207,7 +387,7 @@ public final class Ae2CraftingIslandCompiler {
         }
 
         List<CompiledCraftingIsland.Input<AEKey>> inputs = new ArrayList<>();
-        // 各圧縮入力slotを単一の確定Itemへ変換する。
+        // 各作業台入力slotを単一の確定Itemへ変換する。
         for (IPatternDetails.IInput input : details.getInputs()) {
             // 0以下の倍率はAE2のPattern会計と一致しないため拒否する。
             if (input == null || input.getMultiplier() <= 0L) {
@@ -247,74 +427,6 @@ public final class Ae2CraftingIslandCompiler {
                 outputs[0].amount(),
                 inputs,
                 BigInteger.valueOf(executions));
-    }
-
-    private static boolean isOrdinaryFixedRecipe(
-            AECraftingPattern pattern,
-            Level level) {
-        CompoundTag definition = pattern.getDefinition().getTag();
-        // Recipe IDが欠けたPatternはデータパック再読込後の固定性を証明できない。
-        if (definition == null
-                || !definition.contains(PATTERN_RECIPE_ID_TAG)) {
-            return false;
-        }
-        ResourceLocation recipeId = ResourceLocation.tryParse(
-                definition.getString(PATTERN_RECIPE_ID_TAG));
-        // 壊れたIDはRecipeManagerへ渡さず標準経路へ戻す。
-        if (recipeId == null) {
-            return false;
-        }
-        Recipe<?> recipe = level.getRecipeManager().byKey(recipeId).orElse(null);
-        // 特殊作業台レシピは入力欄以外の状態を読むため、固定式へ変換しない。
-        if (!(recipe instanceof CraftingRecipe craftingRecipe)
-                || craftingRecipe.isSpecial()) {
-            return false;
-        }
-        // 素のMinecraft実装は入力、出力、返却物の固定性を上位の検査だけで証明できる。
-        if (recipe.getClass() == ShapedRecipe.class
-                || recipe.getClass() == ShapelessRecipe.class) {
-            return true;
-        }
-        // KubeJSの通常作業台レシピはShapedRecipeを継承するが、厳密なclass一致では除外される。
-        // 動的アクション、結果コールバック、ステージ条件が無い場合だけ同じ固定式として扱う。
-        return isStaticKubeJsCraftingRecipe(recipe);
-    }
-
-    private static boolean isStaticKubeJsCraftingRecipe(Recipe<?> recipe) {
-        String className = recipe.getClass().getName();
-        // KubeJS以外の派生Recipeは独自状態を持つ可能性があるため許可しない。
-        if (!KUBEJS_SHAPED_RECIPE.equals(className)
-                && !KUBEJS_SHAPELESS_RECIPE.equals(className)) {
-            return false;
-        }
-
-        try {
-            Method ingredientActionsMethod = recipe.getClass().getMethod(
-                    KUBEJS_INGREDIENT_ACTIONS_METHOD);
-            Object rawActions = ingredientActionsMethod.invoke(recipe);
-            // 空のList以外は消費量・残存物を動的に変えるため、AE2本来の実行へ戻す。
-            if (!(rawActions instanceof Collection<?> actions) || !actions.isEmpty()) {
-                return false;
-            }
-
-            Method modifyResultMethod = recipe.getClass().getMethod(
-                    KUBEJS_MODIFY_RESULT_METHOD);
-            // 結果コールバックはクラフトグリッドの内容で出力を変更できるため許可しない。
-            if (modifyResultMethod.invoke(recipe) != null) {
-                return false;
-            }
-
-            Method stageMethod = recipe.getClass().getMethod(KUBEJS_STAGE_METHOD);
-            Object rawStage = stageMethod.invoke(recipe);
-            // 空文字以外のステージはプレイヤーごとに結果が変わるため固定式へ畳み込まない。
-            return rawStage instanceof String stage && stage.isEmpty();
-        } catch (IllegalAccessException
-                | InvocationTargetException
-                | NoSuchMethodException
-                | RuntimeException unsupportedKubeJsVersion) {
-            // KubeJS側APIの変更や反射失敗時は、壊れた高速経路を使わず通常AE2へ戻す。
-            return false;
-        }
     }
 
     private static boolean isPlainItem(AEItemKey key) {

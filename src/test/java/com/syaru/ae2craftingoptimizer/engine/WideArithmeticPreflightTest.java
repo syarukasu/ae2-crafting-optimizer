@@ -1,9 +1,11 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -90,6 +92,55 @@ class WideArithmeticPreflightTest {
                 program,
                 ignored -> 8L,
                 256));
+    }
+
+    @Test
+    void wideRecipeTreeCanCollapseToLongUsingExactIntermediateInventory() {
+        List<CompiledPattern<String>> patterns = new ArrayList<>();
+        // 20段の各Patternを九倍圧縮として作り、在庫0なら最下層需要がsigned longを超える。
+        for (int stage = 1; stage <= 20; stage++) {
+            String input = stage == 1 ? "raw" : "stage_" + (stage - 1);
+            patterns.add(pattern(
+                    "pattern_" + stage,
+                    List.of(stack(input, 9L)),
+                    "stage_" + stage));
+        }
+        CompiledCraftingGraph<String> graph =
+                CompiledCraftingGraph.compile(1L, patterns);
+        CompiledRootProgram<String> program = CompiledRootProgram.tryCompile(
+                        graph,
+                        "stage_20",
+                        Set.of()::contains)
+                .orElseThrow();
+
+        assertTrue(WideArithmeticPreflight.requiresWideArithmetic(
+                "stage_20",
+                BigInteger.valueOf(1_000L),
+                program,
+                ignored -> 8L,
+                256));
+
+        CompiledRootProgram.BigInventorySnapshot<String> exactInventory =
+                program.captureBigInventory(
+                        key -> key.equals("stage_19")
+                                ? BigInteger.valueOf(9_000L)
+                                : BigInteger.ZERO,
+                        256);
+        BigCraftingPlan<String> plan = program.planBig(
+                BigInteger.valueOf(1_000L),
+                exactInventory,
+                PlanningGuard.none(),
+                256);
+
+        assertEquals(
+                Map.of("stage_19", BigInteger.valueOf(9_000L)),
+                plan.usedInventory());
+        assertEquals(
+                Map.of("pattern_20", BigInteger.valueOf(1_000L)),
+                plan.patternExecutions());
+        assertTrue(Ae2AuthoritativeCraftingPlanner.shouldRetainLongFacade(
+                false,
+                true));
     }
 
     private static CompiledPattern<String> pattern(

@@ -3,6 +3,7 @@ package com.syaru.ae2craftingoptimizer.access;
 import appeng.api.config.Actionable;
 import appeng.api.stacks.AEKey;
 import appeng.crafting.inv.ListCraftingInventory;
+import java.util.Collection;
 import net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPU;
 
 /**
@@ -20,7 +21,15 @@ public interface AqeStandardVectorHost {
             long amount,
             Actionable actionable);
 
-    void aco$notifyStandardVectorTaskChanges();
+    void aco$notifyStandardVectorDisplayChanges(
+            Collection<AEKey> keys);
+
+    void aco$setStandardVectorDisplay(
+            long startItemCount,
+            long remainingItemCount,
+            float progress);
+
+    void aco$clearStandardVectorDisplay();
 
     void aco$markStandardVectorDirty();
 }

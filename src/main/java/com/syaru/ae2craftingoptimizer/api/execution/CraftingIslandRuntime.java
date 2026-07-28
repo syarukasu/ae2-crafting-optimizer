@@ -38,8 +38,18 @@ public interface CraftingIslandRuntime {
     /** 指定Patternを、この設備が現在実行できるProviderとして公開しているかを返す。 */
     boolean acoIslandSupportsPattern(IPatternDetails pattern);
 
-    /** 一つの内部Pattern実行に設備が消費するAE電力。 */
+    /**
+     * 一つの固有Patternノードに設備が消費するAE電力。
+     *
+     * @deprecated 名前だけ旧論理実行単位を残す。値は数量ではなくノード一件あたり。
+     */
+    @Deprecated(forRemoval = false)
     double acoIslandEnergyPerLogicalExecution();
+
+    /** 一つの固有Patternノードに設備が消費するAE電力。 */
+    default double acoIslandEnergyPerPatternNode() {
+        return acoIslandEnergyPerLogicalExecution();
+    }
 
     /** 構造、設定、接続がcommit直前にも有効かを再検証する。 */
     boolean acoIslandBackendStillAvailable();

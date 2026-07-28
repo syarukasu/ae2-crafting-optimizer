@@ -459,11 +459,27 @@ bounded non-negative `BigInteger` values and records the transaction UUID,
 parent UUID, ownership mode, critical path, exact input/output keys, required
 Pattern fingerprints, generation numbers, and fixed-point resource totals.
 
-`VectorBatchPlanner` evaluates a generation-cached `CompiledRootProgram` once.
-It sums produced and consumed values per AEKey, subtracts internal
-intermediates, and emits only net boundary inputs, final output, and fixed
-remaining output. Its loops are over Pattern nodes, input slots, and distinct
-keys; no loop uses requested quantity as a bound.
+`VectorBatchPlanner` delegates deterministic ordinary-crafting DAGs to
+`CompiledRootProgram.tryPlanDeterministicCraftingBig`. The method keeps one
+`BigInteger[]` demand vector and visits each reachable key once in the existing
+parent-before-child order. For each active Pattern it calculates
+`ceilDiv(deficit, outputAmount)` once, directly multiplies every fixed input by
+that execution count, and adds it to the child demand. The same pass records
+net ME-storage inputs, fixed surplus outputs, active Pattern IDs, total logical
+executions, and critical-path depth.
+
+The Exact Vector path therefore does not create the generic five quantity
+arrays, materialize a Pattern-execution map, rebuild produced/consumed maps, or
+walk the graph again for boundary and critical-path calculation. A twenty-stage
+chain performs twenty Pattern evaluations whether the root order is `1`,
+`Long.MAX_VALUE`, or a supported BigInteger value. Processing Patterns,
+emitters, ambiguous producers, substitutions, and cycles remain outside this
+path and fall back before ownership transfer.
+
+When a root's full recipe expansion requires wide arithmetic, ACO keeps its
+authoritative plan even if exact BigInteger intermediate stock reduces the
+current order to signed-long counters. Returning that order to AE2's saturated
+`KeyCounter` view could select a different set of intermediate crafts.
 
 `VectorBatchPlanValidator` and `PreparedVectorBatchCodec` enforce:
 
@@ -497,6 +513,22 @@ The standard path is intentionally signed-long at the CPU inventory boundary.
 No amount is narrowed silently; any boundary that does not fit exactly falls
 back before extraction.
 
+The AdvancedAE status screen is not used as an accounting store. While a
+standard Exact Vector receipt is active, ACO derives each Pattern-output total
+from the immutable plan and projects it through
+`LongClampedProgressProjection`:
+
+- exact values at or below `Long.MAX_VALUE` retain their real display scale;
+- larger exact values use `Long.MAX_VALUE` as a display-only facade;
+- the facade follows the executor's authoritative active-stage receipt;
+- `inventory`, `waitingFor`, `TaskProgress`, and the exact receipt are never
+  changed by display projection.
+
+AAC may complete all logical work in one server tick. ACO does not postpone
+final accounting for animation after the executor reaches `ACCOUNTING`.
+The dedicated BigInteger parent menu reads the exact server runtime status and
+keeps display-only long saturation outside every accounting object.
+
 AQE BigInteger parent jobs use `AqeBigCraftingExecutionManager` in
 `NETWORK_STORAGE` mode. A proven root is offered directly before a child window
 is created. A compatible executor owns the exact network input/output transfer,
@@ -518,6 +550,12 @@ mount rather than long-sized windows, records before/after totals, rolls back in
 reverse order, invalidates the AE2 storage cache once, and fail-fast checks its
 cache/SavedData consistency injection points.
 
+Repeated input slots are merged before this boundary. A nine-slot Pattern with
+the same key in every slot and `Long.MAX_VALUE` root executions therefore
+produces one `9 * Long.MAX_VALUE` exact input mutation, not nine long windows or
+`9 * Long.MAX_VALUE` loop iterations. The corresponding root output remains
+exactly `Long.MAX_VALUE`.
+
 `ExactVectorExecutionBudget` claims a continuous logical-stage range from the
 shared Grid budget. The first range is starvation-safe; later ranges defer after
 the soft wall-clock budget. `VectorEnergySchedule.microAeForRange` sums that
@@ -526,12 +564,12 @@ the original BigInteger energy exactly.
 
 ### Compiled Crafting Islands
 
-`Ae2CraftingIslandCompiler` reads the already accepted live Job and admits only
-exact `AECraftingPattern` instances backed by ordinary vanilla
-`ShapedRecipe`/`ShapelessRecipe` implementations. It rejects substitutions,
-fluid substitution, multiple outputs, multiple candidates, remaining items,
-NBT/capability state, durability, duplicate producers, cycles, and invalid
-counts.
+`Ae2CraftingIslandCompiler` reads the already accepted live Job and admits
+`AECraftingPattern` instances whose public Pattern API proves one fixed item
+output and fixed item inputs. It rejects substitutions, fluid substitution,
+multiple outputs, multiple candidates, remaining items, NBT/capability state,
+durability, duplicate producers, cycles, and invalid counts. It does not infer
+fixed behavior again from the original vanilla or KubeJS recipe class.
 
 `CompiledCraftingIsland` builds producer/dependent adjacency once, detects
 cycles with iterative Kahn traversal, divides safe Patterns into connected
@@ -566,15 +604,17 @@ repeat uncertain work.
 
 ACO owns all qualification, graph, arithmetic, transaction ordering, and
 fallback behavior. The backend owns only structure capacity, power constants,
-and live Pattern-provider ownership. ACO's CPU adapter owns the
+and its configured same-Grid or controller-local Pattern scope. ACO's CPU
+adapter owns the
 version-specific Job, inventory, and output calls.
 
 `CraftingIslandBackendRegistry` separates CPU ownership from execution
-hardware. AAC registers a short-lived session only when all Patterns are
-currently exposed by formed AAC Pattern Buses. AdvancedAE/AQE CPU logic binds
-that session before input extraction, then revalidates structure and provider
-ownership immediately before commit. Without a matching session it returns
-`NOT_HANDLED` and runs the original Sequential path.
+hardware. AAC registers a short-lived session when a formed controller exists
+on the same Grid; its optional strict mode additionally requires controller
+Pattern Bus ownership. AdvancedAE/AQE CPU logic binds that session before input
+extraction, then revalidates structure and configured Pattern scope immediately
+before commit. Without a matching session it returns `NOT_HANDLED` and runs the
+original Sequential path.
 
 AdvancedAE's `ExecutingCraftingJob` is adapted to the same reversible contract:
 checked `waitingFor` staging, exact rollback, final-requester simulation,

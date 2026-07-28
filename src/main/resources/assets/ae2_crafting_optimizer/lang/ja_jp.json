@@ -1,3 +1,14 @@
 {
-  "mod.ae2_crafting_optimizer": "AE2クラフト軽量化"
+  "mod.ae2_crafting_optimizer": "AE2クラフト軽量化",
+  "menu.ae2_crafting_optimizer.big_crafting_status": "BigIntegerクラフト状況",
+  "gui.ae2_crafting_optimizer.waiting_status": "サーバーのクラフト状態を待機中",
+  "gui.ae2_crafting_optimizer.exact_requested": "正確な注文量: %s",
+  "gui.ae2_crafting_optimizer.display_remaining": "表示残量: %s",
+  "gui.ae2_crafting_optimizer.reserved": "予約ストレージ: %s B",
+  "gui.ae2_crafting_optimizer.running": "実行中: %s",
+  "gui.ae2_crafting_optimizer.completed": "クラフト完了",
+  "gui.ae2_crafting_optimizer.cancelled": "クラフトを取り消しました",
+  "gui.ae2_crafting_optimizer.cancelling": "取消処理中",
+  "gui.ae2_crafting_optimizer.cancel": "キャンセル",
+  "gui.ae2_crafting_optimizer.close": "閉じる"
 }

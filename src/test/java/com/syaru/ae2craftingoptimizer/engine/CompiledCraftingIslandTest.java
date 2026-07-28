@@ -122,13 +122,70 @@ class CompiledCraftingIslandTest {
     }
 
     @Test
-    void leavesASinglePatternOnTheExistingVectorPath() {
+    void aggregatesNineLongMaximumSlotsWithoutNarrowingTheBoundary() {
+        BigInteger executions = BigInteger.valueOf(Long.MAX_VALUE);
+        List<CompiledCraftingIsland.Input<String>> inputs =
+                new ArrayList<>(9);
+        // 作業台九枠が同一素材でも、各枠をlongへ戻さず一つのBigInteger境界へ合算する。
+        for (int slot = 0; slot < 9; slot++) {
+            inputs.add(new CompiledCraftingIsland.Input<>("raw", 1L));
+        }
+        var task = new CompiledCraftingIsland.Task<>(
+                "nine_slot",
+                "nine_slot",
+                "final",
+                1L,
+                inputs,
+                executions);
+
+        var island = CompiledCraftingIsland
+                .tryCompileIncludingSingletons(
+                        List.of(task),
+                        TEST_MAXIMUM_BITS)
+                .orElseThrow()
+                .get(0);
+
+        assertEquals(
+                executions.multiply(BigInteger.valueOf(9L)),
+                island.boundaryInputs().get("raw"));
+        assertEquals(executions, island.boundaryOutputs().get("final"));
+        assertEquals(executions, island.sinkExecutions());
+        assertFalse(island.fitsSignedLongRuntime());
+    }
+
+    @Test
+    void compilesASingleDeterministicPatternOnTheNormalEntryPoint() {
         var compiled = CompiledCraftingIsland.tryCompile(
                 List.of(task("single", "raw", 1, "final", 1, 1)),
                 TEST_MAXIMUM_BITS);
 
         assertTrue(compiled.isPresent());
-        assertTrue(compiled.orElseThrow().isEmpty());
+        assertEquals(1, compiled.orElseThrow().size());
+        assertEquals(
+                BigInteger.ONE,
+                compiled.orElseThrow().get(0).boundaryInputs().get("raw"));
+    }
+
+    @Test
+    void usesOnlyThePatternAlreadySelectedByTheRunningJob() {
+        var registered = List.of(
+                task("selected", "selected_raw", 2, "shared_output", 1, 8),
+                task("unselected", "other_raw", 9, "shared_output", 1, 8));
+
+        /*
+         * 同じ出力を作れる別Patternが登録されていても、呼び出し側は実行中Jobが選んだ
+         * Patternだけを渡す。未選択Patternを再探索せず、選択済み式だけを会計する。
+         */
+        var island = CompiledCraftingIsland.tryCompileIncludingSingletons(
+                        List.of(registered.get(0)),
+                        TEST_MAXIMUM_BITS)
+                .orElseThrow()
+                .get(0);
+
+        assertEquals(
+                BigInteger.valueOf(16L),
+                island.boundaryInputs().get("selected_raw"));
+        assertFalse(island.boundaryInputs().containsKey("other_raw"));
     }
 
     @Test
@@ -257,7 +314,7 @@ class CompiledCraftingIslandTest {
     }
 
     @Test
-    void includesASinglePatternOnlyForTheExactVectorCompiler() {
+    void keepsTheExplicitSingletonEntryPointCompatible() {
         var task = task("single", "raw", 2, "final", 1, 3);
 
         var islands = CompiledCraftingIsland
@@ -322,7 +379,7 @@ class CompiledCraftingIslandTest {
     }
 
     private static String stageName(int stage) {
-        // 実ゲームのProbe IDと同じ二桁表記に揃え、段間キーの誤接続を検出する。
+        // 段番号を二桁で固定し、段間キーの誤接続を検出する。
         return "stage_" + (stage < 10 ? "0" : "") + stage;
     }
 }

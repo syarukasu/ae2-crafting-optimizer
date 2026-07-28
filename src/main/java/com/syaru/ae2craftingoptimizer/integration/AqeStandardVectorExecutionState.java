@@ -7,6 +7,7 @@ import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatchCodec;
 import com.syaru.ae2craftingoptimizer.api.vector.VectorResourceMode;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,6 +35,7 @@ final class AqeStandardVectorExecutionState {
     private final String executorId;
     private final List<PatternTask> patternTasks;
     private final List<ExactStack> internalOutputs;
+    private final Map<AEKey, BigInteger> displayPendingOutputs;
     private final Map<AEKey, BigInteger> extractedInputs =
             new LinkedHashMap<>();
     private Phase phase;
@@ -73,6 +75,9 @@ final class AqeStandardVectorExecutionState {
         this.patternTasks = checkedPatternTasks(patternTasks);
         this.internalOutputs =
                 checkedStacks(internalOutputs, "internalOutputs");
+        this.displayPendingOutputs = buildDisplayPendingOutputs(
+                this.plan,
+                this.internalOutputs);
         this.phase = Objects.requireNonNull(phase, "phase");
         this.pendingOperation =
                 Objects.requireNonNull(pendingOperation, "pendingOperation");
@@ -106,6 +111,10 @@ final class AqeStandardVectorExecutionState {
 
     List<ExactStack> internalOutputs() {
         return internalOutputs;
+    }
+
+    Map<AEKey, BigInteger> displayPendingOutputs() {
+        return displayPendingOutputs;
     }
 
     Phase phase() {
@@ -380,6 +389,37 @@ final class AqeStandardVectorExecutionState {
             }
         }
         return copy;
+    }
+
+    private static Map<AEKey, BigInteger> buildDisplayPendingOutputs(
+            PreparedVectorBatch plan,
+            List<ExactStack> internalOutputs) {
+        Map<AEKey, BigInteger> result = new LinkedHashMap<>();
+        /*
+         * pendingOutputsは各作業台Patternが生産予定の総量なので、
+         * 島内消費分と外部境界出力を合算して元のTask表示を復元する。
+         */
+        for (ExactStack internal : internalOutputs) {
+            result.merge(
+                    internal.key(),
+                    internal.amount(),
+                    BigInteger::add);
+        }
+        // 最終成果物もTask出力なので表示総量へ一度だけ加える。
+        for (ExactStack output : plan.finalOutputs()) {
+            result.merge(
+                    output.key(),
+                    output.amount(),
+                    BigInteger::add);
+        }
+        // root以外の余剰境界出力も同じTask表示へ含める。
+        for (ExactStack output : plan.remainingOutputs()) {
+            result.merge(
+                    output.key(),
+                    output.amount(),
+                    BigInteger::add);
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     private static String checkedExecutorId(String value) {

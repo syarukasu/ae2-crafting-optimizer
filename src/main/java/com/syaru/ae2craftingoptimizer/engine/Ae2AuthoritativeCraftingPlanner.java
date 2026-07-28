@@ -184,7 +184,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         output,
                         requestedAmount,
                         strategy,
-                        symbolic);
+                        symbolic,
+                        wideArithmeticRequired);
                 // AtomicまたはAuthoritative設定で採用できない通常計画はAE2へ戻す。
                 if (result == null) {
                     return null;
@@ -297,7 +298,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
             AEKey output,
             long requestedAmount,
             CalculationStrategy strategy,
-            NormalizedPlan symbolic) {
+            NormalizedPlan symbolic,
+            boolean fullExpansionRequiresWideArithmetic) {
         // CRAFT_LESSの部分成功探索はAE2へ任せ、近似した出力量を返さない。
         if (!symbolic.craftable() && strategy == CalculationStrategy.CRAFT_LESS) {
             return null;
@@ -345,8 +347,14 @@ public final class Ae2AuthoritativeCraftingPlanner {
         }
 
         boolean wideInputAggregate = symbolic.hasAggregatePastLong();
-        // 全集計もlong内なら、通常計画の置換はAuthoritative設定ON時だけ有効にする。
-        if (!wideInputAggregate && !ACOConfig.enableAuthoritativeCompiledPlanner()) {
+        /*
+         * BigIntegerセル在庫で現在の計画がlong内へ縮んでも、全展開がlongを超えるルートは
+         * AE2の飽和long在庫へ戻すと別の計画になる。この互換経路は任意最適化OFFでも維持する。
+         */
+        if (!wideInputAggregate
+                && !shouldRetainLongFacade(
+                        ACOConfig.enableAuthoritativeCompiledPlanner(),
+                        fullExpansionRequiresWideArithmetic)) {
             return null;
         }
         // 個別値はlongでも総入力がlongを超える計画は、Atomic設定OFFならAE2へ戻す。
@@ -362,6 +370,15 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 keyCounter(symbolic.emitted()),
                 keyCounter(symbolic.missing()),
                 Map.copyOf(patternTimes));
+    }
+
+    /**
+     * 通常Authoritative最適化と、wide在庫を正しく扱うための必須互換経路を分離する。
+     */
+    static boolean shouldRetainLongFacade(
+            boolean authoritativePlannerEnabled,
+            boolean fullExpansionRequiresWideArithmetic) {
+        return authoritativePlannerEnabled || fullExpansionRequiresWideArithmetic;
     }
 
     private static boolean planningEnabled() {

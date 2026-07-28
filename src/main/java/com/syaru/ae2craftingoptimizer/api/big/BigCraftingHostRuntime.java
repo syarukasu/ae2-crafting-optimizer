@@ -405,6 +405,11 @@ public final class BigCraftingHostRuntime<K> {
         return bigRuntime.statusPage(offset, requestedPageSize);
     }
 
+    /** 状態画面へ一つのBigInteger Jobだけを同期する。 */
+    public synchronized BigCraftingStatusPage<K> statusPage(UUID jobId) {
+        return bigRuntime.statusPage(jobId);
+    }
+
     public synchronized CompoundTag save() {
         CompoundTag tag = new CompoundTag();
         tag.putInt("schema", SCHEMA_VERSION);
@@ -479,6 +484,11 @@ public final class BigCraftingHostRuntime<K> {
 
     public UUID hostId() {
         return hostId;
+    }
+
+    /** Client Status PageでHost再形成後も同じRuntimeを識別する。 */
+    public UUID runtimeId() {
+        return bigRuntime.runtimeId();
     }
 
     public synchronized BigInteger physicalCapacity() {

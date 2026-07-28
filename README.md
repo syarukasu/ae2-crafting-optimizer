@@ -144,6 +144,12 @@ one persistent transaction. Requested quantity changes only the size of the
 checked `BigInteger` arithmetic; it does not create quantity-sized loops,
 Pattern pushes, workers, child jobs, or execution windows.
 
+The compiled DAG is evaluated in one parent-before-child pass. Every active
+crafting Pattern performs one `ceilDiv` and direct input multiplication, shared
+intermediate demand is accumulated in one array, and only the net storage
+boundary survives. Single-stage and multi-stage crafting use the same path;
+there is no second produced/consumed or critical-path graph walk.
+
 The runtime has two ownership modes:
 
 - AdvancedAE/AQE standard jobs use `HOST_ESCROWED`. ACO extracts each distinct
@@ -158,12 +164,28 @@ The runtime has two ownership modes:
 Logical work is the deterministic graph's critical-path depth multiplied by
 `ticksPerLogicalStage`. An executor claims an available range from the shared
 per-grid budget instead of waiting one server tick per stage. An idle grid can
-therefore finish a twenty-stage chain in the same server tick for `1`, `1,000`,
-`Long.MAX_VALUE`, or a supported BigInteger quantity. If the soft time budget
-is already occupied, the remaining stages continue on later ticks. Energy is
-stored in exact micro-AE and summed once for each claimed range without
-rounding loss. Energy shortage reduces the range to one stage or pauses
-progress rather than changing ownership.
+therefore complete the actual conversion for a twenty-stage chain in the same
+server tick for `1`, `1,000`, `Long.MAX_VALUE`, or a supported BigInteger
+quantity. ACO does not add a display-only server delay after the executor has
+finished. If the soft time budget is already occupied, the remaining stages
+continue on later ticks.
+
+The dedicated BigInteger parent status menu reads the server runtime's exact
+requested and remaining values. Compatibility fields shown through an existing
+AE2 or AdvancedAE menu saturate at `Long.MAX_VALUE` only for display and are
+never written back to inventory, `waitingFor`, task progress, or receipts.
+
+For a deterministic nine-slot recipe requested `Long.MAX_VALUE` times, nine
+identical input slots are aggregated as one exact
+`9 * Long.MAX_VALUE` boundary input and the output remains
+`Long.MAX_VALUE`. Distinct input keys are each transferred once. Neither case
+creates a quantity-sized loop.
+
+Energy is stored in exact micro-AE and charged once per distinct compiled
+Pattern node, independent of order quantity. The default is `640` micro-AE per
+node, one ten-millionth of the previous `6,400,000,000` micro-AE default.
+Energy shortage reduces the range to one stage or pauses progress rather than
+changing ownership.
 
 The path admits only fixed ordinary shaped/shapeless recipes with one exact
 producer and no substitutions, fuzzy inputs, processing Patterns, NBT changes,
@@ -263,7 +285,7 @@ Neo ECO AE Extension 20.3.x custom ECO CPUs can also join ACO's adaptive per-CPU
 
 ### Compiled Crafting Islands
 
-ACO can optionally collapse a connected segment of two or more deterministic
+ACO can optionally collapse a connected segment of one or more deterministic
 ordinary crafting-table Patterns into one atomic boundary transaction. It
 computes all quantities with `BigInteger`, consumes only the segment's net raw
 inputs, materializes only net boundary outputs, and does not create its internal
@@ -286,16 +308,17 @@ AdvancedAE/AQE Quantum Computer. The selected CPU still owns its Job,
 inventory, requester, task progress, and cancellation state. AAC does not
 replace either CPU implementation.
 
-The backend must also prove that it currently provides every Pattern in the
-candidate island. A hardware structure elsewhere on the same Grid cannot
-silently claim Patterns owned only by another assembler or provider.
+The backend must prove that compatible formed hardware remains available.
+Backends may use same-Grid Pattern scope or require controller-local Pattern
+ownership; AAC exposes this as a configuration option.
 
-Eligibility is deliberately narrow: exact vanilla shaped/shapeless item
-recipes, one producer per output, no substitutions, cycles, fluids, chemicals,
-NBT, durability, remaining items, or custom recipe classes. Task or recipe
-generation changes invalidate the cached island. Any ambiguity, per-key signed
-long overflow, partial output acceptance, or failed preflight falls back before
-inputs are changed.
+Eligibility is deliberately narrow: an encoded `AECraftingPattern` must expose
+one exact item output and exact item inputs, with one producer per output and no
+substitutions, cycles, fluids, chemicals, NBT, durability, or remaining items.
+The original recipe implementation class is not re-guessed after AE2 has
+encoded that fixed Pattern. Task or recipe generation changes invalidate the
+cached island. Any ambiguity, per-key signed long overflow, partial output
+acceptance, or failed preflight falls back before inputs are changed.
 
 The switch defaults to false until live cancellation, restart, inventory, and
 TPS qualification is complete.

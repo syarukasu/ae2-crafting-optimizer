@@ -59,7 +59,11 @@ public final class CompiledCraftingIsland<K, P> {
     public static <K, P> Optional<List<CompiledCraftingIsland<K, P>>> tryCompile(
             List<Task<K, P>> sourceTasks,
             int maximumBits) {
-        return tryCompile(sourceTasks, maximumBits, false);
+        /*
+         * 入出力が一意な一段Patternも数量非依存の島として成立する。
+         * 段数は安全性と無関係なので、通常入口でも単一ノードを除外しない。
+         */
+        return tryCompile(sourceTasks, maximumBits, true);
     }
 
     /**
@@ -151,7 +155,7 @@ public final class CompiledCraftingIsland<K, P> {
                 continue;
             }
             List<Integer> component = collectComponent(seed, undirected, assigned);
-            // 既存Compiled Islandsは単一Patternを従来経路へ残し、新Exact Vectorだけ許可する。
+            // 呼出側が明示的に単一ノードを除外する場合だけ、従来経路へ残す。
             if (!includeSingletons && component.size() < 2) {
                 continue;
             }

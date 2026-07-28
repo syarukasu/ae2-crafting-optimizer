@@ -1,3 +1,14 @@
 {
-  "mod.ae2_crafting_optimizer": "AE2 Crafting Optimizer"
+  "mod.ae2_crafting_optimizer": "AE2 Crafting Optimizer",
+  "menu.ae2_crafting_optimizer.big_crafting_status": "BigInteger Crafting Status",
+  "gui.ae2_crafting_optimizer.waiting_status": "Waiting for the server crafting status",
+  "gui.ae2_crafting_optimizer.exact_requested": "Exact request: %s",
+  "gui.ae2_crafting_optimizer.display_remaining": "Display remaining: %s",
+  "gui.ae2_crafting_optimizer.reserved": "Reserved storage: %s B",
+  "gui.ae2_crafting_optimizer.running": "Running: %s",
+  "gui.ae2_crafting_optimizer.completed": "Crafting complete",
+  "gui.ae2_crafting_optimizer.cancelled": "Crafting cancelled",
+  "gui.ae2_crafting_optimizer.cancelling": "Cancelling",
+  "gui.ae2_crafting_optimizer.cancel": "Cancel",
+  "gui.ae2_crafting_optimizer.close": "Close"
 }

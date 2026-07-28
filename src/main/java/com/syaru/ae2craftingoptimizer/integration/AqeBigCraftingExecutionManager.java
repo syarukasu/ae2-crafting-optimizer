@@ -182,6 +182,31 @@ public final class AqeBigCraftingExecutionManager {
         return 1;
     }
 
+    /**
+     * BigInteger状態Menuが保持するHostから、安全なController取消経路を特定する。
+     */
+    public static synchronized boolean cancel(
+            BigCraftingHostRuntime<AEKey> host,
+            UUID jobId) {
+        Objects.requireNonNull(host, "host");
+        Objects.requireNonNull(jobId, "jobId");
+        for (var entry : BigCraftingHostRegistry.snapshot().entrySet()) {
+            /*
+             * 同じRuntimeを所有する形成済みQuantum Computerだけを対象にする。
+             * 別CPUの同一UUIDを推測で取り消さない。
+             */
+            if (entry.getValue() == host
+                    && entry.getKey()
+                            instanceof AdvCraftingCPUCluster cluster) {
+                Controller controller = CONTROLLERS.computeIfAbsent(
+                        cluster,
+                        ignored -> new Controller(cluster, host));
+                return controller.cancel(jobId);
+            }
+        }
+        return false;
+    }
+
     public static synchronized int statusAt(CommandSourceStack source, BlockPos position) {
         AdvCraftingCPUCluster cluster = clusterAt(source, position);
         if (cluster == null) {
@@ -811,7 +836,7 @@ public final class AqeBigCraftingExecutionManager {
                         ACOConfig
                                 .getExactVectorTicksPerLogicalStage(),
                         ACOConfig
-                                .getExactVectorEnergyMicroAePerLogicalExecution(),
+                                .getExactVectorEnergyMicroAePerPatternNode(),
                         BigInteger.ZERO,
                         candidate.programFingerprint(),
                         currentPatternGeneration,

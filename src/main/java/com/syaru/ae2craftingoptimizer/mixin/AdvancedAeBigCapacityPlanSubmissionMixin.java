@@ -14,6 +14,7 @@ import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext;
+import com.syaru.ae2craftingoptimizer.menu.BigCraftingMenuOpenRequest;
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -21,6 +22,7 @@ import java.util.Set;
 import java.util.UUID;
 import net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPU;
 import net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster;
+import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -57,7 +59,11 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
         BigIntegerCraftingPlan bigIntegerPlan =
                 Ae2CraftingPlanSidecars.bigInteger(plan).orElse(null);
         if (bigIntegerPlan != null) {
-            aco$submitBigIntegerParent(bigIntegerPlan, requester, cir);
+            aco$submitBigIntegerParent(
+                    bigIntegerPlan,
+                    source,
+                    requester,
+                    cir);
             return;
         }
         // 通常AE2計画には一切介入せず、Big容量マーカーだけを対象にする。
@@ -162,6 +168,7 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
     @Unique
     private void aco$submitBigIntegerParent(
             BigIntegerCraftingPlan plan,
+            IActionSource source,
             ICraftingRequester requester,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
         // 自動要求は永続CraftingLinkを必要とするため、現段階ではrequesterなしの手動注文だけを受理する。
@@ -195,6 +202,18 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
             AdvCraftingCPUCluster cluster = (AdvCraftingCPUCluster) (Object) this;
             cluster.recalculateRemainingStorage();
             cluster.markDirty();
+            /*
+             * 手動注文のServerPlayerだけを、現在のCraftConfirmMenu RETURNへ引き継ぐ。
+             * 自動要求やCommandには状態画面を勝手に開かない。
+             */
+            source.player()
+                    .filter(ServerPlayer.class::isInstance)
+                    .map(ServerPlayer.class::cast)
+                    .ifPresent(player ->
+                            BigCraftingMenuOpenRequest.record(
+                                    player,
+                                    host,
+                                    job.id()));
             // CraftConfirmMenuの手動注文はrequester=nullなので、永続CraftingLinkを偽造しない。
             cir.setReturnValue(CraftingSubmitResult.successful(null));
         } catch (RuntimeException failure) {
