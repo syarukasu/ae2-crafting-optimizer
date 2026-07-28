@@ -449,6 +449,11 @@ public final class PhysicalCraftingTreeTransaction {
         return true;
     }
 
+    /** 外部会計との不一致時に、物理所有権を推測で完了・取消せず隔離する。 */
+    public void quarantineForAccounting(String reason) {
+        quarantine(reason);
+    }
+
     private void beginCancellation() {
         cancellationRequested =
                 false;
@@ -476,6 +481,65 @@ public final class PhysicalCraftingTreeTransaction {
 
     public Map<AEKey, BigInteger> escrowSnapshot() {
         return escrow.snapshot();
+    }
+
+    /**
+     * Advanced AEの実Jobへ投影する、物理Receipt由来の絶対会計Snapshot。
+     *
+     * <p>差分ではなくTransaction開始時からの累積値を返す。同じ保存Receiptを再起動後に
+     * 再照合しても、Pattern taskやwaitingForを二重に減らさない。</p>
+     */
+    public AccountingSnapshot accountingSnapshot(
+            Ae2CompiledCraftingGraphCache.Snapshot snapshot,
+            Level level) {
+        Objects.requireNonNull(snapshot, "snapshot");
+        Objects.requireNonNull(level, "level");
+        Map<String, BigInteger> plannedTasks = new LinkedHashMap<>();
+        Map<String, BigInteger> dispatchedTasks = new LinkedHashMap<>();
+        Map<AEKey, BigInteger> expectedOutputs = new LinkedHashMap<>();
+        Map<AEKey, BigInteger> introducedOutputs = new LinkedHashMap<>();
+        Map<AEKey, BigInteger> creditedOutputs = new LinkedHashMap<>();
+        // 固有Pattern数だけを一巡し、注文数量ぶんの会計要素は作らない。
+        for (StepReceipt receipt : steps) {
+            ResolvedStep resolved = resolveStep(
+                    snapshot,
+                    level,
+                    receipt.index());
+            String patternId = resolved.step().patternId();
+            BigInteger executions = resolved.step().executions();
+            mergePositive(
+                    plannedTasks,
+                    patternId,
+                    executions);
+            resolved.expectedOutputs().forEach((key, amount) ->
+                    mergePositive(expectedOutputs, key, amount));
+            // Pattern Busが一度でも仕事を所有した段だけ、通常AE2のtask減算へ反映する。
+            if (receipt.dispatched()) {
+                mergePositive(
+                        dispatchedTasks,
+                        patternId,
+                        executions);
+                // 通常AE2と同じく、Pattern投入時点でだけそのPatternの全出力をwaitingForへ加える。
+                resolved.expectedOutputs().forEach((key, amount) ->
+                        mergePositive(introducedOutputs, key, amount));
+            }
+            // 実出力をEscrowへ一度会計した段だけ、通常AE2のwaitingForから差し引く。
+            if (receipt.outputCredited()) {
+                resolved.expectedOutputs().forEach((key, amount) ->
+                        mergePositive(creditedOutputs, key, amount));
+            }
+        }
+        boolean finalOutputReturned =
+                outputCursor == expectedFinalOutputs().size()
+                        && (state == State.RETURNING_RESULTS
+                                || state == State.COMPLETE);
+        return new AccountingSnapshot(
+                plannedTasks,
+                dispatchedTasks,
+                expectedOutputs,
+                introducedOutputs,
+                creditedOutputs,
+                finalOutputReturned);
     }
 
     /** GUIへ渡す進捗は、実NeoECO Threadと完了済み物理段から求める。 */
@@ -2067,9 +2131,9 @@ public final class PhysicalCraftingTreeTransaction {
         return copy;
     }
 
-    private static void mergePositive(
-            Map<AEKey, BigInteger> target,
-            AEKey key,
+    private static <K> void mergePositive(
+            Map<K, BigInteger> target,
+            K key,
             BigInteger amount) {
         Objects.requireNonNull(
                 key,
@@ -2089,8 +2153,8 @@ public final class PhysicalCraftingTreeTransaction {
                 BigInteger::add);
     }
 
-    private static Map<AEKey, BigInteger> checkedCounts(
-            Map<AEKey, BigInteger> source,
+    private static <K> Map<K, BigInteger> checkedCounts(
+            Map<K, BigInteger> source,
             String name,
             boolean allowEmpty) {
         Objects.requireNonNull(
@@ -2102,12 +2166,12 @@ public final class PhysicalCraftingTreeTransaction {
             throw new IllegalArgumentException(
                     name + " has too many keys");
         }
-        Map<AEKey, BigInteger> result =
+        Map<K, BigInteger> result =
                 new LinkedHashMap<>();
         // 各キーを正数BigIntegerとして順序付き不変Mapへ複製する。
-        for (Map.Entry<AEKey, BigInteger> entry :
+        for (Map.Entry<K, BigInteger> entry :
                 source.entrySet()) {
-            AEKey key =
+            K key =
                     Objects.requireNonNull(
                             entry.getKey(),
                             name + " key");
@@ -2134,8 +2198,8 @@ public final class PhysicalCraftingTreeTransaction {
                 result);
     }
 
-    private static Map<AEKey, BigInteger> immutableOrderedMap(
-            Map<AEKey, BigInteger> source) {
+    private static <K> Map<K, BigInteger> immutableOrderedMap(
+            Map<K, BigInteger> source) {
         return Collections.unmodifiableMap(
                 new LinkedHashMap<>(
                         source));
@@ -2276,11 +2340,11 @@ public final class PhysicalCraftingTreeTransaction {
                 result);
     }
 
-    private static boolean containsAll(
-            Map<AEKey, BigInteger> available,
-            Map<AEKey, BigInteger> required) {
+    private static <K> boolean containsAll(
+            Map<K, BigInteger> available,
+            Map<K, BigInteger> required) {
         // 全要求キーが正確な在庫量以下の場合だけ、Batch抽出を許可する。
-        for (Map.Entry<AEKey, BigInteger> entry :
+        for (Map.Entry<K, BigInteger> entry :
                 required.entrySet()) {
             // 一件でも不足すればセルへ触る前にfalseを返す。
             if (available
@@ -2451,6 +2515,8 @@ public final class PhysicalCraftingTreeTransaction {
         private final UUID transactionId;
         private final String payloadDigest;
         private StepState state;
+        /** Pattern Busが一度でも実仕事を所有したことを、取消後も失わない累積フラグ。 */
+        private boolean dispatched;
         private Long targetPosition;
         private int routeCursor;
         private int progress;
@@ -2464,6 +2530,7 @@ public final class PhysicalCraftingTreeTransaction {
                 UUID transactionId,
                 String payloadDigest,
                 StepState state,
+                boolean dispatched,
                 Long targetPosition,
                 int routeCursor,
                 int progress,
@@ -2486,6 +2553,8 @@ public final class PhysicalCraftingTreeTransaction {
                     Objects.requireNonNull(
                             state,
                             "state");
+            this.dispatched =
+                    dispatched;
             this.targetPosition =
                     targetPosition;
             this.routeCursor =
@@ -2519,6 +2588,7 @@ public final class PhysicalCraftingTreeTransaction {
                     transactionId,
                     payloadDigest,
                     StepState.WAITING_FOR_INPUTS,
+                    false,
                     null,
                     0,
                     0,
@@ -2543,6 +2613,21 @@ public final class PhysicalCraftingTreeTransaction {
                             ? owner.getLong(
                                     "targetPosition")
                             : null;
+            StepState state = parseStepState(
+                    owner.getString(
+                            "state"));
+            /*
+             * 旧schemaには累積フラグがない。外部所有以降の状態だけを配送済みと復元し、
+             * CANCELLEDの曖昧な旧Receiptは新しい実Job会計へ使わない。
+             */
+            boolean dispatched = owner.contains(
+                            "dispatched",
+                            Tag.TAG_BYTE)
+                    ? owner.getBoolean("dispatched")
+                    : state == StepState.ACCEPTED
+                            || state == StepState.OUTPUT_OBSERVED
+                            || state == StepState.OUTPUT_CREDITED
+                            || state == StepState.ACKNOWLEDGED;
             return new StepReceipt(
                     owner.getInt(
                             "index"),
@@ -2550,9 +2635,8 @@ public final class PhysicalCraftingTreeTransaction {
                             "transactionId"),
                     owner.getString(
                             "payloadDigest"),
-                    parseStepState(
-                            owner.getString(
-                                    "state")),
+                    state,
+                    dispatched,
                     targetPosition,
                     owner.getInt(
                             "routeCursor"),
@@ -2585,6 +2669,11 @@ public final class PhysicalCraftingTreeTransaction {
             owner.putString(
                     "state",
                     state.name());
+            if (dispatched) {
+                owner.putBoolean(
+                        "dispatched",
+                        true);
+            }
             owner.putInt(
                     "routeCursor",
                     routeCursor);
@@ -2628,6 +2717,15 @@ public final class PhysicalCraftingTreeTransaction {
 
         private StepState state() {
             return state;
+        }
+
+        private boolean dispatched() {
+            return dispatched;
+        }
+
+        private boolean outputCredited() {
+            return state == StepState.OUTPUT_CREDITED
+                    || state == StepState.ACKNOWLEDGED;
         }
 
         private Long targetPosition() {
@@ -2677,6 +2775,8 @@ public final class PhysicalCraftingTreeTransaction {
         private void accept() {
             state =
                     StepState.ACCEPTED;
+            dispatched =
+                    true;
             progress =
                     0;
             maximumProgress =
@@ -2824,6 +2924,11 @@ public final class PhysicalCraftingTreeTransaction {
             boolean requiresOutput =
                     state == StepState.OUTPUT_OBSERVED
                             || state == StepState.OUTPUT_CREDITED;
+            boolean requiresDispatched =
+                    state == StepState.ACCEPTED
+                            || state == StepState.OUTPUT_OBSERVED
+                            || state == StepState.OUTPUT_CREDITED
+                            || state == StepState.ACKNOWLEDGED;
             // index、識別子、進捗、Target、予約入力、実出力の組合せを一意にする。
             if (index < 0
                     || payloadDigest.isBlank()
@@ -2836,7 +2941,9 @@ public final class PhysicalCraftingTreeTransaction {
                     || requiresReserved
                             != !reservedInputs.isEmpty()
                     || requiresOutput
-                            != !observedOutputs.isEmpty()) {
+                            != !observedOutputs.isEmpty()
+                    || (requiresDispatched
+                            && !dispatched)) {
                 throw new IllegalArgumentException(
                         "invalid physical crafting recipe receipt");
             }
@@ -3123,5 +3230,49 @@ public final class PhysicalCraftingTreeTransaction {
         COMPLETE,
         CANCELLED,
         QUARANTINED
+    }
+
+    public record AccountingSnapshot(
+            Map<String, BigInteger> plannedPatternExecutions,
+            Map<String, BigInteger> dispatchedPatternExecutions,
+            Map<AEKey, BigInteger> expectedOutputs,
+            Map<AEKey, BigInteger> introducedOutputs,
+            Map<AEKey, BigInteger> creditedOutputs,
+            boolean finalOutputReturned) {
+        public AccountingSnapshot {
+            plannedPatternExecutions = checkedCounts(
+                    plannedPatternExecutions,
+                    "plannedPatternExecutions",
+                    false);
+            dispatchedPatternExecutions = checkedCounts(
+                    dispatchedPatternExecutions,
+                    "dispatchedPatternExecutions",
+                    true);
+            expectedOutputs = checkedCounts(
+                    expectedOutputs,
+                    "expectedOutputs",
+                    true);
+            introducedOutputs = checkedCounts(
+                    introducedOutputs,
+                    "introducedOutputs",
+                    true);
+            creditedOutputs = checkedCounts(
+                    creditedOutputs,
+                    "creditedOutputs",
+                    true);
+            // 配送済みPatternと受領済み出力は、それぞれ計画総量を超えてはならない。
+            if (!containsAll(
+                            plannedPatternExecutions,
+                            dispatchedPatternExecutions)
+                    || !containsAll(
+                            expectedOutputs,
+                            introducedOutputs)
+                    || !containsAll(
+                            introducedOutputs,
+                            creditedOutputs)) {
+                throw new IllegalArgumentException(
+                        "physical accounting snapshot exceeds its plan");
+            }
+        }
     }
 }

@@ -6,6 +6,13 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- Added exact `BigInteger` extensions directly to Advanced AE's real
+  `TaskProgress`, `waitingFor`, and final-output counters. Their existing
+  `long` fields remain saturated compatibility projections only.
+- Added same-job NBT persistence and receipt replay validation for exact task,
+  waiting-output, final-output, cancellation, and physical ownership state.
+- Added fail-fast compatibility checks for every mixin required by the
+  Advanced AE exact-accounting path.
 - Added Exact Vector Crafting API v1 for quantity-independent deterministic
   ordinary-crafting transactions.
 - Added a persistent AdvancedAE standard-job path using host-owned input escrow
@@ -47,6 +54,18 @@ All notable changes to this project are documented here.
 
 ### Fixed
 
+- Removed the separate completion authority for Advanced AE BigInteger plans.
+  Physical receipts now advance the real CPU job, and only Advanced AE's
+  normal `CraftingLink` lifecycle may finish or cancel it.
+- Prevented completion receipts from force-zeroing task or waiting counters;
+  mismatches are quarantined instead.
+- Prevented unrelated matching network output from entering an exact Advanced
+  AE job outside its verified physical receipt path.
+- Deactivated completed real CPUs before releasing their exact host
+  reservation, preventing AQE reconciliation from reserving a finished CPU
+  again.
+- Replayed cumulative absolute receipts without double-accounting after a
+  restart, and rejected backward, excessive, or duplicate Pattern progress.
 - Made executor receipts authoritative after `start`, cancellation, completion,
   and recovery so an uncertain external call cannot silently fall back and
   duplicate inputs or outputs.

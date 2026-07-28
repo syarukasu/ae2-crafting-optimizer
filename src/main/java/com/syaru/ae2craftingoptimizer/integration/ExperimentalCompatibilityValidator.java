@@ -1,5 +1,7 @@
 package com.syaru.ae2craftingoptimizer.integration;
 
+import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingJobAccess;
+import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingLogicAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterHostTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterRecoveryAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingJobTransactionAccess;
@@ -7,6 +9,7 @@ import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
 import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
+import com.syaru.ae2craftingoptimizer.access.ExactCraftingInventoryAccess;
 import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
@@ -35,7 +38,8 @@ public final class ExperimentalCompatibilityValidator {
         requireExactVersion(failures, "ae2", "15.4.10");
         if ((ACOConfig.enableTransactionalBatchingV2()
                         || ACOConfig.enableFairCraftingJobScheduler()
-                        || ACOConfig.enableAtomicBigCapacityPlans())
+                        || ACOConfig.enableAtomicBigCapacityPlans()
+                        || ACOConfig.enableBigIntegerGameplayExecution())
                 && ModList.get().isLoaded("advanced_ae")) {
             requireExactVersion(failures, "advanced_ae", "1.3.5-1.20.1");
         }
@@ -43,11 +47,16 @@ public final class ExperimentalCompatibilityValidator {
         if (ACOConfig.enableAtomicBigCapacityPlans()) {
             require(failures, "appeng.me.cluster.implementations.CraftingCPUCluster",
                     BigCapacityPlanBoundaryAccess.class);
-            // Advanced AEが存在する時だけ、AQE用の正確な容量予約境界も適用済みか確認する。
-            if (ModList.get().isLoaded("advanced_ae")) {
-                require(failures, "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster",
-                        BigCapacityPlanBoundaryAccess.class);
-            }
+        }
+        /*
+         * Advanced AEのBigInteger提出境界はAtomic long計画とExact計画の双方が使用する。
+         * どちらか一方でも有効なら、Cluster Mixinが実在することを監査する。
+         */
+        if ((ACOConfig.enableAtomicBigCapacityPlans()
+                        || ACOConfig.enableBigIntegerGameplayExecution())
+                && ModList.get().isLoaded("advanced_ae")) {
+            require(failures, "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster",
+                    BigCapacityPlanBoundaryAccess.class);
         }
         if (ACOConfig.enableTransactionalBatchingV2()) {
             require(failures, "appeng.crafting.execution.CraftingCpuLogic",
@@ -77,6 +86,21 @@ public final class ExperimentalCompatibilityValidator {
                 require(failures, "net.pedroksl.advanced_ae.common.logic.AdvPatternProviderLogic",
                         NativeBatchReceiptStore.class, PatternProviderTransactionAccess.class);
             }
+        }
+        /*
+         * BigInteger Jobは別CPUを作らず、Advanced AEの実Jobカウンタを直接拡張する。
+         * 三つの正本Mixinが一つでも欠ける状態ではlongへ縮退せず、起動時に明示的に拒否する。
+         */
+        if (ACOConfig.enableBigIntegerGameplayExecution()
+                && ModList.get().isLoaded("advanced_ae")) {
+            require(failures, "net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic",
+                    AdvancedAeExactCraftingLogicAccess.class);
+            require(failures, "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob",
+                    AdvancedAeExactCraftingJobAccess.class);
+            require(failures, "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob$TaskProgress",
+                    CraftingTaskProgressAccess.class);
+            require(failures, "appeng.crafting.inv.ListCraftingInventory",
+                    ExactCraftingInventoryAccess.class);
         }
         if (ACOConfig.enableFairCraftingJobScheduler()) {
             require(failures, "appeng.crafting.execution.CraftingCpuLogic",

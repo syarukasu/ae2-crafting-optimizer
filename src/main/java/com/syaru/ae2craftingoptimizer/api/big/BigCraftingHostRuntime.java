@@ -18,9 +18,9 @@ import net.minecraft.nbt.Tag;
 /**
  * アドオンCPU一台の物理容量を一元管理する。
  *
- * <p>通常AE2 Jobは{@link #reserveExternal}からlong範囲の容量を予約し、BigInteger Jobは
- * 内部の{@link BigCraftingRuntime}を使用する。両者を同じ台帳から差し引くことで、
- * 同じ容量を二重に予約することを防ぐ。</p>
+ * <p>通常AE2 JobとAdvanced AE実CPUへ載せたExact BigInteger Jobは
+ * {@link #reserveExternal}系で容量を予約する。ACOコマンド由来の独立親Jobだけが内部の
+ * {@link BigCraftingRuntime}を使用する。双方を同じ容量から差し引き、二重予約を防ぐ。</p>
  */
 public final class BigCraftingHostRuntime<K> {
     public static final int SCHEMA_VERSION = 2;
@@ -125,8 +125,9 @@ public final class BigCraftingHostRuntime<K> {
     }
 
     /**
-     * AE2がLong.MAX_VALUEとして登録した標準子Jobを、真のBigInteger容量へ原子的に昇格する。
-     * Job本体の各カウントはlongのままで、容量予約だけをSidecarの正確な値へ置き換える。
+     * AE2がLong.MAX_VALUEとして登録した実CPU Jobを、真のBigInteger容量へ原子的に昇格する。
+     * Exact Jobでは同じ実JobのTaskProgress、waitingFor、remainingAmountもBigIntegerへ拡張し、
+     * 既存longフィールドは互換投影として残す。
      */
     public synchronized boolean promoteExternalReservation(
             UUID jobId,

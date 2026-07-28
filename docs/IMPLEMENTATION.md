@@ -177,6 +177,42 @@ The parent commit only:
 
 It does not create or insert output.
 
+## Advanced AE Exact Job Accounting
+
+Gameplay orders whose individual Pattern or storage counters exceed signed
+`long` still create one normal Advanced AE CPU and one normal `CraftingLink`.
+ACO does not create a second completion job for them.
+
+Normal `long` jobs and exact `BigInteger` jobs use the same Advanced AE
+`ExecutingCraftingJob` accounting lifecycle. The same runtime objects hold both
+views:
+
+- each Advanced AE `TaskProgress` stores the exact remaining Pattern count;
+- the real `ListCraftingInventory waitingFor` stores exact expected output;
+- the real `ExecutingCraftingJob` stores exact final-output remaining;
+- the original `long` fields contain only `0..Long.MAX_VALUE` compatibility
+  projections for unchanged AE2 and Advanced AE APIs.
+
+Physical receipts follow the normal Advanced AE accounting order:
+
+1. accepted Pattern work decreases its real task count;
+2. that Pattern's expected output is added to the real `waitingFor`;
+3. credited physical output is removed from the same `waitingFor`;
+4. returned final output decreases the real final-output counter;
+5. only when all three counters are terminal does the normal
+   `CraftingLink` finish.
+
+While an exact physical transaction owns the job, unsolicited matching stacks
+from the generic Advanced AE `insert` route are rejected. Only a verified
+physical receipt may advance the same real counters, preventing an unrelated
+machine output from being counted twice.
+
+The saved exact receipt ledger is replay protection, not a second completion
+authority. It stores cumulative absolute dispatch, introduced-output, and
+credited-output totals in the same job NBT. On load and save, ACO requires the
+ledger and real runtime counters to match exactly. It never force-zeroes a
+counter because a physical transaction merely reports `COMPLETE`.
+
 ## Fallback
 
 Fallback is valid only before `prepareVectorExecution` transfers ownership.
