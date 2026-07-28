@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.api.craftingtable;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -129,11 +130,73 @@ final class CraftingTableBatchRequestTest {
                 request.countsFitSignedLong());
     }
 
+    @Test
+    void bigIntegerJobKeepsTheExactCoefficientBeyondSignedLong() {
+        AEKey input =
+                new TestKey(
+                        "big_input");
+        AEKey output =
+                new TestKey(
+                        "big_output");
+        KeyCounter counter =
+                new KeyCounter();
+        counter.add(
+                input,
+                1L);
+        BigInteger executions =
+                BigInteger.valueOf(
+                                Long.MAX_VALUE)
+                        .add(
+                                BigInteger.ONE);
+
+        CraftingTableBatchRequest request =
+                request(
+                        new KeyCounter[] {
+                            counter
+                        },
+                        List.of(
+                                new ExactStack(
+                                        input,
+                                        executions)),
+                        output,
+                        executions,
+                        CraftingTableBatchMode.BIG_INTEGER_JOB);
+
+        /*
+         * 物理Thread数やint予算へ縮小せず、実レシピ一回分へ掛ける
+         * BigInteger係数と成果物会計をRequest境界でそのまま維持する。
+         */
+        assertEquals(
+                executions,
+                request.executions());
+        assertEquals(
+                Map.of(
+                        output,
+                        executions),
+                request.aggregateExpectedOutputs());
+        assertFalse(
+                request.countsFitSignedLong());
+    }
+
     private static CraftingTableBatchRequest request(
             KeyCounter[] inputs,
             List<ExactStack> aggregateSlots,
             AEKey output,
             BigInteger executions) {
+        return request(
+                inputs,
+                aggregateSlots,
+                output,
+                executions,
+                CraftingTableBatchMode.AE2_JOB);
+    }
+
+    private static CraftingTableBatchRequest request(
+            KeyCounter[] inputs,
+            List<ExactStack> aggregateSlots,
+            AEKey output,
+            BigInteger executions,
+            CraftingTableBatchMode mode) {
         GenericStack outputPerExecution =
                 new GenericStack(
                         output,
@@ -144,7 +207,7 @@ final class CraftingTableBatchRequestTest {
                 UUID.randomUUID(),
                 "aco:test-request",
                 0,
-                CraftingTableBatchMode.AE2_JOB,
+                mode,
                 TEST_PATTERN,
                 executions,
                 inputs,
