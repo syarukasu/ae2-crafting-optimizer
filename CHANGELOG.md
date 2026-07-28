@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-07-28
+
 ### Added
 
 - Added exact `BigInteger` extensions directly to Advanced AE's real
