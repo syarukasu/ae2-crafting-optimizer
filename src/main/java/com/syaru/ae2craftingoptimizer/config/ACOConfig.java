@@ -177,6 +177,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue REQUIRE_AQE_BIG_PLAN_SHADOW_QUALIFICATION;
     private static final ForgeConfigSpec.BooleanValue ENABLE_COMPILED_CRAFTING_GRAPH;
     private static final ForgeConfigSpec.BooleanValue ENABLE_AUTHORITATIVE_COMPILED_PLANNER;
+    private static final ForgeConfigSpec.BooleanValue ENABLE_PROOF_QUALIFIED_LONG_PLANS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC;
     private static final ForgeConfigSpec.BooleanValue ENABLE_TRANSACTIONAL_BATCHING_V2;
     private static final ForgeConfigSpec.BooleanValue ENABLE_GTCEU_NATIVE_BATCHING;
@@ -774,6 +775,11 @@ public final class ACOConfig {
                         "Use a compiled plan only for the strictly provable single-pattern path. Any ambiguity, generation change, fuzzy input, overflow, or unsupported recipe falls back to AE2.",
                         "Kept false until the user completes live comparison testing.")
                 .define("enableAuthoritativeCompiledPlanner", false);
+        ENABLE_PROOF_QUALIFIED_LONG_PLANS = builder
+                .comment(
+                        "Allow ordinary signed-long requests to use the compiled planner when the current Pattern graph, live AE2 Pattern API, input candidates, inventory, and generations are all strictly proven.",
+                        "This does not enable ambiguous, cyclic, dynamic, incomplete, or stale roots. Any failed proof falls back to AE2 before storage is mutated.")
+                .define("enableProofQualifiedLongPlans", true);
         ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC = builder
                 .comment(
                         "Reject AE2 tree calculations before unchecked long/double arithmetic can wrap or saturate.",
@@ -1613,6 +1619,10 @@ public final class ACOConfig {
 
     public static boolean enableAuthoritativeCompiledPlanner() {
         return enableCompiledCraftingGraph() && ENABLE_AUTHORITATIVE_COMPILED_PLANNER.get();
+    }
+
+    public static boolean enableProofQualifiedLongPlans() {
+        return enableCompiledCraftingGraph() && ENABLE_PROOF_QUALIFIED_LONG_PLANS.get();
     }
 
     public static boolean enableCheckedAe2CraftingArithmetic() {

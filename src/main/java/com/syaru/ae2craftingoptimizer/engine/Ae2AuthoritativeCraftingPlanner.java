@@ -98,17 +98,18 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     program,
                     ACOConfig.getAuthoritativeMinimumShadowMatches());
             /*
-             * 通常計画は同世代のAE2 Shadow一致を必須にする。
-             * AE2自身が完走できないlong超過計画だけは、設定で許可した場合に限り、
-             * 厳密Topology・世代・参照在庫の証明をShadowの代わりに使う。
+             * Shadow一致、または現在世代の厳密Topology証明のどちらも無い計画は採用しない。
+             * wide計画はAE2自身が比較計算を完走できないため、既存の専用設定を優先する。
              */
-            if (!shadowQualified
-                    && (!wideArithmeticRequired
-                            || ACOConfig.requireAqeBigPlanShadowQualification())) {
+            if (!isQualifiedForReplacement(
+                    shadowQualified,
+                    ACOConfig.enableProofQualifiedLongPlans(),
+                    wideArithmeticRequired,
+                    ACOConfig.requireAqeBigPlanShadowQualification())) {
                 return null;
             }
-            // Atomic専用運用では、wide演算が不要な通常注文を直ちにAE2へ戻す。
-            if (!ACOConfig.enableAuthoritativeCompiledPlanner() && !wideArithmeticRequired) {
+            // 通常注文の置換を両方の設定で無効化した場合は、wide互換経路だけを残す。
+            if (!normalLongReplacementEnabled() && !wideArithmeticRequired) {
                 return null;
             }
 
@@ -353,7 +354,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
          */
         if (!wideInputAggregate
                 && !shouldRetainLongFacade(
-                        ACOConfig.enableAuthoritativeCompiledPlanner(),
+                        normalLongReplacementEnabled(),
                         fullExpansionRequiresWideArithmetic)) {
             return null;
         }
@@ -381,8 +382,31 @@ public final class Ae2AuthoritativeCraftingPlanner {
         return authoritativePlannerEnabled || fullExpansionRequiresWideArithmetic;
     }
 
-    private static boolean planningEnabled() {
+    /**
+     * 厳密Topologyが既に成立した後の採用規則。
+     * wide注文だけはAE2標準計算でShadow教材を作れないため、専用設定を維持する。
+     */
+    static boolean isQualifiedForReplacement(
+            boolean shadowQualified,
+            boolean proofQualifiedLongPlansEnabled,
+            boolean wideArithmeticRequired,
+            boolean requireWideShadowQualification) {
+        if (shadowQualified) {
+            return true;
+        }
+        if (wideArithmeticRequired) {
+            return !requireWideShadowQualification;
+        }
+        return proofQualifiedLongPlansEnabled;
+    }
+
+    private static boolean normalLongReplacementEnabled() {
         return ACOConfig.enableAuthoritativeCompiledPlanner()
+                || ACOConfig.enableProofQualifiedLongPlans();
+    }
+
+    private static boolean planningEnabled() {
+        return normalLongReplacementEnabled()
                 || ACOConfig.enableAtomicBigCapacityPlans();
     }
 

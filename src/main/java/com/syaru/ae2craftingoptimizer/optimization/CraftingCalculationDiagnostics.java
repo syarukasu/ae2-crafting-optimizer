@@ -11,7 +11,12 @@ public final class CraftingCalculationDiagnostics {
     private CraftingCalculationDiagnostics() {
     }
 
-    public static void logIfSlow(AEKey output, long requestedAmount, ICraftingPlan plan, long elapsedNanos) {
+    public static void logIfSlow(
+            AEKey output,
+            long requestedAmount,
+            ICraftingPlan plan,
+            long elapsedNanos,
+            String plannerRoute) {
         if (!ACOConfig.logSlowCraftCalculations()) {
             return;
         }
@@ -25,12 +30,13 @@ public final class CraftingCalculationDiagnostics {
         int missingCount = plan != null ? plan.missingItems().size() : -1;
         long bytes = plan != null ? plan.bytes() : -1L;
         AE2CraftingOptimizer.LOGGER.info(
-                "Slow AE2 crafting calculation: requested {} x{}, final {}, missing entries {}, bytes {}, elapsed {} ms",
+                "Slow AE2 crafting calculation: requested {} x{}, final {}, missing entries {}, bytes {}, elapsed {} ms, planner route {}",
                 output.getId(),
                 requestedAmount,
                 finalOutput,
                 missingCount,
                 bytes,
-                elapsedMillis);
+                elapsedMillis,
+                plannerRoute);
     }
 }
