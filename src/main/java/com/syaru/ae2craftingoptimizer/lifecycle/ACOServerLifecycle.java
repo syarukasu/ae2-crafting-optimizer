@@ -9,6 +9,7 @@ import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
+import com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageSnapshotCache;
 import com.syaru.ae2craftingoptimizer.integration.OptionalAqeBigCraftingExecution;
 import com.syaru.ae2craftingoptimizer.integration.OptionalNativeBatchIntegrations;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
@@ -56,6 +57,7 @@ public final class ACOServerLifecycle {
         OptionalNativeBatchIntegrations.registerEnabledVerifiedAdapters();
         ExperimentalCompatibilityValidator.validateEnabledFeatures();
         ServerTickClock.reset();
+        ExactNetworkStorageSnapshotCache.reset();
         Ae2OverclockUpgradeCountCache.clear();
         AssemblerMatrixBusyCountCache.clear();
         MethodHandleInvocationCache.clear();
@@ -104,6 +106,7 @@ public final class ACOServerLifecycle {
         Ae2OverclockUpgradeCountCache.clear();
         AssemblerMatrixBusyCountCache.clear();
         MethodHandleInvocationCache.clear();
+        ExactNetworkStorageSnapshotCache.reset();
         ServerTickClock.reset();
         BusFuzzySearchCache.clear();
         BusTransferSimulationCache.clear();

@@ -23,6 +23,12 @@ Automated tests cover:
 - physical Worker formula multiplication;
 - durable terminal receipt identity and explicit forget.
 - nine identical signed-long input slots without merged-input rejection.
+- exact NetworkStorage snapshot reuse within one tick;
+- same-tick invalidation after a storage generation change;
+- refusal to reuse a snapshot across ticks;
+- nested NetworkStorage reuse while an outer capture remains active;
+- full-grid terminal reuse of AE2's cached inventory with exact sidecars;
+- preservation of add-on-specific terminal inventory paths.
 
 ## Required Live Matrix
 
@@ -170,6 +176,18 @@ must return as output, never as both output and original input.
 - receipt recovery and fingerprint revalidation.
 
 Statistics must not iterate or print complete BigInteger inventories.
+
+For Issue #28 profiling, `/aco stats` should additionally report:
+
+- exact storage snapshot cache hits and misses;
+- nested network scans;
+- storage-generation invalidations;
+- full-grid terminal snapshot reuses.
+
+Repeat the same Spark capture with a Pattern Encoding Terminal open. Confirm
+that `BigIntegerStorageSnapshotBridge.collect()` and nested
+`NetworkStorage.getAvailableStacks()` no longer rebuild once per terminal plus
+once per `StorageService` refresh when no intervening storage mutation occurs.
 
 ## Disable Checks
 

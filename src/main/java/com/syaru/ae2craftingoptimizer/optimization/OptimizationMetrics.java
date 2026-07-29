@@ -44,6 +44,16 @@ public final class OptimizationMetrics {
     private static final LongAdder SEQUENTIAL_INSTANT_BUDGET_STOPS = new LongAdder();
     private static final LongAccumulator SEQUENTIAL_INSTANT_MAX_WAVE_NANOS =
             new LongAccumulator(Long::max, 0L);
+    private static final LongAdder EXACT_STORAGE_SNAPSHOT_CACHE_HITS =
+            new LongAdder();
+    private static final LongAdder EXACT_STORAGE_SNAPSHOT_CACHE_MISSES =
+            new LongAdder();
+    private static final LongAdder EXACT_STORAGE_NESTED_SCANS =
+            new LongAdder();
+    private static final LongAdder EXACT_STORAGE_SNAPSHOT_INVALIDATIONS =
+            new LongAdder();
+    private static final LongAdder EXACT_STORAGE_TERMINAL_REUSES =
+            new LongAdder();
     private static final LongAdder EXACT_VECTOR_PREPARED_PLANS =
             new LongAdder();
     private static final LongAdder EXACT_VECTOR_EXECUTOR_REJECTIONS =
@@ -175,6 +185,24 @@ public final class OptimizationMetrics {
         SEQUENTIAL_INSTANT_BUDGET_STOPS.increment();
     }
 
+    public static void recordExactStorageSnapshotCache(boolean hit) {
+        (hit
+                ? EXACT_STORAGE_SNAPSHOT_CACHE_HITS
+                : EXACT_STORAGE_SNAPSHOT_CACHE_MISSES).increment();
+    }
+
+    public static void recordExactStorageNestedScan() {
+        EXACT_STORAGE_NESTED_SCANS.increment();
+    }
+
+    public static void recordExactStorageSnapshotInvalidation() {
+        EXACT_STORAGE_SNAPSHOT_INVALIDATIONS.increment();
+    }
+
+    public static void recordExactStorageTerminalReuse() {
+        EXACT_STORAGE_TERMINAL_REUSES.increment();
+    }
+
     /** 所有方式ごとのTransaction開始を一回だけ数える。 */
     public static void recordExactVectorPreparedPlan() {
         EXACT_VECTOR_PREPARED_PLANS.increment();
@@ -270,6 +298,12 @@ public final class OptimizationMetrics {
                         + "/" + SEQUENTIAL_INSTANT_REQUESTED.sum() + " operation(s), "
                         + SEQUENTIAL_INSTANT_BUDGET_STOPS.sum() + " budget stop(s), max wave "
                         + (SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.get() / 1_000L) + " us",
+                "Exact storage snapshots: "
+                        + EXACT_STORAGE_SNAPSHOT_CACHE_HITS.sum() + " cache hit(s), "
+                        + EXACT_STORAGE_SNAPSHOT_CACHE_MISSES.sum() + " miss(es), "
+                        + EXACT_STORAGE_NESTED_SCANS.sum() + " nested scan(s), "
+                        + EXACT_STORAGE_SNAPSHOT_INVALIDATIONS.sum() + " invalidation(s), "
+                        + EXACT_STORAGE_TERMINAL_REUSES.sum() + " terminal reuse(s)",
                 "Physical crafting tree: starts host/network "
                         + EXACT_VECTOR_HOST_ESCROWED_STARTS.sum() + "/"
                         + EXACT_VECTOR_NETWORK_STORAGE_STARTS.sum()
@@ -340,6 +374,11 @@ public final class OptimizationMetrics {
         SEQUENTIAL_INSTANT_COMPLETED.reset();
         SEQUENTIAL_INSTANT_BUDGET_STOPS.reset();
         SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.reset();
+        EXACT_STORAGE_SNAPSHOT_CACHE_HITS.reset();
+        EXACT_STORAGE_SNAPSHOT_CACHE_MISSES.reset();
+        EXACT_STORAGE_NESTED_SCANS.reset();
+        EXACT_STORAGE_SNAPSHOT_INVALIDATIONS.reset();
+        EXACT_STORAGE_TERMINAL_REUSES.reset();
         EXACT_VECTOR_HOST_ESCROWED_STARTS.reset();
         EXACT_VECTOR_NETWORK_STORAGE_STARTS.reset();
         EXACT_VECTOR_PREPARED_PLANS.reset();
