@@ -4,11 +4,18 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.5] - 2026-07-29
+
 ### Added
 
 - Added `/aco stats` counters for exact NetworkStorage snapshot cache
   hits/misses, nested network scans, invalidations, and authoritative terminal
   snapshot reuse.
+- Added a default-enabled, separately configurable proof-qualified path for
+  ordinary signed-long plans. It bypasses Shadow warm-up only after the live
+  AE2 Pattern API, compiled topology, candidates, inventory, and generations
+  all pass strict validation.
+- Added the selected planner route to slow-calculation diagnostics.
 
 ### Fixed
 

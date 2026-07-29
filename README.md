@@ -48,6 +48,10 @@ config/ae2_crafting_optimizer-common.toml
 - `long` fast paths and bounded `BigInteger` promotion after overflow.
 - Cancellation and stale-result rejection when provider or recipe generations
   change.
+- Immediate compiled planning for ordinary `long` requests only after the
+  current AE2 Pattern API, input candidates, inventory, and generation all
+  pass the strict proof. Shadow history remains available as an additional
+  qualification path.
 
 Ambiguous substitutions, cycles, dynamic outputs, unsupported container
 returns, and other unproven behavior return to AE2 before storage mutation.

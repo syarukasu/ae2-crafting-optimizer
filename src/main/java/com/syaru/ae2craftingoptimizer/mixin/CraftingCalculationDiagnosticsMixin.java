@@ -103,7 +103,10 @@ public abstract class CraftingCalculationDiagnosticsMixin {
                 output,
                 requestedAmount,
                 cir.getReturnValue(),
-                System.nanoTime() - aco$calculationStartedAt);
+                System.nanoTime() - aco$calculationStartedAt,
+                aco$usedAuthoritativePlan
+                        ? "compiled-strict"
+                        : "ae2-fallback");
         // Authoritative結果を自分自身と比較して一致回数を水増しせず、AE2標準結果だけを教材にする。
         if (!aco$usedAuthoritativePlan) {
             Ae2CraftingShadowValidator.validate(

@@ -12,8 +12,10 @@ runtime qualification is P9 and is intentionally left to the pack operator.
 General deep behavior-changing paths are deliberately **disabled by default**.
 The narrow AQE profile is enabled only when Advanced AE and Advanced Quantum
 Engineering are both loaded. It activates compiled observation, checked
-arithmetic, exact wide-capacity planning, and BigInteger execution windows,
-without enabling native machine batches or general AE2 plan replacement.
+arithmetic, exact wide-capacity planning, BigInteger execution windows, and
+ordinary-long replacement only for roots whose current AE2 Pattern API,
+candidate set, inventory, and generations pass the strict proof. It does not
+enable native machine batches or ambiguous/general AE2 plan replacement.
 Clean build, Forge client bootstrap, and Arclight dedicated-server startup are
 qualified, but source completion and startup do not replace world-recovery or
 multiplayer qualification. Complete the runtime matrix below on a copied world
@@ -57,6 +59,7 @@ authoritativeMinimumShadowMatches = 64
 requireAqeBigPlanShadowQualification = false
 enableCompiledCraftingGraph = true
 enableAuthoritativeCompiledPlanner = false
+enableProofQualifiedLongPlans = true
 enableCheckedAe2CraftingArithmetic = true
 enableTransactionalBatchingV2 = false
 enableGtceuNativeBatching = false

@@ -26,4 +26,36 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
                 true,
                 false));
     }
+
+    @Test
+    void acceptsStrictlyProvenLongPlanWithoutShadowHistory() {
+        assertTrue(Ae2AuthoritativeCraftingPlanner.isQualifiedForReplacement(
+                false,
+                true,
+                false,
+                false));
+    }
+
+    @Test
+    void rejectsOrdinaryLongPlanWhenNeitherProofNorShadowQualifiesIt() {
+        assertFalse(Ae2AuthoritativeCraftingPlanner.isQualifiedForReplacement(
+                false,
+                false,
+                false,
+                false));
+    }
+
+    @Test
+    void honorsWidePlanShadowRequirement() {
+        assertFalse(Ae2AuthoritativeCraftingPlanner.isQualifiedForReplacement(
+                false,
+                true,
+                true,
+                true));
+        assertTrue(Ae2AuthoritativeCraftingPlanner.isQualifiedForReplacement(
+                false,
+                false,
+                true,
+                false));
+    }
 }
