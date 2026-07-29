@@ -177,6 +177,36 @@ The parent commit only:
 
 It does not create or insert output.
 
+## Exact Inventory Snapshot Reuse
+
+`NetworkStorageBigIntegerSnapshotMixin` still builds one saturated AE2
+`KeyCounter` facade plus one exact `BigInteger` sidecar. The completed pair is
+now reusable only when all of the following remain true:
+
+- the same `NetworkStorage` instance is queried;
+- the server tick is unchanged;
+- the global storage generation is unchanged;
+- the destination counter is empty.
+
+Real `NetworkStorage` insert/extract operations, mount changes, and AE2
+`StorageService.invalidateCache()` advance the shared generation immediately.
+An in-progress capture whose generation changes is discarded. The one-tick
+ceiling is intentional: an arbitrary storage add-on may not expose a durable
+content generation, so ACO does not retain its snapshot across ticks.
+
+Nested storage networks are still enumerated once when their current value is
+required. A second request for the same nested network in the same tick reuses
+the completed facade and exact sidecar instead of rebuilding every mounted
+storage.
+
+For a normal full-grid ME terminal,
+`MEStorageMenuGridSnapshotReuseMixin` copies
+`StorageService#getCachedInventory()`. This is AE2's own dirty-flag-controlled
+snapshot, not ACO's removed multi-tick menu cache. The optimization applies
+only when the menu inventory and grid inventory are the same object. Portable
+cells, ME chests, partitions, and add-on-specific inventory views use their
+original `MEStorage#getAvailableStacks()` path.
+
 ## Advanced AE Exact Job Accounting
 
 Gameplay orders whose individual Pattern or storage counters exceed signed

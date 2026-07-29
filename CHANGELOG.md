@@ -4,6 +4,28 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added `/aco stats` counters for exact NetworkStorage snapshot cache
+  hits/misses, nested network scans, invalidations, and authoritative terminal
+  snapshot reuse.
+
+### Fixed
+
+- Reused one complete exact BigInteger NetworkStorage snapshot only within the
+  same server tick and storage generation, preventing CrazyAE2 tracking
+  wrappers and multiple terminal/watchers from rebuilding the same nested
+  storage graph repeatedly.
+- Invalidated exact snapshot reuse after real insert/extract operations,
+  mount changes, and AE2 `StorageService.invalidateCache()` notifications.
+- Made full-grid ME terminals copy AE2's own authoritative
+  `StorageService#getCachedInventory()` snapshot instead of performing a
+  separate exact full-network scan. Portable cells, ME chests, filtered
+  inventories, and add-on-specific inventories retain their original path.
+- Preserved exact BigInteger sidecars when reusing a cached facade. No amount
+  is narrowed to signed `long`, and the removed multi-tick terminal cache
+  remains disabled.
+
 ## [1.5.4] - 2026-07-28
 
 ### Added

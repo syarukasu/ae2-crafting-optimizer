@@ -72,6 +72,15 @@ public final class BigKeyCounterSidecars {
         put(target, new Snapshot(visible, sourceSnapshot.complete()));
     }
 
+    /** long FacadeとBigInteger Sidecarを一つの独立したKeyCounterへ複製する。 */
+    public static KeyCounter copyOf(KeyCounter source) {
+        Objects.requireNonNull(source, "source");
+        KeyCounter copy = new KeyCounter();
+        copy.addAll(source);
+        copyVisible(source, copy);
+        return copy;
+    }
+
     /** KeyCounterに関連付けられた不変Snapshotを返す。 */
     public static Optional<Snapshot> snapshot(KeyCounter counter) {
         Objects.requireNonNull(counter, "counter");

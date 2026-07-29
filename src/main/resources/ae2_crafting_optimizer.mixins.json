@@ -53,6 +53,7 @@
     "GTCEuRecipeLogicIntentFastPathMixin",
     "KeyCounterBigIntegerSidecarLifecycleMixin",
     "ListCraftingInventoryExactCountsMixin",
+    "MEStorageMenuGridSnapshotReuseMixin",
     "MekanismRecipeIntentFastPathMixin",
     "MultiCraftingTrackerCraftRequestThrottleMixin",
     "NeoEcoCraftingCpuExecutionBudgetMixin",
@@ -68,6 +69,7 @@
     "ExtendedAePlusBigIntegerCellConsistencyMixin",
     "ExtendedAePlusInfinityDataStorageConsistencyMixin",
     "MekanismCachedRecipeAccessor",
+    "StorageServiceExactSnapshotInvalidationMixin",
     "P2PServiceTopologyDeduplicationMixin"
   ],
   "client": [
