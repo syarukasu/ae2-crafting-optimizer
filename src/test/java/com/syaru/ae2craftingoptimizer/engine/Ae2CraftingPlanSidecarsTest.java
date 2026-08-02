@@ -13,8 +13,9 @@ import appeng.crafting.CraftingPlan;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -126,7 +127,7 @@ class Ae2CraftingPlanSidecarsTest {
         }
 
         @Override
-        public CompoundTag toTag() {
+        public CompoundTag toTag(HolderLookup.Provider registries) {
             return new CompoundTag();
         }
 
@@ -137,11 +138,13 @@ class Ae2CraftingPlanSidecarsTest {
 
         @Override
         public ResourceLocation getId() {
-            return new ResourceLocation("ae2_crafting_optimizer", "sidecar_test");
+            return ResourceLocation.fromNamespaceAndPath(
+                    "ae2_crafting_optimizer",
+                    "sidecar_test");
         }
 
         @Override
-        public void writeToPacket(FriendlyByteBuf buffer) {
+        public void writeToPacket(RegistryFriendlyByteBuf buffer) {
             // このテストはPacket同期を行わないため書き込みは不要。
         }
 
@@ -157,6 +160,11 @@ class Ae2CraftingPlanSidecarsTest {
                 Level level,
                 BlockPos pos) {
             // このテストはワールド内ドロップを作らないため処理は不要。
+        }
+
+        @Override
+        public boolean hasComponents() {
+            return false;
         }
     }
 }

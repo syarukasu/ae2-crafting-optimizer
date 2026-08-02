@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-08-02
+
+### Added
+
+- Added a dedicated NeoForge 1.21.1 release line using Java 21.
+- Added pinned compatibility for AE2 19.2.17, Advanced AE 1.6.11, and
+  Neo ECO AE Extension 21.1.1.
+- Added NeoForge 1.21.1 registry, data-pack, networking, persistence, and
+  Mixin target contracts.
+
+### Changed
+
+- Migrated the production build from ForgeGradle/Forge 1.20.1 to
+  NeoForge ModDevGradle and NeoForge 21.1.247.
+- Preserved ACO's checked arithmetic, exact BigInteger accounting, compiled
+  planning, CPU budgets, transaction recovery, and optional AQE/AAC APIs on
+  the new platform.
+- Kept the 1.20.1 release history and artifacts on the 1.5.x line.
+
 ## [1.5.5] - 2026-07-29
 
 ### Added

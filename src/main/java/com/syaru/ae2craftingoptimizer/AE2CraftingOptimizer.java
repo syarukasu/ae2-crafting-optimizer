@@ -7,12 +7,12 @@ import com.syaru.ae2craftingoptimizer.command.ACOIntentCommands;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.lifecycle.ACOServerLifecycle;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import org.slf4j.Logger;
 
 /**
@@ -27,14 +27,13 @@ public final class AE2CraftingOptimizer {
     public static final String MOD_NAME = "AE2 Crafting Optimizer";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public AE2CraftingOptimizer() {
-        BigCraftingNetwork.register();
-        IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
-        ACOConfig.register();
+    public AE2CraftingOptimizer(IEventBus modBus, ModContainer container) {
+        ACOConfig.register(container);
         PatternBatchApi.registerBuiltIns();
         PatternBatchV2Api.registerBuiltIns();
+        modBus.addListener(BigCraftingNetwork::register);
         modBus.addListener(this::commonSetup);
-        MinecraftForge.EVENT_BUS.addListener(this::onRegisterCommands);
+        NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         ACOServerLifecycle.register();
     }
 

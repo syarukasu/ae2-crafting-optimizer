@@ -15,10 +15,10 @@ import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 import org.jetbrains.annotations.Nullable;
 
 public final class PatternProviderBatchEligibility {
@@ -156,11 +156,11 @@ public final class PatternProviderBatchEligibility {
     }
 
     private static boolean hasAllowedNamespace(BlockEntity target, List<String> allowedNamespaces) {
-        ResourceLocation blockEntityType = ForgeRegistries.BLOCK_ENTITY_TYPES.getKey(target.getType());
+        ResourceLocation blockEntityType = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(target.getType());
         if (blockEntityType != null && allowedNamespaces.contains(blockEntityType.getNamespace())) {
             return true;
         }
-        ResourceLocation block = ForgeRegistries.BLOCKS.getKey(target.getBlockState().getBlock());
+        ResourceLocation block = BuiltInRegistries.BLOCK.getKey(target.getBlockState().getBlock());
         return block != null && allowedNamespaces.contains(block.getNamespace());
     }
 
@@ -169,7 +169,7 @@ public final class PatternProviderBatchEligibility {
             BlockPos targetPos,
             Direction targetSide,
             BlockEntity target) {
-        ICraftingMachine craftingMachine = ICraftingMachine.of(level, targetPos, targetSide, target);
+        ICraftingMachine craftingMachine = ICraftingMachine.of(target, targetSide);
         return craftingMachine != null && craftingMachine.acceptsPlans();
     }
 

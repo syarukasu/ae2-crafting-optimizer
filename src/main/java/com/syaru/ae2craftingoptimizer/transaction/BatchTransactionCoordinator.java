@@ -8,6 +8,7 @@ import java.util.Objects;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.saveddata.SavedData;
 
 /**
  * 一回のNative Batchと永続Journalを結ぶ状態遷移窓口。
@@ -54,8 +55,7 @@ public final class BatchTransactionCoordinator {
 
     public static BatchTransactionJournal journal(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(
-                BatchTransactionJournal::load,
-                BatchTransactionJournal::new,
+                new SavedData.Factory<>(BatchTransactionJournal::new, BatchTransactionJournal::load),
                 BatchTransactionJournal.DATA_NAME);
     }
 

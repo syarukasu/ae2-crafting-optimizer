@@ -90,7 +90,7 @@ public abstract class ClientRepoUpdateCoalescingMixin {
         }
 
         var viewMode = sortSrc.getSortDisplay();
-        var typeFilter = sortSrc.getTypeFilter().getFilter();
+        var visibleKeyTypes = sortSrc.getSortKeyTypes();
         List<GridInventoryEntry> candidates = new ArrayList<>(entries.size());
         for (GridInventoryEntry entry : entries.values()) {
             if (viewMode == ViewItems.CRAFTABLE && !entry.isCraftable()) {
@@ -99,7 +99,7 @@ public abstract class ClientRepoUpdateCoalescingMixin {
             if (viewMode == ViewItems.STORED && entry.getStoredAmount() == 0) {
                 continue;
             }
-            if (!typeFilter.matches(entry.getWhat())) {
+            if (!visibleKeyTypes.contains(entry.getWhat().getType())) {
                 continue;
             }
             candidates.add(entry);

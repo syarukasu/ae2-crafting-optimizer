@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,7 @@ class BatchTransactionRecordTest {
         saved.putInt("schema", 1);
         saved.put("transactions", entries);
 
-        BatchTransactionJournal restored = BatchTransactionJournal.load(saved);
+        BatchTransactionJournal restored = BatchTransactionJournal.load(saved, RegistryAccess.EMPTY);
 
         assertEquals(1, restored.size());
         assertEquals(BatchTransactionPhase.QUARANTINED, restored.get(quarantined.id()).phase());
@@ -67,12 +68,12 @@ class BatchTransactionRecordTest {
         entries.add(malformed);
         saved.put("transactions", entries);
 
-        BatchTransactionJournal restored = BatchTransactionJournal.load(saved);
+        BatchTransactionJournal restored = BatchTransactionJournal.load(saved, RegistryAccess.EMPTY);
 
         assertFalse(restored.isHealthy());
         assertEquals(1, restored.size());
         assertFalse(restored.putPrepared(record(), 16));
-        assertEquals(1, restored.save(new CompoundTag())
+        assertEquals(1, restored.save(new CompoundTag(), RegistryAccess.EMPTY)
                 .getList("malformedTransactions", net.minecraft.nbt.Tag.TAG_COMPOUND)
                 .size());
     }
@@ -83,11 +84,13 @@ class BatchTransactionRecordTest {
         saved.putInt("schema", 99);
         saved.putString("futureData", "keep-me");
 
-        BatchTransactionJournal restored = BatchTransactionJournal.load(saved);
+        BatchTransactionJournal restored = BatchTransactionJournal.load(saved, RegistryAccess.EMPTY);
 
         assertFalse(restored.isHealthy());
         assertFalse(restored.putPrepared(record(), 16));
-        assertEquals("keep-me", restored.save(new CompoundTag()).getString("futureData"));
+        assertEquals(
+                "keep-me",
+                restored.save(new CompoundTag(), RegistryAccess.EMPTY).getString("futureData"));
     }
 
     @Test
@@ -100,7 +103,7 @@ class BatchTransactionRecordTest {
         entries.add(duplicate.save());
         saved.put("transactions", entries);
 
-        BatchTransactionJournal restored = BatchTransactionJournal.load(saved);
+        BatchTransactionJournal restored = BatchTransactionJournal.load(saved, RegistryAccess.EMPTY);
 
         assertFalse(restored.isHealthy());
         assertEquals(2, restored.size());

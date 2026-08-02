@@ -2236,7 +2236,7 @@ public final class PhysicalCraftingTreeTransaction {
             encoded.put(
                     "key",
                     entry.getKey()
-                            .toTagGeneric());
+                            .toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
             PreparedVectorBatchCodec.putNonNegative(
                     encoded,
                     "amount",
@@ -2301,7 +2301,7 @@ public final class PhysicalCraftingTreeTransaction {
                     list.getCompound(
                             index);
             AEKey key =
-                    AEKey.fromTagGeneric(
+                    AEKey.fromTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(),
                             encoded.getCompound(
                                     "key"));
             BigInteger amount =
@@ -2409,7 +2409,7 @@ public final class PhysicalCraftingTreeTransaction {
                             "|slot:")
                     .append(
                             input.key()
-                                    .toTagGeneric())
+                                    .toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()))
                     .append('@')
                     .append(
                             input.amountPerExecution());

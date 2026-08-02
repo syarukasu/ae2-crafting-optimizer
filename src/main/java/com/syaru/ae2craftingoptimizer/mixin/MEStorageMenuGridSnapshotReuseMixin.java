@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 @Mixin(value = MEStorageMenu.class, priority = 900, remap = false)
 public abstract class MEStorageMenuGridSnapshotReuseMixin {
     @Redirect(
-            method = "m_38946_",
+            method = "broadcastChanges",
             at = @At(
                     value = "INVOKE",
                     target = "Lappeng/api/storage/MEStorage;getAvailableStacks()Lappeng/api/stacks/KeyCounter;"),
@@ -27,6 +27,6 @@ public abstract class MEStorageMenuGridSnapshotReuseMixin {
         MEStorageMenu menu = (MEStorageMenu) (Object) this;
         return GridStorageSnapshotBridge.availableStacks(
                 menuStorage,
-                menu.getNetworkNode());
+                menu.getGridNode());
     }
 }

@@ -121,7 +121,7 @@ public final class ProviderPatternGenerationTracker {
             return new PatternSnapshot(
                     pattern.getClass().getName(),
                     pattern.getDefinition(),
-                    List.of(pattern.getOutputs().clone()),
+                    List.copyOf(pattern.getOutputs()),
                     List.copyOf(inputs),
                     pattern.supportsPushInputsToExternalInventory());
         }

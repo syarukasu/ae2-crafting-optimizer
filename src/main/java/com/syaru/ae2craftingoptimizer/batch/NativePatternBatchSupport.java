@@ -86,20 +86,20 @@ public final class NativePatternBatchSupport {
             value.append("|i");
             for (var entry : counter) {
                 value.append(':')
-                        .append(entry.getKey().toTagGeneric())
+                        .append(entry.getKey().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()))
                         .append('@')
                         .append(entry.getLongValue());
             }
         }
         for (var entry : context.copyOutputsPerExecution()) {
             value.append("|o:")
-                    .append(entry.getKey().toTagGeneric())
+                    .append(entry.getKey().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()))
                     .append('@')
                     .append(entry.getLongValue());
         }
         for (var entry : context.copyRemainingOutputsPerExecution()) {
             value.append("|r:")
-                    .append(entry.getKey().toTagGeneric())
+                    .append(entry.getKey().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()))
                     .append('@')
                     .append(entry.getLongValue());
         }

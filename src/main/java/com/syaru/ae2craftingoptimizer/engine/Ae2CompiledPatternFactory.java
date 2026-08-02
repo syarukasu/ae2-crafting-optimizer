@@ -54,19 +54,19 @@ final class Ae2CompiledPatternFactory {
         StringBuilder fingerprint = new StringBuilder(192);
         fingerprint.append(details.getClass().getName())
                 .append('|')
-                .append(details.getDefinition().toTagGeneric());
+                .append(details.getDefinition().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
         for (IPatternDetails.IInput input : details.getInputs()) {
             fingerprint.append("|i:").append(input.getMultiplier());
             for (GenericStack possible : input.getPossibleInputs()) {
                 fingerprint.append(':')
-                        .append(possible.what().toTagGeneric())
+                        .append(possible.what().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()))
                         .append('@')
                         .append(possible.amount());
             }
         }
         for (GenericStack output : details.getOutputs()) {
             fingerprint.append("|o:")
-                    .append(output.what().toTagGeneric())
+                    .append(output.what().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()))
                     .append('@')
                     .append(output.amount());
         }

@@ -248,8 +248,8 @@ public final class ExactPatternFormula {
     }
 
     private static List<GenericStack> checkedStacks(
-            GenericStack[] source) {
-        List<GenericStack> result = new ArrayList<>(source.length);
+            List<? extends GenericStack> source) {
+        List<GenericStack> result = new ArrayList<>(source.size());
         for (GenericStack stack : source) {
             if (stack == null || stack.amount() <= 0L) {
                 throw new IllegalArgumentException(

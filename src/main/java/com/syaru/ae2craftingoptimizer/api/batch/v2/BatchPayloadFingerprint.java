@@ -32,7 +32,7 @@ public final class BatchPayloadFingerprint {
         target.append('|').append(name);
         for (GenericStack stack : stacks) {
             target.append('|')
-                    .append(stack.what().toTagGeneric())
+                    .append(stack.what().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()))
                     .append('@')
                     .append(stack.amount());
         }

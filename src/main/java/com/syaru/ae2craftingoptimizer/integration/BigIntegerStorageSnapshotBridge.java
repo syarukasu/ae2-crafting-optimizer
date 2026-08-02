@@ -4,10 +4,10 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
+import com.syaru.ae2craftingoptimizer.access.DelegatingMEInventoryAccess;
+import com.syaru.ae2craftingoptimizer.access.ExtendedAePlusBigIntegerCellInventoryAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
-import com.syaru.ae2craftingoptimizer.mixin.DelegatingMEInventoryAccessor;
-import com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventoryAccessor;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
@@ -80,7 +80,7 @@ public final class BigIntegerStorageSnapshotBridge {
         MEStorage exactStorage = unwrapDelegates(storage);
         // DriveWatcher等の内側にあるInfinityBigIntegerCellから、正確な内部Mapを読む。
         if (exactStorage
-                instanceof ExtendedAePlusBigIntegerCellInventoryAccessor accessor) {
+                instanceof ExtendedAePlusBigIntegerCellInventoryAccess accessor) {
             try {
                 Map<AEKey, BigInteger> copy = new LinkedHashMap<>();
                 /*
@@ -119,11 +119,11 @@ public final class BigIntegerStorageSnapshotBridge {
         // AE2やアドオンの委譲Storageだけを上限付きで辿り、任意Reflectionは使用しない。
         for (int depth = 0; depth < MAXIMUM_DELEGATE_DEPTH; depth++) {
             // BigIntegerセル本体へ到達したら、それ以上委譲先を探さない。
-            if (current instanceof ExtendedAePlusBigIntegerCellInventoryAccessor) {
+            if (current instanceof ExtendedAePlusBigIntegerCellInventoryAccess) {
                 return current;
             }
             // AE2標準DelegatingMEInventory以外は、安全に内部Storageを取得できないため停止する。
-            if (!(current instanceof DelegatingMEInventoryAccessor delegating)) {
+            if (!(current instanceof DelegatingMEInventoryAccess delegating)) {
                 return current;
             }
             MEStorage next = delegating.aco$getDelegateStorage();

@@ -1,5 +1,5 @@
 modLoader = "javafml"
-loaderVersion = "[47,)"
+loaderVersion = "[4,)"
 license = "LGPL-3.0-only"
 issueTrackerURL = "https://github.com/syarukasu/ae2-crafting-optimizer/issues"
 
@@ -15,65 +15,61 @@ Configurable Applied Energistics 2 crafting, execution, machine-intent, and sync
 AE2 remains authoritative for recipes, crafting eligibility, job submission, and storage mutation.
 '''
 
+[[mixins]]
+config = "ae2_crafting_optimizer.mixins.json"
+
 [[dependencies.ae2_crafting_optimizer]]
-modId = "forge"
-mandatory = true
-versionRange = "[47.4.18,)"
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1.247,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.ae2_crafting_optimizer]]
 modId = "minecraft"
-mandatory = true
-versionRange = "[1.20.1,1.20.2)"
+type = "required"
+versionRange = "[1.21.1,1.21.2)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.ae2_crafting_optimizer]]
 modId = "ae2"
-mandatory = true
-versionRange = "[15.4.10,15.5.0)"
+type = "required"
+versionRange = "[19.2.17,20)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.ae2_crafting_optimizer]]
 modId = "neoecoae"
-mandatory = false
-versionRange = "[20.3.0,20.4.0)"
-ordering = "AFTER"
-side = "BOTH"
-
-[[dependencies.ae2_crafting_optimizer]]
-modId = "appliede"
-mandatory = false
-versionRange = "[0.14.3,0.15.0)"
+type = "optional"
+versionRange = "[21.1.1,22)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.ae2_crafting_optimizer]]
 modId = "advanced_ae"
-mandatory = false
-versionRange = "[1.3.5-1.20.1,1.3.6-1.20.1)"
+type = "optional"
+versionRange = "[1.6.11,2)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.ae2_crafting_optimizer]]
 modId = "gtceu"
-mandatory = false
-versionRange = "[7.5.3,7.5.4)"
+type = "optional"
+versionRange = "*"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.ae2_crafting_optimizer]]
 modId = "mekanism"
-mandatory = false
-versionRange = "[10.4.16,10.4.17)"
+type = "optional"
+versionRange = "*"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.ae2_crafting_optimizer]]
 modId = "appmek"
-mandatory = false
-versionRange = "[1.4.3,1.4.4)"
+type = "optional"
+versionRange = "*"
 ordering = "AFTER"
 side = "BOTH"

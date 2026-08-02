@@ -665,7 +665,7 @@ public final class TransactionalCraftingExecutorV2 {
                         "prepared batch contains a null or non-positive stack");
             }
             result.add(new ComparableStack(
-                    stack.what().toTagGeneric().toString(),
+                    stack.what().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()).toString(),
                     stack.amount()));
         }
         result.sort(Comparator.comparing(ComparableStack::key)

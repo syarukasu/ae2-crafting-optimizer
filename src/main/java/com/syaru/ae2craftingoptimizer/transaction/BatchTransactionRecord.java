@@ -252,7 +252,7 @@ public final class BatchTransactionRecord {
     private static ListTag writeStacks(List<GenericStack> stacks) {
         ListTag list = new ListTag();
         for (GenericStack stack : stacks) {
-            list.add(GenericStack.writeTag(stack));
+            list.add(GenericStack.writeTag(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(), stack));
         }
         return list;
     }
@@ -263,7 +263,7 @@ public final class BatchTransactionRecord {
         }
         List<GenericStack> result = new ArrayList<>(list.size());
         for (int index = 0; index < list.size(); index++) {
-            GenericStack stack = GenericStack.readTag(list.getCompound(index));
+            GenericStack stack = GenericStack.readTag(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(), list.getCompound(index));
             if (stack == null) {
                 throw new IllegalArgumentException("invalid GenericStack at index " + index);
             }

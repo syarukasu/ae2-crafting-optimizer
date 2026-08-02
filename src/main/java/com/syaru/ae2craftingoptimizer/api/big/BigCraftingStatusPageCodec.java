@@ -7,7 +7,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 
 /** Strict status-page packet codec with protocol, entry, magnitude, and byte bounds. */
 public final class BigCraftingStatusPageCodec<K> {
@@ -36,7 +36,7 @@ public final class BigCraftingStatusPageCodec<K> {
         this.maximumPageEntries = maximumPageEntries;
     }
 
-    public void write(FriendlyByteBuf buffer, BigCraftingStatusPage<K> page) {
+    public void write(RegistryFriendlyByteBuf buffer, BigCraftingStatusPage<K> page) {
         Objects.requireNonNull(buffer, "buffer");
         Objects.requireNonNull(page, "page");
         if (page.jobs().size() > maximumPageEntries) {
@@ -68,7 +68,7 @@ public final class BigCraftingStatusPageCodec<K> {
         }
     }
 
-    public BigCraftingStatusPage<K> read(FriendlyByteBuf buffer) {
+    public BigCraftingStatusPage<K> read(RegistryFriendlyByteBuf buffer) {
         Objects.requireNonNull(buffer, "buffer");
         if (buffer.readableBytes() > HARD_MAXIMUM_PACKET_BYTES) {
             throw new IllegalArgumentException("BigInteger status packet exceeds hard byte cap");
@@ -119,7 +119,7 @@ public final class BigCraftingStatusPageCodec<K> {
         return new BigCraftingStatusPage<>(runtimeId, capacity, reserved, available, totalJobs, offset, jobs);
     }
 
-    private static int readBoundedNonNegative(FriendlyByteBuf buffer, String name, int maximum) {
+    private static int readBoundedNonNegative(RegistryFriendlyByteBuf buffer, String name, int maximum) {
         int value = buffer.readVarInt();
         if (value < 0 || value > maximum) {
             throw new IllegalArgumentException(name + " is outside its packet bound");

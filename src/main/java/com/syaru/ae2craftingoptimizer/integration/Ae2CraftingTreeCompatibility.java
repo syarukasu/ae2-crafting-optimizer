@@ -5,7 +5,7 @@ import appeng.crafting.CraftingPlan;
 import appeng.menu.me.crafting.CraftingPlanSummary;
 import java.lang.reflect.Method;
 import java.util.Objects;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /**
  * AE2 Crafting TreeがCraftingPlanSummaryへ追加するRecipeHelperを任意連携で初期化する。

@@ -5,7 +5,6 @@ import appeng.api.networking.IGrid;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
-import appeng.core.AEConfig;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import java.math.BigInteger;
 import java.util.Objects;
@@ -99,15 +98,15 @@ final class Ae2ReferencedInventory {
         if (cached <= 0L) {
             return 0L;
         }
-        // AE2設定がsimulation extractionを要求する場合だけ、実際に取り出せる量へ絞る。
-        if (AEConfig.instance().isCraftingSimulatedExtraction()) {
-            return storage.getInventory().extract(
-                    key,
-                    cached,
-                    Actionable.SIMULATE,
-                    source);
+        // 1.21.1 AE2と同様、Player注文だけは直前の実在庫を再検証する。
+        if (source.player().isEmpty()) {
+            return cached;
         }
-        return cached;
+        return storage.getInventory().extract(
+                key,
+                cached,
+                Actionable.SIMULATE,
+                source);
     }
 
     private static BigInteger liveExactAmount(
@@ -121,8 +120,8 @@ final class Ae2ReferencedInventory {
         if (cachedExact.signum() == 0) {
             return BigInteger.ZERO;
         }
-        // Simulation無効時は、セルから取得した正確なBigInteger値を正本とする。
-        if (!AEConfig.instance().isCraftingSimulatedExtraction()) {
+        // 自動要求は1.21.1 AE2と同様にCached Inventoryを正本とする。
+        if (source.player().isEmpty()) {
             return cachedExact;
         }
 

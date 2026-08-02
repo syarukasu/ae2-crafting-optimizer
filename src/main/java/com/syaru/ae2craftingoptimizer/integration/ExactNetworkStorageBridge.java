@@ -7,11 +7,11 @@ import appeng.api.stacks.AEKey;
 import appeng.api.storage.MEStorage;
 import appeng.me.storage.NetworkStorage;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
+import com.syaru.ae2craftingoptimizer.access.DelegatingMEInventoryAccess;
+import com.syaru.ae2craftingoptimizer.access.ExtendedAePlusBigIntegerCellInventoryAccess;
+import com.syaru.ae2craftingoptimizer.access.NetworkStorageMountsAccess;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactStorageMutationResult;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorStoragePolicy;
-import com.syaru.ae2craftingoptimizer.mixin.DelegatingMEInventoryAccessor;
-import com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventoryAccessor;
-import com.syaru.ae2craftingoptimizer.mixin.NetworkStorageMountsAccessor;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -142,7 +142,7 @@ public final class ExactNetworkStorageBridge {
         if (!(networkInventory
                         instanceof NetworkStorage)
                 || !(networkInventory
-                        instanceof NetworkStorageMountsAccessor accessor)) {
+                        instanceof NetworkStorageMountsAccess accessor)) {
             return Optional.empty();
         }
 
@@ -212,7 +212,7 @@ public final class ExactNetworkStorageBridge {
         if (!(networkInventory
                         instanceof NetworkStorage)
                 || !(networkInventory
-                        instanceof NetworkStorageMountsAccessor accessor)) {
+                        instanceof NetworkStorageMountsAccess accessor)) {
             return Optional.empty();
         }
         Map<AEKey, BigInteger> totals =
@@ -500,7 +500,7 @@ public final class ExactNetworkStorageBridge {
 
         MEStorage networkInventory = grid.getStorageService().getInventory();
         if (!(networkInventory instanceof NetworkStorage)
-                || !(networkInventory instanceof NetworkStorageMountsAccessor accessor)) {
+                || !(networkInventory instanceof NetworkStorageMountsAccess accessor)) {
             return null;
         }
         NavigableMap<Integer, List<MEStorage>> mounts =
@@ -635,10 +635,10 @@ public final class ExactNetworkStorageBridge {
         // AE2標準DelegatingMEInventoryの内側だけを辿り、任意Reflectionは行わない。
         for (int depth = 0; depth < MAXIMUM_DELEGATE_DEPTH; depth++) {
             if (current
-                    instanceof ExtendedAePlusBigIntegerCellInventoryAccessor accessor) {
+                    instanceof ExtendedAePlusBigIntegerCellInventoryAccess accessor) {
                 return new ResolvedExactStorage(accessor);
             }
-            if (!(current instanceof DelegatingMEInventoryAccessor delegating)) {
+            if (!(current instanceof DelegatingMEInventoryAccess delegating)) {
                 return null;
             }
             MEStorage next = delegating.aco$getDelegateStorage();
@@ -654,7 +654,7 @@ public final class ExactNetworkStorageBridge {
     private static AppliedStep apply(
             MutationStep step,
             Direction direction) {
-        ExtendedAePlusBigIntegerCellInventoryAccessor accessor = step.accessor();
+        ExtendedAePlusBigIntegerCellInventoryAccess accessor = step.accessor();
         /*
          * 空のInfinity Cellへ初めて直接挿入する場合だけ、ExtendedAE Plus自身の
          * UUID/SavedData生成処理を一度使う。数量Windowは作らない。
@@ -753,7 +753,7 @@ public final class ExactNetworkStorageBridge {
     }
 
     private static BigInteger authoritativeTotal(
-            ExtendedAePlusBigIntegerCellInventoryAccessor accessor,
+            ExtendedAePlusBigIntegerCellInventoryAccess accessor,
             Object2ObjectMap<AEKey, BigInteger> amounts) {
         BigInteger total =
                 ExactBigIntegerCellConsistency.authoritativeTotal(
@@ -792,7 +792,7 @@ public final class ExactNetworkStorageBridge {
     }
 
     private record MutationStep(
-            ExtendedAePlusBigIntegerCellInventoryAccessor accessor,
+            ExtendedAePlusBigIntegerCellInventoryAccess accessor,
             Object2ObjectMap<AEKey, BigInteger> amounts,
             AEKey key,
             BigInteger beforeAmount,
@@ -808,7 +808,7 @@ public final class ExactNetworkStorageBridge {
     }
 
     private record ResolvedExactStorage(
-            ExtendedAePlusBigIntegerCellInventoryAccessor accessor) {
+            ExtendedAePlusBigIntegerCellInventoryAccess accessor) {
         private Object2ObjectMap<AEKey, BigInteger> currentMap() {
             return accessor.aco$getExactStoredAmounts();
         }

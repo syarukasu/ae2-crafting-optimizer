@@ -1,8 +1,14 @@
 # Experimental Crafting Engine
 
+> ACO 1.6.0 targets NeoForge 1.21.1, Java 21, AE2 19.2.17, Advanced AE
+> 1.6.11-1.21.1, and Neo ECO AE Extension 21.1.1. Sections that describe the
+> original GTCEu/Mekanism native adapters are retained as design history;
+> those native adapters are excluded from the 1.21.1 build until their changed
+> machine APIs receive a separate audit.
+
 ## Status
 
-The `1.4.1` development branch contains
+The `1.6.0` release line contains
 ACO's opt-in next-generation crafting backend. Its pure-Java engine, persistent
 transaction protocol, native adapter boundaries, fair scheduler, BigInteger
 sidecar runtime, and bounded status protocol are implemented and covered by
@@ -16,22 +22,20 @@ arithmetic, exact wide-capacity planning, BigInteger execution windows, and
 ordinary-long replacement only for roots whose current AE2 Pattern API,
 candidate set, inventory, and generations pass the strict proof. It does not
 enable native machine batches or ambiguous/general AE2 plan replacement.
-Clean build, Forge client bootstrap, and Arclight dedicated-server startup are
-qualified, but source completion and startup do not replace world-recovery or
-multiplayer qualification. Complete the runtime matrix below on a copied world
-before any experimental child switch is enabled.
+Automated tests and a clean NeoForge production build qualify the source and
+artifact. They do not replace world-recovery or multiplayer qualification.
+Complete the runtime matrix below on a copied world before any experimental
+child switch is enabled.
 The explicit-host BigInteger API is enabled by default, but it has no effect
-unless a compatible add-on such as AQE 2.1.2 registers a host.
+unless a compatible add-on such as AQE 2.3.0 registers a host.
 
 The code was compiled against these exact integration targets:
 
 | Dependency | Verified version |
 | --- | --- |
-| Applied Energistics 2 | `15.4.10` |
-| Advanced AE | `1.3.5-1.20.1` |
-| GTCEu Modern | `7.5.3` |
-| Mekanism | `10.4.16.80` |
-| Applied Mekanistics | `1.4.3` |
+| Applied Energistics 2 | `19.2.17` |
+| Advanced AE | `1.6.11-1.21.1` |
+| Neo ECO AE Extension | `21.1.1` |
 
 Optional native adapter classes are not loaded while their child switch is off.
 When enabled, they are registered only when every required mod has the exact
@@ -39,8 +43,8 @@ verified version. A startup audit then verifies both registration and the
 required Accessor Mixin transformations; an explicitly enabled but unsupported
 combination fails with a targeted error instead of silently running a partial
 integration. Enabling the experimental master also requires AE2 exactly
-`15.4.10`; V2 or fair scheduling with Advanced AE loaded requires exactly
-`1.3.5-1.20.1`.
+`19.2.17`; V2 or fair scheduling with Advanced AE loaded requires exactly
+`1.6.11-1.21.1`.
 
 ## Configuration
 
@@ -200,7 +204,7 @@ STAGED
   proven partial list. Legacy schema-1 `EXTRACTING` data has no such evidence
   and remains quarantined rather than guessing.
 - `ENERGY_ACCOUNTING` and per-entry `OUTPUT_ACCOUNTING` remain uncertainty
-  barriers because AE2 15.4.10 provides no idempotent transaction ID for those
+  barriers because AE2 19.2.17 provides no idempotent transaction ID for those
   side effects. Recovery quarantines instead of charging twice or duplicating a
   waiting output.
 - Malformed state, contradictory receipts, partial native acceptance, or an

@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.ToLongFunction;
 
-/** AE2 15.4.10の線形CraftingTreeと同じ順番でCPU bytesを再計算する。 */
+/** AE2 19.2.17の線形CraftingTreeと同じ順番でCPU bytesを再計算する。 */
 public final class ExactCraftingByteCounter<K> {
     private final Map<K, CompiledPattern<K>> patterns;
     private final Map<String, Long> executions;

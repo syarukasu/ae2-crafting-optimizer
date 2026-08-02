@@ -15,19 +15,30 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Java 17
+      - name: Set up Java 21
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Download pinned 1.21.1 mod dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-mods
+          curl -fL -o .ci-mods/appliedenergistics2-19.2.17.jar https://edge.forgecdn.net/files/7027/323/appliedenergistics2-19.2.17.jar
+          curl -fL -o .ci-mods/guideme-21.1.17.jar https://edge.forgecdn.net/files/8420/861/guideme-21.1.17.jar
+          curl -fL -o .ci-mods/AdvancedAE-1.6.11-1.21.1.jar https://edge.forgecdn.net/files/7849/217/AdvancedAE-1.6.11-1.21.1.jar
+          curl -fL -o .ci-mods/neoecoae-21.1.1.jar https://edge.forgecdn.net/files/8463/264/neoecoae-21.1.1.jar
+          curl -fL -o .ci-mods/ldlib2-neoforge-1.21.1-2.2.32-all.jar https://edge.forgecdn.net/files/8554/985/ldlib2-neoforge-1.21.1-2.2.32-all.jar
+
       - name: Build
         run: |
           chmod +x gradlew
-          ./gradlew clean build --stacktrace
+          ./gradlew clean build --stacktrace -PacoLocalModsDir="$GITHUB_WORKSPACE/.ci-mods"
 
       - name: Upload jar
         uses: actions/upload-artifact@v6

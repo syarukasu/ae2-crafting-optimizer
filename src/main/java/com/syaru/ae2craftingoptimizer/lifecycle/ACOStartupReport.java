@@ -8,7 +8,7 @@ import com.syaru.ae2craftingoptimizer.api.big.BigCraftingEngineApi;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /** 起動時に有効機能と安全上限を一度だけ報告する。 */
 final class ACOStartupReport {

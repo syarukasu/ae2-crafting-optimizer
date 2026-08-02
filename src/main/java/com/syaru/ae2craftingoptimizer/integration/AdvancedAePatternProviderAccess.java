@@ -3,7 +3,7 @@ package com.syaru.ae2craftingoptimizer.integration;
 import appeng.api.crafting.IPatternDetails;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
 import net.pedroksl.advanced_ae.common.logic.AdvPatternProviderLogicHost;
-import net.pedroksl.advanced_ae.common.patterns.AdvPatternDetails;
+import net.pedroksl.advanced_ae.common.patterns.IAdvPatternDetails;
 import org.jetbrains.annotations.Nullable;
 
 /** Isolates direct Advanced AE references so common code remains safe without the optional mod. */
@@ -12,7 +12,7 @@ public final class AdvancedAePatternProviderAccess {
     }
 
     public static boolean hasDirectionalInputs(IPatternDetails pattern) {
-        return pattern instanceof AdvPatternDetails advancedPattern
+        return pattern instanceof IAdvPatternDetails advancedPattern
                 && advancedPattern.directionalInputsSet();
     }
 

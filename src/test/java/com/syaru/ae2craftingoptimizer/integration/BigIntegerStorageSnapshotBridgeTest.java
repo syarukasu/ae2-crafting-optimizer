@@ -9,8 +9,8 @@ import appeng.api.stacks.AEKeyType;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
 import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
-import com.syaru.ae2craftingoptimizer.mixin.DelegatingMEInventoryAccessor;
-import com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventoryAccessor;
+import com.syaru.ae2craftingoptimizer.access.DelegatingMEInventoryAccess;
+import com.syaru.ae2craftingoptimizer.access.ExtendedAePlusBigIntegerCellInventoryAccess;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import java.math.BigInteger;
@@ -19,8 +19,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -343,7 +344,7 @@ class BigIntegerStorageSnapshotBridgeTest {
     }
 
     private static final class FakeInfinityBigIntegerCell
-            implements MEStorage, ExtendedAePlusBigIntegerCellInventoryAccessor {
+            implements MEStorage, ExtendedAePlusBigIntegerCellInventoryAccess {
         private final Object2ObjectMap<AEKey, BigInteger> exact =
                 new Object2ObjectOpenHashMap<>();
         private int exactTypes;
@@ -419,7 +420,7 @@ class BigIntegerStorageSnapshotBridgeTest {
 
     /** DriveWatcherと同じくFacade呼出しを内側のセルへ委譲する試験用Wrapper。 */
     private static final class FakeDriveWrapper
-            implements MEStorage, DelegatingMEInventoryAccessor {
+            implements MEStorage, DelegatingMEInventoryAccess {
         private final MEStorage delegate;
 
         private FakeDriveWrapper(MEStorage delegate) {
@@ -455,7 +456,7 @@ class BigIntegerStorageSnapshotBridgeTest {
         }
 
         @Override
-        public CompoundTag toTag() {
+        public CompoundTag toTag(HolderLookup.Provider registries) {
             return new CompoundTag();
         }
 
@@ -466,13 +467,13 @@ class BigIntegerStorageSnapshotBridgeTest {
 
         @Override
         public ResourceLocation getId() {
-            return new ResourceLocation(
+            return ResourceLocation.fromNamespaceAndPath(
                     "ae2_crafting_optimizer",
                     "big_inventory_test");
         }
 
         @Override
-        public void writeToPacket(FriendlyByteBuf buffer) {
+        public void writeToPacket(RegistryFriendlyByteBuf buffer) {
             // Packet同期を行わない単体試験なので書き込みは不要。
         }
 
@@ -488,6 +489,11 @@ class BigIntegerStorageSnapshotBridgeTest {
                 Level level,
                 BlockPos pos) {
             // ワールド内ドロップを作らない単体試験なので処理は不要。
+        }
+
+        @Override
+        public boolean hasComponents() {
+            return false;
         }
     }
 }

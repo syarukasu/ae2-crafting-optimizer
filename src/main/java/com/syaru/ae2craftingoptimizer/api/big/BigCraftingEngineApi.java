@@ -112,7 +112,7 @@ public final class BigCraftingEngineApi {
         int pageSize = Math.min(requestedPageSize, runtime.maximumStatusPageEntries());
         while (pageSize > 0) {
             var page = runtime.statusPage(offset, pageSize);
-            if (BigCraftingNetwork.fitsPacket(page)) {
+            if (BigCraftingNetwork.fitsPacket(player, page)) {
                 BigCraftingNetwork.send(player, page);
                 return;
             }

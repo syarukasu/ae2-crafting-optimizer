@@ -13,6 +13,7 @@ import com.syaru.ae2craftingoptimizer.batch.BatchSourceReceiptLedger;
 import com.syaru.ae2craftingoptimizer.scheduler.FairSchedulerPersistentState;
 import com.syaru.ae2craftingoptimizer.scheduler.FairSchedulerStateStore;
 import java.util.UUID;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -44,7 +45,10 @@ public abstract class AdvancedAeCraftingCpuLogicBatchSourceReceiptMixin
     private final FairSchedulerPersistentState aco$fairSchedulerState = new FairSchedulerPersistentState();
 
     @Inject(method = "writeToNBT", at = @At("RETURN"), require = 0)
-    private void aco$saveBatchSourceReceipts(CompoundTag tag, CallbackInfo ci) {
+    private void aco$saveBatchSourceReceipts(
+            CompoundTag tag,
+            HolderLookup.Provider registries,
+            CallbackInfo ci) {
         if (!aco$batchSourceReceipts.isEmpty()) {
             tag.put("acoBatchSourceReceipts", aco$batchSourceReceipts.save());
         }
@@ -54,7 +58,10 @@ public abstract class AdvancedAeCraftingCpuLogicBatchSourceReceiptMixin
     }
 
     @Inject(method = "readFromNBT", at = @At("RETURN"), require = 0)
-    private void aco$loadBatchSourceReceipts(CompoundTag tag, CallbackInfo ci) {
+    private void aco$loadBatchSourceReceipts(
+            CompoundTag tag,
+            HolderLookup.Provider registries,
+            CallbackInfo ci) {
         aco$batchSourceReceipts.load(tag.getCompound("acoBatchSourceReceipts"));
         aco$fairSchedulerState.load(tag.getCompound("acoFairScheduler"));
     }

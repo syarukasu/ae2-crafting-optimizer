@@ -3,7 +3,6 @@ package com.syaru.ae2craftingoptimizer.client;
 import appeng.client.gui.MathExpressionParser;
 import appeng.client.gui.widgets.NumberEntryWidget;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountRules;
-import com.syaru.ae2craftingoptimizer.mixin.NumberEntryWidgetAccessor;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -17,7 +16,7 @@ public final class LongCraftAmountClientParser {
     }
 
     public static OptionalLong parseExact(NumberEntryWidget widget) {
-        NumberEntryWidgetAccessor accessor = (NumberEntryWidgetAccessor) (Object) widget;
+        NumberEntryWidgetAccess accessor = (NumberEntryWidgetAccess) (Object) widget;
         String expression = accessor.aco$getTextField().getValue();
         // AE2の「=現在総数」記法は数式本体から接頭辞だけを外して解析する。
         if (expression.startsWith("=")) {

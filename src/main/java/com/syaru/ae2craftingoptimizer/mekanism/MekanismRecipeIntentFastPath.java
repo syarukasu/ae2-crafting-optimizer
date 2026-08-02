@@ -24,12 +24,12 @@ import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.neoforge.fluids.FluidStack;
 
 public final class MekanismRecipeIntentFastPath {
     private static final Object LOCK = new Object();
@@ -629,7 +629,7 @@ public final class MekanismRecipeIntentFastPath {
             }
             if (value instanceof ItemStack stack) {
                 if (!stack.isEmpty()) {
-                    ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+                    ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
                     if (id != null) {
                         ids.add(id.toString());
                     }
@@ -638,7 +638,7 @@ public final class MekanismRecipeIntentFastPath {
             }
             if (value instanceof FluidStack stack) {
                 if (!stack.isEmpty()) {
-                    ResourceLocation id = ForgeRegistries.FLUIDS.getKey(stack.getFluid());
+                    ResourceLocation id = BuiltInRegistries.FLUID.getKey(stack.getFluid());
                     if (id != null) {
                         ids.add(id.toString());
                     }
