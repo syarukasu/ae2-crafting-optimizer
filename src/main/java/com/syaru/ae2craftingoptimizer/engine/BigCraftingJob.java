@@ -15,7 +15,7 @@ import net.minecraft.nbt.Tag;
  * 保存上の残量はBigIntegerのまま維持し、機械へ渡す時だけ上限付きlong実行Windowとして貸し出す。
  */
 public final class BigCraftingJob<K> {
-    public static final int SCHEMA_VERSION = 7;
+    public static final int SCHEMA_VERSION = 8;
     public static final long MAX_EXECUTIONS_PER_WINDOW = 1_048_576L;
     /**
      * BigInteger注文を標準AE2 Jobへ分割する時だけ使う予約済みTask ID。
@@ -35,6 +35,8 @@ public final class BigCraftingJob<K> {
     private final long maximumExecutionsPerWindow;
     private final String planningEpoch;
     private final String programFingerprint;
+    /** One finished root already exceeds AE2's long counters and must stay on Exact Vector execution. */
+    private final boolean exactVectorRequired;
     private final Map<String, BigCraftingTaskProgress> tasks;
     private final BigCraftingInventory<K> waitingFor;
     private BigInteger remainingExecutionTotal;
@@ -66,7 +68,8 @@ public final class BigCraftingJob<K> {
                 -1L,
                 MAX_EXECUTIONS_PER_WINDOW,
                 "",
-                "");
+                "",
+                false);
     }
 
     /**
@@ -154,7 +157,40 @@ public final class BigCraftingJob<K> {
                 recipeGeneration,
                 maximumExecutionsPerWindow,
                 planningEpoch,
-                programFingerprint);
+                programFingerprint,
+                false);
+    }
+
+    public static <K> BigCraftingJob<K> rootWindowed(
+            UUID id,
+            K requestedKey,
+            BigInteger requestedAmount,
+            BigInteger reservedCapacity,
+            long patternGeneration,
+            long recipeGeneration,
+            long maximumExecutionsPerWindow,
+            String planningEpoch,
+            String programFingerprint,
+            boolean exactVectorRequired) {
+        if (patternGeneration < -1L || recipeGeneration < -1L) {
+            throw new IllegalArgumentException("planning generations must be -1 or non-negative");
+        }
+        return new BigCraftingJob<>(
+                id,
+                requestedKey,
+                requestedAmount,
+                reservedCapacity,
+                newTasks(Map.of(ROOT_WINDOW_TASK_ID, requestedAmount)),
+                new BigCraftingInventory<>(Map.of()),
+                State.PLANNED,
+                null,
+                null,
+                patternGeneration,
+                recipeGeneration,
+                maximumExecutionsPerWindow,
+                planningEpoch,
+                programFingerprint,
+                exactVectorRequired);
     }
 
     /** Lossless migration entry point for an add-on's existing signed-long job state. */
@@ -196,7 +232,8 @@ public final class BigCraftingJob<K> {
                 -1L,
                 MAX_EXECUTIONS_PER_WINDOW,
                 "",
-                "");
+                "",
+                false);
     }
 
     private BigCraftingJob(
@@ -213,7 +250,8 @@ public final class BigCraftingJob<K> {
             long recipeGeneration,
             long maximumExecutionsPerWindow,
             String planningEpoch,
-            String programFingerprint) {
+            String programFingerprint,
+            boolean exactVectorRequired) {
         this.id = Objects.requireNonNull(id, "id");
         this.requestedKey = Objects.requireNonNull(requestedKey, "requestedKey");
         this.requestedAmount = positive(requestedAmount, "requestedAmount");
@@ -237,6 +275,11 @@ public final class BigCraftingJob<K> {
             throw new IllegalArgumentException(
                     "planning epoch and program fingerprint must both be present or absent");
         }
+        if (exactVectorRequired && this.programFingerprint.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Exact Vector-only jobs require persistent planning metadata");
+        }
+        this.exactVectorRequired = exactVectorRequired;
         this.tasks = new LinkedHashMap<>(Objects.requireNonNull(tasks, "tasks"));
         if (this.tasks.size() > MAX_ENTRIES) {
             throw new IllegalArgumentException("too many BigInteger crafting tasks");
@@ -499,6 +542,9 @@ public final class BigCraftingJob<K> {
         tag.putLong("maximumExecutionsPerWindow", maximumExecutionsPerWindow);
         tag.putString("planningEpoch", planningEpoch);
         tag.putString("programFingerprint", programFingerprint);
+        if (exactVectorRequired) {
+            tag.putBoolean("exactVectorRequired", true);
+        }
         if (preparedExecution != null) {
             CompoundTag prepared = new CompoundTag();
             prepared.putUUID("transaction", preparedExecution.transactionId());
@@ -609,7 +655,8 @@ public final class BigCraftingJob<K> {
                 schema >= 3 ? tag.getLong("recipeGeneration") : -1L,
                 maximumExecutionsPerWindow,
                 planningEpoch,
-                programFingerprint);
+                programFingerprint,
+                schema >= 8 && tag.getBoolean("exactVectorRequired"));
     }
 
     public UUID id() {
@@ -646,6 +693,10 @@ public final class BigCraftingJob<K> {
 
     public String programFingerprint() {
         return programFingerprint;
+    }
+
+    public boolean exactVectorRequired() {
+        return exactVectorRequired;
     }
 
     public synchronized State state() {

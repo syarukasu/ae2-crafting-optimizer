@@ -80,6 +80,7 @@ public final class BigCraftingCpuLedger<K> {
         List<BigCraftingJob<K>> runnable = jobs.values().stream()
                 .filter(job -> !job.terminal()
                         && !job.hasPreparedExecution()
+                        && !job.exactVectorRequired()
                         && job.hasRemainingTasks())
                 .toList();
         if (runnable.isEmpty()) {

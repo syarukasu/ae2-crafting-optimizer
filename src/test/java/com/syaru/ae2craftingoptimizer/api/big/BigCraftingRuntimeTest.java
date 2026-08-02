@@ -58,6 +58,33 @@ class BigCraftingRuntimeTest {
     }
 
     @Test
+    void exactVectorOnlyParentNeverFallsBackToLongWindowScheduling() {
+        BigCraftingRuntime<String> runtime = new BigCraftingRuntime<>(
+                BigInteger.TEN.pow(64), STRINGS, 512, 4);
+        BigCraftingJob<String> vectorOnly = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(),
+                "output",
+                BigInteger.ONE,
+                BigInteger.TEN.pow(32),
+                12L,
+                34L,
+                1L,
+                "runtime-epoch",
+                "0123456789abcdef",
+                true);
+
+        assertTrue(runtime.submit(vectorOnly));
+        assertTrue(runtime.schedule(4L).isEmpty());
+        assertEquals(1, runtime.vectorCandidates().size());
+        assertTrue(runtime.vectorCandidates().get(0).exactVectorRequired());
+
+        BigCraftingRuntime<String> restored = BigCraftingRuntime.load(
+                runtime.save(), STRINGS, 512, 4);
+        assertTrue(restored.schedule(4L).isEmpty());
+        assertTrue(restored.vectorCandidates().get(0).exactVectorRequired());
+    }
+
+    @Test
     void compatibilityFacadeSaturatesWithoutTruncation() {
         BigCraftingRuntime<String> runtime = new BigCraftingRuntime<>(
                 BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE), STRINGS, 128, 1);

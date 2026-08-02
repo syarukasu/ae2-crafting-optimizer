@@ -164,9 +164,17 @@ public final class Ae2BigCraftingPlanFactory {
                 requestedAmount,
                 ACOConfig.getBigIntegerExecutionWindow(),
                 maximumBits);
-        // 一回分すらlong互換AE2計画へ写せないレシピは、値を丸めず明示的に対象外にする。
-        if (safeWindow <= 0L) {
+        boolean exactVectorRequired = safeWindow <= 0L;
+        /*
+         * A single finished root can itself require counters above long. AQE's exact job owns the full
+         * BigInteger vector and does not need an AE2 child window, so retain that plan when Exact Vector
+         * execution is enabled. The placeholder limit is never scheduled by BigCraftingCpuLedger.
+         */
+        if (exactVectorRequired && !ACOConfig.enableAqeBigIntegerVectorParents()) {
             return null;
+        }
+        if (exactVectorRequired) {
+            safeWindow = 1L;
         }
         BigCraftingJob<AEKey> job = BigCraftingJob.rootWindowed(
                 UUID.randomUUID(),
@@ -177,7 +185,8 @@ public final class Ae2BigCraftingPlanFactory {
                 recipeGeneration,
                 safeWindow,
                 PlanningRuntimeEpoch.current(),
-                programFingerprint(program));
+                programFingerprint(program),
+                exactVectorRequired);
         return new PreparedBigRootPlan(
                 job,
                 plan,
