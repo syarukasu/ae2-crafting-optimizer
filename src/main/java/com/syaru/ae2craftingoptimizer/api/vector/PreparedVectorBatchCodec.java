@@ -44,7 +44,7 @@ public final class PreparedVectorBatchCodec {
         tag.putUUID("transaction", plan.transactionId());
         tag.putUUID("parentJob", plan.parentJobId());
         tag.putString("resourceMode", plan.resourceMode().name());
-        tag.put("requestedOutput", plan.requestedOutput().toTagGeneric());
+        tag.put("requestedOutput", plan.requestedOutput().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
         putPositive(tag, "requestedAmount", plan.requestedAmount());
         putPositive(tag, "logicalExecutions", plan.logicalExecutions());
         tag.putInt("logicalStageCount", plan.logicalStageCount());
@@ -75,7 +75,7 @@ public final class PreparedVectorBatchCodec {
                 selected.put(
                         "key",
                         input.key()
-                                .toTagGeneric());
+                                .toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
                 selected.putLong(
                         "amount",
                         input.amountPerExecution());
@@ -111,7 +111,7 @@ public final class PreparedVectorBatchCodec {
                     "unsupported ACO Exact Vector plan schema");
         }
         AEKey requestedOutput = Objects.requireNonNull(
-                AEKey.fromTagGeneric(tag.getCompound("requestedOutput")),
+                AEKey.fromTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(), tag.getCompound("requestedOutput")),
                 "requestedOutput");
         VectorResourceMode resourceMode =
                 readResourceMode(schema, tag);
@@ -145,7 +145,7 @@ public final class PreparedVectorBatchCodec {
         // 一つのAEKeyを一つのNBT entryへ保存し、数量ぶんの要素は作らない。
         for (ExactStack stack : checked) {
             CompoundTag entry = new CompoundTag();
-            entry.put("key", stack.key().toTagGeneric());
+            entry.put("key", stack.key().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
             putPositive(entry, "amount", stack.amount());
             result.add(entry);
         }
@@ -161,7 +161,7 @@ public final class PreparedVectorBatchCodec {
         for (int index = 0; index < list.size(); index++) {
             CompoundTag entry = list.getCompound(index);
             AEKey key = Objects.requireNonNull(
-                    AEKey.fromTagGeneric(entry.getCompound("key")),
+                    AEKey.fromTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(), entry.getCompound("key")),
                     "decoded Exact Vector key");
             result.add(new ExactStack(
                     key,
@@ -279,7 +279,7 @@ public final class PreparedVectorBatchCodec {
                             index);
             AEKey key =
                     Objects.requireNonNull(
-                            AEKey.fromTagGeneric(
+                            AEKey.fromTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(),
                                     entry.getCompound(
                                             "key")),
                             "selected crafting input key");

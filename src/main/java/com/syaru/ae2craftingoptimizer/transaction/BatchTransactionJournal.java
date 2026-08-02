@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -95,7 +96,7 @@ public final class BatchTransactionJournal extends SavedData {
     }
 
     @Override
-    public synchronized CompoundTag save(CompoundTag tag) {
+    public synchronized CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         if (unsupportedPayload != null) {
             return unsupportedPayload.copy();
         }
@@ -113,7 +114,7 @@ public final class BatchTransactionJournal extends SavedData {
         return tag;
     }
 
-    public static BatchTransactionJournal load(CompoundTag tag) {
+    public static BatchTransactionJournal load(CompoundTag tag, HolderLookup.Provider registries) {
         BatchTransactionJournal journal = new BatchTransactionJournal();
         if (tag.getInt("schema") != SCHEMA_VERSION) {
             journal.unsupportedPayload = tag.copy();

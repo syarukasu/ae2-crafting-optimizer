@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.pedroksl.advanced_ae.common.logic.AdvPatternProviderLogicHost;
@@ -91,14 +92,20 @@ public abstract class AdvancedAePatternProviderLogicNativeBatchReceiptMixin
     }
 
     @Inject(method = "writeToNBT", at = @At("RETURN"), require = 1)
-    private void aco$writeNativeBatchReceipts(CompoundTag tag, CallbackInfo ci) {
+    private void aco$writeNativeBatchReceipts(
+            CompoundTag tag,
+            HolderLookup.Provider registries,
+            CallbackInfo ci) {
         if (!aco$nativeBatchReceipts.isEmpty()) {
             tag.put(ACO_RECEIPTS_TAG, aco$nativeBatchReceipts.save());
         }
     }
 
     @Inject(method = "readFromNBT", at = @At("RETURN"), require = 1)
-    private void aco$readNativeBatchReceipts(CompoundTag tag, CallbackInfo ci) {
+    private void aco$readNativeBatchReceipts(
+            CompoundTag tag,
+            HolderLookup.Provider registries,
+            CallbackInfo ci) {
         aco$nativeBatchReceipts.load(tag.getCompound(ACO_RECEIPTS_TAG));
     }
 

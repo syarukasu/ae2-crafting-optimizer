@@ -17,8 +17,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -41,8 +42,8 @@ final class CraftingTableBatchRequestTest {
                 }
 
                 @Override
-                public GenericStack[] getOutputs() {
-                    return new GenericStack[0];
+                public List<GenericStack> getOutputs() {
+                    return List.of();
                 }
             };
 
@@ -241,7 +242,7 @@ final class CraftingTableBatchRequestTest {
         }
 
         @Override
-        public CompoundTag toTag() {
+        public CompoundTag toTag(HolderLookup.Provider registries) {
             return new CompoundTag();
         }
 
@@ -259,7 +260,7 @@ final class CraftingTableBatchRequestTest {
 
         @Override
         public void writeToPacket(
-                FriendlyByteBuf buffer) {
+                RegistryFriendlyByteBuf buffer) {
             // Packet経路を試験しないため書き込まない。
         }
 
@@ -276,6 +277,11 @@ final class CraftingTableBatchRequestTest {
                 Level level,
                 BlockPos pos) {
             // ワールド内ドロップを試験しないため追加しない。
+        }
+
+        @Override
+        public boolean hasComponents() {
+            return false;
         }
     }
 }

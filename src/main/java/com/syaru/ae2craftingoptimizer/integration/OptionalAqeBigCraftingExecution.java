@@ -8,7 +8,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /** Advanced AE未導入環境で対象クラスを解決しないための遅延境界。 */
 public final class OptionalAqeBigCraftingExecution {

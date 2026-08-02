@@ -6,6 +6,7 @@ import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingLogicAccess;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
 import net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPU;
@@ -89,6 +90,7 @@ public abstract class AdvancedAeExactCraftingLogicMixin
             require = 1)
     private void aco$saveExactJob(
             CompoundTag owner,
+            HolderLookup.Provider registries,
             CallbackInfo ci) {
         if (!(job instanceof AdvancedAeExactCraftingJobAccess exact)
                 || !exact.aco$isExactJob()) {
@@ -105,6 +107,7 @@ public abstract class AdvancedAeExactCraftingLogicMixin
             require = 1)
     private void aco$loadExactJob(
             CompoundTag owner,
+            HolderLookup.Provider registries,
             CallbackInfo ci) {
         if (job instanceof AdvancedAeExactCraftingJobAccess exact) {
             exact.aco$loadExactState(owner.getCompound("job"));

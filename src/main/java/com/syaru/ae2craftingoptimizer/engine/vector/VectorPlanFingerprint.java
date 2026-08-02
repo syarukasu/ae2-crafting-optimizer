@@ -34,7 +34,7 @@ public final class VectorPlanFingerprint {
             target.append('|')
                     .append(prefix)
                     .append(':')
-                    .append(stack.key().toTagGeneric())
+                    .append(stack.key().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()))
                     .append('@')
                     .append(stack.amount());
         }

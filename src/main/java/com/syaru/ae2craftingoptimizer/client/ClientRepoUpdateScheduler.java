@@ -7,15 +7,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 
-@Mod.EventBusSubscriber(
+@EventBusSubscriber(
         modid = AE2CraftingOptimizer.MODID,
-        value = Dist.CLIENT,
-        bus = Mod.EventBusSubscriber.Bus.FORGE)
+        value = Dist.CLIENT)
 public final class ClientRepoUpdateScheduler {
     private static final Set<Repo> UPDATED_THIS_TICK =
             Collections.newSetFromMap(new WeakHashMap<>());
@@ -40,13 +39,14 @@ public final class ClientRepoUpdateScheduler {
     }
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase == TickEvent.Phase.START) {
-            UPDATED_THIS_TICK.clear();
-            return;
-        }
+    public static void onClientTickPre(ClientTickEvent.Pre event) {
+        UPDATED_THIS_TICK.clear();
+    }
 
-        if (event.phase != TickEvent.Phase.END || PENDING.isEmpty()) {
+    @SubscribeEvent
+    public static void onClientTickPost(ClientTickEvent.Post event) {
+        // このtickでまとめる更新がなければ、Repoへ余計な再計算を要求しない。
+        if (PENDING.isEmpty()) {
             return;
         }
 

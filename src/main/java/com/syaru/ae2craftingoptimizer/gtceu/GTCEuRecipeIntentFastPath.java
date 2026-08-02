@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -26,8 +27,7 @@ import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.neoforge.fluids.FluidStack;
 
 public final class GTCEuRecipeIntentFastPath {
     private static final Object LOCK = new Object();
@@ -430,7 +430,7 @@ public final class GTCEuRecipeIntentFastPath {
                     if (stack.isEmpty()) {
                         continue;
                     }
-                    ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+                    ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
                     if (id != null) {
                         ids.add(id.toString());
                     }
@@ -442,7 +442,7 @@ public final class GTCEuRecipeIntentFastPath {
                 if (fluidStack.isEmpty()) {
                     return;
                 }
-                ResourceLocation id = ForgeRegistries.FLUIDS.getKey(fluidStack.getFluid());
+                ResourceLocation id = BuiltInRegistries.FLUID.getKey(fluidStack.getFluid());
                 if (id != null) {
                     ids.add(id.toString());
                 }
@@ -464,7 +464,7 @@ public final class GTCEuRecipeIntentFastPath {
                 if (stack.isEmpty()) {
                     continue;
                 }
-                ResourceLocation id = ForgeRegistries.FLUIDS.getKey(stack.getFluid());
+                ResourceLocation id = BuiltInRegistries.FLUID.getKey(stack.getFluid());
                 if (id != null) {
                     ids.add(id.toString());
                 }

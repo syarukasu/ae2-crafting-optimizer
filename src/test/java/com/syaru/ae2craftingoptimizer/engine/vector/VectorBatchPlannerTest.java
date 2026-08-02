@@ -15,8 +15,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -36,12 +37,17 @@ class VectorBatchPlannerTest {
             TestKey.class,
             Component.literal("ACO vector planner test")) {
         @Override
-        public AEKey readFromPacket(FriendlyByteBuf buffer) {
+        public com.mojang.serialization.MapCodec<? extends AEKey> codec() {
+            return com.mojang.serialization.MapCodec.unit(new TestKey("codec"));
+        }
+
+        @Override
+        public AEKey readFromPacket(RegistryFriendlyByteBuf buffer) {
             return new TestKey(buffer.readUtf());
         }
 
         @Override
-        public AEKey loadKeyFromTag(CompoundTag tag) {
+        public AEKey loadKeyFromTag(HolderLookup.Provider registries, CompoundTag tag) {
             return new TestKey(tag.getString("name"));
         }
     };
@@ -451,7 +457,7 @@ class VectorBatchPlannerTest {
         }
 
         @Override
-        public CompoundTag toTag() {
+        public CompoundTag toTag(HolderLookup.Provider registries) {
             CompoundTag tag = new CompoundTag();
             tag.putString("name", name);
             return tag;
@@ -470,7 +476,7 @@ class VectorBatchPlannerTest {
         }
 
         @Override
-        public void writeToPacket(FriendlyByteBuf buffer) {
+        public void writeToPacket(RegistryFriendlyByteBuf buffer) {
             buffer.writeUtf(name);
         }
 
@@ -486,6 +492,11 @@ class VectorBatchPlannerTest {
                 Level level,
                 BlockPos pos) {
             // この単体テストはワールド内ドロップを作らないため処理は不要。
+        }
+
+        @Override
+        public boolean hasComponents() {
+            return false;
         }
     }
 }

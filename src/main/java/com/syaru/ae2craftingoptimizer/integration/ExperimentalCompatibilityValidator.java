@@ -10,21 +10,24 @@ import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
 import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingInventoryAccess;
+import com.syaru.ae2craftingoptimizer.access.MekanismCachedRecipeAccess;
 import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
-import com.syaru.ae2craftingoptimizer.mixin.MekanismCachedRecipeAccessor;
 import com.syaru.ae2craftingoptimizer.scheduler.FairSchedulerStateStore;
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /**
  * 有効化された実験Mixinの対象クラス、Accessor、内部契約を起動時に監査する。
  * 対応外バージョンで処理を推測して続行せず、原因を列挙してFail-fastする。
  */
 public final class ExperimentalCompatibilityValidator {
+    static final String SUPPORTED_AE2_VERSION = "19.2.17";
+    static final String SUPPORTED_ADVANCED_AE_VERSION = "1.6.11-1.21.1";
+
     private ExperimentalCompatibilityValidator() {
     }
 
@@ -35,13 +38,16 @@ public final class ExperimentalCompatibilityValidator {
             return;
         }
         List<String> failures = new ArrayList<>();
-        requireExactVersion(failures, "ae2", "15.4.10");
+        requireExactVersion(failures, "ae2", SUPPORTED_AE2_VERSION);
         if ((ACOConfig.enableTransactionalBatchingV2()
                         || ACOConfig.enableFairCraftingJobScheduler()
                         || ACOConfig.enableAtomicBigCapacityPlans()
                         || ACOConfig.enableBigIntegerGameplayExecution())
                 && ModList.get().isLoaded("advanced_ae")) {
-            requireExactVersion(failures, "advanced_ae", "1.3.5-1.20.1");
+            requireExactVersion(
+                    failures,
+                    "advanced_ae",
+                    SUPPORTED_ADVANCED_AE_VERSION);
         }
         // Wide計画を有効にする時は、受理側と拒否側の両境界Mixinを起動時に証明する。
         if (ACOConfig.enableAtomicBigCapacityPlans()) {
@@ -115,7 +121,7 @@ public final class ExperimentalCompatibilityValidator {
                 failures.add("Mekanism native adapter was not registered for the exact supported versions");
             }
             require(failures, "mekanism.api.recipes.cache.CachedRecipe",
-                    MekanismCachedRecipeAccessor.class);
+                    MekanismCachedRecipeAccess.class);
         }
         if (ACOConfig.enableGtceuNativeBatching()
                 && !OptionalNativeBatchIntegrations.gtceuRegistered()) {

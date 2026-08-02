@@ -22,14 +22,13 @@ Ignored by `.gitignore`:
 
 ## Reproducible Build
 
-The build does not read a Prism Launcher instance or a local `mods` directory.
+ACO 1.6.0 targets NeoForge 1.21.1 and Java 21. Local builds read the exact
+dependency JARs from `../../mods` by default. CI downloads the pinned public
+artifacts into `.ci-mods` and passes that directory through
+`acoLocalModsDir`, without committing or redistributing dependency JARs.
 
-Dependencies are resolved from public repositories:
-
-- Forge: Forge Maven
-- Applied Energistics 2 `15.4.10`: ModMaven (`appeng:appliedenergistics2-forge:15.4.10`)
-
-GitHub Actions executes `./gradlew clean build` on Java 17 and uploads the generated jar as a workflow artifact.
+GitHub Actions executes `./gradlew clean build` on Java 21 and uploads the
+generated JAR as a workflow artifact.
 
 ## First Push
 
@@ -46,15 +45,15 @@ git push -u origin main
 
 ## Release Checklist
 
-1. Run `gradlew.bat clean build` on Java 17.
+1. Run `gradlew.bat clean build --no-daemon` on Java 21.
 2. Complete the checks in `docs/TESTING.md` on the pinned AE2 version.
 3. Confirm `git status --short` contains no generated output or local config.
 4. Confirm the jar metadata reports the intended version.
-5. Confirm `mods.toml`, `README.md`, and `LICENSE` all report `LGPL-3.0-only` / LGPL v3.
+5. Confirm `neoforge.mods.toml`, `README.md`, and `LICENSE` all report `LGPL-3.0-only` / LGPL v3.
 6. Confirm the server and client use the exact same jar hash.
 7. Tag the commit, for example `v1.0.0`.
 8. Attach only `build/libs/ae2-crafting-optimizer-<version>.jar` to the GitHub release.
-9. Use `docs/RELEASE_NOTES_1.0.0.md` as the release description.
+9. Use the release-specific `RELEASE_NOTES_<version>.md` as the release description.
 
 Do not publish `.gradle`, `build`, `run`, world configs, logs, crash reports, or jars copied from dependency mods.
 

@@ -3,6 +3,7 @@ package gripe._90.appliede.me.misc;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.GenericStack;
+import java.util.List;
 
 /** AppliedE実装コードをコピーせず、クラス名境界だけを試すテスト専用スタブ。 */
 public final class TransmutationPattern implements IPatternDetails {
@@ -17,7 +18,7 @@ public final class TransmutationPattern implements IPatternDetails {
     }
 
     @Override
-    public GenericStack[] getOutputs() {
-        return new GenericStack[0];
+    public List<GenericStack> getOutputs() {
+        return List.of();
     }
 }

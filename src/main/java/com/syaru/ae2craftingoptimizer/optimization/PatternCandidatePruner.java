@@ -41,8 +41,8 @@ public final class PatternCandidatePruner {
     }
 
     private static boolean hasRequestedOutput(IPatternDetails pattern, AEKey requestedOutput) {
-        GenericStack[] outputs = pattern.getOutputs();
-        if (outputs == null || outputs.length == 0) {
+        List<GenericStack> outputs = pattern.getOutputs();
+        if (outputs == null || outputs.isEmpty()) {
             return false;
         }
 

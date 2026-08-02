@@ -7,7 +7,7 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /**
  * 動作確認済みの依存MODバージョンに限ってNative Batch Adapterを遅延登録する。

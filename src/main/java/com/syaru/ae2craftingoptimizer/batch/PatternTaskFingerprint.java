@@ -30,19 +30,19 @@ public final class PatternTaskFingerprint {
         StringBuilder value = new StringBuilder(256);
         value.append(details.getClass().getName())
                 .append('|')
-                .append(details.getDefinition().toTagGeneric());
+                .append(details.getDefinition().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
         for (IPatternDetails.IInput input : details.getInputs()) {
             value.append("|i:").append(input.getMultiplier());
             for (GenericStack possible : input.getPossibleInputs()) {
                 value.append(':')
-                        .append(possible.what().toTagGeneric())
+                        .append(possible.what().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()))
                         .append('@')
                         .append(possible.amount());
             }
         }
         for (GenericStack output : details.getOutputs()) {
             value.append("|o:")
-                    .append(output.what().toTagGeneric())
+                    .append(output.what().toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()))
                     .append('@')
                     .append(output.amount());
         }

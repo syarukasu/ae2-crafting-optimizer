@@ -10,7 +10,7 @@ import java.util.OptionalLong;
  * GUI、Packet、Menuが別々の条件を持たないよう、すべてこの判定を使用する。
  */
 public final class LongCraftAmountRules {
-    /** AE2 15.4.10の既存ConfirmAutoCraftPacketが無損失で扱える最大値。 */
+    /** AE2 19.2.17の既存ConfirmAutoCraftPacketが無損失で扱える最大値。 */
     public static final long VANILLA_AE2_MAXIMUM = Integer.MAX_VALUE;
 
     private LongCraftAmountRules() {

@@ -8,18 +8,19 @@ import io.netty.buffer.Unpooled;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.UUID;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import org.junit.jupiter.api.Test;
 
 class BigCraftingStatusPageCodecTest {
     private static final BigCraftingPacketKeyCodec<String> STRINGS = new BigCraftingPacketKeyCodec<>() {
         @Override
-        public void write(FriendlyByteBuf buffer, String key) {
+        public void write(RegistryFriendlyByteBuf buffer, String key) {
             buffer.writeUtf(key, 64);
         }
 
         @Override
-        public String read(FriendlyByteBuf buffer) {
+        public String read(RegistryFriendlyByteBuf buffer) {
             return buffer.readUtf(64);
         }
     };
@@ -46,7 +47,7 @@ class BigCraftingStatusPageCodecTest {
                         BigCraftingJob.State.RUNNING,
                         true)));
         BigCraftingStatusPageCodec<String> codec = new BigCraftingStatusPageCodec<>(STRINGS, 512, 16);
-        FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+        RegistryFriendlyByteBuf buffer = buffer();
         codec.write(buffer, page);
         assertEquals(page, codec.read(buffer));
     }
@@ -54,7 +55,7 @@ class BigCraftingStatusPageCodecTest {
     @Test
     void rejectsProtocolMismatchAndOversizedPages() {
         BigCraftingStatusPageCodec<String> codec = new BigCraftingStatusPageCodec<>(STRINGS, 128, 1);
-        FriendlyByteBuf wrongProtocol = new FriendlyByteBuf(Unpooled.buffer());
+        RegistryFriendlyByteBuf wrongProtocol = buffer();
         wrongProtocol.writeVarInt(BigCraftingStatusPageCodec.PROTOCOL_VERSION + 1);
         assertThrows(IllegalStateException.class, () -> codec.read(wrongProtocol));
 
@@ -68,7 +69,7 @@ class BigCraftingStatusPageCodecTest {
                 List.of(summary(), summary()));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> codec.write(new FriendlyByteBuf(Unpooled.buffer()), oversized));
+                () -> codec.write(buffer(), oversized));
     }
 
     @Test
@@ -102,7 +103,7 @@ class BigCraftingStatusPageCodecTest {
 
         assertThrows(
                 BigCraftingStatusPageCodec.PacketTooLargeException.class,
-                () -> codec.write(new FriendlyByteBuf(Unpooled.buffer()), page));
+                () -> codec.write(buffer(), page));
     }
 
     private static BigCraftingStatusPage.JobSummary<String> summary() {
@@ -117,5 +118,11 @@ class BigCraftingStatusPageCodecTest {
                 0,
                 BigCraftingJob.State.PLANNED,
                 false);
+    }
+
+    private static RegistryFriendlyByteBuf buffer() {
+        return new RegistryFriendlyByteBuf(
+                Unpooled.buffer(),
+                RegistryAccess.EMPTY);
     }
 }

@@ -3,7 +3,7 @@ package com.syaru.ae2craftingoptimizer.mixin;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.AEKeyFilter;
-import appeng.core.sync.packets.MEInventoryUpdatePacket;
+import appeng.core.network.clientbound.MEInventoryUpdatePacket;
 import appeng.menu.me.common.GridInventoryEntry;
 import appeng.menu.me.common.IncrementalUpdateHelper;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;

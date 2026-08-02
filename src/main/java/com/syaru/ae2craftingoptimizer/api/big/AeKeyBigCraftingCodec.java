@@ -14,12 +14,12 @@ public final class AeKeyBigCraftingCodec implements BigCraftingKeyCodec<AEKey> {
 
     @Override
     public CompoundTag encode(AEKey key) {
-        return Objects.requireNonNull(key, "key").toTagGeneric();
+        return Objects.requireNonNull(key, "key").toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require());
     }
 
     @Override
     public AEKey decode(CompoundTag tag) {
-        AEKey key = AEKey.fromTagGeneric(Objects.requireNonNull(tag, "tag"));
+        AEKey key = AEKey.fromTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(), Objects.requireNonNull(tag, "tag"));
         if (key == null) {
             throw new IllegalArgumentException("saved BigInteger crafting key is unavailable or malformed");
         }

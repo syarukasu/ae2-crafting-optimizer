@@ -1,10 +1,10 @@
 package com.syaru.ae2craftingoptimizer.api.big;
 
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 
 /** Packet codec supplied by the CPU add-on for its crafting key type. */
 public interface BigCraftingPacketKeyCodec<K> {
-    void write(FriendlyByteBuf buffer, K key);
+    void write(RegistryFriendlyByteBuf buffer, K key);
 
-    K read(FriendlyByteBuf buffer);
+    K read(RegistryFriendlyByteBuf buffer);
 }

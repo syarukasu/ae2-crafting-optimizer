@@ -6,8 +6,8 @@
 
 [English](README.md) | 日本語
 
-AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのForge
-1.20.1最適化・連携MODです。重複するクラフト計算を減らし、巨大CPUの一tick
+AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのNeoForge
+1.21.1最適化・連携MODです。重複するクラフト計算を減らし、巨大CPUの一tick
 負荷を制御し、数量に比例しない作業台クラフト取引を提供します。
 
 通常のレシピ、Provider、クラフトJob、ストレージの正本はAE2です。深い経路は、
@@ -15,16 +15,14 @@ AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのForge
 
 ## 対象環境
 
-- Minecraft `1.20.1`
-- Forge `47.4.18+`
-- Java `17`
-- Applied Energistics 2 `15.4.10`
-- Advanced AE `1.3.5-1.20.1`（任意）
-- Neo ECO AE Extension `20.3.x`（任意）
-- GTCEu Modern `7.5.3`（任意）
-- Mekanism `10.4.16`（任意）
-- Applied Mekanistics `1.4.3`（任意）
-- 専用サーバー、シングルプレイ、通常Forge MODとしてのArclight
+- Minecraft `1.21.1`
+- NeoForge `21.1.247+`
+- Java `21`
+- Applied Energistics 2 `19.2.17`
+- Advanced AE `1.6.11-1.21.1`（任意）
+- Neo ECO AE Extension `21.1.1`（任意）
+- 1.21.1向けGTCEu、Mekanism、Applied Mekanistics連携（任意）
+- 専用サーバー、シングルプレイ
 
 サーバーと全クライアントへ同じJARを導入してください。共通Configは次です。
 
@@ -181,6 +179,9 @@ logVectorDiagnostics = false
 生成JARは`build/libs`へ出力されます。
 
 ## ライセンス
+
+ACO 1.6.xはNeoForge 1.21.1向けです。従来の1.5.x成果物はForge 1.20.1
+向けとして残り、この移植で上書きされません。
 
 `LGPL-3.0-only`
 

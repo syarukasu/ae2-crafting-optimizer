@@ -4,9 +4,9 @@ import appeng.api.stacks.AEFluidKey;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchContext;
+import com.syaru.ae2craftingoptimizer.access.MekanismCachedRecipeAccess;
 import com.syaru.ae2craftingoptimizer.batch.ExactMultisetMatcher;
 import com.syaru.ae2craftingoptimizer.batch.ExactPatternSnapshot;
-import com.syaru.ae2craftingoptimizer.mixin.MekanismCachedRecipeAccessor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -40,7 +40,7 @@ import mekanism.common.recipe.lookup.IRecipeLookupHandler;
 import mekanism.common.tile.factory.TileEntityFactory;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.FluidStack;
 import org.jetbrains.annotations.Nullable;
 
 /** Exact, side-effect-free recipe validation for Mekanism's native recipe model. */
@@ -126,7 +126,7 @@ public final class MekanismNativeBatchBridge {
     private static int nativeOperationLimit(IRecipeLookupHandler handler, MekanismRecipe recipe) {
         try {
             CachedRecipe<?> cachedRecipe = handler.createNewCachedRecipe(recipe, 0);
-            int baseline = ((MekanismCachedRecipeAccessor) (Object) cachedRecipe)
+            int baseline = ((MekanismCachedRecipeAccess) (Object) cachedRecipe)
                     .aco$getBaselineMaxOperations()
                     .getAsInt();
             if (baseline <= 0) {

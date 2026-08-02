@@ -111,7 +111,7 @@ public final class ExactCraftingJobState {
             throw new IllegalArgumentException(
                     "unsupported exact crafting-job schema");
         }
-        AEKey requestedKey = AEKey.fromTagGeneric(
+        AEKey requestedKey = AEKey.fromTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(),
                 owner.getCompound("requestedKey"));
         // 登録解除された出力キーを別アイテムへ置換せず、Job復元を止める。
         if (requestedKey == null) {
@@ -172,7 +172,7 @@ public final class ExactCraftingJobState {
     public synchronized CompoundTag save(int maximumBits) {
         CompoundTag owner = new CompoundTag();
         owner.putInt("schema", SCHEMA_VERSION);
-        owner.put("requestedKey", requestedKey.toTagGeneric());
+        owner.put("requestedKey", requestedKey.toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
         BigIntegerNbtCodec.putNonNegative(
                 owner,
                 "reservedBytes",
@@ -380,7 +380,7 @@ public final class ExactCraftingJobState {
         ListTag list = new ListTag();
         counts.forEach((key, amount) -> {
             CompoundTag entry = new CompoundTag();
-            entry.put("key", key.toTag());
+            entry.put("key", key.toTag(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
             BigIntegerNbtCodec.putNonNegative(
                     entry,
                     "amount",
@@ -400,7 +400,7 @@ public final class ExactCraftingJobState {
         // NBT件数は固有Pattern数に比例し、注文数量ぶんのentryは作らない。
         for (int index = 0; index < list.size(); index++) {
             CompoundTag entry = list.getCompound(index);
-            AEItemKey key = AEItemKey.fromTag(entry.getCompound("key"));
+            AEItemKey key = AEItemKey.fromTag(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(), entry.getCompound("key"));
             BigInteger amount = BigIntegerNbtCodec.getNonNegative(
                     entry,
                     "amount",
@@ -423,7 +423,7 @@ public final class ExactCraftingJobState {
         ListTag list = new ListTag();
         counts.forEach((key, amount) -> {
             CompoundTag entry = new CompoundTag();
-            entry.put("key", key.toTagGeneric());
+            entry.put("key", key.toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
             BigIntegerNbtCodec.putNonNegative(
                     entry,
                     "amount",
@@ -443,7 +443,7 @@ public final class ExactCraftingJobState {
         // Item、Fluid、Chemicalを同じAEKey汎用タグから損失なく復元する。
         for (int index = 0; index < list.size(); index++) {
             CompoundTag entry = list.getCompound(index);
-            AEKey key = AEKey.fromTagGeneric(entry.getCompound("key"));
+            AEKey key = AEKey.fromTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(), entry.getCompound("key"));
             BigInteger amount = BigIntegerNbtCodec.getNonNegative(
                     entry,
                     "amount",

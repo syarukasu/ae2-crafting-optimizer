@@ -9,7 +9,7 @@
 
 English | [日本語](README_ja.md)
 
-AE2 Crafting Optimizer (ACO) is a Forge 1.20.1 optimization and integration
+AE2 Crafting Optimizer (ACO) is a NeoForge 1.21.1 optimization and integration
 layer for Applied Energistics 2. It reduces repeated crafting calculations,
 paces very large CPU execution bursts, and provides an exact transaction model
 for quantity-independent crafting-table batches.
@@ -20,16 +20,14 @@ contract before moving any input.
 
 ## Target Environment
 
-- Minecraft `1.20.1`
-- Forge `47.4.18+`
-- Java `17`
-- Applied Energistics 2 `15.4.10`
-- Optional Advanced AE `1.3.5-1.20.1`
-- Optional Neo ECO AE Extension `20.3.x`
-- Optional GTCEu Modern `7.5.3`
-- Optional Mekanism `10.4.16`
-- Optional Applied Mekanistics `1.4.3`
-- Dedicated server, singleplayer, and Arclight as a normal Forge mod
+- Minecraft `1.21.1`
+- NeoForge `21.1.247+`
+- Java `21`
+- Applied Energistics 2 `19.2.17`
+- Optional Advanced AE `1.6.11-1.21.1`
+- Optional Neo ECO AE Extension `21.1.1`
+- Optional 1.21.1 GTCEu, Mekanism, and Applied Mekanistics integrations
+- Dedicated server and singleplayer
 
 Install the same ACO JAR on the server and every client. The common config is:
 
@@ -241,6 +239,9 @@ researching the actual implementation boundaries:
 No dependency source code is redistributed.
 
 ## License
+
+ACO 1.6.x is the NeoForge 1.21.1 release line. The earlier 1.5.x artifacts
+remain the Forge 1.20.1 line and are not replaced by this port.
 
 ACO is licensed under `LGPL-3.0-only`.
 

@@ -12,7 +12,8 @@ import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceipt;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -304,7 +305,7 @@ class BatchSourceReceiptLedgerTest {
         }
 
         @Override
-        public CompoundTag toTag() {
+        public CompoundTag toTag(HolderLookup.Provider registries) {
             return new CompoundTag();
         }
 
@@ -319,7 +320,7 @@ class BatchSourceReceiptLedgerTest {
         }
 
         @Override
-        public void writeToPacket(FriendlyByteBuf buffer) {
+        public void writeToPacket(RegistryFriendlyByteBuf buffer) {
         }
 
         @Override
@@ -329,6 +330,11 @@ class BatchSourceReceiptLedgerTest {
 
         @Override
         public void addDrops(long amount, List<ItemStack> drops, Level level, BlockPos pos) {
+        }
+
+        @Override
+        public boolean hasComponents() {
+            return false;
         }
     }
 }

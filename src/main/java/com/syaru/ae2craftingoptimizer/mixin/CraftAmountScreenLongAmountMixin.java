@@ -5,6 +5,7 @@ import appeng.client.gui.style.ScreenStyle;
 import appeng.client.gui.widgets.NumberEntryWidget;
 import appeng.menu.me.crafting.CraftAmountMenu;
 import com.syaru.ae2craftingoptimizer.client.LongCraftAmountClientParser;
+import com.syaru.ae2craftingoptimizer.client.NumberEntryWidgetAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountMenuBridge;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountRules;
@@ -54,12 +55,12 @@ public abstract class CraftAmountScreenLongAmountMixin {
             Component title,
             ScreenStyle style,
             CallbackInfo ci) {
-        // 無効時は最大値も入力欄長もAE2 15.4.10のままにする。
+        // 無効時は最大値も入力欄長もAE2 19.2.17のままにする。
         if (!ACOConfig.enableLongRootCraftAmounts()) {
             return;
         }
         this.amountToCraft.setMaxValue(Long.MAX_VALUE);
-        ((NumberEntryWidgetAccessor) (Object) this.amountToCraft)
+        ((NumberEntryWidgetAccess) (Object) this.amountToCraft)
                 .aco$getTextField()
                 .setMaxLength(ACO_LONG_INPUT_MAXIMUM_CHARACTERS);
     }

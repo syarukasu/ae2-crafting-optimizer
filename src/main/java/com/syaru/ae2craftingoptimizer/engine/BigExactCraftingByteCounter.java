@@ -6,7 +6,7 @@ import java.util.Objects;
 import java.util.function.ToLongFunction;
 
 /**
- * AE2 15.4.10のCPU bytes式をBigIntegerの有理数として計算する。
+ * AE2 19.2.17のCPU bytes式をBigIntegerの有理数として計算する。
  * doubleへ落とさないため、10^64級でも最後のceilまで桁落ちしない。
  */
 public final class BigExactCraftingByteCounter<K> {

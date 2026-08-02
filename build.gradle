@@ -1,5 +1,6 @@
 plugins {
-    id 'net.minecraftforge.gradle' version '6.0.54'
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.143'
 }
 
 group = mod_group
@@ -10,147 +11,124 @@ base {
 }
 
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
 }
 
-minecraft {
-    mappings channel: 'official', version: '1.20.1'
-
-    runs {
-        client {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'info'
-            mods {
-                ae2_crafting_optimizer {
-                    source sourceSets.main
-                }
-            }
-        }
-        server {
-            workingDirectory project.file('run-server')
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'info'
-            args '--nogui'
-            mods {
-                ae2_crafting_optimizer {
-                    source sourceSets.main
-                }
-            }
-        }
-    }
+sourceSets.main.java {
+    // 1.21.1で大幅変更されたNative Batch APIは、専用Adapterの移植完了まで本体差分から隔離する。
+    exclude 'com/syaru/ae2craftingoptimizer/gtceu/GTCEuNativeBatchBridge.java'
+    exclude 'com/syaru/ae2craftingoptimizer/gtceu/GTCEuNativePatternBatchAdapter.java'
+    exclude 'com/syaru/ae2craftingoptimizer/mekanism/MekanismNativeBatchBridge.java'
+    exclude 'com/syaru/ae2craftingoptimizer/mekanism/MekanismNativePatternBatchAdapter.java'
 }
 
 repositories {
     mavenCentral()
-    maven {
-        name = 'ModMaven'
-        url = 'https://modmaven.dev/'
-        content {
-            includeGroup 'appeng'
-            includeGroup 'mekanism'
+}
+
+neoForge {
+    version = neo_version
+
+    parchment {
+        minecraftVersion = parchment_minecraft_version
+        mappingsVersion = parchment_mappings_version
+    }
+
+    runs {
+        client {
+            client()
+            gameDirectory = file('run')
+        }
+        server {
+            server()
+            gameDirectory = file('run-server')
+            programArgument '--nogui'
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.INFO
         }
     }
-    maven {
-        name = 'GTCEu'
-        url = 'https://maven.gtceu.com/'
-        content {
-            includeGroup 'com.gregtechceu.gtceu'
+
+    mods {
+        ae2_crafting_optimizer {
+            sourceSet(sourceSets.main)
         }
     }
-    maven {
-        name = 'FirstDarkDev'
-        url = 'https://maven.firstdark.dev/snapshots'
-        content {
-            includeGroup 'com.lowdragmc.ldlib'
-        }
-    }
-    maven {
-        name = 'CurseMaven'
-        url = 'https://www.cursemaven.com'
-        content {
-            includeGroup 'curse.maven'
-        }
-    }
+
+    addModdingDependenciesTo sourceSets.test
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
 }
 
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.20.1-47.4.18'
-
     def localModsDir = file(findProperty('acoLocalModsDir') ?: '../../mods')
-    def localAe2 = new File(localModsDir, 'appliedenergistics2-forge-15.4.10.jar')
-    def localGtceu = new File(localModsDir, 'gtceu-1.20.1-7.5.3.jar')
-    def localLdlib = new File(localModsDir, 'ldlib-forge-1.20.1-1.0.50.jar')
-    def localMekanism = new File(localModsDir, 'Mekanism-1.20.1-10.4.16.80.jar')
-    def localAppliedMekanistics = new File(localModsDir, 'Applied-Mekanistics-1.4.3.jar')
-    def localAdvancedAe = new File(localModsDir, 'AdvancedAE-1.3.5-1.20.1.jar')
-
-    if (localAe2.isFile() && localGtceu.isFile() && localLdlib.isFile()
-            && localMekanism.isFile() && localAppliedMekanistics.isFile() && localAdvancedAe.isFile()) {
-        // A checked-out pack can build reproducibly even when an optional mod Maven is unavailable.
-        implementation files(localAe2)
-        compileOnly files(localGtceu)
-        compileOnly files(localLdlib)
-        compileOnly files(localMekanism)
-        compileOnly files(localAppliedMekanistics)
-        compileOnly files(localAdvancedAe)
-    } else {
-        implementation fg.deobf('appeng:appliedenergistics2-forge:15.4.10')
-        def gtceuDependency = project.dependencies.create('com.gregtechceu.gtceu:gtceu-1.20.1:7.5.3') {
-            transitive = false
+    def requiredMod = { String fileName ->
+        File dependency = new File(localModsDir, fileName)
+        if (!dependency.isFile()) {
+            throw new GradleException("Required 1.21.1 dependency is missing: ${dependency}")
         }
-        def ldlibDependency = project.dependencies.create('com.lowdragmc.ldlib:ldlib-forge-1.20.1:1.0.40.b') {
-            transitive = false
-        }
-        def mekanismDependency = project.dependencies.create('mekanism:Mekanism:1.20.1-10.4.16.80') {
-            transitive = false
-        }
-        def appliedMekanisticsDependency = project.dependencies.create('curse.maven:applied-mekanistics-574300:7244744') {
-            transitive = false
-        }
-        def advancedAeDependency = project.dependencies.create('curse.maven:advancedae-1084104:7939754') {
-            transitive = false
-        }
-
-        compileOnly fg.deobf(gtceuDependency)
-        compileOnly fg.deobf(ldlibDependency)
-        compileOnly fg.deobf(mekanismDependency)
-        compileOnly fg.deobf(appliedMekanisticsDependency)
-        compileOnly fg.deobf(advancedAeDependency)
+        dependency
     }
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    testImplementation platform('org.junit:junit-bom:5.10.3')
+    implementation files(requiredMod('appliedenergistics2-19.2.17.jar'))
+    implementation files(requiredMod('guideme-21.1.17.jar'))
+    def advancedAeJar = requiredMod('AdvancedAE-1.6.11-1.21.1.jar')
+    compileOnly files(advancedAeJar)
+    // Mixin契約テストでも、実際に導入するAdvancedAEの記述子を直接検証する。
+    testImplementation files(advancedAeJar)
+    compileOnly files(requiredMod('neoecoae-21.1.1.jar'))
+    compileOnly files(requiredMod('ldlib2-neoforge-1.21.1-2.2.32-all.jar'))
+
+    // インスタンスへ任意連携先が入っている場合は、その実体を優先してコンパイルする。
+    fileTree(localModsDir).matching {
+        include 'gtceu-*.jar'
+        include 'Mekanism-*.jar'
+        include 'Applied-Mekanistics-*.jar'
+        include 'appliede-*.jar'
+    }.files.each { compileOnly files(it) }
+
+    // 空の移植用インスタンスでも、公式JARを実行環境へ導入せず任意連携を検証する。
+    def portCompileDeps = file('../../port-upstream/compile-deps')
+    fileTree(portCompileDeps).matching {
+        include 'gtceu-*.jar'
+        include 'Mekanism-*.jar'
+        include 'Applied-Mekanistics-*.jar'
+    }.files.each { compileOnly files(it) }
+
+    annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-test {
+tasks.named('test', Test).configure {
     useJUnitPlatform()
 }
 
 processResources {
     inputs.property 'version', project.version
-    filesMatching('META-INF/mods.toml') {
+    filesMatching('META-INF/neoforge.mods.toml') {
         expand 'file': ['jarVersion': project.version]
     }
 }
 
 jar {
-    // 配布JAR内のMinecraft参照を、本番環境で使われる難読化名へ必ず変換する。
-    finalizedBy 'reobfJar'
     manifest {
         attributes([
-            'Specification-Title': mod_id,
-            'Specification-Vendor': 'syaru',
-            'Specification-Version': '1',
-            'Implementation-Title': project.name,
-            'Implementation-Version': project.version,
-            'Implementation-Vendor': 'syaru',
-            'MixinConfigs': 'ae2_crafting_optimizer.mixins.json'
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : 'syaru',
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.version,
+                'Implementation-Vendor'   : 'syaru',
+                'MixinConfigs'             : 'ae2_crafting_optimizer.mixins.json'
         ])
     }
 }

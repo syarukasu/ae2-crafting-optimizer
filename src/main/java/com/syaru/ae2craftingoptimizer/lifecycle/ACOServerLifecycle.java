@@ -28,11 +28,12 @@ import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTrac
 import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
 import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
 import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecovery;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.OnDatapackSyncEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.server.ServerStartedEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.OnDatapackSyncEvent;
+import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
  * サーバーの開始・tick・データ再読込・停止に伴うACO状態を一元管理する。
@@ -43,14 +44,23 @@ public final class ACOServerLifecycle {
 
     /** Forge EVENT_BUSへCommon側イベントを一度だけ配線する。 */
     public static void register() {
-        MinecraftForge.EVENT_BUS.addListener(
+        NeoForge.EVENT_BUS.addListener(
+                ACOServerLifecycle::onServerAboutToStart);
+        NeoForge.EVENT_BUS.addListener(
                 ACOServerLifecycle::onServerStarted);
-        MinecraftForge.EVENT_BUS.addListener(
-                ACOServerLifecycle::onServerTick);
-        MinecraftForge.EVENT_BUS.addListener(
+        NeoForge.EVENT_BUS.addListener(
+                ACOServerLifecycle::onServerTickPre);
+        NeoForge.EVENT_BUS.addListener(
+                ACOServerLifecycle::onServerTickPost);
+        NeoForge.EVENT_BUS.addListener(
                 ACOServerLifecycle::onDatapackSync);
-        MinecraftForge.EVENT_BUS.addListener(
+        NeoForge.EVENT_BUS.addListener(
                 ACOServerLifecycle::onServerStopping);
+    }
+
+    private static void onServerAboutToStart(ServerAboutToStartEvent event) {
+        // ChunkとBlock Entityを読む前に、Data Component対応の実Registryを公開する。
+        ACORegistryAccess.install(event.getServer().registryAccess());
     }
 
     private static void onServerStarted(ServerStartedEvent event) {
@@ -64,16 +74,12 @@ public final class ACOServerLifecycle {
         ACOStartupReport.logActiveConfiguration();
     }
 
-    private static void onServerTick(TickEvent.ServerTickEvent event) {
-        // STARTでは共有tick番号だけを進め、重い処理を実行しない。
-        if (event.phase == TickEvent.Phase.START) {
-            ServerTickClock.advance();
-            return;
-        }
-        // 将来Forgeへ別phaseが追加されてもEND以外では会計を進めない。
-        if (event.phase != TickEvent.Phase.END) {
-            return;
-        }
+    private static void onServerTickPre(ServerTickEvent.Pre event) {
+        // Preでは共有tick番号だけを進め、重い処理を実行しない。
+        ServerTickClock.advance();
+    }
+
+    private static void onServerTickPost(ServerTickEvent.Post event) {
         long gameTime = event.getServer().overworld().getGameTime();
         RecipeIntentRegistry.cleanupExpired(gameTime);
         BatchTransactionRecovery.tick(event.getServer(), gameTime);
@@ -81,6 +87,7 @@ public final class ACOServerLifecycle {
     }
 
     private static void onDatapackSync(OnDatapackSyncEvent event) {
+        ACORegistryAccess.install(event.getPlayerList().getServer().registryAccess());
         // 個別プレイヤー同期はレシピ世代を変えないため、全体キャッシュを捨てない。
         if (event.getPlayer() != null) {
             return;
@@ -120,6 +127,7 @@ public final class ACOServerLifecycle {
          * 順序を逆にするとManagerがHostへ到達できず、prepared leaseだけが残る。
          */
         BigCraftingHostRegistry.clear();
+        ACORegistryAccess.clear();
     }
 
     private static void clearReloadSensitiveState(String reason) {

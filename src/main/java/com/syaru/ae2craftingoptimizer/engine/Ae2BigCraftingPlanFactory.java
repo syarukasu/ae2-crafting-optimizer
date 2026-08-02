@@ -243,7 +243,7 @@ public final class Ae2BigCraftingPlanFactory {
             }
             String fingerprint = computeProgramFingerprint(
                     program,
-                    key -> key.toTagGeneric().toString());
+                    key -> key.toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()).toString());
             PROGRAM_FINGERPRINTS.put(program, fingerprint);
             return fingerprint;
         }
