@@ -54,6 +54,21 @@ class OverflowPromotingCraftingPlannerTest {
     }
 
     @Test
+    void promotesReportedNineTimesIntermediateOverflowExactly() {
+        BigInteger request = new BigInteger("1590831717672932009");
+        var result = new OverflowPromotingCraftingPlanner<String>(256).plan(
+                graph(9L), "output", request, Map.of());
+
+        var plan = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class, result).plan();
+
+        assertTrue(result.provenEquivalent());
+        assertEquals(
+                new BigInteger("14317485459056388081"),
+                plan.patternExecutions().get("input"));
+    }
+
+    @Test
     void keepsSixteenGasBoundaryProbeOnLongPathBeforeIndividualOverflow() {
         var result = new OverflowPromotingCraftingPlanner<String>(256).plan(
                 longBoundaryProbeGraph(),

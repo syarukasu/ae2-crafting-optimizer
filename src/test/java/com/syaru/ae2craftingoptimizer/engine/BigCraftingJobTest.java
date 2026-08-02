@@ -36,6 +36,27 @@ class BigCraftingJobTest {
     }
 
     @Test
+    void exactVectorRequirementSurvivesPersistence() {
+        BigCraftingJob<String> job = BigCraftingJob.rootWindowed(
+                UUID.randomUUID(),
+                "output",
+                BigInteger.ONE,
+                BigInteger.TEN.pow(32),
+                456L,
+                789L,
+                1L,
+                "runtime-epoch",
+                "0123456789abcdef",
+                true);
+
+        BigCraftingJob<String> restored = BigCraftingJob.load(
+                job.save(STRINGS, 1024), STRINGS, 1024);
+
+        assertTrue(restored.exactVectorRequired());
+        assertTrue(restored.isRootWindowed());
+    }
+
+    @Test
     void recipeSpecificWindowLimitSurvivesPersistenceAndCapsDispatch() {
         long safeRecipeWindow = 3L;
         BigCraftingJob<String> job = BigCraftingJob.rootWindowed(

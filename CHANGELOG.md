@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-08-03
+
+### Fixed
+
+- Preserved an exact AQE crafting parent when one finished root already needs
+  an intermediate count above signed `long`, instead of discarding the proven
+  `BigInteger` plan and surfacing `CountOverflowException`.
+- Marked those parents as Exact Vector-only in persistent state and excluded
+  them from standard AE2 checked-`long` child-window scheduling. If a suitable
+  physical Exact Vector target is unavailable, the order now waits safely.
+- Added regression coverage for
+  `9 * 1,590,831,717,672,932,009 = 14,317,485,459,056,388,081`, persistence,
+  and prevention of unsafe long-window fallback.
+
 ## [1.6.0] - 2026-08-02
 
 ### Added

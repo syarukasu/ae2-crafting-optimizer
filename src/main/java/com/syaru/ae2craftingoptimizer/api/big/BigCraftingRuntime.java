@@ -163,7 +163,8 @@ public final class BigCraftingRuntime<K> {
                         job.patternGeneration(),
                         job.recipeGeneration(),
                         job.planningEpoch(),
-                        job.programFingerprint()))
+                        job.programFingerprint(),
+                        job.exactVectorRequired()))
                 .toList();
     }
 
@@ -801,7 +802,8 @@ public final class BigCraftingRuntime<K> {
             long patternGeneration,
             long recipeGeneration,
             String planningEpoch,
-            String programFingerprint) {
+            String programFingerprint,
+            boolean exactVectorRequired) {
         public VectorCandidate {
             Objects.requireNonNull(runtimeId, "runtimeId");
             Objects.requireNonNull(jobId, "jobId");

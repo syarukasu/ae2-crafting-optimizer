@@ -158,6 +158,10 @@ CPUs into BigInteger CPUs.
   their signature requires `long`.
 - Exact inventory, missing amounts, task progress, escrow, and receipts are
   never derived from that facade.
+- If one finished root already needs an intermediate count above signed
+  `long`, a compatible AQE host keeps it as an Exact Vector-only parent. It is
+  never narrowed into a standard AE2 child window and waits when no suitable
+  physical executor is available.
 
 AQE is an optional current host integration. AAC is an optional physical
 executor. ACO itself requires neither mod.

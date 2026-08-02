@@ -128,6 +128,9 @@ BigInteger化しません。
 - NBTは10進文字列ではなく正規byte array
 - `long`しか受け取れないAE2 APIに限り表示・互換Facadeを`Long.MAX_VALUE`へ飽和
 - 在庫、材料不足、Task進捗、Escrow、ReceiptはFacadeから逆算しない
+- 完成品1個分だけで中間要求が`long`を超える場合、対応AQE HostではExact Vector
+  専用親Jobとして保持する。通常AE2の子Windowへ縮小せず、適合する物理Executorが
+  なければ安全に待機する
 
 AQEは任意のHost連携、AACは任意の物理Executorです。ACO本体の必須依存では
 ありません。
