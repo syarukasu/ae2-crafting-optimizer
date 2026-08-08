@@ -32,6 +32,9 @@ public final class OptimizationMetrics {
     private static final LongAdder APPLIED_E_PATTERN_FALLBACKS = new LongAdder();
     private static final LongAdder APPLIED_E_DYNAMIC_PROVIDER_REFRESHES = new LongAdder();
     private static final LongAdder APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES = new LongAdder();
+    private static final LongAdder CRAFTING_CALCULATION_DEDUP_HITS = new LongAdder();
+    private static final LongAdder CRAFTING_CALCULATION_CACHE_HITS = new LongAdder();
+    private static final Map<FallbackReasonCode, LongAdder> CRAFTING_FALLBACK_REASONS = new ConcurrentHashMap<>();
     private static final LongAdder NATIVE_BATCH_TRANSACTIONS = new LongAdder();
     private static final Map<String, LongAdder> NATIVE_BATCH_EXECUTIONS = new ConcurrentHashMap<>();
     private static final LongAdder INSTANT_DISPATCH_CALLS = new LongAdder();
@@ -158,6 +161,20 @@ public final class OptimizationMetrics {
 
     public static void recordAppliedECompletedPlanCacheBypass() {
         APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES.increment();
+    }
+
+    public static void recordCraftingCalculationDeduplication(boolean hit) {
+        if (hit) {
+            CRAFTING_CALCULATION_DEDUP_HITS.increment();
+        }
+    }
+
+    public static void recordCraftingCalculationCacheHit() {
+        CRAFTING_CALCULATION_CACHE_HITS.increment();
+    }
+
+    public static void recordCraftingFallback(FallbackReasonCode code) {
+        CRAFTING_FALLBACK_REASONS.computeIfAbsent(code, ignored -> new LongAdder()).increment();
     }
 
     public static void recordNativePatternBatch(String adapterId, long executions) {
@@ -313,6 +330,10 @@ public final class OptimizationMetrics {
                         + " dynamic pattern fallback(s), " + APPLIED_E_DYNAMIC_PROVIDER_REFRESHES.sum()
                         + " provider refresh(es) preserved, " + APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES.sum()
                         + " completed plan cache bypass(es)",
+                "AE2 calculation reuse: " + CRAFTING_CALCULATION_DEDUP_HITS.sum()
+                        + " active hit(s), " + CRAFTING_CALCULATION_CACHE_HITS.sum()
+                        + " completed-plan hit(s)",
+                "AE2 fallback reasons: " + CRAFTING_FALLBACK_REASONS,
                 "Experimental native batch: " + NATIVE_BATCH_TRANSACTIONS.sum()
                         + " transaction(s), executions by adapter " + NATIVE_BATCH_EXECUTIONS,
                 "Sequential Instant: " + SEQUENTIAL_INSTANT_WAVES.sum()
@@ -391,6 +412,9 @@ public final class OptimizationMetrics {
         APPLIED_E_PATTERN_FALLBACKS.reset();
         APPLIED_E_DYNAMIC_PROVIDER_REFRESHES.reset();
         APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES.reset();
+        CRAFTING_CALCULATION_DEDUP_HITS.reset();
+        CRAFTING_CALCULATION_CACHE_HITS.reset();
+        CRAFTING_FALLBACK_REASONS.clear();
         NATIVE_BATCH_TRANSACTIONS.reset();
         NATIVE_BATCH_EXECUTIONS.clear();
         INSTANT_DISPATCH_CALLS.reset();

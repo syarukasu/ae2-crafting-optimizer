@@ -64,7 +64,7 @@ public abstract class CraftingServiceCalculationDeduplicationMixin {
             long amount,
             CalculationStrategy strategy,
             CallbackInfoReturnable<Future<ICraftingPlan>> cir) {
-        CraftingCalculationDeduplicator.remember(
+        Future<ICraftingPlan> returned = CraftingCalculationDeduplicator.remember(
                 (CraftingService) (Object) this,
                 level,
                 requester,
@@ -72,5 +72,8 @@ public abstract class CraftingServiceCalculationDeduplicationMixin {
                 amount,
                 strategy,
                 cir.getReturnValue());
+        if (returned != cir.getReturnValue()) {
+            cir.setReturnValue(returned);
+        }
     }
 }

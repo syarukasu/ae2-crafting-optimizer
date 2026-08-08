@@ -16,7 +16,8 @@ public final class CraftingCalculationDiagnostics {
             long requestedAmount,
             ICraftingPlan plan,
             long elapsedNanos,
-            String plannerRoute) {
+            String plannerRoute,
+            CraftingFallbackDiagnostics.Observation fallback) {
         if (!ACOConfig.logSlowCraftCalculations()) {
             return;
         }
@@ -30,13 +31,17 @@ public final class CraftingCalculationDiagnostics {
         int missingCount = plan != null ? plan.missingItems().size() : -1;
         long bytes = plan != null ? plan.bytes() : -1L;
         AE2CraftingOptimizer.LOGGER.info(
-                "Slow AE2 crafting calculation: requested {} x{}, final {}, missing entries {}, bytes {}, elapsed {} ms, planner route {}",
+                "Slow AE2 crafting calculation: requested {} x{}, final {}, missing entries {}, bytes {}, elapsed {} ms, planner route {}, fallback reason {}, generations {}/{}, aggregate {}",
                 output.getId(),
                 requestedAmount,
                 finalOutput,
                 missingCount,
                 bytes,
                 elapsedMillis,
-                plannerRoute);
+                plannerRoute,
+                fallback.code(),
+                fallback.patternGeneration(),
+                fallback.recipeGeneration(),
+                fallback.aggregateCount());
     }
 }

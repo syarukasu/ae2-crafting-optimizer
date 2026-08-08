@@ -8,6 +8,8 @@ import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
+import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
+import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -57,11 +59,12 @@ public final class CraftingCalculationDeduplicator {
                         amount,
                         strategy);
             }
-            return entry.future;
+            OptimizationMetrics.recordCraftingCalculationDeduplication(true);
+            return entry.future.acquire();
         }
     }
 
-    public static void remember(
+    public static Future<ICraftingPlan> remember(
             CraftingService craftingService,
             Level level,
             ICraftingSimulationRequester requester,
@@ -70,7 +73,7 @@ public final class CraftingCalculationDeduplicator {
             CalculationStrategy strategy,
             Future<ICraftingPlan> future) {
         if (!ACOConfig.deduplicateActiveCraftingCalculations() || future == null || future.isDone() || future.isCancelled()) {
-            return;
+            return future;
         }
 
         RequestKey requestKey = RequestKey.of(level, requester, output, amount, strategy);
@@ -79,7 +82,14 @@ public final class CraftingCalculationDeduplicator {
         synchronized (ACTIVE_CALCULATIONS) {
             Map<RequestKey, Entry> serviceEntries = ACTIVE_CALCULATIONS.computeIfAbsent(craftingService, ignored -> new HashMap<>());
             cleanupActive(craftingService, serviceEntries, now);
-            serviceEntries.put(requestKey, new Entry(future, now));
+            Entry existing = serviceEntries.get(requestKey);
+            if (existing != null && existing.isReusable(now)) {
+                OptimizationMetrics.recordCraftingCalculationDeduplication(true);
+                return existing.future.acquire();
+            }
+            SharedCalculationFuture<ICraftingPlan> shared = new SharedCalculationFuture<>(future);
+            serviceEntries.put(requestKey, new Entry(shared, now));
+            return shared.acquire();
         }
     }
 
@@ -90,6 +100,16 @@ public final class CraftingCalculationDeduplicator {
         }
         if (ACOConfig.logCraftingCalculationDeduplication()) {
             AE2CraftingOptimizer.LOGGER.debug("Cleared active AE2 crafting calculation table: {}", reason);
+        }
+    }
+
+    /** Invalidate only in-flight work when storage content changes. */
+    public static void clearActive(String reason) {
+        synchronized (ACTIVE_CALCULATIONS) {
+            ACTIVE_CALCULATIONS.clear();
+        }
+        if (ACOConfig.logCraftingCalculationDeduplication()) {
+            AE2CraftingOptimizer.LOGGER.debug("Cleared active AE2 crafting calculations: {}", reason);
         }
     }
 
@@ -125,6 +145,7 @@ public final class CraftingCalculationDeduplicator {
                     requestKey.amount,
                     requestKey.strategy);
         }
+        OptimizationMetrics.recordCraftingCalculationCacheHit();
         return java.util.concurrent.CompletableFuture.completedFuture(entry.plan);
     }
 
@@ -149,7 +170,7 @@ public final class CraftingCalculationDeduplicator {
 
         ICraftingPlan plan;
         try {
-            plan = entry.future.get();
+            plan = entry.future.delegate().get();
         } catch (Exception ignored) {
             return;
         }
@@ -208,11 +229,11 @@ public final class CraftingCalculationDeduplicator {
 
     private record RequestKey(
             ResourceLocation dimension,
-            String requesterClass,
-            int requesterIdentity,
             AEKey output,
             long amount,
-            CalculationStrategy strategy) {
+            CalculationStrategy strategy,
+            long patternGeneration,
+            long recipeGeneration) {
         private static RequestKey of(
                 Level level,
                 ICraftingSimulationRequester requester,
@@ -222,15 +243,15 @@ public final class CraftingCalculationDeduplicator {
             ResourceLocation dimension = level.dimension().location();
             return new RequestKey(
                     dimension,
-                    requester.getClass().getName(),
-                    System.identityHashCode(requester),
                     output,
                     amount,
-                    strategy);
+                    strategy,
+                    ProviderPatternGenerationTracker.generation(),
+                    RecipeGenerationTracker.generation());
         }
     }
 
-    private record Entry(Future<ICraftingPlan> future, long createdAtNanos) {
+    private record Entry(SharedCalculationFuture<ICraftingPlan> future, long createdAtNanos) {
         private boolean isReusable(long now) {
             return !future.isDone()
                     && !future.isCancelled()
