@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Pseudo
 @Mixin(targets = "net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic", remap = false)
 public abstract class AdvancedAeCraftingCpuLogicTransactionalBatchV2Mixin {
-    @Inject(method = "executeCrafting", at = @At("HEAD"), cancellable = true, require = 0)
+    @Inject(method = "executeCrafting", at = @At("HEAD"), cancellable = true, require = 1)
     private void aco$tryAdvancedTransactionalPatternBatchV2(
             int maxPatterns,
             CraftingService craftingService,

@@ -7,6 +7,7 @@ import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchV2Api;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingEngineApi;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
+import com.syaru.ae2craftingoptimizer.integration.MixinTransformationReport;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
 import net.neoforged.fml.ModList;
 
@@ -19,6 +20,7 @@ final class ACOStartupReport {
     }
 
     static void logActiveConfiguration() {
+        MixinTransformationReport.log();
         AE2CraftingOptimizer.LOGGER.info(
                 "ACO active: {}",
                 ACOConfig.enableOptimizer());

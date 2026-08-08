@@ -6,6 +6,16 @@ ACO must make very large deterministic crafting-table orders scale with the
 number of distinct recipe nodes, not requested quantity, without changing
 inventory results or hiding physical progress.
 
+## Mixin contract boundaries
+
+Mixin configuration is split by correctness responsibility:
+
+- `ae2_crafting_optimizer.mixins.json` is the required AE2 core contract for ownership, exact counts, transactions, receipts, persistence, and parent-CPU completion.
+- `aco.integration.*.mixins.json` is selected only when the corresponding external mod is loaded. Its selected configuration is fail-closed and is audited against the exact supported dependency version before jobs are accepted.
+- `aco.performance.mixins.json` contains cache, lookup, throttling, and UI fast paths only. It remains fail-open so the original AE2 path remains authoritative when a target changes.
+
+The startup transformation report records the feature, target class, selected mixin, dependency version, applied state, and fail-open/fail-closed policy. A missing correctness transformation must not silently turn the mod into a decorative-only install.
+
 It therefore separates:
 
 - formula compilation;

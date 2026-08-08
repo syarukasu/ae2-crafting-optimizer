@@ -1,0 +1,13 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.syaru.ae2craftingoptimizer.mixin",
+  "plugin": "com.syaru.ae2craftingoptimizer.mixin.GtceuMixinConfigPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "GTCEuRecipeLogicIntentFastPathMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

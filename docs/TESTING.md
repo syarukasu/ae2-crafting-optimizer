@@ -11,6 +11,7 @@ Run:
 
 Automated tests cover:
 
+- Mixin configuration contract boundaries: required core accounting, separated fail-closed integrations, and fail-open performance-only paths;
 - checked `long` and `BigInteger` planning;
 - selected input alternatives;
 - twenty-stage quantity-independent formula generation;

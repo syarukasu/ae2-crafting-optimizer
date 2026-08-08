@@ -44,7 +44,7 @@ public abstract class AdvancedAeCraftingCpuLogicBatchSourceReceiptMixin
     @Unique
     private final FairSchedulerPersistentState aco$fairSchedulerState = new FairSchedulerPersistentState();
 
-    @Inject(method = "writeToNBT", at = @At("RETURN"), require = 0)
+    @Inject(method = "writeToNBT", at = @At("RETURN"), require = 1)
     private void aco$saveBatchSourceReceipts(
             CompoundTag tag,
             HolderLookup.Provider registries,
@@ -57,7 +57,7 @@ public abstract class AdvancedAeCraftingCpuLogicBatchSourceReceiptMixin
         }
     }
 
-    @Inject(method = "readFromNBT", at = @At("RETURN"), require = 0)
+    @Inject(method = "readFromNBT", at = @At("RETURN"), require = 1)
     private void aco$loadBatchSourceReceipts(
             CompoundTag tag,
             HolderLookup.Provider registries,

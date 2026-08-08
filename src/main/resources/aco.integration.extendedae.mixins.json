@@ -1,0 +1,19 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.syaru.ae2craftingoptimizer.mixin",
+  "plugin": "com.syaru.ae2craftingoptimizer.mixin.ExtendedAeMixinConfigPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ExtendedAeAssemblerMatrixClusterCacheMixin",
+    "ExtendedAeAssemblerMatrixCrafterCacheMixin",
+    "ExtendedAeCircuitCutterRecipeCacheMixin",
+    "ExtendedAePlusAssemblerMatrixBusyCaptureMixin",
+    "ExtendedAePlusBigIntegerCellInventoryAccessor",
+    "ExtendedAePlusBigIntegerCellConsistencyMixin",
+    "ExtendedAePlusInfinityDataStorageConsistencyMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
