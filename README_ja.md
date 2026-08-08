@@ -13,6 +13,11 @@ AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのNeoForge
 通常のレシピ、Provider、クラフトJob、ストレージの正本はAE2です。深い経路は、
 入力へ触る前に会計全体を証明できた場合だけ使います。
 
+この系統の永続ブランチは `mc/1.21.1` で、`main` はNeoForge 1.21.1系です。
+リリースJAR名は `aco<version>_1.21.1.jar` を使います。Forge 1.20.1系は
+`mc/1.20.1` で独立管理し、platform依存コード、metadata、Mixin descriptorは
+両ブランチで共有しません。
+
 ## 対象環境
 
 - Minecraft `1.21.1`
