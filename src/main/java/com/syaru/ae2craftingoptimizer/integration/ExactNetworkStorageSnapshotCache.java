@@ -72,6 +72,11 @@ public final class ExactNetworkStorageSnapshotCache {
         CAPTURES.remove();
     }
 
+    /** Generation captured in an exact mutation journal boundary. */
+    static long currentGeneration() {
+        return STORAGE_GENERATION.get();
+    }
+
     static boolean reuseOrBeginForTests(
             Object storage,
             KeyCounter target,
