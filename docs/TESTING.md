@@ -210,6 +210,13 @@ For Issue #28 profiling, `/aco stats` should additionally report:
 - storage-generation invalidations;
 - full-grid terminal snapshot reuses.
 
+Physical Exact Vector transactions are revision-driven. A waiting tick does not
+reserialize the transaction or call the parent `markDirty()` path. Active
+steps are indexed by scheduling lane, and dependency waiters are requeued only
+when the corresponding escrow key is credited. The runtime diagnostics expose
+queue scans/processed steps, accounting snapshot rebuilds, and avoided dirty
+calls in the existing optimization summary.
+
 Repeat the same Spark capture with a Pattern Encoding Terminal open. Confirm
 that `BigIntegerStorageSnapshotBridge.collect()` and nested
 `NetworkStorage.getAvailableStacks()` no longer rebuild once per terminal plus
