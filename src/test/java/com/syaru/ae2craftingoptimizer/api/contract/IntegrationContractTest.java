@@ -3,6 +3,7 @@ package com.syaru.ae2craftingoptimizer.api.contract;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,8 @@ class IntegrationContractTest {
         ExactCountLimits limits = ExactCountLimits.defaults();
         IntegrationCapabilities capabilities = IntegrationCapabilities.forAco(limits);
         assertSame(limits, capabilities.exactCountLimits());
+        assertTrue(capabilities.supports(SupportedFeature.HOST_ATOMIC_SNAPSHOT));
+        assertTrue(capabilities.supports(SupportedFeature.EXPLICIT_HOST_REGISTRATION));
         assertFalse(capabilities.supports(SupportedFeature.EXACT_STORAGE_OPERATION_JOURNAL));
         assertThrows(IllegalStateException.class,
                 () -> capabilities.requireFeatures(Set.of(SupportedFeature.LIVE_TRANSACTION_PROOF)));

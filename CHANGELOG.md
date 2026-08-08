@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the Big Crafting Host owner `WeakHashMap` with an explicit,
+  generation-bound registration lifecycle. Closing a registration releases the
+  host runtime and cannot affect a newer replacement for the same owner.
+- Added atomic immutable Big Crafting Host snapshots for capacity, reservations,
+  availability, overcommit state, and standard/BigInteger job counts.
+- Made AQE controller tracking explicit rather than dependent on weak-key GC;
+  stale cluster controllers are closed during reform and server shutdown.
+
 ### Added
 
 - Added the public exact-count integration contract for ACO, AQE, and AAC.

@@ -53,7 +53,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.WeakHashMap;
+import java.util.IdentityHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import net.minecraft.commands.CommandSourceStack;
@@ -72,7 +72,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * 対象外だけをchecked-longのAdvanced AE子Jobへ委譲する。</p>
  */
 public final class AqeBigCraftingExecutionManager {
-    private static final Map<AdvCraftingCPUCluster, Controller> CONTROLLERS = new WeakHashMap<>();
+    /** Controllers are released by cluster reform/unload/server-stop paths, never by GC timing. */
+    private static final Map<AdvCraftingCPUCluster, Controller> CONTROLLERS = new IdentityHashMap<>();
 
     private AqeBigCraftingExecutionManager() {
     }
@@ -85,6 +86,10 @@ public final class AqeBigCraftingExecutionManager {
             if (!(entry.getKey() instanceof AdvCraftingCPUCluster cluster)) {
                 continue;
             }
+            var registration = BigCraftingHostRegistry.findRegistration(cluster).orElse(null);
+            if (registration == null) {
+                continue;
+            }
             liveClusters.add(cluster);
             Controller current = CONTROLLERS.get(cluster);
             if (current == null || current.host != entry.getValue()) {
@@ -93,6 +98,8 @@ public final class AqeBigCraftingExecutionManager {
                 }
                 current = new Controller(cluster, entry.getValue());
                 CONTROLLERS.put(cluster, current);
+                Controller registeredController = current;
+                registration.onClose(() -> closeController(cluster, registeredController));
             }
             current.tick();
         }
@@ -290,6 +297,15 @@ public final class AqeBigCraftingExecutionManager {
         ExactVectorGridTickBudget.clearAll();
     }
 
+    private static synchronized void closeController(
+            AdvCraftingCPUCluster cluster,
+            Controller controller) {
+        if (CONTROLLERS.get(cluster) == controller) {
+            CONTROLLERS.remove(cluster);
+        }
+        controller.close(true);
+    }
+
     private static AdvCraftingCPUCluster clusterAt(CommandSourceStack source, BlockPos position) {
         var blockEntity = source.getLevel().getBlockEntity(position);
         if (!(blockEntity instanceof AdvCraftingBlockEntity craftingBlock)
@@ -322,6 +338,7 @@ public final class AqeBigCraftingExecutionManager {
                 revalidatedPrograms =
                         new ProgramFingerprintRevalidationCache();
         private boolean recovered;
+        private boolean closed;
 
         private Controller(
                 AdvCraftingCPUCluster cluster,
@@ -331,6 +348,9 @@ public final class AqeBigCraftingExecutionManager {
         }
 
         private void tick() {
+            if (closed) {
+                return;
+            }
             recoverOnce();
             pollCalculations();
             if (!cluster.isActive()
@@ -1600,6 +1620,10 @@ public final class AqeBigCraftingExecutionManager {
         }
 
         private void close(boolean rollbackPending) {
+            if (closed) {
+                return;
+            }
+            closed = true;
             for (PendingCalculation calculation : List.copyOf(pending.values())) {
                 calculation.future().cancel(true);
                 if (rollbackPending) {

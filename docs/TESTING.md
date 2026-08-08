@@ -29,6 +29,11 @@ Automated tests cover:
 - nested NetworkStorage reuse while an outer capture remains active;
 - full-grid terminal reuse of AE2's cached inventory with exact sidecars;
 - preservation of add-on-specific terminal inventory paths.
+- 1,000 explicit Big Crafting Host register/close cycles returning the registry
+  to zero without relying on GC;
+- replacement-generation safety where an old handle cannot close a newer host;
+- atomic host snapshots, clamped overcommit availability, and close-time
+  admission rejection.
 - canonical exact-count payload round trips and rejection of non-canonical
   encodings;
 - capability snapshot initialization, receipt reservation idempotence, and
