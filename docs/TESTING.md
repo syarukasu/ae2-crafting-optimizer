@@ -39,6 +39,22 @@ Automated tests cover:
   encodings;
 - capability snapshot initialization, receipt reservation idempotence, and
   revisioned snapshot/wakeup behavior.
+- pure-Java canonical fixture parity for shaped/shapeless semantics, repeated
+  keys, remaining containers, concrete tag alternatives, ambiguous producers,
+  cycles, missing inputs, partial inventory, signed-long boundaries, deep/wide/
+  shared dependency graphs, and generation changes;
+- reviewable Golden JSON output that is updated only by the explicit
+  `updateGoldenFixtures` task;
+- crash-window conservation and idempotent Receipt reprocessing for the exact
+  ownership boundaries listed in the parity issue.
+
+To deliberately regenerate the reviewable fixture output, run:
+
+```powershell
+.\gradlew.bat updateGoldenFixtures --no-daemon
+```
+
+The ordinary `test` task never writes Golden files.
 
 ## Required Live Matrix
 
