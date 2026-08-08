@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-08-08
+
+### Added
+
+- Added the merged revision-driven integration contract for downstream
+  providers: bounded target revisions, weak wakeup listeners, immutable
+  revisioned snapshots, and receipt reservation primitives.
+
+### Changed
+
+- Included the merged exact-vector queueing, fallback-deduplication, host
+  lifecycle, and accounting safety improvements from the 1.6.1 development
+  line in the first complete 1.21.1 integration release.
+
 ### Changed
 
 - Split Mixin configuration into required AE2 core/accounting, exact-version external integrations, and fail-open performance paths. Selected transformations now use non-zero requirements, absent optional mods are filtered before target loading, and startup reports transformation, dependency, and policy state.
