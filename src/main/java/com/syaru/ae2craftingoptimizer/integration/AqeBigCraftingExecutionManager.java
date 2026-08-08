@@ -570,6 +570,7 @@ public final class AqeBigCraftingExecutionManager {
                     continue;
                 }
                 long tickStartedNanos = System.nanoTime();
+                long transactionRevisionBeforeTick = transaction.transactionRevision();
                 PhysicalCraftingTreeTransaction.TickOutcome outcome;
                 try {
                     outcome = transaction.tick(
@@ -587,26 +588,38 @@ public final class AqeBigCraftingExecutionManager {
                 ExactVectorDiagnostics.activeTick(
                         System.nanoTime() - tickStartedNanos);
 
-                try {
-                    PhysicalCraftingTreeTransaction.AccountingSnapshot accounting =
-                            transaction.accountingSnapshot(
-                                    graphSnapshot,
-                                    cluster.getLevel());
-                    reconcileExactCpuAccounting(
-                            context,
-                            accounting,
-                            graphSnapshot);
-                    state.updatePhysicalExecution(
-                            transaction.save());
-                    context.cpu().markDirty();
-                } catch (RuntimeException | LinkageError accountingFailure) {
-                    quarantineExactCpu(
-                            context,
-                            transaction,
-                            "Advanced AE exact-job accounting diverged: "
-                                    + accountingFailure,
-                            accountingFailure);
-                    continue;
+                boolean transactionChanged =
+                        transaction.transactionRevision() != transactionRevisionBeforeTick;
+                if (!transactionChanged
+                        && outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
+                    ExactVectorDiagnostics.dirtyCallAvoided();
+                    if (transaction.tickDiagnostics().activeStepsProcessed() == 0L) {
+                        ExactVectorDiagnostics.zeroAllocationWait();
+                    }
+                }
+                if (transactionChanged
+                        || outcome.kind() != PhysicalCraftingTreeTransaction.Kind.WAITING) {
+                    try {
+                        PhysicalCraftingTreeTransaction.AccountingSnapshot accounting =
+                                transaction.accountingSnapshot(
+                                        graphSnapshot,
+                                        cluster.getLevel());
+                        reconcileExactCpuAccounting(
+                                context,
+                                accounting,
+                                graphSnapshot);
+                        state.updatePhysicalExecution(
+                                transaction.save());
+                        context.cpu().markDirty();
+                    } catch (RuntimeException | LinkageError accountingFailure) {
+                        quarantineExactCpu(
+                                context,
+                                transaction,
+                                "Advanced AE exact-job accounting diverged: "
+                                        + accountingFailure,
+                                accountingFailure);
+                        continue;
+                    }
                 }
 
                 if (outcome.kind()
@@ -1013,6 +1026,7 @@ public final class AqeBigCraftingExecutionManager {
                 }
                 long tickStartedNanos =
                         System.nanoTime();
+                long transactionRevisionBeforeTick = transaction.transactionRevision();
                 PhysicalCraftingTreeTransaction.TickOutcome outcome;
                 try {
                     outcome =
@@ -1040,14 +1054,26 @@ public final class AqeBigCraftingExecutionManager {
                  * 物理Thread進捗を含む親状態を先に保存する。
                  * 最終commit、rollback、quarantineはその後にだけ実行する。
                  */
-                host.updateVector(
-                        recovered.jobId(),
-                        recovered.prepared()
-                                .transactionId(),
-                        transaction.save(),
-                        transaction.progressNumerator(),
-                        transaction.progressDenominator());
-                cluster.markDirty();
+                boolean transactionChanged =
+                        transaction.transactionRevision() != transactionRevisionBeforeTick;
+                if (!transactionChanged
+                        && outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
+                    ExactVectorDiagnostics.dirtyCallAvoided();
+                    if (transaction.tickDiagnostics().activeStepsProcessed() == 0L) {
+                        ExactVectorDiagnostics.zeroAllocationWait();
+                    }
+                }
+                if (transactionChanged
+                        || outcome.kind() != PhysicalCraftingTreeTransaction.Kind.WAITING) {
+                    host.updateVector(
+                            recovered.jobId(),
+                            recovered.prepared()
+                                    .transactionId(),
+                            transaction.save(),
+                            transaction.progressNumerator(),
+                            transaction.progressDenominator());
+                    cluster.markDirty();
+                }
 
                 if (outcome.kind()
                         == PhysicalCraftingTreeTransaction.Kind.COMPLETE) {

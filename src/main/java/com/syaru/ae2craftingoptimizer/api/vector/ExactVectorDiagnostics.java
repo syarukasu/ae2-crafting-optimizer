@@ -60,4 +60,20 @@ public final class ExactVectorDiagnostics {
     public static void fingerprintRevalidated() {
         OptimizationMetrics.recordExactVectorFingerprintRevalidation();
     }
+
+    public static void queueWork(long scanned, long processed) {
+        OptimizationMetrics.recordExactVectorQueueWork(scanned, processed);
+    }
+
+    public static void accountingSnapshotRebuilt() {
+        OptimizationMetrics.recordExactVectorAccountingSnapshotRebuild();
+    }
+
+    public static void dirtyCallAvoided() {
+        OptimizationMetrics.recordExactVectorDirtyCallAvoided();
+    }
+
+    public static void zeroAllocationWait() {
+        OptimizationMetrics.recordExactVectorZeroAllocationWait();
+    }
 }

@@ -33,6 +33,10 @@ class ExactVectorDiagnosticsTest {
         ExactVectorDiagnostics.startBudgetDeferred();
         ExactVectorDiagnostics.receiptFreeRollback();
         ExactVectorDiagnostics.fingerprintRevalidated();
+        ExactVectorDiagnostics.queueWork(7L, 2L);
+        ExactVectorDiagnostics.accountingSnapshotRebuilt();
+        ExactVectorDiagnostics.dirtyCallAvoided();
+        ExactVectorDiagnostics.zeroAllocationWait();
 
         String exactVector = OptimizationMetrics.summaryLines().stream()
                 .filter(line -> line.startsWith("Physical crafting tree:"))
@@ -45,6 +49,10 @@ class ExactVectorDiagnosticsTest {
         assertTrue(exactVector.contains("completed/cancelled/quarantined 1/1/1"));
         assertTrue(exactVector.contains(
                 "start defer/receipt rollback/revalidated 1/1/1"));
+        assertTrue(exactVector.contains("queue scanned/processed 7/2"));
+        assertTrue(exactVector.contains("accounting rebuilds 1"));
+        assertTrue(exactVector.contains("dirty calls avoided 1"));
+        assertTrue(exactVector.contains("zero-allocation waits 1"));
         assertTrue(exactVector.contains("max active range 2 us"));
     }
 }

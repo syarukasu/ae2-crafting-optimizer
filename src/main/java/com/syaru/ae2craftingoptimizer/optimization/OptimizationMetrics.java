@@ -78,6 +78,11 @@ public final class OptimizationMetrics {
             new LongAdder();
     private static final LongAccumulator EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS =
             new LongAccumulator(Long::max, 0L);
+    private static final LongAdder EXACT_VECTOR_STEPS_SCANNED = new LongAdder();
+    private static final LongAdder EXACT_VECTOR_ACTIVE_STEPS_PROCESSED = new LongAdder();
+    private static final LongAdder EXACT_VECTOR_ACCOUNTING_REBUILDS = new LongAdder();
+    private static final LongAdder EXACT_VECTOR_DIRTY_CALLS_AVOIDED = new LongAdder();
+    private static final LongAdder EXACT_VECTOR_ZERO_ALLOCATION_WAITS = new LongAdder();
 
     private OptimizationMetrics() {
     }
@@ -263,6 +268,23 @@ public final class OptimizationMetrics {
         EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.increment();
     }
 
+    public static void recordExactVectorQueueWork(long scanned, long processed) {
+        EXACT_VECTOR_STEPS_SCANNED.add(Math.max(0L, scanned));
+        EXACT_VECTOR_ACTIVE_STEPS_PROCESSED.add(Math.max(0L, processed));
+    }
+
+    public static void recordExactVectorAccountingSnapshotRebuild() {
+        EXACT_VECTOR_ACCOUNTING_REBUILDS.increment();
+    }
+
+    public static void recordExactVectorDirtyCallAvoided() {
+        EXACT_VECTOR_DIRTY_CALLS_AVOIDED.increment();
+    }
+
+    public static void recordExactVectorZeroAllocationWait() {
+        EXACT_VECTOR_ZERO_ALLOCATION_WAITS.increment();
+    }
+
     public static List<String> summaryLines() {
         long gtHits = GT_CANDIDATE_CACHE_HITS.sum();
         long gtMisses = GT_CANDIDATE_CACHE_MISSES.sum();
@@ -319,6 +341,12 @@ public final class OptimizationMetrics {
                         + EXACT_VECTOR_START_BUDGET_DEFERRALS.sum() + "/"
                         + EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS.sum() + "/"
                         + EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.sum()
+                        + ", queue scanned/processed "
+                        + EXACT_VECTOR_STEPS_SCANNED.sum() + "/"
+                        + EXACT_VECTOR_ACTIVE_STEPS_PROCESSED.sum()
+                        + ", accounting rebuilds " + EXACT_VECTOR_ACCOUNTING_REBUILDS.sum()
+                        + ", dirty calls avoided " + EXACT_VECTOR_DIRTY_CALLS_AVOIDED.sum()
+                        + ", zero-allocation waits " + EXACT_VECTOR_ZERO_ALLOCATION_WAITS.sum()
                         + ", max active range "
                         + (EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.get() / 1_000L)
                         + " us",
@@ -391,6 +419,11 @@ public final class OptimizationMetrics {
         EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS.reset();
         EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.reset();
         EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.reset();
+        EXACT_VECTOR_STEPS_SCANNED.reset();
+        EXACT_VECTOR_ACTIVE_STEPS_PROCESSED.reset();
+        EXACT_VECTOR_ACCOUNTING_REBUILDS.reset();
+        EXACT_VECTOR_DIRTY_CALLS_AVOIDED.reset();
+        EXACT_VECTOR_ZERO_ALLOCATION_WAITS.reset();
     }
 
     private static long percent(long hits, long misses) {
