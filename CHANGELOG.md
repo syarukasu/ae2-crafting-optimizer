@@ -4,7 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-## [1.6.2] - 2026-08-08
+## [1.5.7] - 2026-08-08
+
+### Changed
+
+- Published the NeoForge 1.21.1 build with mod version `1.5.7`.
+- Kept the Minecraft version in the artifact name as `_1.21.1`; it is not
+  part of the mod version.
 
 ### Added
 
