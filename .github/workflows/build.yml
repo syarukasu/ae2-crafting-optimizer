@@ -29,9 +29,20 @@ jobs:
           chmod +x gradlew
           ./gradlew clean build --stacktrace
 
+      - name: Verify 1.20.1 artifact boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(grep '^mod_version=' gradle.properties | cut -d= -f2)"
+          artifact="build/libs/aco${version}_1.20.1.jar"
+          test -f "$artifact"
+          ! jar tf "$artifact" | grep -q '^META-INF/neoforge.mods.toml$'
+          jar tf "$artifact" | grep -q '^META-INF/mods.toml$'
+          ! jar tf "$artifact" | grep -q 'aco.*1.21.1'
+
       - name: Upload jar
         uses: actions/upload-artifact@v6
         with:
-          name: ae2-crafting-optimizer-${{ github.sha }}
-          path: build/libs/*.jar
+          name: aco-1.20.1-${{ github.sha }}
+          path: build/libs/aco*_1.20.1.jar
           if-no-files-found: error

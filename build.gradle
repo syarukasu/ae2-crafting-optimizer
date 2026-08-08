@@ -6,7 +6,7 @@ group = mod_group
 version = mod_version
 
 base {
-    archivesName = 'ae2-crafting-optimizer'
+    archivesName = "aco${mod_version}_${minecraft_version}"
 }
 
 java {

@@ -18,6 +18,10 @@ AE2 remains authoritative for normal recipes, providers, crafting jobs, and
 storage. Deep paths are used only when ACO can prove their complete accounting
 contract before moving any input.
 
+The persistent branch for this line is `mc/1.20.1`. Its next release artifact
+uses `aco<version>_1.20.1.jar`; the NeoForge line is maintained separately on
+`mc/1.21.1` and never shares platform-dependent source or metadata.
+
 ## Target Environment
 
 - Minecraft `1.20.1`
