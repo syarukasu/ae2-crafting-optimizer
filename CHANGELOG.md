@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.7] - 2026-08-08
+
+### Changed
+
+- Published the synchronized Forge 1.20.1 integration artifact for the
+  revision-aware AAC release line.
+
 ## [1.5.5] - 2026-07-29
 
 ### Added
