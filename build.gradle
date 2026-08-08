@@ -154,3 +154,26 @@ jar {
         ])
     }
 }
+
+tasks.register('normalizeReobfJarName') {
+    dependsOn 'reobfJar'
+    doLast {
+        def expected = file("$buildDir/libs/aco${mod_version}_${minecraft_version}.jar")
+        def sources = fileTree("$buildDir/libs").matching {
+            include "aco${mod_version}_${minecraft_version}-*.jar"
+        }.files
+        def source = sources.find { it.name != expected.name }
+        if (source != null && source.exists()) {
+            if (!source.renameTo(expected)) {
+                throw new GradleException("Could not normalize ${source.name} to ${expected.name}")
+            }
+        }
+        if (!expected.isFile()) {
+            throw new GradleException("Expected distribution JAR was not produced: ${expected}")
+        }
+    }
+}
+
+tasks.named('build') {
+    finalizedBy 'normalizeReobfJarName'
+}
