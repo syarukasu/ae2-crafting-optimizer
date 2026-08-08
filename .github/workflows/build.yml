@@ -40,9 +40,29 @@ jobs:
           chmod +x gradlew
           ./gradlew clean build --stacktrace -PacoLocalModsDir="$GITHUB_WORKSPACE/.ci-mods"
 
+      - name: Verify 1.21.1 artifact boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(grep '^mod_version=' gradle.properties | cut -d= -f2)"
+          artifact="build/libs/aco${version}_1.21.1.jar"
+          test -f "$artifact"
+          ! jar tf "$artifact" | grep -q '^META-INF/mods.toml$'
+          jar tf "$artifact" | grep -q '^META-INF/neoforge.mods.toml$'
+          ! jar tf "$artifact" | grep -q 'net/minecraftforge/'
+          ! jar tf "$artifact" | grep -q 'aco.*1.20.1'
+          python3 - "$artifact" <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as jar:
+              classes = [n for n in jar.namelist() if n.endswith('.class')]
+              assert classes, 'artifact contains no class files'
+              versions = {int.from_bytes(jar.read(n)[6:8], 'big') for n in classes}
+              assert versions == {65}, f'unexpected class versions: {versions}'
+          PY
+
       - name: Upload jar
         uses: actions/upload-artifact@v6
         with:
-          name: ae2-crafting-optimizer-${{ github.sha }}
-          path: build/libs/*.jar
+          name: aco-1.21.1-${{ github.sha }}
+          path: build/libs/aco*_1.21.1.jar
           if-no-files-found: error

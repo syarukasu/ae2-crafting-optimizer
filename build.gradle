@@ -7,19 +7,16 @@ group = mod_group
 version = mod_version
 
 base {
-    archivesName = 'ae2-crafting-optimizer'
+    archivesName = "aco${mod_version}_${minecraft_version}"
+}
+
+tasks.named('jar') {
+    // Keep the public filename identical across local and release builds.
+    archiveFileName = "aco${mod_version}_${minecraft_version}.jar"
 }
 
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(21)
-}
-
-sourceSets.main.java {
-    // 1.21.1で大幅変更されたNative Batch APIは、専用Adapterの移植完了まで本体差分から隔離する。
-    exclude 'com/syaru/ae2craftingoptimizer/gtceu/GTCEuNativeBatchBridge.java'
-    exclude 'com/syaru/ae2craftingoptimizer/gtceu/GTCEuNativePatternBatchAdapter.java'
-    exclude 'com/syaru/ae2craftingoptimizer/mekanism/MekanismNativeBatchBridge.java'
-    exclude 'com/syaru/ae2craftingoptimizer/mekanism/MekanismNativePatternBatchAdapter.java'
 }
 
 repositories {
@@ -96,6 +93,20 @@ dependencies {
         include 'Mekanism-*.jar'
         include 'Applied-Mekanistics-*.jar'
     }.files.each { compileOnly files(it) }
+
+    // Optional native integrations live outside the common source tree. They
+    // are compiled into this artifact only when the corresponding 1.21.1 API
+    // JAR is supplied, without hiding platform code with source exclusions.
+    def hasGtceu = !fileTree(localModsDir).matching { include 'gtceu-*.jar' }.isEmpty()
+            || !fileTree(portCompileDeps).matching { include 'gtceu-*.jar' }.isEmpty()
+    def hasMekanism = !fileTree(localModsDir).matching { include 'Mekanism-*.jar' }.isEmpty()
+            || !fileTree(portCompileDeps).matching { include 'Mekanism-*.jar' }.isEmpty()
+    if (hasGtceu) {
+        sourceSets.main.java.srcDir('src/optional/java/com/syaru/ae2craftingoptimizer/gtceu')
+    }
+    if (hasMekanism) {
+        sourceSets.main.java.srcDir('src/optional/java/com/syaru/ae2craftingoptimizer/mekanism')
+    }
 
     annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
 
