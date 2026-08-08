@@ -164,8 +164,15 @@ tasks.register('normalizeReobfJarName') {
         }.files
         def source = sources.find { it.name != expected.name }
         if (source != null && source.exists()) {
-            if (!source.renameTo(expected)) {
-                throw new GradleException("Could not normalize ${source.name} to ${expected.name}")
+            try {
+                java.nio.file.Files.move(
+                        source.toPath(),
+                        expected.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } catch (java.io.IOException exception) {
+                throw new GradleException(
+                        "Could not normalize ${source.name} to ${expected.name}",
+                        exception)
             }
         }
         if (!expected.isFile()) {
