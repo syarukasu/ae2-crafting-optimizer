@@ -18,6 +18,27 @@ AE2 remains authoritative for recipes, crafting eligibility, job submission, and
 [[mixins]]
 config = "ae2_crafting_optimizer.mixins.json"
 
+[[mixins]]
+config = "aco.integration.advanced_ae.mixins.json"
+
+[[mixins]]
+config = "aco.integration.extendedae.mixins.json"
+
+[[mixins]]
+config = "aco.integration.neoecoae.mixins.json"
+
+[[mixins]]
+config = "aco.integration.ae2_overclocked.mixins.json"
+
+[[mixins]]
+config = "aco.integration.gtceu.mixins.json"
+
+[[mixins]]
+config = "aco.integration.mekanism.mixins.json"
+
+[[mixins]]
+config = "aco.performance.mixins.json"
+
 [[dependencies.ae2_crafting_optimizer]]
 modId = "neoforge"
 type = "required"

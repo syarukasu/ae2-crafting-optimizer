@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- Split Mixin configuration into required AE2 core/accounting, exact-version external integrations, and fail-open performance paths. Selected transformations now use non-zero requirements, absent optional mods are filtered before target loading, and startup reports transformation, dependency, and policy state.
 - Replaced the Big Crafting Host owner `WeakHashMap` with an explicit,
   generation-bound registration lifecycle. Closing a registration releases the
   host runtime and cannot affect a newer replacement for the same owner.
