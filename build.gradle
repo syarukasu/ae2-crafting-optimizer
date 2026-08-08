@@ -112,6 +112,19 @@ tasks.named('test', Test).configure {
     useJUnitPlatform()
 }
 
+tasks.register('updateGoldenFixtures', Test) {
+    description = 'Explicitly regenerate canonical crafting Golden fixtures; normal test never overwrites them.'
+    group = 'verification'
+    dependsOn tasks.named('testClasses')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching '*CanonicalFixtureGoldenTest'
+    }
+    systemProperty 'aco.updateGolden', 'true'
+}
+
 processResources {
     inputs.property 'version', project.version
     filesMatching('META-INF/neoforge.mods.toml') {
