@@ -40,8 +40,17 @@ public final class IntegrationCapabilities {
     }
 
     public static IntegrationCapabilities forAco(ExactCountLimits limits) {
-        // Features are advertised only after their owning implementation is complete.
-        return new IntegrationCapabilities(1, 1, 1, 1, 1, limits, Set.of());
+        // These two bits are backed by the explicit ACO host registry and immutable snapshot API.
+        return new IntegrationCapabilities(
+                1,
+                1,
+                1,
+                1,
+                1,
+                limits,
+                Set.of(
+                        SupportedFeature.HOST_ATOMIC_SNAPSHOT,
+                        SupportedFeature.EXPLICIT_HOST_REGISTRATION));
     }
 
     public int bigCraftingApiVersion() {

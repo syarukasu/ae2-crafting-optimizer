@@ -32,6 +32,18 @@ without creating a compile-time cycle.
 
 See `docs/EXACT_COUNT_API.md` for the versioned surface and adoption rules.
 
+## Big Crafting Host lifecycle
+
+`BigCraftingHostRegistry` retains owners only between explicit registration and
+close. The AQE controller map uses identity keys and is closed on stale cluster
+reform and server stop. A host close is admission-only: durable BigInteger jobs
+remain available for recovery, while the controller owns cancellation, rollback,
+and quarantine of pending physical work.
+
+`BigCraftingHostRuntime.snapshot(...)` reads capacity, reservations, and all job
+counts under one monitor and returns an immutable `BigCraftingHostSnapshot`. No
+consumer should compose an accounting decision from separate getters.
+
 ## Compiled Formula
 
 `CompiledRootProgram` is generation-keyed. For an eligible root it records:

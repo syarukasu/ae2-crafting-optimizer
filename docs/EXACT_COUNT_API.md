@@ -41,12 +41,31 @@ prove canonical equality.
 
 `IntegrationCapabilitiesRegistry.initializeOnce` publishes one immutable startup snapshot. Optional
 mods read it with `snapshot()` or `peek()` and must fail closed when the required API version or
-feature is absent. ACO currently advertises no unimplemented feature as supported; later issues
-will enable bits only when their owning implementation and persistence tests are complete.
+feature is absent. ACO advertises `HOST_ATOMIC_SNAPSHOT` and
+`EXPLICIT_HOST_REGISTRATION` only after their owning implementation and lifecycle tests are
+complete. Receipt journaling, live transaction proof, and other reserved features remain disabled
+until their owning implementations are merged.
 
 The feature enum reserves contracts for atomic host snapshots, explicit host registration, receipt
 slot reservation, live transaction proof, revision wakeup, quarantined thread state, and exact
 storage journals.
+
+## Big Crafting Host lifecycle
+
+`BigCraftingHostRegistry.register(owner, runtime)` returns a
+`BigCraftingHostRegistration`. The handle carries the owner identity, runtime UUID, and
+monotonically increasing generation. `close()` is idempotent; an old handle cannot remove a newer
+registration for the same owner. `unregister`, server stop, and registry clear close the runtime
+and release the strong owner reference.
+
+The existing AQE bridge must call `unregister` on cluster destroy, break, reform, or unload. A
+controller must cancel pending futures, return only work that has not been physically accepted, and
+quarantine uncertain ownership before it is released. `BigCraftingHostRuntime.close()` therefore
+stops new admission but does not delete durable jobs or physical ownership.
+
+`BigCraftingHostRegistration.snapshot(revision, backendState)` obtains one monitor-consistent
+`BigCraftingHostSnapshot`. Its `available` field is derived from `physicalCapacity - reserved` and
+is clamped to zero when `overcommitted` is true.
 
 ## Receipts, proofs, and revisions
 
