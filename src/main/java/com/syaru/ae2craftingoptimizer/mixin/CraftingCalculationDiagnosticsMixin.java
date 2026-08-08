@@ -9,6 +9,7 @@ import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import appeng.crafting.CraftingCalculation;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDiagnostics;
+import com.syaru.ae2craftingoptimizer.optimization.CraftingFallbackDiagnostics;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
 import com.syaru.ae2craftingoptimizer.engine.Ae2AuthoritativeCraftingPlanner;
 import appeng.crafting.inv.NetworkCraftingSimulationState;
@@ -79,6 +80,7 @@ public abstract class CraftingCalculationDiagnosticsMixin {
     @Inject(method = "run", at = @At("HEAD"))
     private void aco$startCalculationTimer(CallbackInfoReturnable<ICraftingPlan> cir) {
         aco$calculationStartedAt = System.nanoTime();
+        CraftingFallbackDiagnostics.reset();
     }
 
     /**
@@ -99,6 +101,7 @@ public abstract class CraftingCalculationDiagnosticsMixin {
 
     @Inject(method = "run", at = @At("RETURN"))
     private void aco$logSlowCalculation(CallbackInfoReturnable<ICraftingPlan> cir) {
+        CraftingFallbackDiagnostics.Observation fallback = CraftingFallbackDiagnostics.take();
         CraftingCalculationDiagnostics.logIfSlow(
                 output,
                 requestedAmount,
@@ -106,7 +109,8 @@ public abstract class CraftingCalculationDiagnosticsMixin {
                 System.nanoTime() - aco$calculationStartedAt,
                 aco$usedAuthoritativePlan
                         ? "compiled-strict"
-                        : "ae2-fallback");
+                        : "ae2-fallback",
+                fallback);
         // Authoritative結果を自分自身と比較して一致回数を水増しせず、AE2標準結果だけを教材にする。
         if (!aco$usedAuthoritativePlan) {
             Ae2CraftingShadowValidator.validate(

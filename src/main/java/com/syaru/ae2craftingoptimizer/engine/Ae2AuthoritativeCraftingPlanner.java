@@ -12,6 +12,8 @@ import appeng.crafting.CraftingPlan;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
+import com.syaru.ae2craftingoptimizer.optimization.CraftingFallbackDiagnostics;
+import com.syaru.ae2craftingoptimizer.optimization.FallbackReasonCode;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,6 +48,11 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 || grid == null
                 || source == null
                 || networkSnapshot == null) {
+            CraftingFallbackDiagnostics.record(
+                    null,
+                    ProviderPatternGenerationTracker.generation(),
+                    RecipeGenerationTracker.generation(),
+                    FallbackReasonCode.DISABLED);
             return null;
         }
         return new Capture(
@@ -70,6 +77,13 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 || strategy == null
                 || requestedAmount <= 0L
                 || Thread.currentThread().isInterrupted()) {
+            CraftingFallbackDiagnostics.record(
+                    output,
+                    capture == null ? ProviderPatternGenerationTracker.generation() : capture.patternGeneration(),
+                    capture == null ? RecipeGenerationTracker.generation() : capture.recipeGeneration(),
+                    Thread.currentThread().isInterrupted()
+                            ? FallbackReasonCode.CANCELLED
+                            : FallbackReasonCode.UNSUPPORTED_PATTERN);
             return null;
         }
 
@@ -80,6 +94,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
             var optionalProgram = graphSnapshot.rootProgram(output);
             // 曖昧、循環、複数出力などを含むルートはコンパイルせずAE2へ戻す。
             if (optionalProgram.isEmpty()) {
+                CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
+                        FallbackReasonCode.AMBIGUOUS_PRODUCER);
                 return null;
             }
             CompiledRootProgram<AEKey> program = optionalProgram.get();
@@ -88,6 +104,11 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     .orElse(null);
             // 実AE2 Pattern API上の完全一致を証明できない場合はAE2へ戻す。
             if (topology == null || !topology.acceptsInventory(capture.inventorySnapshot())) {
+                CraftingFallbackDiagnostics.record(
+                        output,
+                        capture.patternGeneration(),
+                        capture.recipeGeneration(),
+                        topology == null ? FallbackReasonCode.UNSUPPORTED_PATTERN : FallbackReasonCode.INVENTORY_CHANGED);
                 return null;
             }
             boolean wideArithmeticRequired = topology.mightRequireWideArithmetic(
@@ -106,10 +127,14 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     ACOConfig.enableProofQualifiedLongPlans(),
                     wideArithmeticRequired,
                     ACOConfig.requireAqeBigPlanShadowQualification())) {
+                CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
+                        FallbackReasonCode.SHADOW_NOT_QUALIFIED);
                 return null;
             }
             // 通常注文の置換を両方の設定で無効化した場合は、wide互換経路だけを残す。
             if (!normalLongReplacementEnabled() && !wideArithmeticRequired) {
+                CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
+                        FallbackReasonCode.UNSUPPORTED_PATTERN);
                 return null;
             }
 
@@ -117,6 +142,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     BigKeyCounterSidecars.snapshot(capture.inventorySnapshot()).orElse(null);
             // Adapter失敗を含む不完全Snapshotは、飽和値から不足数を推測せずAE2へ戻す。
             if (inventoryMetadata != null && !inventoryMetadata.complete()) {
+                CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
+                        FallbackReasonCode.INVENTORY_CHANGED);
                 return null;
             }
             CompiledRootProgram.BigInventorySnapshot<AEKey> exactPlanningInventory =
@@ -158,6 +185,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                             guard);
             // Root Program経路以外の結果はAuthoritativeとして採用しない。
             if (!promoted.provenEquivalent()) {
+                CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
+                        FallbackReasonCode.TAG_SELECTION_UNPROVEN);
                 return null;
             }
             NormalizedPlan symbolic = normalize(promoted);
@@ -175,6 +204,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         promoted);
                 // 厳格な親Jobへ変換できない経路は、値を近似せずAE2本来の計算へ戻す。
                 if (result == null) {
+                    CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
+                            FallbackReasonCode.UNSUPPORTED_PATTERN);
                     return null;
                 }
             } else {
@@ -189,6 +220,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         wideArithmeticRequired);
                 // AtomicまたはAuthoritative設定で採用できない通常計画はAE2へ戻す。
                 if (result == null) {
+                    CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
+                            FallbackReasonCode.UNSUPPORTED_PATTERN);
                     return null;
                 }
             }
@@ -209,18 +242,36 @@ public final class Ae2AuthoritativeCraftingPlanner {
                             capture.source(),
                             output);
             if (!inventoryStillMatches) {
+                CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
+                        FallbackReasonCode.INVENTORY_CHANGED);
                 return null;
             }
             // Emitterまたはファジー候補が変わった場合も、AE2と選択結果がずれるため破棄する。
             if (!topology.remainsValid(capture.grid())) {
+                CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
+                        FallbackReasonCode.GENERATION_CHANGED);
                 return null;
             }
             return result;
         } catch (PlanningCancelledException
                 | StalePlanningSnapshotException
                 | ArithmeticException ignored) {
+            CraftingFallbackDiagnostics.record(
+                    output,
+                    capture == null ? ProviderPatternGenerationTracker.generation() : capture.patternGeneration(),
+                    capture == null ? RecipeGenerationTracker.generation() : capture.recipeGeneration(),
+                    ignored instanceof PlanningCancelledException
+                            ? FallbackReasonCode.CANCELLED
+                            : ignored instanceof ArithmeticException
+                                    ? FallbackReasonCode.COUNT_OVERFLOW
+                                    : FallbackReasonCode.GENERATION_CHANGED);
             return null;
         } catch (Throwable failure) {
+            CraftingFallbackDiagnostics.record(
+                    output,
+                    capture == null ? ProviderPatternGenerationTracker.generation() : capture.patternGeneration(),
+                    capture == null ? RecipeGenerationTracker.generation() : capture.recipeGeneration(),
+                    classifyFallback(failure));
             logFallbackOnce(output, failure);
             return null;
         }
@@ -461,6 +512,17 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     output.getId(),
                     failure.toString());
         }
+    }
+
+    private static FallbackReasonCode classifyFallback(Throwable failure) {
+        String name = failure.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+        if (name.contains("cycle")) {
+            return FallbackReasonCode.CYCLE;
+        }
+        if (name.contains("overflow") || failure instanceof ArithmeticException) {
+            return FallbackReasonCode.COUNT_OVERFLOW;
+        }
+        return FallbackReasonCode.UNKNOWN;
     }
 
     private static KeyCounter keyCounter(Map<AEKey, Long> counts) {
