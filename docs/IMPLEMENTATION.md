@@ -13,6 +13,25 @@ It therefore separates:
 - physical recipe execution;
 - parent CPU completion.
 
+## Exact-count Integration Contract
+
+The shared integration contract lives under
+`com.syaru.ae2craftingoptimizer.api.contract`. It is deliberately independent
+of AE2, AQE, and AAC implementation classes so those integrations can adopt it
+without creating a compile-time cycle.
+
+- `CanonicalBigIntegerCodec` is the single bounded, unsigned-magnitude codec.
+- `ExactCountPayloadCodec` is the deterministic schema for request, plan, host,
+  journal, and receipt payloads.
+- `IntegrationCapabilitiesRegistry` exposes the immutable ACO capability
+  snapshot after common setup.
+- `ReceiptReservationProtocol` rejects stale or digest-mismatched transitions
+  instead of silently losing ownership.
+- `CraftingTableBatchSnapshot` and revision wakeups provide one consistent
+  view for later AQE/AAC host implementations.
+
+See `docs/EXACT_COUNT_API.md` for the versioned surface and adoption rules.
+
 ## Compiled Formula
 
 `CompiledRootProgram` is generation-keyed. For an eligible root it records:

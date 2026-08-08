@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added the public exact-count integration contract for ACO, AQE, and AAC.
+- Added canonical bounded `BigInteger` payload encoding for requests, plans,
+  hosts, journals, and receipts.
+- Added capability discovery, revision wakeups, immutable snapshots, and
+  idempotent receipt reservation primitives for follow-up integrations.
+
 ## [1.6.1] - 2026-08-03
 
 ### Fixed
