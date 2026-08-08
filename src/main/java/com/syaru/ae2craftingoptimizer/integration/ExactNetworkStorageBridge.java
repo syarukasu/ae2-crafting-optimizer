@@ -12,10 +12,13 @@ import com.syaru.ae2craftingoptimizer.access.ExtendedAePlusBigIntegerCellInvento
 import com.syaru.ae2craftingoptimizer.access.NetworkStorageMountsAccess;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactStorageMutationResult;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorStoragePolicy;
+import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -25,6 +28,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.WeakHashMap;
 
 /**
  * AE2 NetworkStorageのmount優先順を保ったまま、監査済みBigIntegerセルだけを正確に操作する。
@@ -38,8 +42,9 @@ public final class ExactNetworkStorageBridge {
     /** 委譲循環や異常に深いアドオンwrapperでmain threadを止めない固定上限。 */
     private static final int MAXIMUM_DELEGATE_DEPTH = 16;
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
-    /** 複数セルへまたがる直接変更を、同一JVM内では一つずつ確定する。 */
-    private static final Object MUTATION_LOCK = new Object();
+    /** Network単位だけを排他し、別gridの正確な在庫操作は並行して進める。 */
+    private static final Map<IGrid, Object> GRID_LOCKS =
+            Collections.synchronizedMap(new WeakHashMap<>());
 
     private ExactNetworkStorageBridge() {
     }
@@ -49,7 +54,7 @@ public final class ExactNetworkStorageBridge {
             AEKey key,
             BigInteger amount,
             IActionSource source) {
-        return prepare(grid, key, amount, source, Direction.EXTRACT) != null;
+        return canMutate(grid, key, amount, source, Direction.EXTRACT);
     }
 
     public static boolean canInsert(
@@ -57,7 +62,7 @@ public final class ExactNetworkStorageBridge {
             AEKey key,
             BigInteger amount,
             IActionSource source) {
-        return prepare(grid, key, amount, source, Direction.INSERT) != null;
+        return canMutate(grid, key, amount, source, Direction.INSERT);
     }
 
     public static ExactStorageMutationResult extract(
@@ -267,30 +272,34 @@ public final class ExactNetworkStorageBridge {
                 : Optional.empty();
     }
 
+    private static boolean canMutate(
+            IGrid grid,
+            AEKey key,
+            BigInteger amount,
+            IActionSource source,
+            Direction direction) {
+        Objects.requireNonNull(grid, "grid");
+        synchronized (lockFor(grid)) {
+            return prepareBatch(
+                    grid,
+                    Map.of(
+                            Objects.requireNonNull(key, "key"),
+                            Objects.requireNonNull(amount, "amount")),
+                    source,
+                    direction)
+                    != null;
+        }
+    }
+
     private static boolean canMutateAll(
             IGrid grid,
             Map<AEKey, BigInteger> amounts,
             IActionSource source,
             Direction direction) {
-        Map<AEKey, BigInteger> checked =
-                checkedBatchAmounts(
-                        amounts);
-        synchronized (MUTATION_LOCK) {
-            // 全キーが現在のfilter・優先度・容量で処理できる場合だけtrueを返す。
-            for (Map.Entry<AEKey, BigInteger> entry :
-                    checked.entrySet()) {
-                // 一キーでも全量routeを作れない場合は、境界Batch全体を拒否する。
-                if (prepare(
-                                grid,
-                                entry.getKey(),
-                                entry.getValue(),
-                                source,
-                                direction)
-                        == null) {
-                    return false;
-                }
-            }
-            return true;
+        Map<AEKey, BigInteger> checked = checkedBatchAmounts(amounts);
+        synchronized (lockFor(grid)) {
+            // バッチ境界で一度だけrouteを準備し、同じ準備結果を確定側へ渡す。
+            return prepareBatch(grid, checked, source, direction) != null;
         }
     }
 
@@ -298,98 +307,23 @@ public final class ExactNetworkStorageBridge {
             IGrid grid,
             Map<AEKey, BigInteger> amounts,
             IActionSource source,
-            Direction direction) {
+        Direction direction) {
         Map<AEKey, BigInteger> checked =
                 checkedBatchAmounts(
                         amounts);
-        synchronized (MUTATION_LOCK) {
-            /*
-             * 一キーも変更する前に全routeを検証する。
-             * 注文数量ではなく境界AEKey数だけを一巡する。
-             */
-            for (Map.Entry<AEKey, BigInteger> entry :
-                    checked.entrySet()) {
-                // 一キーでも扱えなければ、セルを一切変更せずBatchを拒否する。
-                if (prepare(
-                                grid,
-                                entry.getKey(),
-                                entry.getValue(),
-                                source,
-                                direction)
-                        == null) {
-                    return ExactStorageMutationResult.rejected(
-                            "no exact BigInteger storage route can accept the complete key batch");
-                }
+        synchronized (lockFor(grid)) {
+            ExactStorageMutationResult recovery = recoverPending(grid);
+            if (!recovery.successful()) {
+                return recovery;
             }
-
-            List<Map.Entry<AEKey, BigInteger>> applied =
-                    new ArrayList<>();
-            // 同じ排他区間内で各キーを確定し、途中失敗時は逆順に全量を戻す。
-            for (Map.Entry<AEKey, BigInteger> entry :
-                    checked.entrySet()) {
-                ExactStorageMutationResult result =
-                        mutate(
-                                grid,
-                                entry.getKey(),
-                                entry.getValue(),
-                                source,
-                                direction);
-                // 成功したキーだけをRollback台帳へ積む。
-                if (result.successful()) {
-                    applied.add(
-                            entry);
-                    continue;
-                }
-                boolean rolledBack =
-                        rollbackBatch(
-                                grid,
-                                source,
-                                direction,
-                                applied);
-                // 元の失敗またはRollbackのどちらかが不確定なら、親Jobへ隔離を要求する。
-                if (result.stateUncertain()
-                        || !rolledBack) {
-                    return ExactStorageMutationResult.uncertain(
-                            "exact storage key batch failed and rollback could not be proven");
-                }
+            PreparedMutation prepared =
+                    prepareBatch(grid, checked, source, direction);
+            if (prepared == null) {
                 return ExactStorageMutationResult.rejected(
-                        result.detail());
+                        "no exact BigInteger storage route can accept the complete key batch");
             }
-            return ExactStorageMutationResult.success(
-                    sumAmounts(
-                            checked));
+            return executePrepared(grid, prepared, direction);
         }
-    }
-
-    private static boolean rollbackBatch(
-            IGrid grid,
-            IActionSource source,
-            Direction appliedDirection,
-            List<Map.Entry<AEKey, BigInteger>> applied) {
-        Direction rollbackDirection =
-                appliedDirection == Direction.EXTRACT
-                        ? Direction.INSERT
-                        : Direction.EXTRACT;
-        // 最後に適用したキーから逆順で、正確な同量を戻す。
-        for (int index = applied.size() - 1;
-                index >= 0;
-                index--) {
-            Map.Entry<AEKey, BigInteger> entry =
-                    applied.get(
-                            index);
-            ExactStorageMutationResult rollback =
-                    mutate(
-                            grid,
-                            entry.getKey(),
-                            entry.getValue(),
-                            source,
-                            rollbackDirection);
-            // 一件でも戻せなければ、それ以前を推測で成功扱いしない。
-            if (!rollback.successful()) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static Map<AEKey, BigInteger> checkedBatchAmounts(
@@ -446,57 +380,44 @@ public final class ExactNetworkStorageBridge {
             BigInteger amount,
             IActionSource source,
             Direction direction) {
-        synchronized (MUTATION_LOCK) {
+        synchronized (lockFor(grid)) {
+            ExactStorageMutationResult recovery = recoverPending(grid);
+            if (!recovery.successful()) {
+                return recovery;
+            }
             PreparedMutation prepared =
-                    prepare(grid, key, amount, source, direction);
+                    prepareBatch(
+                            grid,
+                            Map.of(
+                                    Objects.requireNonNull(key, "key"),
+                                    Objects.requireNonNull(amount, "amount")),
+                            source,
+                            direction);
             // simulate時点で全量を扱えない場合は、セルへ一切触れず拒否する。
             if (prepared == null) {
                 return ExactStorageMutationResult.rejected(
                         "no exact BigInteger storage route can accept the full amount");
             }
-
-            List<AppliedStep> applied = new ArrayList<>(prepared.steps().size());
-            try {
-                // 分割単位はmount数だけであり、要求数量によるloopやlong Windowを作らない。
-                for (MutationStep step : prepared.steps()) {
-                    applied.add(apply(step, direction));
-                }
-                grid.getStorageService().invalidateCache();
-                return ExactStorageMutationResult.success(amount);
-            } catch (RuntimeException | LinkageError mutationFailure) {
-                boolean rollbackComplete = rollback(applied);
-                grid.getStorageService().invalidateCache();
-                if (!rollbackComplete) {
-                    AE2CraftingOptimizer.LOGGER.error(
-                            "ACO exact storage mutation became uncertain during {}",
-                            direction,
-                            mutationFailure);
-                    return ExactStorageMutationResult.uncertain(
-                            "exact storage callback failed and rollback could not be proven");
-                }
-                AE2CraftingOptimizer.LOGGER.warn(
-                        "ACO exact storage mutation was rolled back during {}: {}",
-                        direction,
-                        mutationFailure.toString());
-                return ExactStorageMutationResult.rejected(
-                        "exact storage changed between simulation and commit");
-            }
+            return executePrepared(grid, prepared, direction);
         }
     }
 
-    private static PreparedMutation prepare(
+    /**
+     * Builds one immutable route for the complete boundary batch.
+     *
+     * <p>Mounts are resolved once and a per-cell shadow is advanced while each key is
+     * planned. This preserves exact before/after state even when multiple keys share
+     * one cell, so commit never has to prepare a route again.</p>
+     */
+    private static PreparedMutation prepareBatch(
             IGrid grid,
-            AEKey key,
-            BigInteger amount,
+            Map<AEKey, BigInteger> requested,
             IActionSource source,
             Direction direction) {
         Objects.requireNonNull(grid, "grid");
-        Objects.requireNonNull(key, "key");
+        Map<AEKey, BigInteger> checked = checkedBatchAmounts(requested);
         Objects.requireNonNull(source, "source");
         Objects.requireNonNull(direction, "direction");
-        if (Objects.requireNonNull(amount, "amount").signum() <= 0) {
-            throw new IllegalArgumentException("exact storage amount must be positive");
-        }
 
         MEStorage networkInventory = grid.getStorageService().getInventory();
         if (!(networkInventory instanceof NetworkStorage)
@@ -505,106 +426,379 @@ public final class ExactNetworkStorageBridge {
         }
         NavigableMap<Integer, List<MEStorage>> mounts =
                 accessor.aco$getPriorityInventory();
-        List<MEStorage> ordered = direction == Direction.EXTRACT
-                ? extractionOrder(mounts)
-                : insertionOrder(mounts, key, source);
+        List<ResolvedMount> resolvedMounts = resolveMounts(mounts);
+        if (resolvedMounts.isEmpty()) {
+            return null;
+        }
 
-        BigInteger remaining = amount;
-        List<MutationStep> steps = new ArrayList<>();
-        Set<ExactStorageIdentity> visitedExactCells =
-                new LinkedHashSet<>();
-        // 同じunderlying cellが複数wrapperから見えても、一度だけ在庫へ数える。
-        for (MEStorage mount : ordered) {
-            ResolvedExactStorage resolved = resolveExactStorage(mount);
-            if (resolved == null
-                    || !visitedExactCells.add(
-                            resolved.storageIdentity())) {
-                continue;
-            }
-            BigInteger available = capacity(
-                    resolved, mount, key, remaining, source, direction);
-            if (available.signum() <= 0) {
-                continue;
-            }
-            BigInteger selected = available.min(remaining);
-            Object2ObjectMap<AEKey, BigInteger> amounts =
-                    resolved.currentMap();
-            steps.add(new MutationStep(
-                    resolved.accessor(),
-                    amounts,
-                    key,
-                    amounts.getOrDefault(
-                            key,
-                            BigInteger.ZERO),
-                    authoritativeTotal(
+        Map<ExactStorageIdentity, CellShadow> shadows = new LinkedHashMap<>();
+        for (ResolvedMount resolvedMount : resolvedMounts) {
+            ResolvedExactStorage resolved = resolvedMount.resolved();
+            Object2ObjectMap<AEKey, BigInteger> amounts = resolved.currentMap();
+            shadows.putIfAbsent(
+                    resolved.storageIdentity(),
+                    new CellShadow(
                             resolved.accessor(),
-                            amounts),
-                    amounts.size(),
-                    selected));
-            remaining = remaining.subtract(selected);
-            // 全量を確保できた時点で残りmountを走査しない。
-            if (remaining.signum() == 0) {
-                return new PreparedMutation(List.copyOf(steps));
+                            amounts,
+                            new LinkedHashMap<>(amounts),
+                            authoritativeTotal(resolved.accessor(), amounts)));
+        }
+
+        List<MutationStep> steps = new ArrayList<>();
+        for (Map.Entry<AEKey, BigInteger> entry : checked.entrySet()) {
+            AEKey key = entry.getKey();
+            BigInteger remaining = entry.getValue();
+            for (ResolvedMount resolvedMount :
+                    orderedResolvedMounts(
+                            mounts,
+                            resolvedMounts,
+                            key,
+                            source,
+                            direction)) {
+                ResolvedExactStorage resolved = resolvedMount.resolved();
+                CellShadow shadow = shadows.get(resolved.storageIdentity());
+                BigInteger current = shadow.amounts().getOrDefault(key, BigInteger.ZERO);
+                BigInteger available = direction == Direction.EXTRACT
+                        ? current.min(remaining)
+                        : insertionCapacity(
+                                resolved,
+                                key,
+                                current,
+                                remaining);
+                if (available.signum() <= 0) {
+                    continue;
+                }
+                long probe = available.min(LONG_MAX).longValueExact();
+                long accepted = direction == Direction.EXTRACT
+                        ? resolvedMount.mount().extract(
+                                key,
+                                probe,
+                                Actionable.SIMULATE,
+                                source)
+                        : resolvedMount.mount().insert(
+                                key,
+                                probe,
+                                Actionable.SIMULATE,
+                                source);
+                if (accepted != probe) {
+                    continue;
+                }
+                BigInteger selected = available.min(remaining);
+                BigInteger replacement = direction == Direction.EXTRACT
+                        ? current.subtract(selected)
+                        : current.add(selected);
+                BigInteger replacementTotal = direction == Direction.EXTRACT
+                        ? shadow.total().subtract(selected)
+                        : shadow.total().add(selected);
+                int replacementTypes = replacement.signum() == 0
+                        ? shadow.amounts().size() - 1
+                        : shadow.amounts().containsKey(key)
+                                ? shadow.amounts().size()
+                                : shadow.amounts().size() + 1;
+                steps.add(new MutationStep(
+                        shadow.accessor(),
+                        shadow.actualAmounts(),
+                        key,
+                        current,
+                        shadow.total(),
+                        shadow.amounts().size(),
+                        selected,
+                        replacement,
+                        replacementTotal,
+                        replacementTypes));
+                if (replacement.signum() == 0) {
+                    shadow.amounts().remove(key);
+                } else {
+                    shadow.amounts().put(key, replacement);
+                }
+                shadow.total = replacementTotal;
+                remaining = remaining.subtract(selected);
+                if (remaining.signum() == 0) {
+                    break;
+                }
+            }
+            if (remaining.signum() != 0) {
+                return null;
             }
         }
-        return null;
+        return new PreparedMutation(
+                UUID.randomUUID(),
+                checked,
+                List.copyOf(steps));
     }
 
-    private static List<MEStorage> extractionOrder(
-            NavigableMap<Integer, List<MEStorage>> mounts) {
-        List<MEStorage> result = new ArrayList<>();
-        // AE2 NetworkStorage.extractと同じdescendingMap順をそのまま複製する。
-        for (List<MEStorage> priority : mounts.descendingMap().values()) {
-            result.addAll(priority);
+    private static ExactStorageMutationResult executePrepared(
+            IGrid grid,
+            PreparedMutation prepared,
+            Direction direction) {
+        ExactStorageMutationJournal journal =
+                ExactStorageMutationJournal.forGrid(grid);
+        if (journal == null || !journal.isHealthy()) {
+            return ExactStorageMutationResult.rejected(
+                    "exact storage journal is unavailable or malformed");
         }
-        return result;
+        try {
+            // UUIDを付けるのはjournal作成直前だけ。can*のsimulationでは保存状態を触らない。
+            for (MutationStep step : prepared.steps()) {
+                if (!step.accessor().aco$hasExactStorageUuid()) {
+                    step.accessor().aco$assignExactStorageUuid();
+                }
+            }
+            List<ExactStorageMutationJournal.Step> journalSteps = new ArrayList<>();
+            for (MutationStep step : prepared.steps()) {
+                UUID storageId = step.accessor().aco$getExactStorageUuid();
+                if (storageId == null) {
+                    throw new IllegalStateException("exact cell has no persistent storage UUID");
+                }
+                journalSteps.add(new ExactStorageMutationJournal.Step(
+                        storageId,
+                        step.key().toTagGeneric(
+                                grid.getPivot().getLevel().registryAccess()),
+                        step.beforeAmount(),
+                        step.afterAmount(),
+                        step.beforeTotal(),
+                        step.afterTotal(),
+                        step.beforeTypes(),
+                        step.afterTypes(),
+                        step.amount()));
+            }
+            if (!journal.begin(
+                    prepared.operationId(),
+                    ExactNetworkStorageSnapshotCache.currentGeneration(),
+                    direction.name(),
+                    journalSteps,
+                    ACOConfig.getBatchTransactionJournalMaximumEntries())) {
+                return ExactStorageMutationResult.rejected(
+                        "exact storage journal cannot accept the prepared operation");
+            }
+
+            List<AppliedStep> applied = new ArrayList<>(prepared.steps().size());
+            try {
+                // このリストだけがcommitのroute。再prepareやquantity windowは行わない。
+                for (int index = 0; index < prepared.steps().size(); index++) {
+                    applied.add(apply(prepared.steps().get(index), direction));
+                    if (!journal.markApplied(prepared.operationId(), index)) {
+                        throw new IllegalStateException(
+                                "exact storage journal could not acknowledge an applied step");
+                    }
+                }
+                journal.acknowledge(prepared.operationId());
+                grid.getStorageService().invalidateCache();
+                return ExactStorageMutationResult.success(
+                        sumAmounts(prepared.requested()));
+            } catch (RuntimeException | LinkageError mutationFailure) {
+                boolean rollbackComplete = rollback(applied);
+                grid.getStorageService().invalidateCache();
+                if (rollbackComplete) {
+                    journal.acknowledge(prepared.operationId());
+                    AE2CraftingOptimizer.LOGGER.warn(
+                            "ACO exact storage mutation was rolled back during {}: {}",
+                            direction,
+                            mutationFailure.toString());
+                    return ExactStorageMutationResult.rejected(
+                            "exact storage changed between simulation and commit");
+                }
+                journal.quarantine(
+                        prepared.operationId(),
+                        "callback failure or rollback mismatch: "
+                                + mutationFailure);
+                AE2CraftingOptimizer.LOGGER.error(
+                        "ACO exact storage mutation became uncertain during {}",
+                        direction,
+                        mutationFailure);
+                return ExactStorageMutationResult.uncertain(
+                        "exact storage callback failed and rollback could not be proven");
+            }
+        } catch (RuntimeException | LinkageError preparationFailure) {
+            return ExactStorageMutationResult.rejected(
+                    "exact storage journal preparation failed: "
+                            + preparationFailure.getMessage());
+        }
     }
 
-    private static List<MEStorage> insertionOrder(
-            NavigableMap<Integer, List<MEStorage>> mounts,
+    /**
+     * Replays only journal steps whose exact before-state is still present. A step
+     * matching neither before nor after is quarantined; unrelated network totals are
+     * never used as proof.
+     */
+    private static ExactStorageMutationResult recoverPending(IGrid grid) {
+        ExactStorageMutationJournal journal =
+                ExactStorageMutationJournal.forGrid(grid);
+        if (journal == null || !journal.isHealthy()) {
+            return ExactStorageMutationResult.rejected(
+                    "exact storage journal is unavailable or malformed");
+        }
+        MEStorage networkInventory = grid.getStorageService().getInventory();
+        if (!(networkInventory instanceof NetworkStorageMountsAccess mountsAccess)) {
+            return ExactStorageMutationResult.rejected(
+                    "exact storage mounts are unavailable during recovery");
+        }
+        List<ResolvedMount> mounts = resolveMounts(
+                mountsAccess.aco$getPriorityInventory());
+        Map<UUID, ExtendedAePlusBigIntegerCellInventoryAccess> cells =
+                new LinkedHashMap<>();
+        for (ResolvedMount mount : mounts) {
+            UUID storageId = mount.resolved().accessor().aco$getExactStorageUuid();
+            if (storageId != null) {
+                cells.putIfAbsent(storageId, mount.resolved().accessor());
+            }
+        }
+        for (ExactStorageMutationJournal.Entry entry : journal.pending()) {
+            boolean belongsToThisGrid = false;
+            for (ExactStorageMutationJournal.Step step : entry.steps()) {
+                if (cells.containsKey(step.storageId())) {
+                    belongsToThisGrid = true;
+                    break;
+                }
+            }
+            // Journalはworld単位なので、別gridの未完了操作を他のgridから隔離しない。
+            if (!belongsToThisGrid) {
+                continue;
+            }
+            try {
+                List<RecoveryStep> recoverySteps = new ArrayList<>();
+                for (ExactStorageMutationJournal.Step step : entry.steps()) {
+                    ExtendedAePlusBigIntegerCellInventoryAccess accessor =
+                            cells.get(step.storageId());
+                    if (accessor == null) {
+                        throw new IllegalStateException(
+                                "journal cell is no longer mounted: " + step.storageId());
+                    }
+                    AEKey key = AEKey.fromTagGeneric(
+                            grid.getPivot().getLevel().registryAccess(),
+                            step.key());
+                    if (key == null) {
+                        throw new IllegalStateException("journal key could not be decoded");
+                    }
+                    Object2ObjectMap<AEKey, BigInteger> amounts =
+                            accessor.aco$getExactStoredAmounts();
+                    BigInteger currentAmount = amounts.getOrDefault(key, BigInteger.ZERO);
+                    BigInteger currentTotal = authoritativeTotal(accessor, amounts);
+                    boolean before = currentAmount.equals(step.beforeAmount())
+                            && currentTotal.equals(step.beforeTotal())
+                            && accessor.aco$getExactStoredTypeCount() == step.beforeTypes();
+                    boolean after = currentAmount.equals(step.afterAmount())
+                            && currentTotal.equals(step.afterTotal())
+                            && accessor.aco$getExactStoredTypeCount() == step.afterTypes();
+                    if (!before && !after) {
+                        throw new IllegalStateException(
+                                "journal cell state matches neither before nor after");
+                    }
+                    recoverySteps.add(new RecoveryStep(
+                            step,
+                            accessor,
+                            amounts,
+                            key,
+                            before));
+                }
+                for (int index = 0; index < recoverySteps.size(); index++) {
+                    RecoveryStep recovery = recoverySteps.get(index);
+                    if (recovery.before()) {
+                        apply(
+                                new MutationStep(
+                                        recovery.accessor(),
+                                        recovery.amounts(),
+                                        recovery.key(),
+                                        recovery.step().beforeAmount(),
+                                        recovery.step().beforeTotal(),
+                                        recovery.step().beforeTypes(),
+                                        recovery.step().amount(),
+                                        recovery.step().afterAmount(),
+                                        recovery.step().afterTotal(),
+                                        recovery.step().afterTypes()),
+                                Direction.valueOf(entry.direction()));
+                    }
+                    journal.markApplied(entry.operationId(), index);
+                }
+                journal.acknowledge(entry.operationId());
+                grid.getStorageService().invalidateCache();
+            } catch (RuntimeException | LinkageError failure) {
+                journal.quarantine(
+                        entry.operationId(),
+                        "recovery proof failed: " + failure);
+                AE2CraftingOptimizer.LOGGER.error(
+                        "ACO quarantined exact storage operation {} during recovery",
+                        entry.operationId(),
+                        failure);
+                return ExactStorageMutationResult.uncertain(
+                        "exact storage recovery could not be proven");
+            }
+        }
+        return ExactStorageMutationResult.success(BigInteger.ZERO);
+    }
+
+    private static Object lockFor(IGrid grid) {
+        Objects.requireNonNull(grid, "grid");
+        synchronized (GRID_LOCKS) {
+            return GRID_LOCKS.computeIfAbsent(grid, ignored -> new Object());
+        }
+    }
+
+    private record RecoveryStep(
+            ExactStorageMutationJournal.Step step,
+            ExtendedAePlusBigIntegerCellInventoryAccess accessor,
+            Object2ObjectMap<AEKey, BigInteger> amounts,
             AEKey key,
-            IActionSource source) {
-        List<MEStorage> result = new ArrayList<>();
-        // 各priorityでpreferred storageを先にし、その後に同priorityの通常mountを並べる。
+            boolean before) {
+    }
+
+    private static List<ResolvedMount> resolveMounts(
+            NavigableMap<Integer, List<MEStorage>> mounts) {
+        List<ResolvedMount> result = new ArrayList<>();
         for (List<MEStorage> priority : mounts.values()) {
             for (MEStorage mount : priority) {
-                if (mount.isPreferredStorageFor(key, source)) {
-                    result.add(mount);
-                }
-            }
-            for (MEStorage mount : priority) {
-                if (!mount.isPreferredStorageFor(key, source)) {
-                    result.add(mount);
+                ResolvedExactStorage resolved = resolveExactStorage(mount);
+                if (resolved != null) {
+                    result.add(new ResolvedMount(mount, resolved));
                 }
             }
         }
         return result;
     }
 
-    private static BigInteger capacity(
-            ResolvedExactStorage resolved,
-            MEStorage mount,
+    private static List<ResolvedMount> orderedResolvedMounts(
+            NavigableMap<Integer, List<MEStorage>> mounts,
+            List<ResolvedMount> resolvedMounts,
             AEKey key,
-            BigInteger requested,
             IActionSource source,
             Direction direction) {
-        BigInteger current = resolved.currentAmount(key);
-        BigInteger candidate;
+        IdentityHashMap<MEStorage, ResolvedMount> byMount = new IdentityHashMap<>();
+        for (ResolvedMount resolvedMount : resolvedMounts) {
+            byMount.put(resolvedMount.mount(), resolvedMount);
+        }
+        List<ResolvedMount> result = new ArrayList<>();
+        Set<ExactStorageIdentity> visited = new LinkedHashSet<>();
         if (direction == Direction.EXTRACT) {
-            candidate = current.min(requested);
-        } else {
-            candidate = insertionCapacity(resolved, key, current, requested);
+            for (List<MEStorage> priority : mounts.descendingMap().values()) {
+                for (MEStorage mount : priority) {
+                    ResolvedMount resolved = byMount.get(mount);
+                    if (resolved != null
+                            && visited.add(resolved.resolved().storageIdentity())) {
+                        result.add(resolved);
+                    }
+                }
+            }
+            return result;
         }
-        if (candidate.signum() <= 0) {
-            return BigInteger.ZERO;
+        for (List<MEStorage> priority : mounts.values()) {
+            for (MEStorage mount : priority) {
+                ResolvedMount resolved = byMount.get(mount);
+                if (resolved != null
+                        && mount.isPreferredStorageFor(key, source)
+                        && visited.add(resolved.resolved().storageIdentity())) {
+                    result.add(resolved);
+                }
+            }
+            for (MEStorage mount : priority) {
+                ResolvedMount resolved = byMount.get(mount);
+                if (resolved != null
+                        && !mount.isPreferredStorageFor(key, source)
+                        && visited.add(resolved.resolved().storageIdentity())) {
+                    result.add(resolved);
+                }
+            }
         }
-
-        long probe = candidate.min(LONG_MAX).longValueExact();
-        long accepted = direction == Direction.EXTRACT
-                ? mount.extract(key, probe, Actionable.SIMULATE, source)
-                : mount.insert(key, probe, Actionable.SIMULATE, source);
-        // wrapperのfilterやextract/insert禁止を、直接Map変更より前に必ず尊重する。
-        return accepted == probe ? candidate : BigInteger.ZERO;
+        return result;
     }
 
     private static BigInteger insertionCapacity(
@@ -693,6 +887,17 @@ public final class ExactNetworkStorageBridge {
         if (replacement.signum() < 0 || replacementTotal.signum() < 0) {
             throw new IllegalStateException("exact cell amount would become negative");
         }
+        int replacementTypes = replacement.signum() == 0
+                ? amounts.size() - 1
+                : amounts.containsKey(step.key())
+                        ? amounts.size()
+                        : amounts.size() + 1;
+        if (!replacement.equals(step.afterAmount())
+                || !replacementTotal.equals(step.afterTotal())
+                || replacementTypes != step.afterTypes()) {
+            throw new IllegalStateException(
+                    "prepared exact cell transition does not match the live state");
+        }
 
         // 0量キーをMapへ残さず、ExtendedAE Plus本来の型数会計と一致させる。
         if (replacement.signum() == 0) {
@@ -700,7 +905,7 @@ public final class ExactNetworkStorageBridge {
         } else {
             amounts.put(step.key(), replacement);
         }
-        accessor.aco$setExactStoredTypeCount(amounts.size());
+        accessor.aco$setExactStoredTypeCount(replacementTypes);
         accessor.aco$setExactStoredTotal(replacementTotal);
         ExactBigIntegerCellConsistency.record(
                 amounts, replacementTotal);
@@ -731,7 +936,9 @@ public final class ExactNetworkStorageBridge {
                 if (!amounts.getOrDefault(step.key(), BigInteger.ZERO)
                                 .equals(change.afterAmount())
                         || !currentTotal.equals(
-                                change.afterTotal())) {
+                                change.afterTotal())
+                        || step.accessor().aco$getExactStoredTypeCount()
+                                != step.afterTypes()) {
                     complete = false;
                     continue;
                 }
@@ -781,8 +988,14 @@ public final class ExactNetworkStorageBridge {
         EXTRACT
     }
 
-    private record PreparedMutation(List<MutationStep> steps) {
+    private record PreparedMutation(
+            UUID operationId,
+            Map<AEKey, BigInteger> requested,
+            List<MutationStep> steps) {
         private PreparedMutation {
+            Objects.requireNonNull(operationId, "operationId");
+            requested = Collections.unmodifiableMap(
+                    new LinkedHashMap<>(requested));
             steps = List.copyOf(steps);
             if (steps.isEmpty()) {
                 throw new IllegalArgumentException(
@@ -798,7 +1011,49 @@ public final class ExactNetworkStorageBridge {
             BigInteger beforeAmount,
             BigInteger beforeTotal,
             int beforeTypes,
-            BigInteger amount) {
+            BigInteger amount,
+            BigInteger afterAmount,
+            BigInteger afterTotal,
+            int afterTypes) {
+    }
+
+    private static final class CellShadow {
+        private final ExtendedAePlusBigIntegerCellInventoryAccess accessor;
+        private final Object2ObjectMap<AEKey, BigInteger> actualAmounts;
+        private final Map<AEKey, BigInteger> amounts;
+        private BigInteger total;
+
+        private CellShadow(
+                ExtendedAePlusBigIntegerCellInventoryAccess accessor,
+                Object2ObjectMap<AEKey, BigInteger> actualAmounts,
+                Map<AEKey, BigInteger> amounts,
+                BigInteger total) {
+            this.accessor = accessor;
+            this.actualAmounts = actualAmounts;
+            this.amounts = amounts;
+            this.total = total;
+        }
+
+        private ExtendedAePlusBigIntegerCellInventoryAccess accessor() {
+            return accessor;
+        }
+
+        private Object2ObjectMap<AEKey, BigInteger> actualAmounts() {
+            return actualAmounts;
+        }
+
+        private Map<AEKey, BigInteger> amounts() {
+            return amounts;
+        }
+
+        private BigInteger total() {
+            return total;
+        }
+    }
+
+    private record ResolvedMount(
+            MEStorage mount,
+            ResolvedExactStorage resolved) {
     }
 
     private record AppliedStep(
