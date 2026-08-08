@@ -29,6 +29,10 @@ Automated tests cover:
 - nested NetworkStorage reuse while an outer capture remains active;
 - full-grid terminal reuse of AE2's cached inventory with exact sidecars;
 - preservation of add-on-specific terminal inventory paths.
+- canonical exact-count payload round trips and rejection of non-canonical
+  encodings;
+- capability snapshot initialization, receipt reservation idempotence, and
+  revisioned snapshot/wakeup behavior.
 
 ## Required Live Matrix
 
