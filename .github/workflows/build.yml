@@ -11,6 +11,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ae2Variant: [upstream, uelm]
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -27,7 +31,7 @@ jobs:
       - name: Build
         run: |
           chmod +x gradlew
-          ./gradlew clean build --stacktrace
+          ./gradlew clean build --stacktrace -Pae2Variant=${{ matrix.ae2Variant }}
 
       - name: Verify 1.20.1 artifact boundary
         shell: bash
@@ -43,6 +47,6 @@ jobs:
       - name: Upload jar
         uses: actions/upload-artifact@v6
         with:
-          name: aco-1.20.1-${{ github.sha }}
+          name: aco-1.20.1-${{ matrix.ae2Variant }}-${{ github.sha }}
           path: build/libs/aco*_1.20.1.jar
           if-no-files-found: error
