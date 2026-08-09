@@ -10,11 +10,11 @@ import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
 import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingInventoryAccess;
+import com.syaru.ae2craftingoptimizer.access.MekanismCachedRecipeAccess;
 import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
-import com.syaru.ae2craftingoptimizer.mixin.MekanismCachedRecipeAccessor;
 import com.syaru.ae2craftingoptimizer.scheduler.FairSchedulerStateStore;
 import java.util.ArrayList;
 import java.util.List;
@@ -115,7 +115,7 @@ public final class ExperimentalCompatibilityValidator {
                 failures.add("Mekanism native adapter was not registered for the exact supported versions");
             }
             require(failures, "mekanism.api.recipes.cache.CachedRecipe",
-                    MekanismCachedRecipeAccessor.class);
+                    MekanismCachedRecipeAccess.class);
         }
         if (ACOConfig.enableGtceuNativeBatching()
                 && !OptionalNativeBatchIntegrations.gtceuRegistered()) {

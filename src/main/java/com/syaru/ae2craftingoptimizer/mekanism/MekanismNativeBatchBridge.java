@@ -6,7 +6,7 @@ import appeng.api.stacks.AEKey;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchContext;
 import com.syaru.ae2craftingoptimizer.batch.ExactMultisetMatcher;
 import com.syaru.ae2craftingoptimizer.batch.ExactPatternSnapshot;
-import com.syaru.ae2craftingoptimizer.mixin.MekanismCachedRecipeAccessor;
+import com.syaru.ae2craftingoptimizer.access.MekanismCachedRecipeAccess;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -126,7 +126,7 @@ public final class MekanismNativeBatchBridge {
     private static int nativeOperationLimit(IRecipeLookupHandler handler, MekanismRecipe recipe) {
         try {
             CachedRecipe<?> cachedRecipe = handler.createNewCachedRecipe(recipe, 0);
-            int baseline = ((MekanismCachedRecipeAccessor) (Object) cachedRecipe)
+            int baseline = ((MekanismCachedRecipeAccess) (Object) cachedRecipe)
                     .aco$getBaselineMaxOperations()
                     .getAsInt();
             if (baseline <= 0) {

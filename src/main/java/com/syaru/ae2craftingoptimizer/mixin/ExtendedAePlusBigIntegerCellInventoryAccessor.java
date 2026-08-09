@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.mixin;
 
 import appeng.api.stacks.AEKey;
+import com.syaru.ae2craftingoptimizer.access.ExtendedAePlusBigIntegerCellInventoryAccess;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import java.math.BigInteger;
 import java.util.UUID;
@@ -14,7 +15,8 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(
         targets = "com.extendedae_plus.api.storage.InfinityBigIntegerCellInventory",
         remap = false)
-public interface ExtendedAePlusBigIntegerCellInventoryAccessor {
+public interface ExtendedAePlusBigIntegerCellInventoryAccessor
+        extends ExtendedAePlusBigIntegerCellInventoryAccess {
     @Invoker("getCellStoredMap")
     Object2ObjectMap<AEKey, BigInteger> aco$getExactStoredAmounts();
 

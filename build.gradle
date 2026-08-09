@@ -140,6 +140,36 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
+tasks.register('verifyMixinPackageBoundary') {
+    doLast {
+        def sourceRoot = file('src/main/java')
+        def forbiddenReference = ~/com\.syaru\.ae2craftingoptimizer\.mixin\.[A-Za-z0-9_.$]+/
+        def violations = []
+
+        fileTree(sourceRoot).matching { include '**/*.java' }.files.each { sourceFile ->
+            def relativePath = sourceRoot.toPath().relativize(sourceFile.toPath()).toString()
+            if (relativePath.replace('\\', '/').startsWith('com/syaru/ae2craftingoptimizer/mixin/')) {
+                return
+            }
+            sourceFile.eachLine { line, lineNumber ->
+                if (line =~ forbiddenReference) {
+                    violations << "${relativePath}:${lineNumber}: ${line.trim()}"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            throw new GradleException(
+                    'Production code must not directly reference classes in the Mixin package:\n'
+                            + violations.join('\n'))
+        }
+    }
+}
+
+tasks.named('compileJava') {
+    dependsOn 'verifyMixinPackageBoundary'
+}
+
 test {
     useJUnitPlatform()
 }
