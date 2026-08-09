@@ -28,6 +28,8 @@ uses `aco<version>_1.20.1.jar`; the NeoForge line is maintained separately on
 - Forge `47.4.18+`
 - Java `17`
 - Applied Energistics 2 `15.4.10`
+- AE2 Unofficial Extended Life Modern `15.5.0-uelm` (optional replacement
+  profile; keeps the `ae2` mod id)
 - Optional Advanced AE `1.3.5-1.20.1`
 - Optional Neo ECO AE Extension `20.3.x`
 - Optional GTCEu Modern `7.5.3`
@@ -40,6 +42,22 @@ Install the same ACO JAR on the server and every client. The common config is:
 ```text
 config/ae2_crafting_optimizer-common.toml
 ```
+
+### AE2-UELM build profile
+
+The UELM build is selected explicitly; it is not detected by a second mod id.
+UELM is the Forge 1.20.1 replacement distribution with artifact
+`appeng:appliedenergistics2-forge:15.5.0-uelm` and shared mod id `ae2`.
+
+```text
+gradlew.bat check --no-daemon -Pae2Variant=upstream
+gradlew.bat check --no-daemon -Pae2Variant=uelm
+```
+
+For an offline checked-out pack, place the matching JAR in the configured
+`acoLocalModsDir` using the artifact filename. ACO delegates UELM's native
+long craft amount menu/screen and retains its own exact BigInteger storage
+paths because UELM does not replace those storage classes.
 
 ## Core Optimizations
 

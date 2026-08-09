@@ -1,6 +1,7 @@
 {
   "required": false,
   "minVersion": "0.8",
+  "plugin": "com.syaru.ae2craftingoptimizer.mixin.AcoMixinPlugin",
   "package": "com.syaru.ae2craftingoptimizer.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [

@@ -4,7 +4,6 @@ import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchBudget;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchContext;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchRecoveryResult;
-import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchPayloadFingerprint;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceipt;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchCommit;
@@ -14,7 +13,7 @@ import com.syaru.ae2craftingoptimizer.batch.NativePatternBatchSupport;
 import com.syaru.ae2craftingoptimizer.batch.PatternProviderReceiptResolver;
 import com.syaru.ae2craftingoptimizer.batch.PatternProviderBatchEscrow;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
-import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchTransactionRecord;
 import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -154,7 +153,7 @@ public final class GTCEuNativePatternBatchAdapter implements TransactionalPatter
         }
         if (!receipt.patternFingerprint().equals(record.patternFingerprint())
                 || receipt.executions() != record.offeredExecutions()
-                || !receipt.payloadDigest().equals(BatchPayloadFingerprint.of(record))) {
+                || !receipt.payloadDigest().equals(record.payloadDigest())) {
             return new BatchRecoveryResult(
                     BatchRecoveryResult.TargetState.QUARANTINE,
                     0L,

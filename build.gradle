@@ -52,6 +52,13 @@ repositories {
         }
     }
     maven {
+        name = 'ExpandiumReleases'
+        url = 'https://repo.expandium.net/releases'
+        content {
+            includeGroup 'appeng'
+        }
+    }
+    maven {
         name = 'GTCEu'
         url = 'https://maven.gtceu.com/'
         content {
@@ -77,8 +84,13 @@ repositories {
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.18'
 
+    def ae2Variant = (findProperty('ae2Variant') ?: 'upstream').toString().toLowerCase()
+    if (!(ae2Variant in ['upstream', 'uelm'])) {
+        throw new GradleException("ae2Variant must be 'upstream' or 'uelm', got ${ae2Variant}")
+    }
+    def ae2Version = ae2Variant == 'uelm' ? '15.5.0-uelm' : '15.4.10'
     def localModsDir = file(findProperty('acoLocalModsDir') ?: '../../mods')
-    def localAe2 = new File(localModsDir, 'appliedenergistics2-forge-15.4.10.jar')
+    def localAe2 = new File(localModsDir, "appliedenergistics2-forge-${ae2Version}.jar")
     def localGtceu = new File(localModsDir, 'gtceu-1.20.1-7.5.3.jar')
     def localLdlib = new File(localModsDir, 'ldlib-forge-1.20.1-1.0.50.jar')
     def localMekanism = new File(localModsDir, 'Mekanism-1.20.1-10.4.16.80.jar')
@@ -95,7 +107,7 @@ dependencies {
         compileOnly files(localAppliedMekanistics)
         compileOnly files(localAdvancedAe)
     } else {
-        implementation fg.deobf('appeng:appliedenergistics2-forge:15.4.10')
+        implementation fg.deobf("appeng:appliedenergistics2-forge:${ae2Version}")
         def gtceuDependency = project.dependencies.create('com.gregtechceu.gtceu:gtceu-1.20.1:7.5.3') {
             transitive = false
         }
@@ -164,8 +176,15 @@ tasks.register('normalizeReobfJarName') {
         }.files
         def source = sources.find { it.name != expected.name }
         if (source != null && source.exists()) {
-            if (!source.renameTo(expected)) {
-                throw new GradleException("Could not normalize ${source.name} to ${expected.name}")
+            try {
+                java.nio.file.Files.move(
+                        source.toPath(),
+                        expected.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } catch (java.io.IOException exception) {
+                throw new GradleException(
+                        "Could not normalize ${source.name} to ${expected.name}",
+                        exception)
             }
         }
         if (!expected.isFile()) {

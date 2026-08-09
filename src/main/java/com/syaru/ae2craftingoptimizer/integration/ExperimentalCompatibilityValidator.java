@@ -35,7 +35,7 @@ public final class ExperimentalCompatibilityValidator {
             return;
         }
         List<String> failures = new ArrayList<>();
-        requireExactVersion(failures, "ae2", "15.4.10");
+        requireSupportedAe2Version(failures);
         if ((ACOConfig.enableTransactionalBatchingV2()
                         || ACOConfig.enableFairCraftingJobScheduler()
                         || ACOConfig.enableAtomicBigCapacityPlans()
@@ -126,6 +126,18 @@ public final class ExperimentalCompatibilityValidator {
                     "ACO experimental integration audit failed. Disable the affected experimental switch "
                             + "or install the exact supported dependency versions. Missing transformations: "
                             + String.join("; ", failures));
+        }
+    }
+
+    private static void requireSupportedAe2Version(List<String> failures) {
+        String installed = ModList.get().getModContainerById("ae2")
+                .map(container -> container.getModInfo().getVersion().toString())
+                .orElse(null);
+        if (!Ae2UelmCompatibility.isSupportedAe2Version(installed)) {
+            failures.add("ae2 version must be "
+                    + Ae2UelmCompatibility.UPSTREAM_VERSION + " or "
+                    + Ae2UelmCompatibility.UELM_VERSION
+                    + " for the experimental engine (installed " + installed + ")");
         }
     }
 

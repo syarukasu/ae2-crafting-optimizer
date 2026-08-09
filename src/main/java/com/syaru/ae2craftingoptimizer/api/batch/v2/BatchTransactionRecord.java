@@ -67,27 +67,6 @@ public final class BatchTransactionRecord {
         this.updatedTick = updatedTick;
     }
 
-    static BatchTransactionRecord fromInternal(
-            com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord record) {
-        return new BatchTransactionRecord(
-                record.id(),
-                record.adapterId(),
-                record.sourceId(),
-                record.dimensionId(),
-                record.targetPos(),
-                record.patternFingerprint(),
-                record.offeredExecutions(),
-                record.acceptedExecutions(),
-                record.createdTick(),
-                record.updatedTick(),
-                record.phase().name(),
-                record.extractedInputs(),
-                record.expectedOutputs(),
-                record.sourceData(),
-                record.adapterData(),
-                record.receipt());
-    }
-
     public UUID id() { return id; }
     public ResourceLocation adapterId() { return adapterId; }
     public ResourceLocation sourceId() { return sourceId; }
@@ -104,4 +83,49 @@ public final class BatchTransactionRecord {
     public CompoundTag sourceData() { return sourceData.copy(); }
     public CompoundTag adapterData() { return adapterData.copy(); }
     public String receipt() { return receipt; }
+
+    /**
+     * The canonical ownership payload digest used by ACO recovery.
+     * Integrations must use this value instead of reproducing ACO's encoding.
+     */
+    public String payloadDigest() {
+        return BatchPayloadFingerprint.of(this);
+    }
+
+    /** Creates an immutable public recovery view from the internal journal bridge. */
+    public static BatchTransactionRecord snapshot(
+            UUID id,
+            ResourceLocation adapterId,
+            ResourceLocation sourceId,
+            ResourceLocation dimensionId,
+            BlockPos targetPos,
+            String patternFingerprint,
+            long offeredExecutions,
+            long acceptedExecutions,
+            long createdTick,
+            long updatedTick,
+            String phase,
+            List<GenericStack> extractedInputs,
+            List<GenericStack> expectedOutputs,
+            CompoundTag sourceData,
+            CompoundTag adapterData,
+            String receipt) {
+        return new BatchTransactionRecord(
+                id,
+                adapterId,
+                sourceId,
+                dimensionId,
+                targetPos,
+                patternFingerprint,
+                offeredExecutions,
+                acceptedExecutions,
+                createdTick,
+                updatedTick,
+                phase,
+                extractedInputs,
+                expectedOutputs,
+                sourceData,
+                adapterData,
+                receipt);
+    }
 }

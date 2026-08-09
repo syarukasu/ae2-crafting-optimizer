@@ -7,6 +7,7 @@ import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchV2Api;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingEngineApi;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
+import com.syaru.ae2craftingoptimizer.integration.Ae2UelmCompatibility;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
 import net.minecraftforge.fml.ModList;
 
@@ -113,6 +114,11 @@ final class ACOStartupReport {
                 ACOConfig.coalesceCraftingProviderRefreshes(),
                 ACOConfig.coalesceClientTerminalViewUpdates(),
                 ACOConfig.fixStuckAe2ScrollbarRepeat());
+        AE2CraftingOptimizer.LOGGER.info(
+                "ACO AE2-UELM compatibility: loaded {}, AE2 amount surface delegated {}, AE2 storage surface delegated {}",
+                Ae2UelmCompatibility.isLoaded(),
+                Ae2UelmCompatibility.ownsAe2ExtendedAmountSurface(),
+                Ae2UelmCompatibility.ownsAe2StorageSurface());
         AE2CraftingOptimizer.LOGGER.info(
                 "ACO ExtendedAE Circuit Cutter recipe cache: {}, max {} entries",
                 ACOConfig.cacheCircuitCutterRecipes(),

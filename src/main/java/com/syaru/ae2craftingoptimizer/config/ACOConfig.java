@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.ModList;
+import com.syaru.ae2craftingoptimizer.integration.Ae2UelmCompatibility;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
 
@@ -1587,7 +1588,9 @@ public final class ACOConfig {
     }
 
     public static boolean enableLongRootCraftAmounts() {
-        return enableOptimizer() && ENABLE_LONG_ROOT_CRAFT_AMOUNTS.get();
+        return enableOptimizer()
+                && !Ae2UelmCompatibility.ownsAe2ExtendedAmountSurface()
+                && ENABLE_LONG_ROOT_CRAFT_AMOUNTS.get();
     }
 
     public static boolean enableCraftingEngineShadowMode() {

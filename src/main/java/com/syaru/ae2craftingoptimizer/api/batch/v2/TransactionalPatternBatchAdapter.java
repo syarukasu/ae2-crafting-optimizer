@@ -50,17 +50,6 @@ public interface TransactionalPatternBatchAdapter {
     /** Called only before durable target acceptance. */
     void rollback(PatternBatchContext context, PreparedPatternBatch prepared);
 
-    /**
-     * Legacy recovery entry point retained for binary compatibility with the
-     * 1.5.x built-in adapters. New integrations should implement the public
-     * read-only record overload below.
-     */
-    default BatchRecoveryResult reconcileTarget(
-            ServerLevel level,
-            com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord record) {
-        return reconcileTarget(level, BatchTransactionRecord.fromInternal(record));
-    }
-
     /** Recovery entry point for integrations that use only the public API. */
     default BatchRecoveryResult reconcileTarget(
             ServerLevel level,
@@ -71,13 +60,6 @@ public interface TransactionalPatternBatchAdapter {
 
     /** Called after the matching durable journal record reached a terminal phase. */
     default void forgetResolvedTarget(PatternBatchContext context, UUID transactionId) {
-    }
-
-    /** Recovery-side counterpart for legacy built-in adapters. */
-    default void forgetResolvedTarget(
-            ServerLevel level,
-            com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord record) {
-        forgetResolvedTarget(level, BatchTransactionRecord.fromInternal(record));
     }
 
     /** Recovery-side counterpart for public-API integrations. */
