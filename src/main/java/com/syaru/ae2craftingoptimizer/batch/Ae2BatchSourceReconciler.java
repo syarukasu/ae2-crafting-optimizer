@@ -17,7 +17,7 @@ import com.syaru.ae2craftingoptimizer.access.CraftingJobTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
-import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchTransactionRecord;
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;

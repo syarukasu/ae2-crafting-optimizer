@@ -1,7 +1,6 @@
 package com.syaru.ae2craftingoptimizer.transaction;
 
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchCommit;
-import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchPayloadFingerprint;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PreparedPatternBatch;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import java.util.Objects;
@@ -79,7 +78,7 @@ public final class BatchTransactionCoordinator {
             if (commit.ownershipProof() == null
                     || !commit.ownershipProof().transactionId().equals(id)
                     || commit.ownershipProof().executions() != current.offeredExecutions()
-                    || !commit.ownershipProof().payloadDigest().equals(BatchPayloadFingerprint.of(current))) {
+                    || !commit.ownershipProof().payloadDigest().equals(current.payloadDigest())) {
                 throw new IllegalArgumentException(
                         "target acceptance requires a durable ownership proof for the exact transaction");
             }

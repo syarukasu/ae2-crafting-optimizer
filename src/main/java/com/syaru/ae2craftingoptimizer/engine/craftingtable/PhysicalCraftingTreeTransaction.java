@@ -4,6 +4,7 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IGrid;
 import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.security.IActionSource;
+import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.api.batch.ExactPatternFormula;
@@ -50,7 +51,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 public final class PhysicalCraftingTreeTransaction {
     public static final String ENGINE_ID =
             "aco:physical-crafting-table-tree-v4";
-    private static final int SCHEMA_VERSION = 2;
+    private static final int SCHEMA_VERSION = 3;
+    private static final int LEGACY_SCHEMA_VERSION = 2;
     /** 一つの物理レシピ段をGUI進捗へ換算する固定単位。 */
     private static final int PROGRESS_UNITS_PER_STEP = 100;
     /** 破損NBTによる巨大なキー配列確保を防ぐ固定上限。 */
@@ -59,6 +61,8 @@ public final class PhysicalCraftingTreeTransaction {
     private static final int MAXIMUM_DETAIL_LENGTH = 2_048;
 
     private final PreparedVectorBatch plan;
+    /** Immutable accounting identity captured before physical ownership begins. */
+    private final Map<String, PatternAccountingIdentity> patternIdentities;
     private final ExactCraftingEscrow<AEKey> escrow;
     private final List<StepReceipt> steps;
     private State state;
@@ -81,6 +85,7 @@ public final class PhysicalCraftingTreeTransaction {
 
     private PhysicalCraftingTreeTransaction(
             PreparedVectorBatch plan,
+            Map<String, PatternAccountingIdentity> patternIdentities,
             Map<AEKey, BigInteger> escrow,
             List<StepReceipt> steps,
             State state,
@@ -96,6 +101,10 @@ public final class PhysicalCraftingTreeTransaction {
                 Objects.requireNonNull(
                         plan,
                         "plan");
+        this.patternIdentities =
+                checkedPatternIdentities(
+                        plan,
+                        patternIdentities);
         this.escrow =
                 new ExactCraftingEscrow<>(
                         checkedCounts(
@@ -137,6 +146,12 @@ public final class PhysicalCraftingTreeTransaction {
 
     public static PhysicalCraftingTreeTransaction create(
             PreparedVectorBatch plan) {
+        return create(plan, Map.of());
+    }
+
+    public static PhysicalCraftingTreeTransaction create(
+            PreparedVectorBatch plan,
+            Map<String, PatternAccountingIdentity> patternIdentities) {
         Objects.requireNonNull(
                 plan,
                 "plan");
@@ -173,6 +188,7 @@ public final class PhysicalCraftingTreeTransaction {
         }
         return new PhysicalCraftingTreeTransaction(
                 plan,
+                patternIdentities,
                 Map.of(),
                 receipts,
                 State.VALIDATING,
@@ -195,9 +211,8 @@ public final class PhysicalCraftingTreeTransaction {
          * 旧「全Patternを証明して最終出力を直接生成」方式は意味が異なる。
          * schema移行で出力を推測すると複製し得るため、v4だけを復元する。
          */
-        if (owner.getInt(
-                            "schema")
-                        != SCHEMA_VERSION
+        int schema = owner.getInt("schema");
+        if ((schema != SCHEMA_VERSION && schema != LEGACY_SCHEMA_VERSION)
                 || !owner.contains(
                         "plan",
                         Tag.TAG_COMPOUND)) {
@@ -236,6 +251,9 @@ public final class PhysicalCraftingTreeTransaction {
                         : null;
         return new PhysicalCraftingTreeTransaction(
                 plan,
+                schema == SCHEMA_VERSION
+                        ? decodePatternIdentities(owner, plan)
+                        : Map.of(),
                 decodeCounts(
                         owner,
                         "escrow"),
@@ -265,7 +283,14 @@ public final class PhysicalCraftingTreeTransaction {
                 new CompoundTag();
         owner.putInt(
                 "schema",
-                SCHEMA_VERSION);
+                hasCompletePatternIdentities()
+                        ? SCHEMA_VERSION
+                        : LEGACY_SCHEMA_VERSION);
+        if (hasCompletePatternIdentities()) {
+            owner.put(
+                    "patternIdentities",
+                    encodePatternIdentities(patternIdentities));
+        }
         owner.put(
                 "plan",
                 PreparedVectorBatchCodec.encode(
@@ -319,6 +344,18 @@ public final class PhysicalCraftingTreeTransaction {
                 "steps",
                 encodedSteps);
         return owner;
+    }
+
+    private boolean hasCompletePatternIdentities() {
+        if (patternIdentities.size() != plan.craftingSteps().size()) {
+            return false;
+        }
+        for (ExactCraftingStep step : plan.craftingSteps()) {
+            if (!patternIdentities.containsKey(step.patternId())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -499,33 +536,36 @@ public final class PhysicalCraftingTreeTransaction {
         Map<AEKey, BigInteger> expectedOutputs = new LinkedHashMap<>();
         Map<AEKey, BigInteger> introducedOutputs = new LinkedHashMap<>();
         Map<AEKey, BigInteger> creditedOutputs = new LinkedHashMap<>();
+        // v2 transactions are lazily migrated when the live graph is available.
+        ensurePatternIdentities(snapshot, level);
         // 固有Pattern数だけを一巡し、注文数量ぶんの会計要素は作らない。
         for (StepReceipt receipt : steps) {
-            ResolvedStep resolved = resolveStep(
-                    snapshot,
-                    level,
-                    receipt.index());
-            String patternId = resolved.step().patternId();
-            BigInteger executions = resolved.step().executions();
+            ExactCraftingStep step = plan.craftingSteps().get(receipt.index());
+            PatternAccountingIdentity identity = patternIdentities.get(step.patternId());
+            if (identity == null) {
+                throw new PatternUnavailableException(
+                        "saved accounting identity is not available for pattern " + step.patternId());
+            }
+            BigInteger executions = step.executions();
             mergePositive(
                     plannedTasks,
-                    patternId,
+                    identity.patternId(),
                     executions);
-            resolved.expectedOutputs().forEach((key, amount) ->
+            identity.expectedOutputs().forEach((key, amount) ->
                     mergePositive(expectedOutputs, key, amount));
             // Pattern Busが一度でも仕事を所有した段だけ、通常AE2のtask減算へ反映する。
             if (receipt.dispatched()) {
                 mergePositive(
                         dispatchedTasks,
-                        patternId,
+                        identity.patternId(),
                         executions);
                 // 通常AE2と同じく、Pattern投入時点でだけそのPatternの全出力をwaitingForへ加える。
-                resolved.expectedOutputs().forEach((key, amount) ->
+                identity.expectedOutputs().forEach((key, amount) ->
                         mergePositive(introducedOutputs, key, amount));
             }
             // 実出力をEscrowへ一度会計した段だけ、通常AE2のwaitingForから差し引く。
             if (receipt.outputCredited()) {
-                resolved.expectedOutputs().forEach((key, amount) ->
+                identity.expectedOutputs().forEach((key, amount) ->
                         mergePositive(creditedOutputs, key, amount));
             }
         }
@@ -534,8 +574,8 @@ public final class PhysicalCraftingTreeTransaction {
                         && (state == State.RETURNING_RESULTS
                                 || state == State.COMPLETE);
         return new AccountingSnapshot(
-                plannedTasks,
-                dispatchedTasks,
+                patternDefinitions(plannedTasks),
+                patternDefinitions(dispatchedTasks),
                 expectedOutputs,
                 introducedOutputs,
                 creditedOutputs,
@@ -581,13 +621,18 @@ public final class PhysicalCraftingTreeTransaction {
          * 境界素材へ触る前に、材料側から完成品側までの全式と依存順を
          * 仮想Escrowで一度だけ証明する。実行時は同じ式を再探索しない。
          */
-        if (!validateCompiledTree(
-                snapshot,
-                level)) {
-            quarantine(
-                    "compiled crafting-table tree does not conserve its exact inputs and outputs");
-            return TickOutcome.quarantined(
-                    detail);
+        try {
+            if (!validateCompiledTree(
+                    snapshot,
+                    level)) {
+                quarantine(
+                        "compiled crafting-table tree conflicts with its saved pattern identity");
+                return TickOutcome.quarantined(
+                        detail);
+            }
+        } catch (PatternUnavailableException unavailable) {
+            detail = unavailable.getMessage();
+            return TickOutcome.waiting(detail);
         }
         validatedPatternGeneration =
                 snapshot.graph()
@@ -632,16 +677,17 @@ public final class PhysicalCraftingTreeTransaction {
          * Providerまたはレシピ世代が変わった場合だけ、保存式を全体再検証する。
          * 不一致なら新しい式へ勝手に差し替えず、取消経路へ移る。
          */
-        if (!isValidatedFor(
-                        snapshot)
-                && !validateCompiledTree(
-                        snapshot,
-                        level)) {
-            state =
-                    State.CANCELLING_THREADS;
-            detail =
-                    "crafting-table recipe generation changed during execution";
-            return TickOutcome.changed();
+        if (!isValidatedFor(snapshot)) {
+            try {
+                if (!validateCompiledTree(snapshot, level)) {
+                    quarantine(
+                            "live crafting-table pattern conflicts with its saved physical identity");
+                    return TickOutcome.quarantined(detail);
+                }
+            } catch (PatternUnavailableException unavailable) {
+                detail = unavailable.getMessage();
+                return TickOutcome.waiting(detail);
+            }
         }
         validatedPatternGeneration =
                 snapshot.graph()
@@ -1685,6 +1731,8 @@ public final class PhysicalCraftingTreeTransaction {
                                 resolvedSteps);
             }
             return valid;
+        } catch (PatternUnavailableException unavailable) {
+            throw unavailable;
         } catch (RuntimeException | LinkageError invalid) {
             return false;
         }
@@ -1731,19 +1779,32 @@ public final class PhysicalCraftingTreeTransaction {
         IPatternDetails pattern =
                 snapshot.pattern(
                         step.patternId());
+        if (pattern == null || pattern.getDefinition() == null) {
+            throw new PatternUnavailableException(
+                    "saved crafting-table pattern is temporarily unavailable: " + step.patternId());
+        }
         ExactPatternFormula formula =
-                pattern == null
-                        ? null
-                        : ExactPatternFormula.tryCreate(
-                                        pattern,
-                                        level,
-                                        step.selectedInputs())
-                                .orElse(
-                                        null);
-        // Pattern消失、加工Pattern化、保存済み候補の不一致を推測で補わない。
+                ExactPatternFormula.tryCreate(
+                                pattern,
+                                level,
+                                step.selectedInputs())
+                        .orElse(null);
+        // A present but changed definition is a proven identity conflict; it is not a retryable unload.
         if (formula == null) {
-            throw new IllegalStateException(
-                    "saved crafting-table pattern is no longer deterministic");
+            throw new PatternIdentityConflictException(
+                    "saved crafting-table pattern is no longer deterministic: " + step.patternId());
+        }
+        PatternAccountingIdentity current = PatternAccountingIdentity.from(
+                step,
+                (AEItemKey) pattern.getDefinition(),
+                formula.exactInputTotals(step.executions()),
+                formula.exactExpectedOutputTotals(step.executions()));
+        PatternAccountingIdentity saved = patternIdentities.get(step.patternId());
+        if (saved == null) {
+            patternIdentities.put(step.patternId(), current);
+        } else if (!saved.equals(current)) {
+            throw new PatternIdentityConflictException(
+                    "live crafting-table pattern identity changed: " + step.patternId());
         }
         return new ResolvedStep(
                 step,
@@ -2198,6 +2259,142 @@ public final class PhysicalCraftingTreeTransaction {
         }
         return immutableOrderedMap(
                 result);
+    }
+
+    private static Map<String, PatternAccountingIdentity> checkedPatternIdentities(
+            PreparedVectorBatch plan,
+            Map<String, PatternAccountingIdentity> source) {
+        Objects.requireNonNull(source, "patternIdentities");
+        if (source.size() > MAXIMUM_EXACT_KEYS) {
+            throw new IllegalArgumentException("too many saved pattern identities");
+        }
+        Map<String, PatternAccountingIdentity> result = new LinkedHashMap<>();
+        for (Map.Entry<String, PatternAccountingIdentity> entry : source.entrySet()) {
+            String id = Objects.requireNonNull(entry.getKey(), "pattern identity id");
+            PatternAccountingIdentity identity = Objects.requireNonNull(
+                    entry.getValue(),
+                    "pattern identity");
+            if (!id.equals(identity.patternId())
+                    || result.putIfAbsent(id, identity) != null) {
+                throw new IllegalArgumentException("invalid or duplicate pattern identity");
+            }
+        }
+        for (ExactCraftingStep step : plan.craftingSteps()) {
+            PatternAccountingIdentity identity = result.get(step.patternId());
+            if (identity != null && !identity.matchesStep(step)) {
+                throw new IllegalArgumentException(
+                        "saved pattern identity does not match its physical step");
+            }
+        }
+        return result;
+    }
+
+    private void ensurePatternIdentities(
+            Ae2CompiledCraftingGraphCache.Snapshot snapshot,
+            Level level) {
+        for (int index = 0; index < plan.craftingSteps().size(); index++) {
+            ExactCraftingStep step = plan.craftingSteps().get(index);
+            if (!patternIdentities.containsKey(step.patternId())) {
+                resolveStepFresh(snapshot, level, index);
+            }
+        }
+    }
+
+    private Map<AEItemKey, BigInteger> patternDefinitions(
+            Map<String, BigInteger> patternExecutions) {
+        Map<AEItemKey, BigInteger> definitions = new LinkedHashMap<>();
+        for (Map.Entry<String, BigInteger> entry : patternExecutions.entrySet()) {
+            PatternAccountingIdentity identity = patternIdentities.get(entry.getKey());
+            if (identity == null) {
+                throw new PatternUnavailableException(
+                        "saved accounting identity is not available for pattern " + entry.getKey());
+            }
+            if (definitions.putIfAbsent(identity.definition(), entry.getValue()) != null) {
+                throw new PatternIdentityConflictException(
+                        "exact accounting contains duplicate saved pattern definitions");
+            }
+        }
+        return Map.copyOf(definitions);
+    }
+
+    public static Map<String, PatternAccountingIdentity> capturePatternAccounting(
+            PreparedVectorBatch plan,
+            Ae2CompiledCraftingGraphCache.Snapshot snapshot,
+            Level level) {
+        Objects.requireNonNull(plan, "plan");
+        Objects.requireNonNull(snapshot, "snapshot");
+        Objects.requireNonNull(level, "level");
+        Map<String, PatternAccountingIdentity> result = new LinkedHashMap<>();
+        for (ExactCraftingStep step : plan.craftingSteps()) {
+            IPatternDetails pattern = snapshot.pattern(step.patternId());
+            if (pattern == null || pattern.getDefinition() == null) {
+                throw new PatternUnavailableException(
+                        "physical crafting pattern is temporarily unavailable: " + step.patternId());
+            }
+            ExactPatternFormula formula = ExactPatternFormula.tryCreate(
+                            pattern,
+                            level,
+                            step.selectedInputs())
+                    .orElseThrow(() -> new PatternIdentityConflictException(
+                            "physical crafting pattern is not deterministic: " + step.patternId()));
+            PatternAccountingIdentity identity = PatternAccountingIdentity.from(
+                    step,
+                    (AEItemKey) pattern.getDefinition(),
+                    formula.exactInputTotals(step.executions()),
+                    formula.exactExpectedOutputTotals(step.executions()));
+            if (result.putIfAbsent(step.patternId(), identity) != null) {
+                throw new IllegalArgumentException("duplicate physical pattern identity");
+            }
+        }
+        return Map.copyOf(result);
+    }
+
+    private static ListTag encodePatternIdentities(
+            Map<String, PatternAccountingIdentity> identities) {
+        ListTag result = new ListTag();
+        for (PatternAccountingIdentity identity : identities.values()) {
+            CompoundTag entry = new CompoundTag();
+            entry.putString("id", identity.patternId());
+            entry.put("definition", identity.definition().toTag());
+            entry.put("inputs", encodeCounts(identity.inputTotals()));
+            entry.put("outputs", encodeCounts(identity.expectedOutputs()));
+            result.add(entry);
+        }
+        return result;
+    }
+
+    private static Map<String, PatternAccountingIdentity> decodePatternIdentities(
+            CompoundTag owner,
+            PreparedVectorBatch plan) {
+        Tag raw = owner.get("patternIdentities");
+        if (!(raw instanceof ListTag list)
+                || (!list.isEmpty() && list.getElementType() != Tag.TAG_COMPOUND)
+                || list.size() != plan.craftingSteps().size()) {
+            throw new IllegalArgumentException("missing or malformed physical pattern identities");
+        }
+        Map<String, PatternAccountingIdentity> result = new LinkedHashMap<>();
+        for (int index = 0; index < list.size(); index++) {
+            CompoundTag entry = list.getCompound(index);
+            AEItemKey definition = AEItemKey.fromTag(entry.getCompound("definition"));
+            if (definition == null) {
+                throw new IllegalArgumentException("saved pattern identity has an unknown definition");
+            }
+            PatternAccountingIdentity identity = new PatternAccountingIdentity(
+                    entry.getString("id"),
+                    definition,
+                    decodeCounts(entry, "inputs"),
+                    decodeCounts(entry, "outputs"));
+            if (result.putIfAbsent(identity.patternId(), identity) != null) {
+                throw new IllegalArgumentException("duplicate saved pattern identity");
+            }
+        }
+        for (ExactCraftingStep step : plan.craftingSteps()) {
+            if (!result.containsKey(step.patternId())) {
+                throw new IllegalArgumentException(
+                        "saved pattern identities do not match the physical plan");
+            }
+        }
+        return result;
     }
 
     private static <K> Map<K, BigInteger> immutableOrderedMap(
@@ -3106,6 +3303,50 @@ public final class PhysicalCraftingTreeTransaction {
         }
     }
 
+    public record PatternAccountingIdentity(
+            String patternId,
+            AEItemKey definition,
+            Map<AEKey, BigInteger> inputTotals,
+            Map<AEKey, BigInteger> expectedOutputs) {
+        public PatternAccountingIdentity {
+            patternId = Objects.requireNonNull(patternId, "patternId").trim();
+            definition = Objects.requireNonNull(definition, "definition");
+            if (patternId.isEmpty()) {
+                throw new IllegalArgumentException("pattern identity id is blank");
+            }
+            inputTotals = checkedCounts(inputTotals, "pattern identity inputs", false);
+            expectedOutputs = checkedCounts(expectedOutputs, "pattern identity outputs", false);
+        }
+
+        private static PatternAccountingIdentity from(
+                ExactCraftingStep step,
+                AEItemKey definition,
+                Map<AEKey, BigInteger> inputTotals,
+                Map<AEKey, BigInteger> expectedOutputs) {
+            return new PatternAccountingIdentity(
+                    step.patternId(),
+                    definition,
+                    inputTotals,
+                    expectedOutputs);
+        }
+
+        private boolean matchesStep(ExactCraftingStep step) {
+            return patternId.equals(step.patternId());
+        }
+    }
+
+    public static final class PatternUnavailableException extends RuntimeException {
+        public PatternUnavailableException(String message) {
+            super(message);
+        }
+    }
+
+    private static final class PatternIdentityConflictException extends RuntimeException {
+        private PatternIdentityConflictException(String message) {
+            super(message);
+        }
+    }
+
     private record ResolvedStep(
             ExactCraftingStep step,
             IPatternDetails pattern,
@@ -3235,20 +3476,20 @@ public final class PhysicalCraftingTreeTransaction {
     }
 
     public record AccountingSnapshot(
-            Map<String, BigInteger> plannedPatternExecutions,
-            Map<String, BigInteger> dispatchedPatternExecutions,
+            Map<AEItemKey, BigInteger> plannedPatternDefinitions,
+            Map<AEItemKey, BigInteger> dispatchedPatternDefinitions,
             Map<AEKey, BigInteger> expectedOutputs,
             Map<AEKey, BigInteger> introducedOutputs,
             Map<AEKey, BigInteger> creditedOutputs,
             boolean finalOutputReturned) {
         public AccountingSnapshot {
-            plannedPatternExecutions = checkedCounts(
-                    plannedPatternExecutions,
-                    "plannedPatternExecutions",
+            plannedPatternDefinitions = checkedCounts(
+                    plannedPatternDefinitions,
+                    "plannedPatternDefinitions",
                     false);
-            dispatchedPatternExecutions = checkedCounts(
-                    dispatchedPatternExecutions,
-                    "dispatchedPatternExecutions",
+            dispatchedPatternDefinitions = checkedCounts(
+                    dispatchedPatternDefinitions,
+                    "dispatchedPatternDefinitions",
                     true);
             expectedOutputs = checkedCounts(
                     expectedOutputs,
@@ -3264,8 +3505,8 @@ public final class PhysicalCraftingTreeTransaction {
                     true);
             // 配送済みPatternと受領済み出力は、それぞれ計画総量を超えてはならない。
             if (!containsAll(
-                            plannedPatternExecutions,
-                            dispatchedPatternExecutions)
+                            plannedPatternDefinitions,
+                            dispatchedPatternDefinitions)
                     || !containsAll(
                             expectedOutputs,
                             introducedOutputs)
