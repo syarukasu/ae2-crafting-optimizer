@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.8] - Unreleased
+
+### Added
+
+- Added a Gradle `ae2Variant=upstream|uelm` build profile. The UELM profile
+  resolves `appeng:appliedenergistics2-forge:15.5.0-uelm` from the Expandium
+  releases repository.
+- Added evidence-based AE2-UELM detection for the shared `ae2` mod id.
+
+### Fixed
+
+- Delegated only the verified long craft amount menu/screen surface to UELM.
+- Kept ACO's BigInteger NetworkStorage, KeyCounter, and ExtendedAE cell paths
+  enabled because the compared UELM sources do not replace those surfaces.
+- Allowed the experimental compatibility audit to accept upstream AE2 15.4.10
+  and UELM 15.5.0-uelm without changing the upstream profile.
+
 ## [1.5.7] - 2026-08-08
 
 ### Changed

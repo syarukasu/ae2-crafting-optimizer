@@ -1685,7 +1685,6 @@ public final class ACOConfig {
 
     public static boolean enableExactBigIntegerInventorySnapshots() {
         return enableBigIntegerCraftingBackend()
-                && !Ae2UelmCompatibility.ownsAe2StorageSurface()
                 && ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS.get();
     }
 

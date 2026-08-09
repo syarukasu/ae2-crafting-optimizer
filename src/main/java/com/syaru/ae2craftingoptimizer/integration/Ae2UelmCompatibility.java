@@ -4,52 +4,48 @@ import java.util.Set;
 import net.minecraftforge.fml.ModList;
 
 /**
- * Optional ownership boundary for AE2-UELM.
+ * Evidence-based compatibility boundary for AE2 Unofficial Extended Life Modern.
  *
- * <p>UELM is an AE2 fork/extension and may own AE2's long-amount, storage,
- * and capacity surfaces. ACO keeps its normal optimizer and optional machine
- * integrations, but does not patch those same AE2 surfaces when UELM is
- * present.</p>
+ * <p>UELM is a replacement AE2 distribution: it keeps the {@code ae2} mod id
+ * and identifies its Forge 1.20.1 build as {@code 15.5.0-uelm}. ACO therefore
+ * detects the loaded AE2 version instead of looking for a second mod id.</p>
  */
 public final class Ae2UelmCompatibility {
-    /** Known IDs used by UEL/UELM-style AE2 distributions. */
-    private static final Set<String> UELM_MOD_IDS = Set.of(
-            "ae2_uelm",
-            "ae2uelm",
-            "ae2_uel",
-            "ae2uel");
+    public static final String UPSTREAM_VERSION = "15.4.10";
+    public static final String UELM_VERSION = "15.5.0-uelm";
 
-    /** Mixins that modify the AE2-owned long/storage/capacity surface. */
+    /** Only the three int-based craft amount Mixins overlap with UELM. */
     private static final Set<String> UELM_OWNED_MIXINS = Set.of(
             "CraftAmountMenuLongAmountMixin",
             "CraftConfirmMenuLongAmountMixin",
-            "CraftAmountScreenLongAmountMixin",
-            "CraftConfirmScreenBigIntegerMixin",
-            "CraftConfirmTableRendererBigIntegerMixin",
-            "CraftingCpuClusterBigCapacityGuardMixin",
-            "NetworkCraftingSimulationStateBigIntegerSnapshotMixin",
-            "NetworkStorageBigIntegerSnapshotMixin",
-            "NetworkStorageMountsAccessor",
-            "NetworkCraftingSimulationStateAccessor",
-            "KeyCounterBigIntegerSidecarLifecycleMixin",
-            "ExtendedAePlusBigIntegerCellInventoryAccessor",
-            "ExtendedAePlusBigIntegerCellConsistencyMixin",
-            "ExtendedAePlusInfinityDataStorageConsistencyMixin");
+            "CraftAmountScreenLongAmountMixin");
 
     private Ae2UelmCompatibility() {
     }
 
-    /** Returns whether a UELM-compatible AE2 distribution is loaded. */
-    public static boolean isLoaded() {
-        for (String modId : UELM_MOD_IDS) {
-            if (ModList.get().isLoaded(modId)) {
-                return true;
-            }
-        }
-        return false;
+    /** Pure version predicate used by runtime detection and unit tests. */
+    public static boolean isUelmVersion(String version) {
+        return UELM_VERSION.equals(version);
     }
 
-    /** Returns whether the named ACO Mixin belongs to UELM's ownership surface. */
+    /** Pure supported-version predicate for the upstream and UELM profiles. */
+    public static boolean isSupportedAe2Version(String version) {
+        return UPSTREAM_VERSION.equals(version) || isUelmVersion(version);
+    }
+
+    /** Returns the version of the shared {@code ae2} mod id, if it is loaded. */
+    public static String loadedAe2Version() {
+        return ModList.get().getModContainerById("ae2")
+                .map(container -> container.getModInfo().getVersion().toString())
+                .orElse(null);
+    }
+
+    /** Returns true only for the published UELM version/profile. */
+    public static boolean isLoaded() {
+        return isUelmVersion(loadedAe2Version());
+    }
+
+    /** Returns whether the named ACO Mixin overlaps UELM's verified long surface. */
     public static boolean ownsAe2SurfaceMixin(String mixinClassName) {
         int separator = mixinClassName.lastIndexOf('.');
         String simpleName = separator >= 0
@@ -58,18 +54,13 @@ public final class Ae2UelmCompatibility {
         return UELM_OWNED_MIXINS.contains(simpleName);
     }
 
-    /** ACO must leave AE2 root amount handling to UELM when it is installed. */
+    /** ACO's legacy int-based root amount path is delegated to UELM. */
     public static boolean ownsAe2ExtendedAmountSurface() {
         return isLoaded();
     }
 
-    /** ACO must leave exact AE2 network storage snapshots to UELM when installed. */
+    /** UELM did not change the verified NetworkStorage/KeyCounter surface. */
     public static boolean ownsAe2StorageSurface() {
-        return isLoaded();
-    }
-
-    /** Exposed for the Mixin plugin without touching optional mod classes. */
-    public static boolean isKnownUelmModId(String modId) {
-        return UELM_MOD_IDS.contains(modId);
+        return false;
     }
 }

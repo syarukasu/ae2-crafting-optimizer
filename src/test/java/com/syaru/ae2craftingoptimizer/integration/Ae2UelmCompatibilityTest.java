@@ -7,21 +7,31 @@ import org.junit.jupiter.api.Test;
 
 class Ae2UelmCompatibilityTest {
     @Test
-    void recognizesKnownUelmIdsWithoutRequiringTheMod() {
-        assertTrue(Ae2UelmCompatibility.isKnownUelmModId("ae2_uelm"));
-        assertTrue(Ae2UelmCompatibility.isKnownUelmModId("ae2uelm"));
-        assertTrue(Ae2UelmCompatibility.isKnownUelmModId("ae2_uel"));
-        assertTrue(Ae2UelmCompatibility.isKnownUelmModId("ae2uel"));
-        assertFalse(Ae2UelmCompatibility.isKnownUelmModId("ae2"));
+    void recognizesThePublishedSharedIdVersionPair() {
+        assertTrue(Ae2UelmCompatibility.isUelmVersion("15.5.0-uelm"));
+        assertFalse(Ae2UelmCompatibility.isUelmVersion("15.5.0"));
+        assertFalse(Ae2UelmCompatibility.isUelmVersion("ae2_uelm"));
     }
 
     @Test
-    void delegatesOnlyTheAe2OwnedSurface() {
+    void acceptsBothSupportedDependencyProfiles() {
+        assertTrue(Ae2UelmCompatibility.isSupportedAe2Version("15.4.10"));
+        assertTrue(Ae2UelmCompatibility.isSupportedAe2Version("15.5.0-uelm"));
+        assertFalse(Ae2UelmCompatibility.isSupportedAe2Version("15.5.0"));
+    }
+
+    @Test
+    void delegatesOnlyTheVerifiedLongSurface() {
         assertTrue(Ae2UelmCompatibility.ownsAe2SurfaceMixin(
                 "com.syaru.ae2craftingoptimizer.mixin.CraftAmountMenuLongAmountMixin"));
         assertTrue(Ae2UelmCompatibility.ownsAe2SurfaceMixin(
+                "com.syaru.ae2craftingoptimizer.mixin.CraftConfirmMenuLongAmountMixin"));
+        assertTrue(Ae2UelmCompatibility.ownsAe2SurfaceMixin(
+                "com.syaru.ae2craftingoptimizer.mixin.CraftAmountScreenLongAmountMixin"));
+        assertFalse(Ae2UelmCompatibility.ownsAe2SurfaceMixin(
                 "NetworkStorageBigIntegerSnapshotMixin"));
         assertFalse(Ae2UelmCompatibility.ownsAe2SurfaceMixin(
                 "com.syaru.ae2craftingoptimizer.mixin.NeoEcoCraftingCpuExecutionBudgetMixin"));
+        assertFalse(Ae2UelmCompatibility.ownsAe2StorageSurface());
     }
 }

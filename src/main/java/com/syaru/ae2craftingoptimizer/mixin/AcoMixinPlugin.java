@@ -3,6 +3,7 @@ package com.syaru.ae2craftingoptimizer.mixin;
 import com.syaru.ae2craftingoptimizer.integration.Ae2UelmCompatibility;
 import java.util.List;
 import java.util.Set;
+import net.minecraftforge.fml.loading.FMLLoader;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -12,12 +13,6 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
  * same behavior. The plugin has no hard reference to UELM classes.
  */
 public final class AcoMixinPlugin implements IMixinConfigPlugin {
-    private static final Set<String> UELM_MOD_IDS = Set.of(
-            "ae2_uelm",
-            "ae2uelm",
-            "ae2_uel",
-            "ae2uel");
-
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         if (!isUelmLoadedDuringBootstrap()) {
@@ -28,15 +23,15 @@ public final class AcoMixinPlugin implements IMixinConfigPlugin {
 
     private static boolean isUelmLoadedDuringBootstrap() {
         try {
-            Class<?> loader = Class.forName("net.minecraftforge.fml.loading.FMLLoader");
-            Object loadingModList = loader.getMethod("getLoadingModList").invoke(null);
-            var isLoaded = loadingModList.getClass().getMethod("isLoaded", String.class);
-            for (String modId : UELM_MOD_IDS) {
-                if (Boolean.TRUE.equals(isLoaded.invoke(loadingModList, modId))) {
-                    return true;
-                }
+            var modFile = FMLLoader.getLoadingModList().getModFileById("ae2");
+            if (modFile == null) {
+                return false;
             }
-        } catch (ReflectiveOperationException | LinkageError ignored) {
+            return modFile.getMods().stream()
+                    .filter(mod -> "ae2".equals(mod.getModId()))
+                    .map(mod -> mod.getVersion().toString())
+                    .anyMatch(Ae2UelmCompatibility::isUelmVersion);
+        } catch (RuntimeException | LinkageError ignored) {
             // Unknown bootstrap state must keep ACO's normal behavior intact.
         }
         return false;
