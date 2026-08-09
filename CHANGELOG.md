@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.9] - 2026-08-09
+
+### Fixed
+
+- Fixed an AE2 terminal crash caused by production code directly loading a
+  Mixin-only accessor class. Accessor contracts now live outside the Mixin
+  package while the Mixin interfaces retain the same runtime methods.
+- Added a build-time package-boundary check so normal code cannot introduce
+  the same illegal class load again.
+
+This release preserves the existing exact-storage, BigInteger, and UELM
+compatibility behavior from 1.5.8.
+
 ## [1.5.8] - Unreleased
 
 ### Added
