@@ -26,7 +26,8 @@ import net.neoforged.fml.ModList;
  */
 public final class ExperimentalCompatibilityValidator {
     static final String SUPPORTED_AE2_VERSION = "19.2.17";
-    static final String SUPPORTED_ADVANCED_AE_VERSION = "1.6.11-1.21.1";
+    static final String SUPPORTED_ADVANCED_AE_VERSION_PREFIX = "1.6.";
+    static final String SUPPORTED_ADVANCED_AE_VERSION_SUFFIX = "-1.21.1";
 
     private ExperimentalCompatibilityValidator() {
     }
@@ -44,10 +45,11 @@ public final class ExperimentalCompatibilityValidator {
                         || ACOConfig.enableAtomicBigCapacityPlans()
                         || ACOConfig.enableBigIntegerGameplayExecution())
                 && ModList.get().isLoaded("advanced_ae")) {
-            requireExactVersion(
+            requireSupportedVersionSeries(
                     failures,
                     "advanced_ae",
-                    SUPPORTED_ADVANCED_AE_VERSION);
+                    SUPPORTED_ADVANCED_AE_VERSION_PREFIX,
+                    SUPPORTED_ADVANCED_AE_VERSION_SUFFIX);
         }
         // Wide計画を有効にする時は、受理側と拒否側の両境界Mixinを起動時に証明する。
         if (ACOConfig.enableAtomicBigCapacityPlans()) {
@@ -144,6 +146,24 @@ public final class ExperimentalCompatibilityValidator {
                 .orElse(null);
         if (!expectedVersion.equals(installed)) {
             failures.add(modId + " version must be exactly " + expectedVersion
+                    + " for the experimental engine (installed " + installed + ")");
+        }
+    }
+
+    private static void requireSupportedVersionSeries(
+            List<String> failures,
+            String modId,
+            String versionPrefix,
+            String versionSuffix) {
+        String installed = ModList.get().getModContainerById(modId)
+                .map(container -> container.getModInfo().getVersion().toString())
+                .orElse(null);
+        // 実行中のバージョンが、監査済みの同一Minecraft系列かを接頭辞と接尾辞で確認する。
+        boolean supported = installed != null
+                && installed.startsWith(versionPrefix)
+                && installed.endsWith(versionSuffix);
+        if (!supported) {
+            failures.add(modId + " version must match " + versionPrefix + "*" + versionSuffix
                     + " for the experimental engine (installed " + installed + ")");
         }
     }

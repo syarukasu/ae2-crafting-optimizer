@@ -1,7 +1,7 @@
 # Experimental Crafting Engine
 
-> ACO 1.6.0 targets NeoForge 1.21.1, Java 21, AE2 19.2.17, Advanced AE
-> 1.6.11-1.21.1, and Neo ECO AE Extension 21.1.1. Sections that describe the
+> ACO 1.6.x targets NeoForge 1.21.1, Java 21, AE2 19.2.17, Advanced AE
+> 1.6.x-1.21.1, and Neo ECO AE Extension 21.1.1. Sections that describe the
 > original GTCEu/Mekanism native adapters are retained as design history;
 > those native adapters are excluded from the 1.21.1 build until their changed
 > machine APIs receive a separate audit.
@@ -34,7 +34,7 @@ The code was compiled against these exact integration targets:
 | Dependency | Verified version |
 | --- | --- |
 | Applied Energistics 2 | `19.2.17` |
-| Advanced AE | `1.6.11-1.21.1` |
+| Advanced AE | `1.6.x-1.21.1` |
 | Neo ECO AE Extension | `21.1.1` |
 
 Optional native adapter classes are not loaded while their child switch is off.
@@ -43,8 +43,8 @@ verified version. A startup audit then verifies both registration and the
 required Accessor Mixin transformations; an explicitly enabled but unsupported
 combination fails with a targeted error instead of silently running a partial
 integration. Enabling the experimental master also requires AE2 exactly
-`19.2.17`; V2 or fair scheduling with Advanced AE loaded requires exactly
-`1.6.11-1.21.1`.
+`19.2.17`; V2 or fair scheduling with Advanced AE loaded requires the audited
+`1.6.x-1.21.1` series.
 
 ## Configuration
 

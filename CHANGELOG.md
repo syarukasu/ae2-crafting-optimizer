@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.10] - 2026-08-10
+
+### Fixed
+
+- Added the audited Advanced AE `1.6.x-1.21.1` NeoForge compatibility range.
+- Kept other Minecraft-version suffixes outside the experimental integration.
+
 ## [1.5.9] - 2026-08-10
 
 ### Changed
