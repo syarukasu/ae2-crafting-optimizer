@@ -15,10 +15,13 @@ class ExperimentalCompatibilityValidatorVersionTest {
     @Test
     void validatorTargetsThePortedAdvancedAeRuntime() {
         assertEquals(
-                "1.6.11-1.21.1",
-                ExperimentalCompatibilityValidator.SUPPORTED_ADVANCED_AE_VERSION);
+                "1.6.",
+                ExperimentalCompatibilityValidator.SUPPORTED_ADVANCED_AE_VERSION_PREFIX);
+        assertEquals(
+                "-1.21.1",
+                ExperimentalCompatibilityValidator.SUPPORTED_ADVANCED_AE_VERSION_SUFFIX);
         assertNotEquals(
-                "1.3.5-1.20.1",
-                ExperimentalCompatibilityValidator.SUPPORTED_ADVANCED_AE_VERSION);
+                "1.3.",
+                ExperimentalCompatibilityValidator.SUPPORTED_ADVANCED_AE_VERSION_PREFIX);
     }
 }

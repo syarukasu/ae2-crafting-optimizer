@@ -24,7 +24,7 @@ AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのNeoForge
 - NeoForge `21.1.247+`
 - Java `21`
 - Applied Energistics 2 `19.2.17`
-- Advanced AE `1.6.11-1.21.1`（任意）
+- Advanced AE `1.6.x-1.21.1`（NeoForge、任意）
 - Neo ECO AE Extension `21.1.1`（任意）
 - 1.21.1向けGTCEu、Mekanism、Applied Mekanistics連携（任意）
 - 専用サーバー、シングルプレイ

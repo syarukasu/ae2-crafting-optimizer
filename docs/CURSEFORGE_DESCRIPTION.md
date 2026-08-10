@@ -34,8 +34,8 @@ Requirements for ACO 1.6.x:
 - Java 21
 - Applied Energistics 2 19.2.17
 
-Optional integrations are versioned separately. ACO 1.6.0 is tested against
-Advanced AE 1.6.11-1.21.1 and Neo ECO AE Extension 21.1.1. The 1.5.x release
+Optional integrations are versioned separately. ACO 1.6.x supports the audited
+Advanced AE 1.6.x-1.21.1 series and Neo ECO AE Extension 21.1.1. The 1.5.x release
 line remains available for Forge 1.20.1.
 
 ## 日本語
@@ -71,6 +71,6 @@ ACO 1.6.xの必須環境:
 - Java 21
 - Applied Energistics 2 19.2.17
 
-ACO 1.6.0はAdvanced AE 1.6.11-1.21.1およびNeo ECO AE Extension
+ACO 1.6.xはAdvanced AE 1.6.x-1.21.1およびNeo ECO AE Extension
 21.1.1との組み合わせを対象にしています。Forge 1.20.1向けには
 引き続き1.5.x系列を使用してください。

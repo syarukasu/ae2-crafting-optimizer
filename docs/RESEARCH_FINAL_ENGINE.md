@@ -6,14 +6,14 @@ This document records the exact upstream code used for ACO's experimental engine
 
 | Project | Version | Source tag | Relevant artifact |
 | --- | --- | --- | --- |
-| Applied Energistics 2 | 15.4.10 | `forge/v15.4.10` | `appeng:appliedenergistics2-forge:15.4.10` |
-| Advanced AE | 1.3.5-1.20.1 | `1.3.5-1.20.1-forge` | CurseForge project 1084104, file 7939754 |
+| Applied Energistics 2 | 19.2.17 | `neoforge/19.2.17` | `appeng:appliedenergistics2:19.2.17` |
+| Advanced AE | 1.6.x-1.21.1 | `1.6.x-1.21.1-neoforge` | CurseForge project 1084104, audited files 7169197, 7184316, 7222372, 7374051, 7374386, 7668664, 7849217, 8564177 |
 | GregTech CEu Modern | 7.5.3 | `v7.5.3-1.20.1` | `com.gregtechceu.gtceu:gtceu-1.20.1:7.5.3` |
 | Mekanism | 10.4.16.80 | `v1.20.1-10.4.16.80` | `mekanism:Mekanism:1.20.1-10.4.16.80` |
 
 ACO declares the three add-ons as optional. Their integration classes must not be initialized unless the matching mod and supported version are present.
 
-## AE2 15.4.10
+## AE2 19.2.17
 
 - `appeng.crafting.CraftingCalculation` constructs the standard `CraftingTreeNode` planner.
 - `appeng.crafting.CraftingTreeNode` and `CraftingTreeProcess` use `long` counts and contain unchecked multiplication/addition in the original implementation.
@@ -22,13 +22,16 @@ ACO declares the three add-ons as optional. Their integration classes must not b
 - `appeng.helpers.patternprovider.PatternProviderLogic.pushPattern` may place a remainder in the provider send buffer. A `true` result therefore means that the provider owns the complete input set, not that the adjacent machine inserted every unit immediately.
 - Standard AE2 remains authoritative unless an ACO path can prove exact pattern semantics, durable ownership, and exact accounting.
 
-## Advanced AE 1.3.5
+## Advanced AE 1.6.x
 
 - Quantum Computer execution uses `net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic` and `AdvCraftingCPU`.
 - A Quantum Computer cluster exposes multiple active CPUs through `getActiveCPUs()`.
 - Advanced AE's executing job still stores task and waiting counts as `long`.
 - ACO must keep BigInteger capacity and job state in a versioned sidecar and expose bounded execution windows to the original long-based executor.
 - Capacity reservation must be atomic across all active CPUs in one Quantum Computer cluster.
+- The available official 1.6.x NeoForge artifacts retain the ACO-targeted
+  class contracts. ACO accepts the `1.6.x-1.21.1` series and rejects other
+  Minecraft-version suffixes during the experimental startup audit.
 
 ## GTCEu 7.5.3
 

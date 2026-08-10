@@ -30,7 +30,7 @@ are not shared between the branches.
 - NeoForge `21.1.247+`
 - Java `21`
 - Applied Energistics 2 `19.2.17`
-- Optional Advanced AE `1.6.11-1.21.1`
+- Optional Advanced AE `1.6.x-1.21.1` (NeoForge)
 - Optional Neo ECO AE Extension `21.1.1`
 - Optional 1.21.1 GTCEu, Mekanism, and Applied Mekanistics integrations
 - Dedicated server and singleplayer
