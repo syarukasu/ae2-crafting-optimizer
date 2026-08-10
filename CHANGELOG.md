@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.10] - 2026-08-10
+
+### Fixed
+
+- Added Advanced AE `1.3.6-1.20.1` to the audited Forge compatibility range.
+- Kept Advanced AE `1.3.7` and later outside the range until their Mixin
+  target classes are audited.
+
 ## [1.5.9] - 2026-08-09
 
 ### Fixed
