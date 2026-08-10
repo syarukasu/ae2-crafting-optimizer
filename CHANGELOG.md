@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.11] - 2026-08-11
+
+### Added
+
+- Added the public `BigIntegerAmountLedger` API for add-ons that need exact
+  BigInteger amount accounting.
+- Added NBT persistence with schema validation and bounded entry loading.
+- Added safe `Long.MAX_VALUE` execution windows without clamping the stored
+  BigInteger remainder.
+
+### Compatibility
+
+- Preserved the existing ACO host API version for Advanced Quantum Engineering.
+
 ## [1.5.10] - 2026-08-10
 
 ### Fixed
