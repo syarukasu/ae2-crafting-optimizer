@@ -12,7 +12,10 @@ import net.minecraft.server.level.ServerPlayer;
 
 /** Stable opt-in boundary for CPU add-ons that own a BigInteger crafting host. */
 public final class BigCraftingEngineApi {
-    public static final int API_VERSION = 4;
+    /** Existing AQE host API contract. Keep this stable when adding optional API surfaces. */
+    public static final int API_VERSION = 3;
+    /** Version of the exact amount-ledger surface added for crafting add-ons. */
+    public static final int AMOUNT_LEDGER_API_VERSION = 1;
 
     private BigCraftingEngineApi() {
     }
