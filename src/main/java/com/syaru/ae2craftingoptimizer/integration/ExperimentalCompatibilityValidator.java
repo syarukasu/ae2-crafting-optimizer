@@ -25,6 +25,10 @@ import net.minecraftforge.fml.ModList;
  * 対応外バージョンで処理を推測して続行せず、原因を列挙してFail-fastする。
  */
 public final class ExperimentalCompatibilityValidator {
+    private static final List<String> SUPPORTED_ADVANCED_AE_VERSIONS = List.of(
+            "1.3.5-1.20.1",
+            "1.3.6-1.20.1");
+
     private ExperimentalCompatibilityValidator() {
     }
 
@@ -41,7 +45,7 @@ public final class ExperimentalCompatibilityValidator {
                         || ACOConfig.enableAtomicBigCapacityPlans()
                         || ACOConfig.enableBigIntegerGameplayExecution())
                 && ModList.get().isLoaded("advanced_ae")) {
-            requireExactVersion(failures, "advanced_ae", "1.3.5-1.20.1");
+            requireSupportedVersions(failures, "advanced_ae", SUPPORTED_ADVANCED_AE_VERSIONS);
         }
         // Wide計画を有効にする時は、受理側と拒否側の両境界Mixinを起動時に証明する。
         if (ACOConfig.enableAtomicBigCapacityPlans()) {
@@ -141,15 +145,16 @@ public final class ExperimentalCompatibilityValidator {
         }
     }
 
-    private static void requireExactVersion(
+    private static void requireSupportedVersions(
             List<String> failures,
             String modId,
-            String expectedVersion) {
+            List<String> supportedVersions) {
         String installed = ModList.get().getModContainerById(modId)
                 .map(container -> container.getModInfo().getVersion().toString())
                 .orElse(null);
-        if (!expectedVersion.equals(installed)) {
-            failures.add(modId + " version must be exactly " + expectedVersion
+        // 実行中のバージョンが、Mixin対象のクラス差分を監査済みの範囲に含まれるか確認する。
+        if (!supportedVersions.contains(installed)) {
+            failures.add(modId + " version must be one of " + String.join(", ", supportedVersions)
                     + " for the experimental engine (installed " + installed + ")");
         }
     }
