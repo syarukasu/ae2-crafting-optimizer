@@ -12,7 +12,10 @@ import net.minecraft.server.level.ServerPlayer;
 
 /** Stable opt-in boundary for CPU add-ons that own a BigInteger crafting host. */
 public final class BigCraftingEngineApi {
+    /** Existing AQE host API contract. Keep this stable when adding optional API surfaces. */
     public static final int API_VERSION = 3;
+    /** Version of the exact amount-ledger surface added for crafting add-ons. */
+    public static final int AMOUNT_LEDGER_API_VERSION = 1;
 
     private BigCraftingEngineApi() {
     }
@@ -61,6 +64,30 @@ public final class BigCraftingEngineApi {
                     "ACO BigInteger crafting backend is disabled by server config");
         }
         return new OverflowPromotingCraftingPlanner<>(ACOConfig.getBigIntegerMaximumBits());
+    }
+
+    /**
+     * Creates an exact amount ledger for add-on CPUs that must keep output counts
+     * beyond the long range without changing AE2's own stack API.
+     */
+    public static <K> BigIntegerAmountLedger<K> createAmountLedger(
+            BigCraftingKeyCodec<K> keyCodec) {
+        if (!isEnabled()) {
+            throw new IllegalStateException(
+                    "ACO BigInteger crafting backend is disabled by server config");
+        }
+        return new BigIntegerAmountLedger<>(
+                Objects.requireNonNull(keyCodec, "keyCodec"),
+                ACOConfig.getBigIntegerMaximumBits());
+    }
+
+    /** Restores an add-on amount ledger using the current server-side bit limit. */
+    public static <K> BigIntegerAmountLedger<K> loadAmountLedger(
+            CompoundTag saved,
+            BigCraftingKeyCodec<K> keyCodec) {
+        BigIntegerAmountLedger<K> ledger = createAmountLedger(keyCodec);
+        ledger.load(Objects.requireNonNull(saved, "saved"));
+        return ledger;
     }
 
     /** Restores a host runtime using the current server-side safety limits. */
