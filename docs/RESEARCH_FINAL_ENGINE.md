@@ -7,7 +7,7 @@ This document records the exact upstream code used for ACO's experimental engine
 | Project | Version | Source tag | Relevant artifact |
 | --- | --- | --- | --- |
 | Applied Energistics 2 | 15.4.10 | `forge/v15.4.10` | `appeng:appliedenergistics2-forge:15.4.10` |
-| Advanced AE | 1.3.5-1.20.1 / 1.3.6-1.20.1 | `1.3.5-1.20.1-forge` / `1.3.6-1.20.1` | CurseForge project 1084104, files 7939754 / 8564205 |
+| Advanced AE | 1.3.x-1.20.1 | `1.3.x-1.20.1-forge` | CurseForge project 1084104, audited files 7155096, 7159779, 7668689, 7849215, 7939754, 8564205 |
 | GregTech CEu Modern | 7.5.3 | `v7.5.3-1.20.1` | `com.gregtechceu.gtceu:gtceu-1.20.1:7.5.3` |
 | Mekanism | 10.4.16.80 | `v1.20.1-10.4.16.80` | `mekanism:Mekanism:1.20.1-10.4.16.80` |
 
@@ -39,8 +39,9 @@ ACO declares the three add-ons as optional. Their integration classes must not b
   `AdvPatternProviderLogic`, and `ReactionChamberEntity`.
 - The release changes the Curios slot texture and an embedded AE2 Addon Lib
   fluid-slot class, neither of which is targeted by ACO's Advanced AE Mixins.
-- ACO therefore accepts `1.3.6-1.20.1` in the optional dependency range and in
-  the experimental startup audit. A later Advanced AE version still remains
+- The available official 1.3.x Forge artifacts use the same ACO-targeted class
+  contracts. ACO therefore accepts the `1.3.x-1.20.1` series in the optional
+  dependency range and experimental startup audit, while 1.4.x remains
   unsupported until its target classes are audited.
 
 ## GTCEu 7.5.3

@@ -200,7 +200,7 @@
 - ハード対象はForge `47.4.18+`、Minecraft `1.20.1`、AE2 `15.4.10-15.4.x` です。
 - 現行パック確認対象はGTCEu Modern `7.5.3` です。
 - 現行パック確認対象はMekanism `10.4.16.80` です。
-- 現行パック確認対象はAdvanced AE `1.3.5` と `1.3.6` です。1.3.6はACOのMixin対象クラス差分を確認済みです。
+- 現行パック確認対象はAdvanced AE `1.3.x` 系列です。同系列の公開版でACOのMixin対象クラス差分を確認済みです。
 - 現行パック確認対象はExtendedAE `1.4.15` です。
 - 現行パック確認対象はAE2 Overclocked `1.2.3-fix3` です。
 - Neo ECO AE Extension `20.3.0` は任意のcompile-only検証対象です。
