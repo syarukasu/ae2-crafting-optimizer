@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.9] - 2026-08-10
+
+### Changed
+
+- Synchronized the NeoForge 1.21.1 artifact version with the Forge 1.20.1
+  ACO 1.5.9 maintenance release.
+- Kept the NeoForge runtime implementation unchanged because the repaired
+  Mixin-only accessor class-loading path exists only in the Forge 1.20.1
+  implementation.
+
 ## [1.5.7] - 2026-08-08
 
 ### Changed
