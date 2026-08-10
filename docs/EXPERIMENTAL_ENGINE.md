@@ -28,7 +28,7 @@ The code was compiled against these exact integration targets:
 | Dependency | Verified version |
 | --- | --- |
 | Applied Energistics 2 | `15.4.10` |
-| Advanced AE | `1.3.5-1.20.1` |
+| Advanced AE | `1.3.5-1.20.1` or `1.3.6-1.20.1` |
 | GTCEu Modern | `7.5.3` |
 | Mekanism | `10.4.16.80` |
 | Applied Mekanistics | `1.4.3` |
@@ -39,8 +39,8 @@ verified version. A startup audit then verifies both registration and the
 required Accessor Mixin transformations; an explicitly enabled but unsupported
 combination fails with a targeted error instead of silently running a partial
 integration. Enabling the experimental master also requires AE2 exactly
-`15.4.10`; V2 or fair scheduling with Advanced AE loaded requires exactly
-`1.3.5-1.20.1`.
+`15.4.10`; V2 or fair scheduling with Advanced AE loaded requires one of the
+audited versions `1.3.5-1.20.1` or `1.3.6-1.20.1`.
 
 ## Configuration
 
