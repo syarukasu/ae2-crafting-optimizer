@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Added a versioned public capacity-limit query for BigInteger CPU add-ons.
+- Added AEKey amount-ledger factories so optional integrations do not need to
+  resolve ACO's internal codec type.
+
 ### Fixed
 
 - Issue #125: exact jobs no longer stall forever without a word when the
