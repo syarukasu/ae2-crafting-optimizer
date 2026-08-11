@@ -33,6 +33,7 @@ import net.minecraftforge.event.OnDatapackSyncEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 
 /**
  * サーバーの開始・tick・データ再読込・停止に伴うACO状態を一元管理する。
@@ -50,6 +51,7 @@ public final class ACOServerLifecycle {
         MinecraftForge.EVENT_BUS.addListener(
                 ACOServerLifecycle::onDatapackSync);
         MinecraftForge.EVENT_BUS.addListener(
+                EventPriority.HIGHEST,
                 ACOServerLifecycle::onServerStopping);
     }
 
