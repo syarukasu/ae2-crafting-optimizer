@@ -36,6 +36,15 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
             BigCraftingPlan<AEKey> exactPlan,
             Map<IPatternDetails, BigInteger> exactPatternTimes,
             Ae2BigCraftingPlanFactory.PreparedBigRootPlan preparedRoot) {
+        this(finalOutput, exactPlan, exactPatternTimes, preparedRoot, false);
+    }
+
+    public BigIntegerCraftingPlan(
+            GenericStack finalOutput,
+            BigCraftingPlan<AEKey> exactPlan,
+            Map<IPatternDetails, BigInteger> exactPatternTimes,
+            Ae2BigCraftingPlanFactory.PreparedBigRootPlan preparedRoot,
+            boolean requiresBigIntegerExecution) {
         this.finalOutput = Objects.requireNonNull(finalOutput, "finalOutput");
         this.exactPlan = Objects.requireNonNull(exactPlan, "exactPlan");
         this.exactPatternTimes = immutablePositiveCounts(
@@ -48,10 +57,11 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
                 || !preparedRoot.reservedBytes().equals(preparedRoot.job().reservedCapacity())) {
             throw new IllegalArgumentException("BigInteger plan metadata is inconsistent");
         }
-        // この型は少なくとも一つの個別カウンタがlongを超える計画だけを運ぶ。
-        if (!containsWideCounter(exactPlan, this.exactPatternTimes)) {
+        // 個別値またはキー別合計がlong超過してAE2の乗算を使えない計画だけを運ぶ。
+        if (!requiresBigIntegerExecution
+                && !containsWideCounter(exactPlan, this.exactPatternTimes)) {
             throw new IllegalArgumentException(
-                    "BigInteger crafting plan requires at least one counter past signed long");
+                    "BigInteger crafting plan requires an exact-arithmetic reason");
         }
         this.usedItems = projectKeyCounter(exactPlan.usedInventory());
         this.emittedItems = projectKeyCounter(exactPlan.emitted());

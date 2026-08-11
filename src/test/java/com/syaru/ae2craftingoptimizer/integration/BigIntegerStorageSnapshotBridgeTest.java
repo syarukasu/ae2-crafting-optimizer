@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 
 class BigIntegerStorageSnapshotBridgeTest {
     private static final TestKey TEST_KEY = new TestKey();
+    private static final TestKey UNRELATED_KEY = new TestKey();
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
     /** tick番号自体に意味を持たせず、同一tick判定だけを検証する固定値。 */
     private static final long CACHE_TEST_TICK = 42L;
@@ -120,6 +121,29 @@ class BigIntegerStorageSnapshotBridgeTest {
         BigKeyCounterSidecars.Snapshot exact =
                 BigKeyCounterSidecars.snapshot(network).orElseThrow();
         assertFalse(exact.complete());
+    }
+
+    @Test
+    void keepsExactnessForAReferencedKeyWhenAnUnrelatedContributionIsIncomplete() {
+        KeyCounter network = new KeyCounter();
+
+        BigKeyCounterSidecars.merge(
+                network,
+                new BigKeyCounterSidecars.Snapshot(
+                        Map.of(TEST_KEY, BigInteger.TEN),
+                        true));
+        // 別キーのadapter失敗だけを再現し、TEST_KEYの正確値まで無効化しないことを確認する。
+        BigKeyCounterSidecars.merge(
+                network,
+                new BigKeyCounterSidecars.Snapshot(
+                        Map.of(UNRELATED_KEY, BigInteger.ONE),
+                        false));
+
+        BigKeyCounterSidecars.Snapshot snapshot =
+                BigKeyCounterSidecars.snapshot(network).orElseThrow();
+        assertFalse(snapshot.complete());
+        assertTrue(snapshot.isExact(TEST_KEY));
+        assertFalse(snapshot.isExact(UNRELATED_KEY));
     }
 
     @Test

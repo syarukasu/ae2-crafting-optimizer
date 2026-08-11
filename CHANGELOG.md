@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Added an optional InsaneAE calculation profile. When enabled, ACO owns the
+  strict compiled/BigInteger calculation boundary instead of allowing the
+  InsaneAE calculation batch to pass an overflowing `long` request into AE2.
+- Added a public calculation-profile capability query for optional CPU add-ons.
+
+## [1.5.12] - 2026-08-11
+
+### Added
+
+- Added the public BigInteger plan handoff used by InsaneAE and other optional
+  crafting CPU add-ons.
+- Added the public exact amount ledger and calculation-profile compatibility
+  contracts for Forge 1.20.1.
+
+### Fixed
+
+- Promoted aggregate long overflow to the BigInteger host instead of sending a
+  wrapped or clamped value into AE2's checked long calculation.
+
 ## [1.5.11] - 2026-08-11
 
 ### Added

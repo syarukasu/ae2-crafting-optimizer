@@ -115,18 +115,18 @@ public final class Ae2AuthoritativeCraftingPlanner {
 
             BigKeyCounterSidecars.Snapshot inventoryMetadata =
                     BigKeyCounterSidecars.snapshot(capture.inventorySnapshot()).orElse(null);
-            // Adapter失敗を含む不完全Snapshotは、飽和値から不足数を推測せずAE2へ戻す。
-            if (inventoryMetadata != null && !inventoryMetadata.complete()) {
-                return null;
-            }
             CompiledRootProgram.BigInventorySnapshot<AEKey> exactPlanningInventory =
                     Ae2ReferencedInventory.captureExactNetworkSnapshot(
                             program,
                             capture.inventorySnapshot(),
                             output);
             CompiledRootProgram.InventorySnapshot<AEKey> planningInventory = null;
-            // 正確なSidecarが無い通常AE2環境だけ、従来のlong Snapshotを使用する。
+            // 参照キーを個別に証明できない場合だけ、通常AE2のlong Snapshotへ戻す。
             if (exactPlanningInventory == null) {
+                // 不完全Sidecarを飽和longとしてBig計画へ渡すと、在庫不足を誤って充足扱いにする。
+                if (inventoryMetadata != null && !inventoryMetadata.complete()) {
+                    return null;
+                }
                 planningInventory = Ae2ReferencedInventory.captureNetworkSnapshot(
                         program,
                         capture.inventorySnapshot(),
@@ -162,8 +162,10 @@ public final class Ae2AuthoritativeCraftingPlanner {
             }
             NormalizedPlan symbolic = normalize(promoted);
             ICraftingPlan result;
-            // 個別値がlongを超える場合、標準AE2 Jobへ丸めずAQE専用のBig親Jobを作る。
-            if (symbolic == null) {
+            // 個別値またはキー別合計がlongを超える場合、通常AE2 Jobへ戻さずBig親Jobを作る。
+            boolean bigIntegerExecutionRequired = symbolic == null
+                    || symbolic.hasAggregatePastLong();
+            if (bigIntegerExecutionRequired) {
                 result = createBigIntegerParentPlan(
                         capture,
                         graphSnapshot,
@@ -172,7 +174,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         output,
                         requestedAmount,
                         strategy,
-                        promoted);
+                        promoted,
+                        true);
                 // 厳格な親Jobへ変換できない経路は、値を近似せずAE2本来の計算へ戻す。
                 if (result == null) {
                     return null;
@@ -235,13 +238,21 @@ public final class Ae2AuthoritativeCraftingPlanner {
             AEKey output,
             long requestedAmount,
             CalculationStrategy strategy,
-            OverflowPromotingCraftingPlanner.Result<AEKey> promoted) {
-        // 個別long超過はBigInteger Plannerの正確な結果からだけ親Jobへ変換する。
-        if (!(promoted instanceof OverflowPromotingCraftingPlanner.BigResult<AEKey> bigResult)
-                || !ACOConfig.enableBigIntegerGameplayExecution()) {
+            OverflowPromotingCraftingPlanner.Result<AEKey> promoted,
+            boolean requiresBigIntegerExecution) {
+        if (!ACOConfig.enableBigIntegerGameplayExecution()) {
             return null;
         }
-        BigCraftingPlan<AEKey> exactPlan = bigResult.plan();
+        BigCraftingPlan<AEKey> exactPlan;
+        if (promoted instanceof OverflowPromotingCraftingPlanner.BigResult<AEKey> bigResult) {
+            // 途中の掛け算がoverflowした場合は、Plannerが最初から作ったBigInteger結果を使う。
+            exactPlan = bigResult.plan();
+        } else if (promoted instanceof OverflowPromotingCraftingPlanner.LongResult<AEKey> longResult) {
+            // 個別値はlong内でも合計だけが超過する場合は、long結果を無損失でBigIntegerへ昇格する。
+            exactPlan = widenLongPlan(longResult.plan());
+        } else {
+            return null;
+        }
         // CRAFT_LESSはAE2固有の部分成功探索を持つため、ACOが近似した結果へ置き換えない。
         if (!exactPlan.craftable() && strategy == CalculationStrategy.CRAFT_LESS) {
             return null;
@@ -286,9 +297,30 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 new GenericStack(output, requestedAmount),
                 exactPlan,
                 exactPatternTimes,
-                prepared);
+                prepared,
+                requiresBigIntegerExecution);
         // AE2と周辺アドオンへは必ず最終実装CraftingPlanを返し、BigInteger真値はSidecarへ置く。
         return Ae2CraftingPlanSidecars.expose(metadata);
+    }
+
+    private static BigCraftingPlan<AEKey> widenLongPlan(LongCraftingPlan<AEKey> source) {
+        Objects.requireNonNull(source, "source");
+        // long値を文字列経由にせず、BigInteger.valueOfで符号反転のない昇格を行う。
+        return new BigCraftingPlan<>(
+                source.requestedKey(),
+                BigInteger.valueOf(source.requestedAmount()),
+                widenLongMap(source.patternExecutions()),
+                widenLongMap(source.usedInventory()),
+                widenLongMap(source.emitted()),
+                widenLongMap(source.missing()),
+                0);
+    }
+
+    private static <K> Map<K, BigInteger> widenLongMap(Map<K, Long> source) {
+        Map<K, BigInteger> widened = new LinkedHashMap<>();
+        // 既存の正確なlong会計をキーごとに一度だけBigIntegerへ写す。
+        source.forEach((key, amount) -> widened.put(key, BigInteger.valueOf(amount)));
+        return Map.copyOf(widened);
     }
 
     @Nullable
