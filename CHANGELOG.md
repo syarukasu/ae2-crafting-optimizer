@@ -4,14 +4,6 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-### Fixed
-
-- Added an optional InsaneAE calculation profile for the NeoForge 1.21.1
-  build. When enabled, ACO owns the strict compiled/BigInteger calculation
-  boundary instead of allowing an InsaneAE calculation batch to pass an
-  overflowing `long` request into AE2.
-- Added a public calculation-profile capability query for optional CPU add-ons.
-
 ## [1.5.12] - 2026-08-11
 
 ### Added
@@ -20,11 +12,16 @@ All notable changes to this project are documented here.
   crafting CPU add-ons.
 - Added the public exact amount ledger and calculation-profile compatibility
   contracts for NeoForge 1.21.1.
+- Added an optional InsaneAE calculation profile and a public capability query.
 
 ### Fixed
 
 - Promoted aggregate long overflow to the BigInteger host instead of sending a
   wrapped or clamped value into AE2's checked long calculation.
+- Made ACO own the strict compiled/BigInteger calculation boundary when the
+  InsaneAE profile is enabled.
+- Returned pending BigInteger windows before optional hosts close during
+  shutdown.
 
 ## [1.5.10] - 2026-08-10
 
