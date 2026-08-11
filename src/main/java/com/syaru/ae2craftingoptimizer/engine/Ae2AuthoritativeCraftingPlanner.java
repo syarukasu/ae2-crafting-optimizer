@@ -162,8 +162,10 @@ public final class Ae2AuthoritativeCraftingPlanner {
             }
             NormalizedPlan symbolic = normalize(promoted);
             ICraftingPlan result;
-            // 個別値がlongを超える場合、標準AE2 Jobへ丸めずAQE専用のBig親Jobを作る。
-            if (symbolic == null) {
+            // 個別値またはキー別合計がlongを超える場合、通常AE2 Jobへ戻さずBig親Jobを作る。
+            boolean bigIntegerExecutionRequired = symbolic == null
+                    || symbolic.hasAggregatePastLong();
+            if (bigIntegerExecutionRequired) {
                 result = createBigIntegerParentPlan(
                         capture,
                         graphSnapshot,
@@ -172,7 +174,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         output,
                         requestedAmount,
                         strategy,
-                        promoted);
+                        promoted,
+                        true);
                 // 厳格な親Jobへ変換できない経路は、値を近似せずAE2本来の計算へ戻す。
                 if (result == null) {
                     return null;
@@ -235,7 +238,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
             AEKey output,
             long requestedAmount,
             CalculationStrategy strategy,
-            OverflowPromotingCraftingPlanner.Result<AEKey> promoted) {
+            OverflowPromotingCraftingPlanner.Result<AEKey> promoted,
+            boolean requiresBigIntegerExecution) {
         // 個別long超過はBigInteger Plannerの正確な結果からだけ親Jobへ変換する。
         if (!(promoted instanceof OverflowPromotingCraftingPlanner.BigResult<AEKey> bigResult)
                 || !ACOConfig.enableBigIntegerGameplayExecution()) {
@@ -286,7 +290,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 new GenericStack(output, requestedAmount),
                 exactPlan,
                 exactPatternTimes,
-                prepared);
+                prepared,
+                requiresBigIntegerExecution);
         // AE2と周辺アドオンへは必ず最終実装CraftingPlanを返し、BigInteger真値はSidecarへ置く。
         return Ae2CraftingPlanSidecars.expose(metadata);
     }
