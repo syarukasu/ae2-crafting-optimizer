@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Added an optional InsaneAE calculation profile for the NeoForge 1.21.1
+  build. When enabled, ACO owns the strict compiled/BigInteger calculation
+  boundary instead of allowing an InsaneAE calculation batch to pass an
+  overflowing `long` request into AE2.
+- Added a public calculation-profile capability query for optional CPU add-ons.
+
 ## [1.5.10] - 2026-08-10
 
 ### Fixed

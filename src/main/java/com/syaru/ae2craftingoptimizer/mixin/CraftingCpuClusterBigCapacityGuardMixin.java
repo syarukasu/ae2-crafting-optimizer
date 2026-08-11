@@ -8,6 +8,7 @@ import appeng.api.networking.security.IActionSource;
 import appeng.crafting.execution.CraftingSubmitResult;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
+import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -26,7 +27,11 @@ public abstract class CraftingCpuClusterBigCapacityGuardMixin
             ICraftingRequester requester,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
         // Long.MAXは真の容量ではないため、対応Sidecarを持たない標準CPUでは実行しない。
-        if (Ae2CraftingPlanSidecars.isWide(plan)) {
+        boolean insaneAeExactPlan = ACOConfig.enableInsaneAeBigCraftingProfile()
+                && Ae2CraftingPlanSidecars.bigInteger(plan).isPresent();
+        // InsaneAE専用のExact受け渡しだけはInsaneAE側が同じPlanを所有するため通す。
+        // 容量だけをlongへ飽和したBigCapacity計画は標準CPUへ絶対に渡さない。
+        if (Ae2CraftingPlanSidecars.isWide(plan) && !insaneAeExactPlan) {
             cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
         }
     }

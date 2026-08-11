@@ -3,8 +3,12 @@ package com.syaru.ae2craftingoptimizer.api.big;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingKeyCodec;
 import com.syaru.ae2craftingoptimizer.engine.OverflowPromotingCraftingPlanner;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
+import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import java.math.BigInteger;
 import java.util.Objects;
+import java.util.Optional;
+import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.stacks.AEKey;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
 import net.minecraft.nbt.CompoundTag;
@@ -12,13 +16,51 @@ import net.minecraft.server.level.ServerPlayer;
 
 /** Stable opt-in boundary for CPU add-ons that own a BigInteger crafting host. */
 public final class BigCraftingEngineApi {
+    /** 既存AQEホストAPIの契約番号。既存アドオンの互換性を維持する。 */
     public static final int API_VERSION = 3;
+    /** アドオン向け正確なBigInteger会計APIの契約番号。 */
+    public static final int AMOUNT_LEDGER_API_VERSION = 1;
+    /** AE2計算プロファイル照会APIの契約番号。 */
+    public static final int CALCULATION_PROFILE_API_VERSION = 1;
 
     private BigCraftingEngineApi() {
     }
 
     public static boolean isEnabled() {
         return ACOConfig.enableBigIntegerCraftingBackend();
+    }
+
+    /**
+     * ACOが厳密なBigInteger計算境界を所有しているかを返す。
+     * 対応CPUアドオンが同じ計算を二重実行しないための能力照会だけを行う。
+     */
+    public static boolean isCalculationProfileActive() {
+        return ACOConfig.enableBigCraftingProfile()
+                && ACOConfig.enableCompiledCraftingGraph()
+                && ACOConfig.enableBigIntegerCraftingBackend();
+    }
+
+    /**
+     * ACOが生成した計画の正確なBigInteger側データを取得する。
+     * 通常のAE2計画やlongへ飽和しただけの計画は返さない。
+     */
+    public static Optional<BigIntegerCraftingPlanView> inspectBigIntegerPlan(
+            ICraftingPlan plan) {
+        if (!isCalculationProfileActive() || plan == null) {
+            return Optional.empty();
+        }
+        BigIntegerCraftingPlan bigPlan = Ae2CraftingPlanSidecars.bigInteger(plan).orElse(null);
+        if (bigPlan == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new BigIntegerCraftingPlanView(
+                bigPlan.finalOutput(),
+                bigPlan.exactBytes(),
+                bigPlan.simulation(),
+                bigPlan.exactPatternTimes(),
+                bigPlan.exactPlan().usedInventory(),
+                bigPlan.exactPlan().emitted(),
+                bigPlan.exactPlan().missing()));
     }
 
     public static <K> BigCraftingRuntime<K> create(
