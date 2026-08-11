@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Added an optional InsaneAE calculation profile. When enabled, ACO owns the
+  strict compiled/BigInteger calculation boundary instead of allowing the
+  InsaneAE calculation batch to pass an overflowing `long` request into AE2.
+- Added a public calculation-profile capability query for optional CPU add-ons.
+
 ## [1.5.11] - 2026-08-11
 
 ### Added
