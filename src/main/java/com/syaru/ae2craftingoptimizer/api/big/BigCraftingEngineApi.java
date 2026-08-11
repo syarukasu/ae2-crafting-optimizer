@@ -105,6 +105,30 @@ public final class BigCraftingEngineApi {
         return new OverflowPromotingCraftingPlanner<>(ACOConfig.getBigIntegerMaximumBits());
     }
 
+    /**
+     * Creates an exact amount ledger for add-on CPUs that must keep output counts
+     * beyond the long range without changing AE2's own stack API.
+     */
+    public static <K> BigIntegerAmountLedger<K> createAmountLedger(
+            BigCraftingKeyCodec<K> keyCodec) {
+        if (!isEnabled()) {
+            throw new IllegalStateException(
+                    "ACO BigInteger crafting backend is disabled by server config");
+        }
+        return new BigIntegerAmountLedger<>(
+                Objects.requireNonNull(keyCodec, "keyCodec"),
+                ACOConfig.getBigIntegerMaximumBits());
+    }
+
+    /** Restores an add-on amount ledger using the current server-side bit limit. */
+    public static <K> BigIntegerAmountLedger<K> loadAmountLedger(
+            CompoundTag saved,
+            BigCraftingKeyCodec<K> keyCodec) {
+        BigIntegerAmountLedger<K> ledger = createAmountLedger(keyCodec);
+        ledger.load(Objects.requireNonNull(saved, "saved"));
+        return ledger;
+    }
+
     /** Restores a host runtime using the current server-side safety limits. */
     public static <K> BigCraftingRuntime<K> load(
             CompoundTag saved,
