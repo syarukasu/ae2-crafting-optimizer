@@ -177,9 +177,10 @@ final class ACOStartupReport {
                 ACOConfig.coalesceAssemblerMatrixStatusUpdates());
         logDeepRewriteFlags();
         AE2CraftingOptimizer.LOGGER.info(
-                "ACO experimental crafting engine: {} (AQE profile {}, shadow {}, compiled graph {}, proof-qualified long plans {}, transaction V2 {}, GT native {}, Mekanism native {}, fair scheduler {}, persistent journal {})",
+                "ACO experimental crafting engine: {} (AQE profile {}, InsaneAE profile {}, shadow {}, compiled graph {}, proof-qualified long plans {}, transaction V2 {}, GT native {}, Mekanism native {}, fair scheduler {}, persistent journal {})",
                 ACOConfig.enableExperimentalCraftingEngine(),
                 ACOConfig.enableAqeBigCraftingProfile(),
+                ACOConfig.enableInsaneAeBigCraftingProfile(),
                 ACOConfig.enableCraftingEngineShadowMode(),
                 ACOConfig.enableCompiledCraftingGraph(),
                 ACOConfig.enableProofQualifiedLongPlans(),
