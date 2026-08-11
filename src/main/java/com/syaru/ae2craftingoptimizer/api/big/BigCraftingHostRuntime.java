@@ -22,7 +22,7 @@ import net.minecraft.nbt.Tag;
  * {@link #reserveExternal}系で容量を予約する。ACOコマンド由来の独立親Jobだけが内部の
  * {@link BigCraftingRuntime}を使用する。双方を同じ容量から差し引き、二重予約を防ぐ。</p>
  */
-public final class BigCraftingHostRuntime<K> {
+public final class BigCraftingHostRuntime<K> implements AutoCloseable {
     public static final int SCHEMA_VERSION = 2;
     public static final int MAX_EXTERNAL_RESERVATIONS = 65_536;
     public static final int MAX_EXTERNAL_EXECUTIONS = 16_384;
@@ -41,6 +41,7 @@ public final class BigCraftingHostRuntime<K> {
     private BigInteger externalReserved = BigInteger.ZERO;
     private long externalCountBytes;
     private final BigCraftingRuntime<K> bigRuntime;
+    private boolean closed;
 
     BigCraftingHostRuntime(
             BigInteger physicalCapacity,
@@ -93,6 +94,7 @@ public final class BigCraftingHostRuntime<K> {
 
     /** 通常AE2・Advanced AE Job用の容量を原子的に予約する。 */
     public synchronized boolean reserveExternal(UUID jobId, BigInteger amount) {
+        ensureOpen();
         Objects.requireNonNull(jobId, "jobId");
         BigInteger checked = checkedPositive(amount, "external reservation", maximumBits);
         if (externalReservations.containsKey(jobId)) {
@@ -132,6 +134,7 @@ public final class BigCraftingHostRuntime<K> {
     public synchronized boolean promoteExternalReservation(
             UUID jobId,
             BigInteger exactAmount) {
+        ensureOpen();
         Objects.requireNonNull(jobId, "jobId");
         BigInteger checked = checkedPositive(exactAmount, "promoted external reservation", maximumBits);
         BigInteger previous = externalReservations.get(jobId);
@@ -174,6 +177,7 @@ public final class BigCraftingHostRuntime<K> {
      * 構造の容量が戻るかJobが完了するまで新規Jobを受理しない。</p>
      */
     public synchronized void replaceExternalReservations(Map<UUID, BigInteger> replacement) {
+        ensureOpen();
         Objects.requireNonNull(replacement, "external reservations");
         Map<UUID, BigInteger> unmanaged = new LinkedHashMap<>();
         replacement.forEach((jobId, amount) -> {
@@ -202,11 +206,13 @@ public final class BigCraftingHostRuntime<K> {
     }
 
     public synchronized void resizePhysicalCapacity(BigInteger replacement) {
+        ensureOpen();
         physicalCapacity = checkedCapacity(replacement, maximumBits);
         rebalanceBigRuntimeCapacity();
     }
 
     public synchronized boolean submit(BigCraftingJob<K> job) {
+        ensureOpen();
         Objects.requireNonNull(job, "job");
         if (available().compareTo(job.reservedCapacity()) < 0) {
             return false;
@@ -216,18 +222,21 @@ public final class BigCraftingHostRuntime<K> {
     }
 
     public synchronized List<BigCraftingRuntime.ExecutionLease<K>> schedule(long operationBudget) {
+        ensureOpen();
         return bigRuntime.schedule(operationBudget);
     }
 
     public synchronized List<BigCraftingRuntime.ExecutionLease<K>> schedule(
             long operationBudget,
             int maximumWindows) {
+        ensureOpen();
         return bigRuntime.schedule(operationBudget, maximumWindows);
     }
 
     /** Exact Vector対応設備へ渡せる、まだ子Windowを持たない親Job一覧。 */
     public synchronized List<BigCraftingRuntime.VectorCandidate<K>>
             vectorCandidates() {
+        ensureOpen();
         return bigRuntime.vectorCandidates();
     }
 
@@ -238,6 +247,7 @@ public final class BigCraftingHostRuntime<K> {
                     UUID transactionId,
                     String executorId,
                     String planFingerprint) {
+        ensureOpen();
         return bigRuntime.prepareVector(
                 jobId, transactionId, executorId, planFingerprint);
     }
@@ -252,6 +262,7 @@ public final class BigCraftingHostRuntime<K> {
                     CompoundTag executionState,
                     int progressNumerator,
                     int progressDenominator) {
+        ensureOpen();
         return bigRuntime.prepareVector(
                 jobId,
                 transactionId,
@@ -314,6 +325,7 @@ public final class BigCraftingHostRuntime<K> {
             BigCraftingRuntime.ExecutionLease<K> lease,
             UUID childCpuId,
             BigInteger childReservedCapacity) {
+        ensureOpen();
         Objects.requireNonNull(lease, "lease");
         Objects.requireNonNull(childCpuId, "childCpuId");
         BigInteger checkedCapacity = checkedPositive(
@@ -423,6 +435,33 @@ public final class BigCraftingHostRuntime<K> {
 
     public synchronized List<BigCraftingRuntime.RecoveredExecution<K>> unresolvedExecutions() {
         return bigRuntime.unresolvedExecutions();
+    }
+
+    /** 容量と予約を同一モニター内で読み取り、呼び出し側へ不変Snapshotを渡す。 */
+    public synchronized BigCraftingHostSnapshot snapshot(
+            long revision,
+            BigCraftingHostBackendState backendState) {
+        return BigCraftingHostSnapshot.of(
+                runtimeId(),
+                revision,
+                physicalCapacity,
+                reserved(),
+                externalReserved,
+                bigRuntime.reserved(),
+                externalReservations.size(),
+                bigRuntime.jobIds().size(),
+                externalExecutions.size(),
+                backendState);
+    }
+
+    /** 新規受付を止める。永続化されたJobや所有権の削除は呼び出し側が行う。 */
+    @Override
+    public synchronized void close() {
+        closed = true;
+    }
+
+    public synchronized boolean isClosed() {
+        return closed;
     }
 
     public synchronized void commitRecovered(
@@ -786,6 +825,12 @@ public final class BigCraftingHostRuntime<K> {
             return true;
         }
         return false;
+    }
+
+    private void ensureOpen() {
+        if (closed) {
+            throw new IllegalStateException("Big Crafting Host runtime is closed");
+        }
     }
 
     private record CheckedReservations(
