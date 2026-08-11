@@ -34,6 +34,7 @@ import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.bus.api.EventPriority;
 
 /**
  * サーバーの開始・tick・データ再読込・停止に伴うACO状態を一元管理する。
@@ -55,6 +56,7 @@ public final class ACOServerLifecycle {
         NeoForge.EVENT_BUS.addListener(
                 ACOServerLifecycle::onDatapackSync);
         NeoForge.EVENT_BUS.addListener(
+                EventPriority.HIGHEST,
                 ACOServerLifecycle::onServerStopping);
     }
 
