@@ -66,6 +66,26 @@ class CompiledRootProgramTest {
     }
 
     @Test
+    void promotesPatternInputWhenEightTimesTwoToTheSixtiethWouldOverflowLong() {
+        var program = compile(
+                List.of(pattern("output", "gas", 8L, "output", 1L)),
+                "output");
+        var inventory = program.captureLongInventory(ignored -> 0L);
+        BigInteger requested = BigInteger.ONE.shiftLeft(60);
+
+        var result = new OverflowPromotingCraftingPlanner<String>().plan(
+                program,
+                requested,
+                inventory,
+                PlanningGuard.none());
+
+        var big = assertInstanceOf(OverflowPromotingCraftingPlanner.BigResult.class, result);
+        assertEquals(
+                BigInteger.ONE.shiftLeft(63),
+                big.plan().missing().get("gas"));
+    }
+
+    @Test
     void keepsTwoLongMaximumChemicalInputsExactAfterPromotion() {
         var output = new CompiledPattern<>(
                 "pressurized-reaction",

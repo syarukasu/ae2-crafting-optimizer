@@ -27,7 +27,8 @@ final class Ae2ReferencedInventory {
 
     /**
      * NetworkCraftingSimulationStateへ伝播した正確なSidecarから、参照キーだけを固定する。
-     * Sidecarが不完全ならnullを返し、呼出側はAE2標準またはlong経路へ戻る。
+     * Sidecar全体が不完全でも、計画が参照するキーを個別に証明できれば採用する。
+     * 参照キーのどれかが不明な場合だけnullを返し、呼出側は安全な経路へ戻る。
      */
     @Nullable
     static CompiledRootProgram.BigInventorySnapshot<AEKey> captureExactNetworkSnapshot(
@@ -36,8 +37,8 @@ final class Ae2ReferencedInventory {
             AEKey requestedOutput) {
         BigKeyCounterSidecars.Snapshot exact =
                 BigKeyCounterSidecars.snapshot(networkSnapshot).orElse(null);
-        // 一部storageの正確値を取得できなかったSnapshotは、在庫を推測せず採用しない。
-        if (exact == null || !exact.complete()) {
+        // 無関係なキーのアダプター失敗だけで、対象クラフト全体を捨てない。
+        if (exact == null || !hasExactReferencedKeys(program, exact, requestedOutput)) {
             return null;
         }
         return program.captureBigInventory(
@@ -80,8 +81,8 @@ final class Ae2ReferencedInventory {
         KeyCounter cached = grid.getStorageService().getCachedInventory();
         BigKeyCounterSidecars.Snapshot exact =
                 BigKeyCounterSidecars.snapshot(cached).orElse(null);
-        // 再検証時にSidecarが失われた場合は、丸めたlong値で一致扱いにしない。
-        if (exact == null || !exact.complete()) {
+        // 再検証時も、計画が参照するキーだけはBigInteger正本で一致を確認する。
+        if (exact == null || !hasExactReferencedKeys(program, exact, requestedOutput)) {
             return false;
         }
         return program.inventoryMatches(
@@ -90,6 +91,20 @@ final class Ae2ReferencedInventory {
                         ? BigInteger.ZERO
                         : liveExactAmount(grid, source, cached, exact, key),
                 ACOConfig.getBigIntegerMaximumBits());
+    }
+
+    private static boolean hasExactReferencedKeys(
+            CompiledRootProgram<AEKey> program,
+            BigKeyCounterSidecars.Snapshot exact,
+            AEKey requestedOutput) {
+        for (int node = 0; node < program.nodeCount(); node++) {
+            AEKey key = program.keyAt(node);
+            // AE2は注文の完成品を在庫計算から除外するため、出力自身は検証対象にしない。
+            if (!key.equals(requestedOutput) && !exact.isExact(key)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static long liveAmount(IGrid grid, IActionSource source, AEKey key) {

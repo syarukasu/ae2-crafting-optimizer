@@ -115,18 +115,18 @@ public final class Ae2AuthoritativeCraftingPlanner {
 
             BigKeyCounterSidecars.Snapshot inventoryMetadata =
                     BigKeyCounterSidecars.snapshot(capture.inventorySnapshot()).orElse(null);
-            // Adapter失敗を含む不完全Snapshotは、飽和値から不足数を推測せずAE2へ戻す。
-            if (inventoryMetadata != null && !inventoryMetadata.complete()) {
-                return null;
-            }
             CompiledRootProgram.BigInventorySnapshot<AEKey> exactPlanningInventory =
                     Ae2ReferencedInventory.captureExactNetworkSnapshot(
                             program,
                             capture.inventorySnapshot(),
                             output);
             CompiledRootProgram.InventorySnapshot<AEKey> planningInventory = null;
-            // 正確なSidecarが無い通常AE2環境だけ、従来のlong Snapshotを使用する。
+            // 参照キーを個別に証明できない場合だけ、通常AE2のlong Snapshotへ戻す。
             if (exactPlanningInventory == null) {
+                // 不完全Sidecarを飽和longとしてBig計画へ渡すと、在庫不足を誤って充足扱いにする。
+                if (inventoryMetadata != null && !inventoryMetadata.complete()) {
+                    return null;
+                }
                 planningInventory = Ae2ReferencedInventory.captureNetworkSnapshot(
                         program,
                         capture.inventorySnapshot(),
