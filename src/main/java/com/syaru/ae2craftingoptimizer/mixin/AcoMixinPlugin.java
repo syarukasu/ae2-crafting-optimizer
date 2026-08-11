@@ -27,12 +27,12 @@ public final class AcoMixinPlugin implements IMixinConfigPlugin {
         return !Ae2UelmCompatibility.ownsAe2SurfaceMixin(mixinClassName);
     }
 
-    private static boolean isInsaneAeOwnedExecutionMixin(String mixinClassName) {
+    static boolean isInsaneAeOwnedExecutionMixin(String mixinClassName) {
         String simpleName = simpleMixinName(mixinClassName);
         return switch (simpleName) {
-            // AE2 CraftingCpuLogicの予算計算はInsaneAE側のlong実装へ委譲する。
+            // 実行予算と実行入口だけをInsaneAEへ委譲する。
+            // BatchSourceReceiptMixinは実行を変更せず、V2会計に必要な状態APIを付与するため残す。
             case "CraftingCpuLogicExecutionBudgetMixin",
-                    "CraftingCpuLogicBatchSourceReceiptMixin",
                     "CraftingCpuLogicTransactionalBatchV2Mixin",
                     // Advanced AEの通常executeCraftingもInsaneAE側の互換Mixinを優先する。
                     "AdvancedAeCraftingCpuLogicExecutionBudgetMixin",
