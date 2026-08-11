@@ -15,10 +15,38 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 public final class AcoMixinPlugin implements IMixinConfigPlugin {
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        // InsaneAEが同じAE2実行入口を所有する場合は、ACOの予算・通常Batch入口を重ねない。
+        // BigInteger会計とAQE専用のAdvanced AE連携Mixinはこの除外対象に含めない。
+        if (isInsaneAeLoadedDuringBootstrap()
+                && isInsaneAeOwnedExecutionMixin(mixinClassName)) {
+            return false;
+        }
         if (!isUelmLoadedDuringBootstrap()) {
             return true;
         }
         return !Ae2UelmCompatibility.ownsAe2SurfaceMixin(mixinClassName);
+    }
+
+    private static boolean isInsaneAeOwnedExecutionMixin(String mixinClassName) {
+        return switch (mixinClassName) {
+            // AE2 CraftingCpuLogicの予算計算はInsaneAE側のlong実装へ委譲する。
+            case "CraftingCpuLogicExecutionBudgetMixin",
+                    "CraftingCpuLogicBatchSourceReceiptMixin",
+                    "CraftingCpuLogicTransactionalBatchV2Mixin",
+                    // Advanced AEの通常executeCraftingもInsaneAE側の互換Mixinを優先する。
+                    "AdvancedAeCraftingCpuLogicExecutionBudgetMixin",
+                    "AdvancedAeCraftingCpuLogicTransactionalBatchV2Mixin" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isInsaneAeLoadedDuringBootstrap() {
+        try {
+            return FMLLoader.getLoadingModList().getModFileById("insaneae") != null;
+        } catch (RuntimeException | LinkageError ignored) {
+            // 起動初期に判定できない場合は、既存のACO経路を維持する。
+            return false;
+        }
     }
 
     private static boolean isUelmLoadedDuringBootstrap() {
