@@ -2,6 +2,7 @@ package com.syaru.ae2craftingoptimizer.api.big;
 
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingKeyCodec;
+import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
 import com.syaru.ae2craftingoptimizer.engine.OverflowPromotingCraftingPlanner;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
@@ -19,15 +20,43 @@ public final class BigCraftingEngineApi {
     /** Existing AQE host API contract. Keep this stable when adding optional API surfaces. */
     public static final int API_VERSION = 3;
     /** Version of the exact amount-ledger surface added for crafting add-ons. */
-    public static final int AMOUNT_LEDGER_API_VERSION = 1;
+    public static final int AMOUNT_LEDGER_API_VERSION = 2;
     /** Version of the optional AE2 calculation-profile query used by CPU add-ons. */
     public static final int CALCULATION_PROFILE_API_VERSION = 1;
+    /** アドオンがACOの正確なBigInteger上限を照会するAPIの契約番号。 */
+    public static final int CAPACITY_LIMIT_API_VERSION = 1;
 
     private BigCraftingEngineApi() {
     }
 
     public static boolean isEnabled() {
         return ACOConfig.enableBigIntegerCraftingBackend();
+    }
+
+    /**
+     * 現在のACO設定で計画・会計・NBTへ保存できる正確な最大値を返す。
+     *
+     * <p>アドオンはこの値をCPU容量の上限や表示に利用できる。BigIntegerは不変なので、
+     * 呼び出し側へ同じ値を返してもACO内部状態は変更されない。</p>
+     */
+    public static BigInteger maximumSupportedAmount() {
+        return maximumSupportedAmount(ACOConfig.getBigIntegerMaximumBits());
+    }
+
+    static BigInteger maximumSupportedAmount(int configuredMaximumBits) {
+        // ACOの設定境界外の値を、公開API経由で有効な上限として扱わせない。
+        if (configuredMaximumBits < 1
+                || configuredMaximumBits > BigCountMath.HARD_MAXIMUM_BITS) {
+            throw new IllegalArgumentException(
+                    "configuredMaximumBits must be between 1 and "
+                            + BigCountMath.HARD_MAXIMUM_BITS);
+        }
+
+        BigInteger binaryLimit = BigInteger.ONE
+                .shiftLeft(configuredMaximumBits)
+                .subtract(BigInteger.ONE);
+        // bit上限の端が16,385桁へ届く場合は、ACOの10進16,384桁上限を正本にする。
+        return binaryLimit.min(BigCountMath.hardMaximumValue());
     }
 
     /**
@@ -125,11 +154,28 @@ public final class BigCraftingEngineApi {
                 ACOConfig.getBigIntegerMaximumBits());
     }
 
+    /**
+     * AE2のitem、fluid、chemicalキーを扱うアドオン向け台帳を作成する。
+     *
+     * <p>アドオンがACO内部の{@code BigCraftingKeyCodec}型を解決しなくて済むよう、
+     * 公開APIだけで完結する固定型ファクトリとして提供する。</p>
+     */
+    public static BigIntegerAmountLedger<AEKey> createAeKeyAmountLedger() {
+        return createAmountLedger(AeKeyBigCraftingCodec.INSTANCE);
+    }
+
     /** Restores an add-on amount ledger using the current server-side bit limit. */
     public static <K> BigIntegerAmountLedger<K> loadAmountLedger(
             CompoundTag saved,
             BigCraftingKeyCodec<K> keyCodec) {
         BigIntegerAmountLedger<K> ledger = createAmountLedger(keyCodec);
+        ledger.load(Objects.requireNonNull(saved, "saved"));
+        return ledger;
+    }
+
+    /** AEKey用の保存済み台帳を、ACO内部型を公開せず復元する。 */
+    public static BigIntegerAmountLedger<AEKey> loadAeKeyAmountLedger(CompoundTag saved) {
+        BigIntegerAmountLedger<AEKey> ledger = createAeKeyAmountLedger();
         ledger.load(Objects.requireNonNull(saved, "saved"));
         return ledger;
     }
