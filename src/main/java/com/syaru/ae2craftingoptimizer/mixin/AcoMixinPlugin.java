@@ -28,7 +28,8 @@ public final class AcoMixinPlugin implements IMixinConfigPlugin {
     }
 
     private static boolean isInsaneAeOwnedExecutionMixin(String mixinClassName) {
-        return switch (mixinClassName) {
+        String simpleName = simpleMixinName(mixinClassName);
+        return switch (simpleName) {
             // AE2 CraftingCpuLogicの予算計算はInsaneAE側のlong実装へ委譲する。
             case "CraftingCpuLogicExecutionBudgetMixin",
                     "CraftingCpuLogicBatchSourceReceiptMixin",
@@ -38,6 +39,15 @@ public final class AcoMixinPlugin implements IMixinConfigPlugin {
                     "AdvancedAeCraftingCpuLogicTransactionalBatchV2Mixin" -> true;
             default -> false;
         };
+    }
+
+    /**
+     * Mixinが渡す完全修飾名から、登録名との比較に使う単純名を取り出す。
+     * 実行時の値はパッケージ付きになるため、単純名へ正規化しないと競合除外が働かない。
+     */
+    private static String simpleMixinName(String mixinClassName) {
+        int separator = mixinClassName.lastIndexOf('.');
+        return separator >= 0 ? mixinClassName.substring(separator + 1) : mixinClassName;
     }
 
     private static boolean isInsaneAeLoadedDuringBootstrap() {
