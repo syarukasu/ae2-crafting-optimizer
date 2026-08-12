@@ -36,4 +36,12 @@ class SharedCalculationFutureTest {
         assertTrue(second.cancel(true));
         assertTrue(delegate.isCancelled());
     }
+
+    @Test
+    void completedDelegateDoesNotCreateAStaleSubscriber() {
+        CompletableFuture<String> delegate = CompletableFuture.completedFuture("plan");
+        SharedCalculationFuture<String> shared = new SharedCalculationFuture<>(delegate);
+
+        assertTrue(shared.acquire() == null);
+    }
 }

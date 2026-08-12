@@ -60,7 +60,11 @@ public final class CraftingCalculationDeduplicator {
                         strategy);
             }
             OptimizationMetrics.recordCraftingCalculationDeduplication(true);
-            return entry.future.acquire();
+            Future<ICraftingPlan> subscriber = entry.future.acquire();
+            // 最後の購読者がキャンセルした直後は、古い共有Futureを再利用しない。
+            return subscriber != null
+                    ? subscriber
+                    : findCompletedLocked(craftingService, requestKey, now);
         }
     }
 
@@ -85,7 +89,13 @@ public final class CraftingCalculationDeduplicator {
             Entry existing = serviceEntries.get(requestKey);
             if (existing != null && existing.isReusable(now)) {
                 OptimizationMetrics.recordCraftingCalculationDeduplication(true);
-                return existing.future.acquire();
+                Future<ICraftingPlan> subscriber = existing.future.acquire();
+                // 共有Futureが閉じた競合窓では、今回のAE2 Futureを新しい所有者にする。
+                if (subscriber != null) {
+                    // 既存計算を返す場合、新しく生成された重複Futureだけを停止する。
+                    future.cancel(false);
+                    return subscriber;
+                }
             }
             SharedCalculationFuture<ICraftingPlan> shared = new SharedCalculationFuture<>(future);
             serviceEntries.put(requestKey, new Entry(shared, now));

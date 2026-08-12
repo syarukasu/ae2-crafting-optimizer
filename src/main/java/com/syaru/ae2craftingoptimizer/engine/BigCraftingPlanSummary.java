@@ -82,6 +82,27 @@ public final class BigCraftingPlanSummary {
             mergeLongCounter(stats, plan.missingItems(), CounterTarget.MISSING, maximumBits);
             mergeLongCounter(stats, plan.emittedItems(), CounterTarget.EMITTED, maximumBits);
             mergeLongPatternOutputs(stats, plan.patternTimes(), maximumBits);
+        } else if (plan instanceof BigIntegerSimulationPlan simulationPlan) {
+            exactBytes = simulationPlan.exactBytes();
+            mergeCounts(
+                    stats,
+                    simulationPlan.exactPlan().usedInventory(),
+                    CounterTarget.STORED,
+                    maximumBits);
+            mergeCounts(
+                    stats,
+                    simulationPlan.exactPlan().missing(),
+                    CounterTarget.MISSING,
+                    maximumBits);
+            mergeCounts(
+                    stats,
+                    simulationPlan.exactPlan().emitted(),
+                    CounterTarget.EMITTED,
+                    maximumBits);
+            mergePatternOutputs(
+                    stats,
+                    simulationPlan.exactPatternTimes(),
+                    maximumBits);
         } else {
             throw new IllegalArgumentException(
                     "Big crafting confirmation requires an ACO wide plan");

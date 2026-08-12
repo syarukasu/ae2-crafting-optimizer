@@ -3,6 +3,7 @@ package com.syaru.ae2craftingoptimizer.engine;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.stacks.AEKey;
@@ -10,6 +11,7 @@ import appeng.api.stacks.AEKeyType;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import appeng.crafting.CraftingPlan;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -70,6 +72,36 @@ class Ae2CraftingPlanSidecarsTest {
         assertSame(
                 secondMetadata,
                 Ae2CraftingPlanSidecars.metadata(secondFacade).orElseThrow());
+    }
+
+    @Test
+    void preservesExactMissingSimulationBehindAe2Facade() {
+        BigInteger exactMissing = BigInteger.TEN.pow(30);
+        BigCraftingPlan<AEKey> exactPlan = new BigCraftingPlan<>(
+                TEST_KEY,
+                BigInteger.ONE,
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(TEST_KEY, exactMissing),
+                0);
+        BigIntegerSimulationPlan simulation = new BigIntegerSimulationPlan(
+                FINAL_OUTPUT,
+                exactPlan,
+                Map.of(),
+                exactMissing,
+                4096);
+
+        CraftingPlan exposed = Ae2CraftingPlanSidecars.expose(simulation);
+
+        assertTrue(exposed.simulation());
+        assertEquals(Long.MAX_VALUE, exposed.missingItems().get(TEST_KEY));
+        assertEquals(exactMissing, Ae2CraftingPlanSidecars.bigIntegerSimulation(exposed)
+                .orElseThrow()
+                .exactPlan()
+                .missing()
+                .get(TEST_KEY));
+        assertEquals(Long.MAX_VALUE, exposed.bytes());
     }
 
     private record FakeWidePlan(String id) implements WideCraftingPlan {

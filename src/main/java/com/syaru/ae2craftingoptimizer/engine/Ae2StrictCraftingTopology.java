@@ -51,9 +51,9 @@ final class Ae2StrictCraftingTopology {
         List<InputProof> proofs = new ArrayList<>();
         // 配列Programの全ノードを一度だけ検証し、再帰や共有中間素材の二重訪問を避ける。
         for (int node = 0; node < program.nodeCount(); node++) {
-            // 計算キャンセル時は検証を継続せず、AE2呼出側へFallbackする。
+            // 64ノード単位の検証対象を反復し、割込みをAE2 long経路へ黙って戻さない。
             if (Thread.currentThread().isInterrupted()) {
-                return null;
+                throw new PlanningCancelledException(node);
             }
             AEKey key = program.keyAt(node);
             boolean currentlyEmittable = service.canEmitFor(key);

@@ -56,7 +56,8 @@ public abstract class CraftingServiceCalculationDeduplicationMixin {
         }
     }
 
-    @Inject(method = "beginCraftingCalculation", at = @At("RETURN"))
+    // 戻り値を変換するための代替実装としてcancellableを明示し、非cancellable RETURN注入のCancellationExceptionを防ぐ。
+    @Inject(method = "beginCraftingCalculation", at = @At("RETURN"), cancellable = true)
     private void aco$rememberActiveCraftingCalculation(
             Level level,
             ICraftingSimulationRequester requester,
