@@ -86,10 +86,25 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     Thread.currentThread().isInterrupted()
                             ? FallbackReasonCode.CANCELLED
                             : FallbackReasonCode.UNSUPPORTED_PATTERN);
-                    return null;
+            BigIntegerPlanDiagnostics.record(
+                    requestedAmount <= 0L
+                            ? BigIntegerPlanDeclineReason.INVALID_REQUEST
+                            : BigIntegerPlanDeclineReason.DISABLED,
+                    output == null ? null : output.getId().toString(),
+                    BigInteger.valueOf(requestedAmount),
+                    capture == null ? -1L : capture.patternGeneration(),
+                    capture == null ? -1L : capture.recipeGeneration(),
+                    "invalid planner input");
+            return null;
         }
         // 割込みはAE2標準long計算へ戻す理由ではなく、明示的な再試行可能キャンセルとする。
         if (Thread.currentThread().isInterrupted()) {
+            recordDecline(
+                    capture,
+                    output,
+                    requestedAmount,
+                    BigIntegerPlanDeclineReason.CANCELLED,
+                    "planner thread was interrupted before planning");
             throw new PlanningCancelledException(0);
         }
 
@@ -103,6 +118,12 @@ public final class Ae2AuthoritativeCraftingPlanner {
             if (optionalProgram.isEmpty()) {
                 CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
                         FallbackReasonCode.AMBIGUOUS_PRODUCER);
+                recordDecline(
+                        capture,
+                        output,
+                        requestedAmount,
+                        BigIntegerPlanDeclineReason.NO_COMPILED_PROGRAM,
+                        "no compiled root program");
                 return null;
             }
             CompiledRootProgram<AEKey> program = optionalProgram.get();
@@ -116,6 +137,14 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         capture.patternGeneration(),
                         capture.recipeGeneration(),
                         topology == null ? FallbackReasonCode.UNSUPPORTED_PATTERN : FallbackReasonCode.INVENTORY_CHANGED);
+                recordDecline(
+                        capture,
+                        output,
+                        requestedAmount,
+                        topology == null
+                                ? BigIntegerPlanDeclineReason.UNSUPPORTED_TOPOLOGY
+                                : BigIntegerPlanDeclineReason.INVENTORY_CHANGED,
+                        topology == null ? "strict topology was not proven" : "inventory was not accepted");
                 return null;
             }
             wideArithmeticRequired = topology.mightRequireWideArithmetic(
