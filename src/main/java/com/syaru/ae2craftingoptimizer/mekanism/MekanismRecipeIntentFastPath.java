@@ -118,7 +118,7 @@ public final class MekanismRecipeIntentFastPath {
                         pos.toShortString());
             }
             return null;
-        } catch (Throwable throwable) {
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError throwable) {
             logReflectionFailure("findRecipe:" + tile.getClass().getName(), throwable);
             return null;
         }
@@ -530,7 +530,7 @@ public final class MekanismRecipeIntentFastPath {
         try {
             Object id = invoke(recipe, "m_6423_");
             return String.valueOf(id);
-        } catch (Throwable ignored) {
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             return recipe.getClass().getName();
         }
     }
@@ -597,7 +597,7 @@ public final class MekanismRecipeIntentFastPath {
                 if (recipes instanceof List<?> list) {
                     return list;
                 }
-            } catch (Throwable throwable) {
+            } catch (ReflectiveOperationException | RuntimeException | LinkageError throwable) {
                 logReflectionFailure("mekanismRecipesFor:" + recipeType.getClass().getName(), throwable);
             }
             return List.of();
@@ -612,7 +612,7 @@ public final class MekanismRecipeIntentFastPath {
                 try {
                     method.setAccessible(true);
                     collectStackIds(method.invoke(recipe), ids, 0);
-                } catch (Throwable throwable) {
+                } catch (ReflectiveOperationException | RuntimeException | LinkageError throwable) {
                     logReflectionFailure("mekanismOutputIds:" + recipe.getClass().getName() + "#" + method.getName(), throwable);
                 }
             }

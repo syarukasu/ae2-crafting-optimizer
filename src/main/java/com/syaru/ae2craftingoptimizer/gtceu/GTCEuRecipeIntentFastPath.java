@@ -93,7 +93,7 @@ public final class GTCEuRecipeIntentFastPath {
                         context.machinePos());
             }
             return new IntentFirstIterator(candidates, original);
-        } catch (Throwable throwable) {
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError throwable) {
             logReflectionFailure("wrap", throwable);
             return original;
         }
@@ -417,7 +417,7 @@ public final class GTCEuRecipeIntentFastPath {
                     }
                 }
                 return ids;
-            } catch (Throwable throwable) {
+            } catch (ReflectiveOperationException | RuntimeException | LinkageError throwable) {
                 logReflectionFailure(fieldName + "Ids", throwable);
                 return List.of();
             }

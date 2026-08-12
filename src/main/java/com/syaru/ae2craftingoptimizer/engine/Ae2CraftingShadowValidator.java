@@ -184,7 +184,7 @@ public final class Ae2CraftingShadowValidator {
             }
         } catch (CountOverflowException overflow) {
             OptimizationMetrics.recordCraftingEngineShadowOverflow();
-        } catch (Throwable throwable) {
+        } catch (RuntimeException | LinkageError throwable) {
             OptimizationMetrics.recordCraftingEngineShadowSkipped();
             String key = throwable.getClass().getName() + ':' + output.getId();
             // 同じ出力と例外型のShadow skip理由は一度だけdebugへ残す。

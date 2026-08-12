@@ -2,13 +2,16 @@ package com.syaru.ae2craftingoptimizer.integration;
 
 import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingLogicAccess;
+import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
+import com.syaru.ae2craftingoptimizer.access.CheckedCraftingArithmeticHookAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterHostTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterRecoveryAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingJobTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
+import com.syaru.ae2craftingoptimizer.access.CraftingServiceCalculationHookAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
-import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
+import com.syaru.ae2craftingoptimizer.access.ExactBigIntegerInventoryHookAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingInventoryAccess;
 import com.syaru.ae2craftingoptimizer.access.MekanismCachedRecipeAccess;
 import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
@@ -32,13 +35,45 @@ public final class ExperimentalCompatibilityValidator {
     }
 
     public static void validateEnabledFeatures() {
-        // Experimental全体またはAQE専用経路のどちらも無効なら、深いMixin契約の監査は不要。
-        if (!ACOConfig.enableExperimentalCraftingEngine()
-                && !ACOConfig.enableAqeBigCraftingProfile()) {
-            return;
-        }
         List<String> failures = new ArrayList<>();
-        requireSupportedAe2Version(failures);
+        /*
+         * InsaneAE単独プロファイルもBigInteger計算を使用する。
+         * AQEだけを見て早期returnすると、同じ必須Mixinの欠落を見逃すため共通判定を使う。
+         */
+        boolean strictCraftingProfile = ACOConfig.enableExperimentalCraftingEngine()
+                || ACOConfig.enableBigCraftingProfile();
+        if (strictCraftingProfile) {
+            requireSupportedAe2Version(failures);
+        }
+        // 計算共有・完了Cache・事前不足判定は同じCraftingService Mixinを使用する。
+        if (ACOConfig.deduplicateActiveCraftingCalculations()
+                || ACOConfig.cacheCompletedCraftingPlans()
+                || ACOConfig.fastFailMissingCrafts()) {
+            require(failures, "appeng.me.service.CraftingService",
+                    CraftingServiceCalculationHookAccess.class);
+        }
+        // long境界検査は四つのAE2計算段階がそろった場合だけ安全に有効化できる。
+        if (ACOConfig.enableCheckedAe2CraftingArithmetic()) {
+            require(failures, "appeng.crafting.CraftingCalculation",
+                    CheckedCraftingArithmeticHookAccess.class);
+            require(failures, "appeng.crafting.CraftingTreeNode",
+                    CheckedCraftingArithmeticHookAccess.class);
+            require(failures, "appeng.crafting.CraftingTreeProcess",
+                    CheckedCraftingArithmeticHookAccess.class);
+            require(failures, "appeng.crafting.inv.CraftingSimulationState",
+                    CheckedCraftingArithmeticHookAccess.class);
+        }
+        // BigInteger在庫は集計・複製・Sidecar破棄・Cache失効の四境界を一組として監査する。
+        if (ACOConfig.enableExactBigIntegerInventorySnapshots()) {
+            require(failures, "appeng.me.storage.NetworkStorage",
+                    ExactBigIntegerInventoryHookAccess.class);
+            require(failures, "appeng.crafting.inv.NetworkCraftingSimulationState",
+                    ExactBigIntegerInventoryHookAccess.class);
+            require(failures, "appeng.api.stacks.KeyCounter",
+                    ExactBigIntegerInventoryHookAccess.class);
+            require(failures, "appeng.me.service.StorageService",
+                    ExactBigIntegerInventoryHookAccess.class);
+        }
         if ((ACOConfig.enableTransactionalBatchingV2()
                         || ACOConfig.enableFairCraftingJobScheduler()
                         || ACOConfig.enableAtomicBigCapacityPlans()
