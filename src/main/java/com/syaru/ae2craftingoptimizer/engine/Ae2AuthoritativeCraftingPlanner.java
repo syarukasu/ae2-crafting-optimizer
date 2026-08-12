@@ -382,7 +382,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
         } catch (WidePlanUnavailableException unavailable) {
             // wide計画はAE2標準long経路へ戻さず、元の明示的な辞退理由を保持する。
             throw unavailable;
-        } catch (Throwable failure) {
+        } catch (RuntimeException failure) {
             recordDecline(
                     capture,
                     output,
@@ -426,18 +426,11 @@ public final class Ae2AuthoritativeCraftingPlanner {
             return null;
         }
 
-        Map<IPatternDetails, BigInteger> exactPatternTimes = new LinkedHashMap<>();
-        // fingerprint IDを同じ世代Snapshot内の実Patternへ一対一で戻す。
-        for (Map.Entry<String, BigInteger> entry : exactPlan.patternExecutions().entrySet()) {
-            IPatternDetails details = graphSnapshot.pattern(entry.getKey());
-            // 欠損Patternまたは0回以下は永続親Jobへ載せない。
-            if (details == null || entry.getValue().signum() <= 0) {
-                return null;
-            }
-            exactPatternTimes.merge(details, entry.getValue(), BigInteger::add);
-        }
-        // 画面同期と保存のPattern種類数を既存の設定上限内へ保つ。
-        if (exactPatternTimes.size() > ACOConfig.getCraftingEngineShadowMaximumPatterns()) {
+        Map<IPatternDetails, BigInteger> exactPatternTimes = resolveExactPatternTimes(
+                graphSnapshot,
+                exactPlan.patternExecutions());
+        // Pattern参照を同一世代へ戻せない計画は、永続親Jobとして採用しない。
+        if (exactPatternTimes == null) {
             return null;
         }
 
@@ -528,16 +521,11 @@ public final class Ae2AuthoritativeCraftingPlanner {
             AEKey output,
             BigInteger requestedAmount,
             BigCraftingPlan<AEKey> exactPlan) {
-        Map<IPatternDetails, BigInteger> exactPatternTimes = new LinkedHashMap<>();
-        // 不足simulationへ載せる全Pattern回数を、同一世代Snapshotの実Patternへ戻す。
-        for (Map.Entry<String, BigInteger> entry : exactPlan.patternExecutions().entrySet()) {
-            IPatternDetails details = graphSnapshot.pattern(entry.getKey());
-            if (details == null || entry.getValue().signum() <= 0) {
-                return null;
-            }
-            exactPatternTimes.merge(details, entry.getValue(), BigInteger::add);
-        }
-        if (exactPatternTimes.size() > ACOConfig.getCraftingEngineShadowMaximumPatterns()) {
+        Map<IPatternDetails, BigInteger> exactPatternTimes = resolveExactPatternTimes(
+                graphSnapshot,
+                exactPlan.patternExecutions());
+        // 不足simulationも実行計画と同じPattern参照条件を満たす必要がある。
+        if (exactPatternTimes == null) {
             return null;
         }
         BigInteger exactBytes = topology.calculateBigExactBytes(
@@ -551,6 +539,27 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         exactPlan,
                         exactPatternTimes,
                         exactBytes));
+    }
+
+    @Nullable
+    private static Map<IPatternDetails, BigInteger> resolveExactPatternTimes(
+            Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot,
+            Map<String, BigInteger> fingerprintCounts) {
+        Map<IPatternDetails, BigInteger> resolved = new LinkedHashMap<>();
+        // fingerprint IDを同じ世代Snapshot内の実Patternへ一対一で戻す。
+        for (Map.Entry<String, BigInteger> entry : fingerprintCounts.entrySet()) {
+            IPatternDetails details = graphSnapshot.pattern(entry.getKey());
+            // 欠損Patternまたは0回以下は表示にも永続Jobにも載せない。
+            if (details == null || entry.getValue().signum() <= 0) {
+                return null;
+            }
+            resolved.merge(details, entry.getValue(), BigInteger::add);
+        }
+        // 画面同期と保存のPattern種類数を既存の設定上限内へ保つ。
+        if (resolved.size() > ACOConfig.getCraftingEngineShadowMaximumPatterns()) {
+            return null;
+        }
+        return Map.copyOf(resolved);
     }
 
     private static ICraftingPlan declineOrThrow(

@@ -26,6 +26,12 @@ final class SharedCalculationFuture<T> {
         }
     }
 
+    Future<T> acquireOrDelegate() {
+        Future<T> subscriber = acquire();
+        // 包装中に完了した計算はnullへ置換せず、読み取り可能な元Futureを返す。
+        return subscriber != null ? subscriber : delegate;
+    }
+
     Future<T> delegate() {
         return delegate;
     }
@@ -36,6 +42,14 @@ final class SharedCalculationFuture<T> {
 
     boolean isCancelled() {
         return delegate.isCancelled();
+    }
+
+    boolean owns(Future<?> candidate) {
+        // RETURN注入で同じ購読者を再登録しないため、作成元の共有Futureを照合する。
+        if (!(candidate instanceof SubscriberHandle handle)) {
+            return false;
+        }
+        return handle.owner() == this;
     }
 
     private void release(boolean mayInterruptIfRunning, boolean tracked) {
@@ -58,13 +72,22 @@ final class SharedCalculationFuture<T> {
         }
     }
 
-    private final class Subscriber implements Future<T> {
+    private interface SubscriberHandle {
+        SharedCalculationFuture<?> owner();
+    }
+
+    private final class Subscriber implements Future<T>, SubscriberHandle {
         private final boolean tracked;
-        private boolean cancelled;
+        private volatile boolean cancelled;
         private boolean released;
 
         private Subscriber(boolean tracked) {
             this.tracked = tracked;
+        }
+
+        @Override
+        public SharedCalculationFuture<?> owner() {
+            return SharedCalculationFuture.this;
         }
 
         @Override
@@ -94,7 +117,10 @@ final class SharedCalculationFuture<T> {
         @Override
         public T get() throws InterruptedException, java.util.concurrent.ExecutionException {
             ensureNotCancelled();
-            return delegate.get();
+            T result = delegate.get();
+            // 待機中にこの購読者だけがキャンセルされた場合も、共有結果を返さない。
+            ensureNotCancelled();
+            return result;
         }
 
         @Override
@@ -102,7 +128,10 @@ final class SharedCalculationFuture<T> {
                 throws InterruptedException, java.util.concurrent.ExecutionException,
                 java.util.concurrent.TimeoutException {
             ensureNotCancelled();
-            return delegate.get(timeout, unit);
+            T result = delegate.get(timeout, unit);
+            // timed getの待機中にキャンセルされた場合も、通常getと同じ契約を守る。
+            ensureNotCancelled();
+            return result;
         }
 
         private void ensureNotCancelled() {

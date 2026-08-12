@@ -7,12 +7,14 @@ import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 
@@ -20,6 +22,7 @@ public final class CraftingCalculationDeduplicator {
     private static final Map<CraftingService, Map<RequestKey, Entry>> ACTIVE_CALCULATIONS = new WeakHashMap<>();
     private static final Map<CraftingService, Map<RequestKey, CompletedEntry>> COMPLETED_PLANS = new WeakHashMap<>();
     private static final long NANOS_PER_TICK = 50_000_000L;
+    private static final AtomicLong STORAGE_GENERATION = new AtomicLong();
 
     private CraftingCalculationDeduplicator() {
     }
@@ -73,7 +76,11 @@ public final class CraftingCalculationDeduplicator {
             long amount,
             CalculationStrategy strategy,
             Future<ICraftingPlan> future) {
-        if (!ACOConfig.deduplicateActiveCraftingCalculations() || future == null || future.isDone() || future.isCancelled()) {
+        // 重複排除OFFまたは再利用不能な戻り値は、所有権を変更せずそのまま返す。
+        if (!ACOConfig.deduplicateActiveCraftingCalculations()
+                || future == null
+                || future.isDone()
+                || future.isCancelled()) {
             return future;
         }
 
@@ -85,6 +92,10 @@ public final class CraftingCalculationDeduplicator {
             cleanupActive(craftingService, serviceEntries, now);
             Entry existing = serviceEntries.get(requestKey);
             if (existing != null && existing.isReusable(now)) {
+                // HEAD注入ですでに取得した購読者は、RETURN注入で再取得・cancelしない。
+                if (existing.future.owns(future)) {
+                    return future;
+                }
                 // AE2が同じ要求を同時に作った場合は、最初のFutureの所有権を一つ増やす。
                 Future<ICraftingPlan> subscriber = existing.future.acquire();
                 if (subscriber != null) {
@@ -95,7 +106,7 @@ public final class CraftingCalculationDeduplicator {
             }
             SharedCalculationFuture<ICraftingPlan> shared = new SharedCalculationFuture<>(future);
             serviceEntries.put(requestKey, new Entry(shared, now));
-            return shared.acquire();
+            return shared.acquireOrDelegate();
         }
     }
 
@@ -116,6 +127,11 @@ public final class CraftingCalculationDeduplicator {
         if (ACOConfig.logCraftingCalculationDeduplication()) {
             AE2CraftingOptimizer.LOGGER.debug("Cleared completed AE2 crafting plan cache: {}", reason);
         }
+    }
+
+    public static void onStorageChange() {
+        // 内容世代を進め、変更前のactive計算とcompleted計画を新規要求から分離する。
+        STORAGE_GENERATION.incrementAndGet();
     }
 
     private static Future<ICraftingPlan> findCompletedLocked(CraftingService craftingService, RequestKey requestKey, long now) {
@@ -191,6 +207,11 @@ public final class CraftingCalculationDeduplicator {
             return false;
         }
 
+        // Wide実行計画は提出Claimと親Jobを一度だけ所有するため、成功計画キャッシュへ入れない。
+        if (Ae2CraftingPlanSidecars.isWide(plan) && !plan.simulation()) {
+            return false;
+        }
+
         if (AppliedECompatibility.requiresFreshCalculation(plan)) {
             // 一時Patternを再利用するとKnowledgeServiceへの追加処理を通らないため保持しない。
             OptimizationMetrics.recordAppliedECompletedPlanCacheBypass();
@@ -228,7 +249,8 @@ public final class CraftingCalculationDeduplicator {
             int requesterIdentity,
             AEKey output,
             long amount,
-            CalculationStrategy strategy) {
+            CalculationStrategy strategy,
+            long storageGeneration) {
         private static RequestKey of(
                 Level level,
                 ICraftingSimulationRequester requester,
@@ -242,7 +264,8 @@ public final class CraftingCalculationDeduplicator {
                     System.identityHashCode(requester),
                     output,
                     amount,
-                    strategy);
+                    strategy,
+                    STORAGE_GENERATION.get());
         }
     }
 
