@@ -56,7 +56,7 @@ public abstract class CraftingServiceCalculationDeduplicationMixin {
         }
     }
 
-    @Inject(method = "beginCraftingCalculation", at = @At("RETURN"))
+    @Inject(method = "beginCraftingCalculation", at = @At("RETURN"), cancellable = true)
     private void aco$rememberActiveCraftingCalculation(
             Level level,
             ICraftingSimulationRequester requester,
@@ -64,7 +64,7 @@ public abstract class CraftingServiceCalculationDeduplicationMixin {
             long amount,
             CalculationStrategy strategy,
             CallbackInfoReturnable<Future<ICraftingPlan>> cir) {
-        CraftingCalculationDeduplicator.remember(
+        Future<ICraftingPlan> returned = CraftingCalculationDeduplicator.remember(
                 (CraftingService) (Object) this,
                 level,
                 requester,
@@ -72,5 +72,9 @@ public abstract class CraftingServiceCalculationDeduplicationMixin {
                 amount,
                 strategy,
                 cir.getReturnValue());
+        // 共有Futureを最初の呼出し元へ返し、個別キャンセルが他の利用者を壊さないようにする。
+        if (returned != cir.getReturnValue()) {
+            cir.setReturnValue(returned);
+        }
     }
 }

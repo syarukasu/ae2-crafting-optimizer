@@ -57,11 +57,15 @@ public final class CraftingCalculationDeduplicator {
                         amount,
                         strategy);
             }
-            return entry.future;
+            Future<ICraftingPlan> subscriber = entry.future.acquire();
+            // 最後の購読者がキャンセルした直後は、古い共有Futureを再利用しない。
+            return subscriber != null
+                    ? subscriber
+                    : findCompletedLocked(craftingService, requestKey, now);
         }
     }
 
-    public static void remember(
+    public static Future<ICraftingPlan> remember(
             CraftingService craftingService,
             Level level,
             ICraftingSimulationRequester requester,
@@ -70,7 +74,7 @@ public final class CraftingCalculationDeduplicator {
             CalculationStrategy strategy,
             Future<ICraftingPlan> future) {
         if (!ACOConfig.deduplicateActiveCraftingCalculations() || future == null || future.isDone() || future.isCancelled()) {
-            return;
+            return future;
         }
 
         RequestKey requestKey = RequestKey.of(level, requester, output, amount, strategy);
@@ -79,7 +83,19 @@ public final class CraftingCalculationDeduplicator {
         synchronized (ACTIVE_CALCULATIONS) {
             Map<RequestKey, Entry> serviceEntries = ACTIVE_CALCULATIONS.computeIfAbsent(craftingService, ignored -> new HashMap<>());
             cleanupActive(craftingService, serviceEntries, now);
-            serviceEntries.put(requestKey, new Entry(future, now));
+            Entry existing = serviceEntries.get(requestKey);
+            if (existing != null && existing.isReusable(now)) {
+                // AE2が同じ要求を同時に作った場合は、最初のFutureの所有権を一つ増やす。
+                Future<ICraftingPlan> subscriber = existing.future.acquire();
+                if (subscriber != null) {
+                    // 既存計算を返す場合、新しく生成された重複Futureだけを停止する。
+                    future.cancel(false);
+                    return subscriber;
+                }
+            }
+            SharedCalculationFuture<ICraftingPlan> shared = new SharedCalculationFuture<>(future);
+            serviceEntries.put(requestKey, new Entry(shared, now));
+            return shared.acquire();
         }
     }
 
@@ -149,7 +165,7 @@ public final class CraftingCalculationDeduplicator {
 
         ICraftingPlan plan;
         try {
-            plan = entry.future.get();
+            plan = entry.future.delegate().get();
         } catch (Exception ignored) {
             return;
         }
@@ -230,7 +246,7 @@ public final class CraftingCalculationDeduplicator {
         }
     }
 
-    private record Entry(Future<ICraftingPlan> future, long createdAtNanos) {
+    private record Entry(SharedCalculationFuture<ICraftingPlan> future, long createdAtNanos) {
         private boolean isReusable(long now) {
             return !future.isDone()
                     && !future.isCancelled()
