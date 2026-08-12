@@ -119,7 +119,7 @@ public final class PatternProviderBatchEligibility {
                     selectedSide.getOpposite(),
                     selectedTarget,
                     targets.size() == 1);
-        } catch (Throwable ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             return null;
         }
     }

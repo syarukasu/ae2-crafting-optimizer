@@ -6,6 +6,7 @@ import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.networking.IGrid;
 import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
+import com.syaru.ae2craftingoptimizer.access.CraftingServiceCalculationHookAccess;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDeduplicator;
 import com.syaru.ae2craftingoptimizer.optimization.DeterministicCraftingPreflight;
 import java.util.concurrent.Future;
@@ -18,12 +19,17 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = CraftingService.class, remap = false)
-public abstract class CraftingServiceCalculationDeduplicationMixin {
+public abstract class CraftingServiceCalculationDeduplicationMixin
+        implements CraftingServiceCalculationHookAccess {
     @Shadow
     @Final
     private IGrid grid;
 
-    @Inject(method = "beginCraftingCalculation", at = @At("HEAD"), cancellable = true)
+    @Inject(
+            method = "beginCraftingCalculation",
+            at = @At("HEAD"),
+            cancellable = true,
+            require = 1)
     private void aco$reuseActiveCraftingCalculation(
             Level level,
             ICraftingSimulationRequester requester,
@@ -57,7 +63,11 @@ public abstract class CraftingServiceCalculationDeduplicationMixin {
     }
 
     // 戻り値を変換するための代替実装としてcancellableを明示し、非cancellable RETURN注入のCancellationExceptionを防ぐ。
-    @Inject(method = "beginCraftingCalculation", at = @At("RETURN"), cancellable = true)
+    @Inject(
+            method = "beginCraftingCalculation",
+            at = @At("RETURN"),
+            cancellable = true,
+            require = 1)
     private void aco$rememberActiveCraftingCalculation(
             Level level,
             ICraftingSimulationRequester requester,

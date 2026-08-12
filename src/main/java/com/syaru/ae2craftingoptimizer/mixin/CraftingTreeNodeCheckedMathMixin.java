@@ -4,6 +4,7 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.inv.CraftingSimulationState;
+import com.syaru.ae2craftingoptimizer.access.CheckedCraftingArithmeticHookAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.CheckedLongMath;
 import org.spongepowered.asm.mixin.Final;
@@ -15,7 +16,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** CraftingTreeNode内のunchecked LMULが負数へ巻き戻る前に停止する。 */
 @Mixin(value = CraftingTreeNode.class, remap = false)
-public abstract class CraftingTreeNodeCheckedMathMixin {
+public abstract class CraftingTreeNodeCheckedMathMixin
+        implements CheckedCraftingArithmeticHookAccess {
     @Shadow
     @Final
     private AEKey what;
@@ -24,7 +26,7 @@ public abstract class CraftingTreeNodeCheckedMathMixin {
     @Final
     private long amount;
 
-    @Inject(method = "request", at = @At("HEAD"))
+    @Inject(method = "request", at = @At("HEAD"), require = 1)
     private void aco$validateNodeRequest(
             CraftingSimulationState inventory,
             long requestedAmount,

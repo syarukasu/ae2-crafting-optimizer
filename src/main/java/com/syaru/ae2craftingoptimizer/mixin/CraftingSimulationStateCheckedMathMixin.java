@@ -5,6 +5,7 @@ import appeng.api.config.Actionable;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import appeng.crafting.inv.CraftingSimulationState;
+import com.syaru.ae2craftingoptimizer.access.CheckedCraftingArithmeticHookAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import java.util.Map;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,7 +16,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Craft回数のMap加算とdouble bytes蓄積をAE2へ渡す前に検査する。 */
 @Mixin(value = CraftingSimulationState.class, remap = false)
-public abstract class CraftingSimulationStateCheckedMathMixin {
+public abstract class CraftingSimulationStateCheckedMathMixin
+        implements CheckedCraftingArithmeticHookAccess {
     @Shadow
     private double bytes;
 
@@ -28,7 +30,7 @@ public abstract class CraftingSimulationStateCheckedMathMixin {
     @Shadow
     private KeyCounter emittedItems;
 
-    @Inject(method = "insert", at = @At("HEAD"))
+    @Inject(method = "insert", at = @At("HEAD"), require = 1)
     private void aco$validateInventoryInsert(
             AEKey key,
             long amount,
@@ -45,7 +47,7 @@ public abstract class CraftingSimulationStateCheckedMathMixin {
         }
     }
 
-    @Inject(method = "emitItems", at = @At("HEAD"))
+    @Inject(method = "emitItems", at = @At("HEAD"), require = 1)
     private void aco$validateEmittedItems(AEKey key, long amount, CallbackInfo ci) {
         if (!ACOConfig.enableCheckedAe2CraftingArithmetic()) {
             return;
@@ -56,17 +58,18 @@ public abstract class CraftingSimulationStateCheckedMathMixin {
         Math.addExact(emittedItems.get(key), amount);
     }
 
-    @Inject(method = "addCrafting", at = @At("HEAD"))
+    @Inject(method = "addCrafting", at = @At("HEAD"), require = 1)
     private void aco$validateCraftCount(IPatternDetails details, long count, CallbackInfo ci) {
-        if (ACOConfig.enableCheckedAe2CraftingArithmetic()) {
-            if (count < 0L) {
-                throw new ArithmeticException("negative AE2 crafting count");
-            }
-            Math.addExact(crafts.getOrDefault(details, 0L), count);
+        if (!ACOConfig.enableCheckedAe2CraftingArithmetic()) {
+            return;
         }
+        if (count < 0L) {
+            throw new ArithmeticException("negative AE2 crafting count");
+        }
+        Math.addExact(crafts.getOrDefault(details, 0L), count);
     }
 
-    @Inject(method = "addBytes", at = @At("HEAD"))
+    @Inject(method = "addBytes", at = @At("HEAD"), require = 1)
     private void aco$validateBytes(double amount, CallbackInfo ci) {
         if (!ACOConfig.enableCheckedAe2CraftingArithmetic()) {
             return;

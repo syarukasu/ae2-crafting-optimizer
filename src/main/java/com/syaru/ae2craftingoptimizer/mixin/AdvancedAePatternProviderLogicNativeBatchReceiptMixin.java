@@ -217,7 +217,7 @@ public abstract class AdvancedAePatternProviderLogicNativeBatchReceiptMixin
             saveChanges();
             mainNode.ifPresent((grid, node) -> grid.getTickManager().alertDevice(node));
             return ownershipProof(accepted);
-        } catch (Throwable failure) {
+        } catch (RuntimeException | LinkageError failure) {
             if (!ownershipRecorded) {
                 sendList.clear();
                 sendDirection = null;
