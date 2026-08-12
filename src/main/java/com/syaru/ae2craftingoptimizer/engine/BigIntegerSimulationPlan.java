@@ -5,7 +5,6 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import java.math.BigInteger;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -16,8 +15,6 @@ import java.util.Objects;
  * 素材不足の計画をAQEやInsaneAEの実行境界へ渡さず、AE2の確認画面だけへ返すためである。</p>
  */
 public final class BigIntegerSimulationPlan implements WideCraftingPlan {
-    private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
-
     private final GenericStack finalOutput;
     private final BigCraftingPlan<AEKey> exactPlan;
     private final Map<IPatternDetails, BigInteger> exactPatternTimes;
@@ -52,7 +49,7 @@ public final class BigIntegerSimulationPlan implements WideCraftingPlan {
         if (exactPlan.craftable()) {
             throw new IllegalArgumentException("BigInteger simulation plan must be missing");
         }
-        this.exactPatternTimes = immutablePositiveCounts(
+        this.exactPatternTimes = BigIntegerPlanProjection.immutablePositiveCounts(
                 exactPatternTimes, "exactPatternTimes");
         this.exactBytes = BigCountMath.requireMaximumBits(
                 Objects.requireNonNull(exactBytes, "exactBytes"),
@@ -63,10 +60,10 @@ public final class BigIntegerSimulationPlan implements WideCraftingPlan {
                 || !BigInteger.valueOf(finalOutput.amount()).equals(exactPlan.requestedAmount())) {
             throw new IllegalArgumentException("BigInteger simulation metadata is inconsistent");
         }
-        this.usedItems = projectKeyCounter(exactPlan.usedInventory());
-        this.emittedItems = projectKeyCounter(exactPlan.emitted());
-        this.missingItems = projectKeyCounter(exactPlan.missing());
-        this.patternTimes = projectPatternCounter(this.exactPatternTimes);
+        this.usedItems = BigIntegerPlanProjection.projectKeyCounter(exactPlan.usedInventory());
+        this.emittedItems = BigIntegerPlanProjection.projectKeyCounter(exactPlan.emitted());
+        this.missingItems = BigIntegerPlanProjection.projectKeyCounter(exactPlan.missing());
+        this.patternTimes = BigIntegerPlanProjection.projectPatternCounter(this.exactPatternTimes);
     }
 
     @Override
@@ -77,7 +74,7 @@ public final class BigIntegerSimulationPlan implements WideCraftingPlan {
     /** AE2互換境界では負数へwrapさせず、long範囲内は正確値、超過だけを飽和する。 */
     @Override
     public long bytes() {
-        return saturatedLong(exactBytes);
+        return BigIntegerPlanProjection.saturatedLong(exactBytes);
     }
 
     @Override
@@ -122,39 +119,4 @@ public final class BigIntegerSimulationPlan implements WideCraftingPlan {
         return exactPatternTimes;
     }
 
-    private static KeyCounter projectKeyCounter(Map<AEKey, BigInteger> exact) {
-        KeyCounter projected = new KeyCounter();
-        // AE2の表示用Counterだけを作り、BigInteger Mapを正本として保持する。
-        exact.forEach((key, amount) -> projected.add(key, saturatedLong(amount)));
-        return projected;
-    }
-
-    private static Map<IPatternDetails, Long> projectPatternCounter(
-            Map<IPatternDetails, BigInteger> exact) {
-        Map<IPatternDetails, Long> projected = new LinkedHashMap<>();
-        // 画面互換のPattern回数だけを飽和し、正確な回数はSidecarへ残す。
-        exact.forEach((pattern, amount) -> projected.put(pattern, saturatedLong(amount)));
-        return Map.copyOf(projected);
-    }
-
-    private static long saturatedLong(BigInteger amount) {
-        // long範囲を超える値を負数へwrapさせず、画面互換の上限へ飽和する。
-        return amount.compareTo(LONG_MAX) > 0 ? Long.MAX_VALUE : amount.longValueExact();
-    }
-
-    private static Map<IPatternDetails, BigInteger> immutablePositiveCounts(
-            Map<IPatternDetails, BigInteger> counts,
-            String name) {
-        Map<IPatternDetails, BigInteger> copy = new LinkedHashMap<>();
-        Objects.requireNonNull(counts, name).forEach((pattern, amount) -> {
-            Objects.requireNonNull(pattern, name + " key");
-            BigCountMath.requireNonNegative(amount, name);
-            // 実行回数0のPatternは表示・会計へ含めない。
-            if (amount.signum() <= 0) {
-                throw new IllegalArgumentException(name + " values must be positive");
-            }
-            copy.put(pattern, amount);
-        });
-        return Map.copyOf(copy);
-    }
 }

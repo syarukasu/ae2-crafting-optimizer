@@ -22,8 +22,6 @@ import java.util.Objects;
  * 互換Summaryを作り、Clientにはlongを越える行だけをACO packetで追加同期する。</p>
  */
 public final class BigCraftingPlanSummary {
-    private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
-
     private final BigInteger usedBytes;
     private final boolean simulation;
     private final Map<AEKey, Entry> entries;
@@ -149,12 +147,12 @@ public final class BigCraftingPlanSummary {
         ArrayList<CraftingPlanSummaryEntry> projected = new ArrayList<>(entries.size());
         entries.forEach((key, entry) -> projected.add(new CraftingPlanSummaryEntry(
                 key,
-                saturatedLong(entry.missing()),
-                saturatedLong(entry.stored()),
-                saturatedLong(entry.craft()))));
+                BigIntegerPlanProjection.saturatedLong(entry.missing()),
+                BigIntegerPlanProjection.saturatedLong(entry.stored()),
+                BigIntegerPlanProjection.saturatedLong(entry.craft()))));
         Collections.sort(projected);
         return new CraftingPlanSummary(
-                saturatedLong(usedBytes),
+                BigIntegerPlanProjection.saturatedLong(usedBytes),
                 simulation,
                 List.copyOf(projected));
     }
@@ -214,10 +212,6 @@ public final class BigCraftingPlanSummary {
         });
     }
 
-    private static long saturatedLong(BigInteger value) {
-        return value.compareTo(LONG_MAX) > 0 ? Long.MAX_VALUE : value.longValueExact();
-    }
-
     public record Entry(
             BigInteger stored,
             BigInteger missing,
@@ -236,10 +230,10 @@ public final class BigCraftingPlanSummary {
 
         public boolean requiresExactDisplay() {
             BigInteger requested = stored.add(missing);
-            return stored.compareTo(LONG_MAX) > 0
-                    || missing.compareTo(LONG_MAX) > 0
-                    || craft.compareTo(LONG_MAX) > 0
-                    || requested.compareTo(LONG_MAX) > 0;
+            return BigIntegerPlanProjection.exceedsLong(stored)
+                    || BigIntegerPlanProjection.exceedsLong(missing)
+                    || BigIntegerPlanProjection.exceedsLong(craft)
+                    || BigIntegerPlanProjection.exceedsLong(requested);
         }
     }
 

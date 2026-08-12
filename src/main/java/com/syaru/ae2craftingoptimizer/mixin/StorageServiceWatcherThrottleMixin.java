@@ -15,6 +15,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = StorageService.class, remap = false)
 public abstract class StorageServiceWatcherThrottleMixin {
+    @Inject(method = "postWatcherUpdate", at = @At("HEAD"))
+    private void aco$advanceStorageGeneration(AEKey key, long amount, CallbackInfo ci) {
+        CraftingCalculationDeduplicator.onStorageChange();
+    }
+
     @Redirect(
             method = "postWatcherUpdate",
             at = @At(
