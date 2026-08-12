@@ -85,6 +85,12 @@ public final class Ae2AuthoritativeCraftingPlanner {
         }
         // 割込みはAE2標準long計算へ戻す理由ではなく、明示的な再試行可能キャンセルとする。
         if (Thread.currentThread().isInterrupted()) {
+            recordDecline(
+                    capture,
+                    output,
+                    requestedAmount,
+                    BigIntegerPlanDeclineReason.CANCELLED,
+                    "planner thread was interrupted before planning");
             throw new PlanningCancelledException(0);
         }
 
@@ -96,6 +102,12 @@ public final class Ae2AuthoritativeCraftingPlanner {
             var optionalProgram = graphSnapshot.rootProgram(output);
             // 曖昧、循環、複数出力などを含むルートはコンパイルせずAE2へ戻す。
             if (optionalProgram.isEmpty()) {
+                recordDecline(
+                        capture,
+                        output,
+                        requestedAmount,
+                        BigIntegerPlanDeclineReason.NO_COMPILED_PROGRAM,
+                        "no compiled root program");
                 return null;
             }
             CompiledRootProgram<AEKey> program = optionalProgram.get();
