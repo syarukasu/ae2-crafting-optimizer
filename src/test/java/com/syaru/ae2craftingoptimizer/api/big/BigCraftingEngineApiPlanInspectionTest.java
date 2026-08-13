@@ -14,7 +14,10 @@ import appeng.api.stacks.KeyCounter;
 import appeng.crafting.CraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
+import com.syaru.ae2craftingoptimizer.engine.BigCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigExactCraftingByteCounter;
+import com.syaru.ae2craftingoptimizer.engine.BigIntegerSimulationPlan;
+import com.syaru.ae2craftingoptimizer.engine.BigIntegerSimulationPlanTestFactory;
 import com.syaru.ae2craftingoptimizer.engine.CompiledCraftingGraph;
 import com.syaru.ae2craftingoptimizer.engine.CompiledPattern;
 import com.syaru.ae2craftingoptimizer.engine.CompiledRootProgram;
@@ -42,6 +45,8 @@ class BigCraftingEngineApiPlanInspectionTest {
     private static final long NUGGET_INVENTORY = 8_600_000_000_000_000_000L;
     /** 診断GameTestで注文される鉄ブロック数。 */
     private static final long BLOCK_REQUEST = 106_000_000_000_000_000L;
+    /** 中間素材と不足数がsigned longを超えるsimulation用の鉄ブロック注文数。 */
+    private static final long WIDE_MISSING_BLOCK_REQUEST = 1_200_000_000_000_000_000L;
     /** 9ナゲットから1鉄塊、9鉄塊から1鉄ブロックを作る圧縮比。 */
     private static final long COMPRESSION_RATIO = 9L;
     /** 二段圧縮が実際に消費する鉄ナゲット数。 */
@@ -59,6 +64,15 @@ class BigCraftingEngineApiPlanInspectionTest {
     /** AE2の容量式で二段圧縮ツリーを数えた正確なCPU bytes。 */
     private static final BigInteger EXACT_BYTES =
             new BigInteger("10706000000000000024");
+    /** wide不足注文で必要になる鉄塊Pattern回数。 */
+    private static final BigInteger WIDE_MISSING_INGOT_EXECUTIONS =
+            new BigInteger("10800000000000000000");
+    /** wide不足注文で不足する鉄ナゲット数。 */
+    private static final BigInteger WIDE_MISSING_NUGGETS =
+            new BigInteger("97200000000000000000");
+    /** wide不足注文をAE2の容量式で数えた正確なCPU bytes。 */
+    private static final BigInteger WIDE_MISSING_EXACT_BYTES =
+            new BigInteger("121200000000000000024");
     private static final String INGOT_PATTERN_ID = "minecraft:iron_ingot_from_nuggets";
     private static final String BLOCK_PATTERN_ID = "minecraft:iron_block";
     private static final TestKey NUGGET = new TestKey("iron_nugget");
@@ -138,6 +152,63 @@ class BigCraftingEngineApiPlanInspectionTest {
     }
 
     @Test
+    void exposesWideMissingSimulationThroughPublicExactView() throws Exception {
+        CompiledRootProgram<AEKey> program = twoStageCompressionProgram();
+        var inventory = program.captureLongInventory(ignored -> 0L);
+        var promoted = new OverflowPromotingCraftingPlanner<AEKey>(TEST_MAXIMUM_BITS).plan(
+                program,
+                BigInteger.valueOf(WIDE_MISSING_BLOCK_REQUEST),
+                inventory,
+                PlanningGuard.none());
+        var bigResult = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                promoted);
+        @SuppressWarnings("unchecked")
+        BigCraftingPlan<AEKey> exactPlan =
+                ((OverflowPromotingCraftingPlanner.BigResult<AEKey>) bigResult).plan();
+
+        assertFalse(exactPlan.craftable());
+        assertEquals(WIDE_MISSING_INGOT_EXECUTIONS,
+                exactPlan.patternExecutions().get(INGOT_PATTERN_ID));
+        assertEquals(BigInteger.valueOf(WIDE_MISSING_BLOCK_REQUEST),
+                exactPlan.patternExecutions().get(BLOCK_PATTERN_ID));
+        assertEquals(WIDE_MISSING_NUGGETS, exactPlan.missing().get(NUGGET));
+
+        BigInteger exactBytes = BigExactCraftingByteCounter.calculate(
+                BLOCK,
+                BigInteger.valueOf(WIDE_MISSING_BLOCK_REQUEST),
+                program.patternsByOutput(),
+                exactPlan.patternExecutions(),
+                ignored -> ITEM_AMOUNT_PER_BYTE,
+                TEST_MAXIMUM_BITS);
+        assertEquals(WIDE_MISSING_EXACT_BYTES, exactBytes);
+
+        BigIntegerSimulationPlan metadata = BigIntegerSimulationPlanTestFactory.create(
+                new GenericStack(BLOCK, WIDE_MISSING_BLOCK_REQUEST),
+                exactPlan,
+                resolveBigPatterns(exactPlan.patternExecutions()),
+                exactBytes,
+                TEST_MAXIMUM_BITS);
+        CraftingPlan facade = Ae2CraftingPlanSidecars.expose(metadata);
+        Future<appeng.api.networking.crafting.ICraftingPlan> simulatedCalculation =
+                CompletableFuture.completedFuture(facade);
+        var returnedPlan = simulatedCalculation.get();
+        BigIntegerCraftingPlanView view =
+                BigCraftingEngineApi.inspectAttachedExactPlan(returnedPlan).orElseThrow();
+
+        assertTrue(returnedPlan.simulation());
+        assertEquals(Long.MAX_VALUE, returnedPlan.missingItems().get(NUGGET));
+        assertTrue(view.simulation());
+        assertEquals(WIDE_MISSING_EXACT_BYTES, view.exactBytes());
+        assertEquals(WIDE_MISSING_NUGGETS, view.missingItems().get(NUGGET));
+        assertEquals(WIDE_MISSING_INGOT_EXECUTIONS, view.patternTimes().get(INGOT_PATTERN));
+        assertEquals(BigInteger.valueOf(WIDE_MISSING_BLOCK_REQUEST),
+                view.patternTimes().get(BLOCK_PATTERN));
+        assertEquals(Map.of(), view.usedItems());
+        assertEquals(Map.of(), view.emittedItems());
+    }
+
+    @Test
     void doesNotInventSidecarForUnrelatedSaturatedAe2Plan() {
         CraftingPlan ordinary = new CraftingPlan(
                 new GenericStack(BLOCK, 1L),
@@ -190,6 +261,21 @@ class BigCraftingEngineApiPlanInspectionTest {
         for (Map.Entry<String, Long> entry : executions.entrySet()) {
             IPatternDetails pattern = PATTERNS_BY_ID.get(entry.getKey());
             // この固定テストグラフに未登録IDが混ざった場合は、曖昧な計画を作らず失敗させる。
+            if (pattern == null) {
+                throw new IllegalStateException("unresolved test pattern: " + entry.getKey());
+            }
+            resolved.put(pattern, entry.getValue());
+        }
+        return Map.copyOf(resolved);
+    }
+
+    private static Map<IPatternDetails, BigInteger> resolveBigPatterns(
+            Map<String, BigInteger> executions) {
+        Map<IPatternDetails, BigInteger> resolved = new LinkedHashMap<>();
+        // BigInteger PlannerのPattern IDを、同じ仮想世代の実Pattern参照へ戻す。
+        for (Map.Entry<String, BigInteger> entry : executions.entrySet()) {
+            IPatternDetails pattern = PATTERNS_BY_ID.get(entry.getKey());
+            // 未登録Patternを黙って落とすと不足計画の容量と表示がずれるため、試験を失敗させる。
             if (pattern == null) {
                 throw new IllegalStateException("unresolved test pattern: " + entry.getKey());
             }
