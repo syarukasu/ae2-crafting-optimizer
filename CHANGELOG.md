@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Persisted each physical Exact CPU Pattern's encoded definition and exact
+  input/output formula before resource ownership begins.
+- Reconciled historical task counters from the transaction-owned identity
+  instead of resolving them again through the current live Pattern graph.
+- Kept temporarily unloaded Providers retryable while quarantining only a
+  proven replacement whose identity or formula changed.
+- Added schema 2 to schema 3 lazy migration without guessing missing Pattern
+  identities or replaying receipts.
+
 ## [1.5.15] - 2026-08-13
 
 ### Added

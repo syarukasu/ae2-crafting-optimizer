@@ -510,13 +510,16 @@ public final class AqeBigCraftingExecutionManager {
                         }
                         transaction =
                                 PhysicalCraftingTreeTransaction.create(
-                                        plan);
+                                        plan,
+                                        PhysicalCraftingTreeTransaction.capturePatternAccounting(
+                                                plan,
+                                                graphSnapshot,
+                                                cluster.getLevel()));
                         validateExactCpuPlan(
                                 context,
                                 transaction.accountingSnapshot(
                                         graphSnapshot,
-                                        cluster.getLevel()),
-                                graphSnapshot);
+                                        cluster.getLevel()));
                         state.beginPhysicalExecution(
                                 transaction.save());
                         exactCpuTrees.put(
@@ -529,6 +532,9 @@ public final class AqeBigCraftingExecutionManager {
                                 com.syaru.ae2craftingoptimizer.api.vector
                                         .VectorResourceMode.NETWORK_STORAGE);
                     }
+                } catch (PhysicalCraftingTreeTransaction.PatternUnavailableException deferred) {
+                    // 所有開始前にProviderが消えた場合はJobを取消さず、再出現まで待機する。
+                    continue;
                 } catch (RuntimeException | LinkageError preparationFailure) {
                     /*
                      * 物理Transaction開始前の再構築不一致は入力へ触れていない。
@@ -606,11 +612,13 @@ public final class AqeBigCraftingExecutionManager {
                                         cluster.getLevel());
                         reconcileExactCpuAccounting(
                                 context,
-                                accounting,
-                                graphSnapshot);
+                                accounting);
                         state.updatePhysicalExecution(
                                 transaction.save());
                         context.cpu().markDirty();
+                    } catch (PhysicalCraftingTreeTransaction.PatternUnavailableException deferred) {
+                        // schema 2の旧ReceiptはProvider復帰時に不変identityへ安全に移行する。
+                        continue;
                     } catch (RuntimeException | LinkageError accountingFailure) {
                         quarantineExactCpu(
                                 context,
@@ -788,12 +796,9 @@ public final class AqeBigCraftingExecutionManager {
 
         private void validateExactCpuPlan(
                 ExactCpuContext context,
-                PhysicalCraftingTreeTransaction.AccountingSnapshot accounting,
-                Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot) {
+                PhysicalCraftingTreeTransaction.AccountingSnapshot accounting) {
             Map<AEItemKey, BigInteger> plannedTasks =
-                    patternDefinitions(
-                            accounting.plannedPatternExecutions(),
-                            graphSnapshot);
+                    accounting.plannedPatternDefinitions();
             /*
              * 再構築した物理式は、提出時に実Jobへ載せた全taskと完全一致させる。
              * 確定作業台経路はEmitterを許さないため、初期待機出力も存在してはならない。
@@ -810,16 +815,12 @@ public final class AqeBigCraftingExecutionManager {
 
         private void reconcileExactCpuAccounting(
                 ExactCpuContext context,
-                PhysicalCraftingTreeTransaction.AccountingSnapshot accounting,
-                Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot) {
+                PhysicalCraftingTreeTransaction.AccountingSnapshot accounting) {
             validateExactCpuPlan(
                     context,
-                    accounting,
-                    graphSnapshot);
+                    accounting);
             Map<AEItemKey, BigInteger> dispatchedTasks =
-                    patternDefinitions(
-                            accounting.dispatchedPatternExecutions(),
-                            graphSnapshot);
+                    accounting.dispatchedPatternDefinitions();
             BigInteger remainingOutput =
                     accounting.finalOutputReturned()
                             ? BigInteger.ZERO
@@ -840,36 +841,6 @@ public final class AqeBigCraftingExecutionManager {
                                     context.state().requestedKey(),
                                     ExactCraftingJobLedger.saturatedLong(
                                             exactRemaining)));
-        }
-
-        private Map<AEItemKey, BigInteger> patternDefinitions(
-                Map<String, BigInteger> patternExecutions,
-                Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot) {
-            Map<AEItemKey, BigInteger> definitions =
-                    new HashMap<>();
-            // 安定Pattern IDを現在検証済みSnapshotのEncoded Pattern itemへ一対一で戻す。
-            for (var entry : patternExecutions.entrySet()) {
-                IPatternDetails pattern =
-                        graphSnapshot.pattern(
-                                entry.getKey());
-                if (pattern == null
-                        || pattern.getDefinition() == null) {
-                    throw new IllegalArgumentException(
-                            "exact accounting references an unknown pattern");
-                }
-                /*
-                 * Receiptの安定IDと実TaskProgressを一対一で照合する。
-                 * 同じ定義を複数IDから合算すると、どの実Taskが進んだか証明できない。
-                 */
-                if (definitions.putIfAbsent(
-                                pattern.getDefinition(),
-                                entry.getValue())
-                        != null) {
-                    throw new IllegalArgumentException(
-                            "exact accounting contains duplicate pattern definitions");
-                }
-            }
-            return Map.copyOf(definitions);
         }
 
         private boolean isExactStateStale(
@@ -1181,7 +1152,11 @@ public final class AqeBigCraftingExecutionManager {
                 try {
                     PhysicalCraftingTreeTransaction transaction =
                             PhysicalCraftingTreeTransaction.create(
-                                    plan);
+                                    plan,
+                                    PhysicalCraftingTreeTransaction.capturePatternAccounting(
+                                            plan,
+                                            graphSnapshot,
+                                            cluster.getLevel()));
                     host.prepareVector(
                             candidate.jobId(),
                             plan.transactionId(),
