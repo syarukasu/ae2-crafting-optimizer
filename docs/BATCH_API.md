@@ -56,6 +56,10 @@ remove terminal source and target receipts
 
 An adapter must obey these rules:
 
+- `minimumExecutions` is evaluated after task progress, waiting-output,
+  source-energy, and source-inventory limits. When the final available count is
+  smaller, ACO moves no input and leaves that execution call to AE2's normal
+  path. The default is `1`, preserving existing adapters.
 - The transaction UUID, pattern fingerprint, offered count, exact aggregate
   inputs, and expected outputs must remain unchanged through recovery.
 - `commit` returns either zero or the complete offered count. Partial native
