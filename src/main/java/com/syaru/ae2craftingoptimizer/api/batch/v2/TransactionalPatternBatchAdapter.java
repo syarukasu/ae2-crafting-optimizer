@@ -34,6 +34,15 @@ public interface TransactionalPatternBatchAdapter {
 
     boolean supports(PatternBatchContext context);
 
+    /**
+     * 在庫、waitingFor、電力を適用した後で一括経路を使う最小実行回数。
+     *
+     * <p>ACOはこの数まで入力が同時に揃わない場合、入力を抽出せず通常AE2経路へ戻す。</p>
+     */
+    default long minimumExecutions(PatternBatchContext context) {
+        return 1L;
+    }
+
     default long limitExecutions(PatternBatchContext context, long offeredExecutions) {
         return offeredExecutions;
     }

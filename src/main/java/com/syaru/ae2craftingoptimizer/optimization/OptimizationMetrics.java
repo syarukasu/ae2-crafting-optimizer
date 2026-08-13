@@ -38,6 +38,7 @@ public final class OptimizationMetrics {
     private static final Map<FallbackReasonCode, LongAdder> CRAFTING_FALLBACK_REASONS = new ConcurrentHashMap<>();
     private static final LongAdder NATIVE_BATCH_TRANSACTIONS = new LongAdder();
     private static final Map<String, LongAdder> NATIVE_BATCH_EXECUTIONS = new ConcurrentHashMap<>();
+    private static final Map<String, LongAdder> NATIVE_BATCH_MINIMUM_DECLINES = new ConcurrentHashMap<>();
     private static final LongAdder INSTANT_DISPATCH_CALLS = new LongAdder();
     private static final LongAdder INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS = new LongAdder();
     private static final LongAdder INSTANT_DISPATCH_TRANSACTIONS = new LongAdder();
@@ -181,6 +182,14 @@ public final class OptimizationMetrics {
     public static void recordNativePatternBatch(String adapterId, long executions) {
         NATIVE_BATCH_TRANSACTIONS.increment();
         NATIVE_BATCH_EXECUTIONS.computeIfAbsent(adapterId, ignored -> new LongAdder()).add(executions);
+    }
+
+    public static void recordNativeBatchMinimumDecline(String adapterId) {
+        NATIVE_BATCH_MINIMUM_DECLINES
+                .computeIfAbsent(
+                        adapterId,
+                        ignored -> new LongAdder())
+                .increment();
     }
 
     /** Instantが一回のCPU呼び出しで実際に何取引を配送したかを記録する。 */
@@ -336,7 +345,8 @@ public final class OptimizationMetrics {
                         + " completed-plan hit(s)",
                 "AE2 fallback reasons: " + CRAFTING_FALLBACK_REASONS,
                 "Experimental native batch: " + NATIVE_BATCH_TRANSACTIONS.sum()
-                        + " transaction(s), executions by adapter " + NATIVE_BATCH_EXECUTIONS,
+                        + " transaction(s), executions by adapter " + NATIVE_BATCH_EXECUTIONS
+                        + ", below-minimum fallback(s) by adapter " + NATIVE_BATCH_MINIMUM_DECLINES,
                 "Sequential Instant: " + SEQUENTIAL_INSTANT_WAVES.sum()
                         + " wave(s), " + SEQUENTIAL_INSTANT_COMPLETED.sum()
                         + "/" + SEQUENTIAL_INSTANT_REQUESTED.sum() + " operation(s), "
