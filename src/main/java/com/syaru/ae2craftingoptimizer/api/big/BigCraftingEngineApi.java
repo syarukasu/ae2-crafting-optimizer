@@ -4,12 +4,19 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingKeyCodec;
 import com.syaru.ae2craftingoptimizer.engine.OverflowPromotingCraftingPlanner;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
+import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
+import com.syaru.ae2craftingoptimizer.engine.WideCraftingPlan;
+import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import java.math.BigInteger;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.stacks.AEKey;
+import appeng.api.stacks.KeyCounter;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
@@ -41,26 +48,79 @@ public final class BigCraftingEngineApi {
     }
 
     /**
-     * ACOが生成した計画の正確なBigInteger側データを取得する。
-     * 通常のAE2計画やlongへ飽和しただけの計画は返さない。
+     * ACOが生成したWide計画の正確なBigInteger側データを取得する。
+     * 個別量がlong内でも合計CPU容量だけがlongを超える計画を含み、
+     * 通常のAE2計画やACOと無関係な飽和計画は返さない。
      */
     public static Optional<BigIntegerCraftingPlanView> inspectBigIntegerPlan(
             ICraftingPlan plan) {
+        // BigInteger計算が無効な環境やnull計画へ、Sidecarの有無を推測して返さない。
         if (!isCalculationProfileActive() || plan == null) {
             return Optional.empty();
         }
-        BigIntegerCraftingPlan bigPlan = Ae2CraftingPlanSidecars.bigInteger(plan).orElse(null);
-        if (bigPlan == null) {
+        return inspectAttachedExactPlan(plan);
+    }
+
+    /** 設定判定を除いたSidecar変換本体。単体試験でも実経路と同じ変換を使う。 */
+    static Optional<BigIntegerCraftingPlanView> inspectAttachedExactPlan(
+            ICraftingPlan plan) {
+        WideCraftingPlan metadata = Ae2CraftingPlanSidecars.metadata(plan).orElse(null);
+        // ACOが作成していない通常AE2計画には、正確なWide値を捏造しない。
+        if (metadata == null) {
             return Optional.empty();
         }
-        return Optional.of(new BigIntegerCraftingPlanView(
+
+        // 個別数量までlongを超えた計画は、従来どおりBigInteger正本をそのまま公開する。
+        if (metadata instanceof BigIntegerCraftingPlan bigPlan) {
+            return Optional.of(viewOf(bigPlan));
+        }
+
+        // 合計bytesだけがlongを超えた計画も、同じ公開Viewで正確に取得できるようにする。
+        if (metadata instanceof BigCapacityCraftingPlan capacityPlan) {
+            return Optional.of(viewOf(capacityPlan));
+        }
+        return Optional.empty();
+    }
+
+    private static BigIntegerCraftingPlanView viewOf(BigIntegerCraftingPlan bigPlan) {
+        return new BigIntegerCraftingPlanView(
                 bigPlan.finalOutput(),
                 bigPlan.exactBytes(),
                 bigPlan.simulation(),
                 bigPlan.exactPatternTimes(),
                 bigPlan.exactPlan().usedInventory(),
                 bigPlan.exactPlan().emitted(),
-                bigPlan.exactPlan().missing()));
+                bigPlan.exactPlan().missing());
+    }
+
+    private static BigIntegerCraftingPlanView viewOf(BigCapacityCraftingPlan capacityPlan) {
+        return new BigIntegerCraftingPlanView(
+                capacityPlan.finalOutput(),
+                capacityPlan.exactBytes(),
+                capacityPlan.simulation(),
+                widenPatternTimes(capacityPlan.patternTimes()),
+                widenCounter(capacityPlan.usedItems()),
+                widenCounter(capacityPlan.emittedItems()),
+                widenCounter(capacityPlan.missingItems()));
+    }
+
+    private static Map<IPatternDetails, BigInteger> widenPatternTimes(
+            Map<IPatternDetails, Long> patternTimes) {
+        Map<IPatternDetails, BigInteger> exact = new LinkedHashMap<>();
+        // BigCapacity計画では各Pattern回数がlong内なので、符号も含めて損失なく拡張する。
+        for (Map.Entry<IPatternDetails, Long> entry : patternTimes.entrySet()) {
+            exact.put(entry.getKey(), BigInteger.valueOf(entry.getValue()));
+        }
+        return exact;
+    }
+
+    private static Map<AEKey, BigInteger> widenCounter(KeyCounter counter) {
+        Map<AEKey, BigInteger> exact = new LinkedHashMap<>();
+        // BigCapacity計画のAEKey量を、longへ戻さず公開BigInteger Viewへ移す。
+        for (Object2LongMap.Entry<AEKey> entry : counter) {
+            exact.put(entry.getKey(), BigInteger.valueOf(entry.getLongValue()));
+        }
+        return exact;
     }
 
     public static <K> BigCraftingRuntime<K> create(
