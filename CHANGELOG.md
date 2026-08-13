@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.14] - 2026-08-13
+
+### Fixed
+
+- Retried the first stale Pattern/Recipe generation snapshot with the same
+  immutable AE2 inventory snapshot and current generation numbers.
+- Returned repeatedly stale ordinary long plans to AE2's standard calculation
+  path instead of propagating `StalePlanningSnapshotException`.
+- Kept plans already proven to require wide arithmetic out of AE2's
+  overflowing long calculation path.
+- Preserved calculation cancellation priority and stopped recovered generation
+  races from being counted as planner declines or AE2 fallbacks.
+
 ## [1.5.13] - 2026-08-13
 
 ### Added
