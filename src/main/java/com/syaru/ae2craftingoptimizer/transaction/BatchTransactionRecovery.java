@@ -53,7 +53,10 @@ public final class BatchTransactionRecovery {
             return;
         }
         try {
-            BatchRecoveryResult target = adapter.reconcileTarget(level, record);
+            BatchRecoveryResult target = BatchRecoveryCompatibilityBridge.reconcileTarget(
+                    adapter,
+                    level,
+                    record);
             switch (target.targetState()) {
                 case RETRY -> {
                     return;
@@ -86,7 +89,7 @@ public final class BatchTransactionRecovery {
                 record,
                 gameTick,
                 adapter,
-                source.rollbackPrepared(level, record),
+                BatchRecoveryCompatibilityBridge.rollbackPrepared(source, level, record),
                 source,
                 level,
                 BatchTransactionPhase.ROLLED_BACK);
@@ -125,7 +128,7 @@ public final class BatchTransactionRecovery {
                 acceptedRecord,
                 gameTick,
                 adapter,
-                source.accountAccepted(level, acceptedRecord),
+                BatchRecoveryCompatibilityBridge.accountAccepted(source, level, acceptedRecord),
                 source,
                 level,
                 BatchTransactionPhase.ACCOUNTED);
@@ -169,14 +172,14 @@ public final class BatchTransactionRecovery {
             ServerLevel level,
             BatchTransactionRecord record) {
         try {
-            source.forgetResolvedSource(level, record);
+            BatchRecoveryCompatibilityBridge.forgetSource(source, level, record);
         } catch (RuntimeException | LinkageError cleanupFailure) {
             AE2CraftingOptimizer.LOGGER.warn(
                     "ACO retained a recovered terminal source receipt {}: {}",
                     record.id(), cleanupFailure.toString());
         }
         try {
-            adapter.forgetResolvedTarget(level, record);
+            BatchRecoveryCompatibilityBridge.forgetTarget(adapter, level, record);
         } catch (RuntimeException | LinkageError cleanupFailure) {
             AE2CraftingOptimizer.LOGGER.warn(
                     "ACO retained a recovered terminal target receipt {}: {}",

@@ -317,7 +317,7 @@ public final class TransactionalCraftingExecutorV2 {
                         selection.adapter().rollback(selection.context(), prepared);
                         SourceRecoveryResult rollback = Ae2BatchSourceReconciler.INSTANCE.rollbackPrepared(
                                 serverLevel,
-                                transaction.record());
+                                transaction.record().toPublicView());
                         return finishRollback(
                                 transaction,
                                 rollback,
@@ -343,7 +343,7 @@ public final class TransactionalCraftingExecutorV2 {
                         commitStarted = false;
                         selection.adapter().rollback(selection.context(), prepared);
                         SourceRecoveryResult rollback = Ae2BatchSourceReconciler.INSTANCE.rollbackPrepared(
-                                serverLevel, transaction.record());
+                                serverLevel, transaction.record().toPublicView());
                         return finishRollback(
                                 transaction,
                                 rollback,
@@ -363,7 +363,7 @@ public final class TransactionalCraftingExecutorV2 {
                     owner.aco$markCraftingOwnerDirty();
 
                     SourceRecoveryResult accounting = Ae2BatchSourceReconciler.INSTANCE.accountAccepted(
-                            serverLevel, transaction.record());
+                            serverLevel, transaction.record().toPublicView());
                     if (accounting == SourceRecoveryResult.RETRY) {
                         safeReconciliation(
                                 transaction,
@@ -394,7 +394,7 @@ public final class TransactionalCraftingExecutorV2 {
                         try {
                             selection.adapter().rollback(selection.context(), prepared);
                             SourceRecoveryResult rollback = Ae2BatchSourceReconciler.INSTANCE.rollbackPrepared(
-                                    serverLevel, transaction.record());
+                                    serverLevel, transaction.record().toPublicView());
                             logFailure(logic.getClass(), failure);
                             return finishRollback(
                                     transaction,
@@ -741,7 +741,9 @@ public final class TransactionalCraftingExecutorV2 {
             PatternBatchContext context,
             BatchTransactionRecord record) {
         try {
-            Ae2BatchSourceReconciler.INSTANCE.forgetResolvedSource(level, record);
+            Ae2BatchSourceReconciler.INSTANCE.forgetResolvedSource(
+                    level,
+                    record.toPublicView());
         } catch (RuntimeException | LinkageError cleanupFailure) {
             AE2CraftingOptimizer.LOGGER.warn(
                     "ACO retained a terminal source receipt after journal completion {}: {}",

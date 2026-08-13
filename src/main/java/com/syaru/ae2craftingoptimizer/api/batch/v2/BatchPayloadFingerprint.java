@@ -2,7 +2,6 @@ package com.syaru.ae2craftingoptimizer.api.batch.v2;
 
 import appeng.api.stacks.GenericStack;
 import com.syaru.ae2craftingoptimizer.util.StableFingerprint;
-import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord;
 
 /** 取引IDとは独立した、入力・期待出力・実行数の決定的Fingerprint。 */
 public final class BatchPayloadFingerprint {
@@ -14,7 +13,23 @@ public final class BatchPayloadFingerprint {
     }
 
     public static String of(BatchTransactionRecord record) {
+        if (record == null) {
+            throw new NullPointerException("record");
+        }
         return of(record.offeredExecutions(), record.extractedInputs(), record.expectedOutputs());
+    }
+
+    /**
+     * ACO 1.5.x旧ABI向けの互換入口。
+     * 新しい外部連携は公開Recordのoverloadを使用する。
+     */
+    @Deprecated(forRemoval = false)
+    public static String of(
+            com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord record) {
+        if (record == null) {
+            throw new NullPointerException("record");
+        }
+        return record.toPublicView().payloadDigest();
     }
 
     private static String of(
