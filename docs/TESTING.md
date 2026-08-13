@@ -189,6 +189,31 @@ that `BigIntegerStorageSnapshotBridge.collect()` and nested
 `NetworkStorage.getAvailableStacks()` no longer rebuild once per terminal plus
 once per `StorageService` refresh when no intervening storage mutation occurs.
 
+### Persisted Pattern Identity Recovery (Issue #29)
+
+Use one deterministic physical crafting-table job with at least one accepted
+Worker receipt. Record every exact input, output, task, and `waitingFor` value.
+
+1. Unload the Pattern Provider chunk while the job is running. The transaction
+   must report waiting; it must not quarantine, cancel, refund, or advance.
+2. Reload the unchanged Provider. The same receipt must resume and every exact
+   counter must remain equal to the recorded value.
+3. Repeat across a server save and restart. Reconciliation must use the
+   transaction-owned encoded Pattern definition even before the live graph has
+   rediscovered the Provider.
+4. Reload recipes without changing the Pattern formula. The job must revalidate
+   and continue without creating another receipt.
+5. Replace the encoded Pattern with a definition whose selected inputs or
+   expected outputs differ. The transaction must quarantine while preserving
+   escrow and receipts for administrator recovery.
+6. Repeat each reconciliation twice. Planned, dispatched, introduced, and
+   credited totals must be idempotent; no item may be duplicated or lost.
+
+`PhysicalPatternAccountingSourceContractTest` runs in headless JUnit and locks
+the schema, ownership-boundary capture, live-graph-independent accounting, and
+retry/conflict branches. The lifecycle scenarios above remain GameTest/manual
+checks because AE2 encoded items require the real mod registry lifecycle.
+
 ## Disable Checks
 
 1. Disable the physical path before starting a new job and confirm normal AE2
