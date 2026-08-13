@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.16] - 2026-08-13
+
+### Added
+
+- Added adapter-provided Native Batch minimum execution sizing so a safe
+  native batch is not starved by an undersized execution window.
+- Attached exact BigInteger capacity sidecars to plans created through AE2's
+  live crafting-service path, including exact missing-material simulations.
+
 ### Fixed
 
 - Synchronized Advanced AE CPU reservations before exact BigInteger promotion.
