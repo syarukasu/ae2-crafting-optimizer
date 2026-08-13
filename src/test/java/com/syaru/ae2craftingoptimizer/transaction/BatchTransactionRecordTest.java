@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchPayloadFingerprint;
+import com.syaru.ae2craftingoptimizer.api.batch.v2.PreparedPatternBatch;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -23,6 +25,22 @@ class BatchTransactionRecordTest {
         assertEquals(original.targetPos(), restored.targetPos());
         assertEquals(original.phase(), restored.phase());
         assertEquals(original.offeredExecutions(), restored.offeredExecutions());
+    }
+
+    @Test
+    void publicRecoveryDigestMatchesPreparedAndPersistedPayloads() {
+        BatchTransactionRecord original = record();
+        PreparedPatternBatch prepared = new PreparedPatternBatch(
+                original.id(),
+                original.offeredExecutions(),
+                original.extractedInputs(),
+                original.expectedOutputs(),
+                new CompoundTag());
+        BatchTransactionRecord restored = BatchTransactionRecord.load(original.save());
+
+        assertEquals(BatchPayloadFingerprint.of(prepared), original.payloadDigest());
+        assertEquals(original.payloadDigest(), original.toPublicView().payloadDigest());
+        assertEquals(original.payloadDigest(), restored.toPublicView().payloadDigest());
     }
 
     @Test

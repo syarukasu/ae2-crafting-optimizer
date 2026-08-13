@@ -152,6 +152,31 @@ public final class BatchTransactionRecord {
         return receipt;
     }
 
+    /** 内部Journalを公開せず、復旧に必要な不変Snapshotだけを作る。 */
+    public com.syaru.ae2craftingoptimizer.api.batch.v2.BatchTransactionRecord toPublicView() {
+        return com.syaru.ae2craftingoptimizer.api.batch.v2.BatchTransactionRecord.snapshot(
+                id,
+                adapterId,
+                sourceId,
+                dimensionId,
+                targetPos,
+                patternFingerprint,
+                offeredExecutions,
+                acceptedExecutions,
+                createdTick,
+                updatedTick,
+                phase.name(),
+                extractedInputs,
+                expectedOutputs,
+                sourceData,
+                adapterData,
+                receipt);
+    }
+
+    public String payloadDigest() {
+        return toPublicView().payloadDigest();
+    }
+
     public BatchTransactionRecord transition(
             BatchTransactionPhase next,
             long accepted,

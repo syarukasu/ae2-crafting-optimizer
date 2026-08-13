@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.15] - 2026-08-13
+
+### Added
+
+- Added the read-only public `BatchTransactionRecord` recovery view to the
+  NeoForge 1.21.1 API, matching the Forge 1.20.1 contract.
+- Added `PatternBatchIdentity.canonicalFingerprint` so external adapters use
+  the exact identity stored in ACO's durable journal.
+
+### Fixed
+
+- Removed ACO's internal journal record type from the public transactional
+  batch adapter and source reconciler signatures.
+- Kept adapters compiled against the earlier 1.5.x recovery ABI callable
+  through an explicit compatibility bridge.
+- Preserved the old optional recovery-cleanup default as a no-op when a legacy
+  adapter did not override it.
+
 ## [1.5.14] - 2026-08-13
 
 ### Fixed

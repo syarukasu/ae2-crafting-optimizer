@@ -2,7 +2,6 @@ package com.syaru.ae2craftingoptimizer.api.batch.v2;
 
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchBudget;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchContext;
-import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecord;
 import java.util.UUID;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -51,7 +50,13 @@ public interface TransactionalPatternBatchAdapter {
     /** Called only before durable target acceptance. */
     void rollback(PatternBatchContext context, PreparedPatternBatch prepared);
 
-    BatchRecoveryResult reconcileTarget(ServerLevel level, BatchTransactionRecord record);
+    /** 復旧処理はACO内部Journalではなく、読み取り専用の公開Snapshotだけを受け取る。 */
+    default BatchRecoveryResult reconcileTarget(
+            ServerLevel level,
+            BatchTransactionRecord record) {
+        throw new UnsupportedOperationException(
+                "adapter does not implement public transaction recovery");
+    }
 
     /** Called after the matching durable journal record reached a terminal phase. */
     default void forgetResolvedTarget(PatternBatchContext context, UUID transactionId) {
