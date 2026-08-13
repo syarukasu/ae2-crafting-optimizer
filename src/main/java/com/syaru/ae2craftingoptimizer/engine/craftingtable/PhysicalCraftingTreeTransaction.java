@@ -443,6 +443,10 @@ public final class PhysicalCraftingTreeTransaction {
                         TickOutcome.quarantined(
                                 detail);
             };
+        } catch (PatternUnavailableException unavailable) {
+            // Provider unload中は所有権とReceiptを保持し、次tick以降へ再試行する。
+            detail = checkedDetail(unavailable.getMessage());
+            return TickOutcome.waiting(detail);
         } catch (RuntimeException | LinkageError failure) {
             quarantine(
                     "physical crafting-tree transaction failed: "
@@ -531,13 +535,26 @@ public final class PhysicalCraftingTreeTransaction {
             Level level) {
         Objects.requireNonNull(snapshot, "snapshot");
         Objects.requireNonNull(level, "level");
+        // schema 2保存だけは、Providerが戻った時に一度だけ不変identityへ移行する。
+        ensurePatternIdentities(snapshot, level);
+        return accountingSnapshotFromPersistedIdentities();
+    }
+
+    /**
+     * live graphへ触れず、Transactionが所有する不変Pattern identityだけから会計を再構築する。
+     *
+     * <p>package-privateなのは、再起動・Provider unloadの回帰試験で同じ本番経路を使うため。</p>
+     */
+    AccountingSnapshot accountingSnapshotFromPersistedIdentities() {
+        if (!hasCompletePatternIdentities()) {
+            throw new PatternUnavailableException(
+                    "physical pattern accounting identity is not available yet");
+        }
         Map<String, BigInteger> plannedTasks = new LinkedHashMap<>();
         Map<String, BigInteger> dispatchedTasks = new LinkedHashMap<>();
         Map<AEKey, BigInteger> expectedOutputs = new LinkedHashMap<>();
         Map<AEKey, BigInteger> introducedOutputs = new LinkedHashMap<>();
         Map<AEKey, BigInteger> creditedOutputs = new LinkedHashMap<>();
-        // v2 transactions are lazily migrated when the live graph is available.
-        ensurePatternIdentities(snapshot, level);
         // 固有Pattern数だけを一巡し、注文数量ぶんの会計要素は作らない。
         for (StepReceipt receipt : steps) {
             ExactCraftingStep step = plan.craftingSteps().get(receipt.index());
@@ -1799,13 +1816,7 @@ public final class PhysicalCraftingTreeTransaction {
                 (AEItemKey) pattern.getDefinition(),
                 formula.exactInputTotals(step.executions()),
                 formula.exactExpectedOutputTotals(step.executions()));
-        PatternAccountingIdentity saved = patternIdentities.get(step.patternId());
-        if (saved == null) {
-            patternIdentities.put(step.patternId(), current);
-        } else if (!saved.equals(current)) {
-            throw new PatternIdentityConflictException(
-                    "live crafting-table pattern identity changed: " + step.patternId());
-        }
+        rememberOrVerifyPatternIdentity(current);
         return new ResolvedStep(
                 step,
                 pattern,
@@ -2297,6 +2308,32 @@ public final class PhysicalCraftingTreeTransaction {
             if (!patternIdentities.containsKey(step.patternId())) {
                 resolveStepFresh(snapshot, level, index);
             }
+        }
+    }
+
+    /** 同じPattern IDの正本を初回だけ保存し、以後は完全一致だけを受理する。 */
+    void rememberOrVerifyPatternIdentity(PatternAccountingIdentity current) {
+        Objects.requireNonNull(current, "current");
+        ExactCraftingStep matchingStep = null;
+        // identityが現在の物理計画に属するPatternかを確認する。
+        for (ExactCraftingStep step : plan.craftingSteps()) {
+            if (step.patternId().equals(current.patternId())) {
+                matchingStep = step;
+                break;
+            }
+        }
+        if (matchingStep == null || !current.matchesStep(matchingStep)) {
+            throw new PatternIdentityConflictException(
+                    "live crafting-table pattern does not belong to this physical plan");
+        }
+        PatternAccountingIdentity saved = patternIdentities.get(current.patternId());
+        if (saved == null) {
+            patternIdentities.put(current.patternId(), current);
+            return;
+        }
+        if (!saved.equals(current)) {
+            throw new PatternIdentityConflictException(
+                    "live crafting-table pattern identity changed: " + current.patternId());
         }
     }
 
