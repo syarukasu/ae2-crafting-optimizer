@@ -233,7 +233,23 @@ public final class TransactionalCraftingExecutorV2 {
                             energyService);
                 }
                 requested = limitByInventory(plan.inputsPerExecution(), requested, inventory);
-                if (requested < 1L) {
+                long minimumExecutions = selection.adapter()
+                        .minimumExecutions(
+                                selection.context());
+                /*
+                 * 予定Task数ではなく、waitingFor・電力・現在在庫で縮小した最終数を判定する。
+                 * 素材が一個ずつ届く巨大Jobを、一回ずつ重いTransactionへ入れない。
+                 */
+                if (!BatchMinimumExecutionPolicy.isEligible(
+                        requested,
+                        minimumExecutions)) {
+                    // 正数の小口辞退だけを統計化し、単なる在庫0とは区別する。
+                    if (requested > 0L) {
+                        OptimizationMetrics.recordNativeBatchMinimumDecline(
+                                selection.adapter()
+                                        .id()
+                                        .toString());
+                    }
                     continue;
                 }
 
