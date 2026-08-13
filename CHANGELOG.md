@@ -4,6 +4,28 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.13] - 2026-08-13
+
+### Added
+
+- Added exact BigInteger simulation plans for wide crafting requests with
+  missing ingredients.
+- Added configurable diagnostics and statistics for every reason the exact
+  BigInteger planner declines a request.
+
+### Fixed
+
+- Promoted wide requests made through `CraftingService.beginCraftingCalculation`
+  through the same exact BigInteger path as direct planner API calls.
+- Prevented wide plans from silently falling back to AE2's overflowing long
+  calculation path.
+- Fixed shared calculation Future ownership, subscriber cancellation, and
+  fast-completion handling.
+- Invalidated deduplicated and completed plans when inventory generations
+  change, and excluded single-use wide execution plans from completed caches.
+- Preserved exact BigInteger shortage counts, pattern counts, and byte totals
+  without clamping their source values to long.
+
 ## [1.5.12] - 2026-08-11
 
 ### Added

@@ -1,0 +1,21 @@
+package com.syaru.ae2craftingoptimizer.optimization;
+
+/** BigInteger計画を採用できなかった理由を、ログと統計で安定して識別するコード。 */
+public enum BigIntegerPlanDeclineReason {
+    DISABLED,
+    INVALID_REQUEST,
+    NO_COMPILED_PROGRAM,
+    UNSUPPORTED_TOPOLOGY,
+    INCOMPLETE_INVENTORY,
+    SHADOW_NOT_QUALIFIED,
+    GENERATION_CHANGED,
+    INVENTORY_CHANGED,
+    TOPOLOGY_CHANGED,
+    MISSING_SIMULATION,
+    EXECUTION_WINDOW_UNAVAILABLE,
+    EXECUTION_DISABLED,
+    PLAN_NOT_PROVEN,
+    CANCELLED,
+    ARITHMETIC_FAILURE,
+    INTERNAL_FAILURE
+}

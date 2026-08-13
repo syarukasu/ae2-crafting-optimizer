@@ -26,7 +26,7 @@ public abstract class CraftingTreeCalculationMemoMixin {
     @Redirect(
             method = {"<init>", "findCraftedStack"},
             at = @At(value = "INVOKE", target = "Lappeng/api/networking/crafting/ICraftingService;canEmitFor(Lappeng/api/stacks/AEKey;)Z"),
-            require = 0)
+            require = 2)
     private boolean aco$memoizeCanEmit(ICraftingService service, AEKey key) {
         return CraftingCalculationMemo.canEmit(job, service, key);
     }
@@ -34,7 +34,7 @@ public abstract class CraftingTreeCalculationMemoMixin {
     @Redirect(
             method = "findCraftedStack",
             at = @At(value = "INVOKE", target = "Lappeng/api/networking/crafting/ICraftingService;getCraftingFor(Lappeng/api/stacks/AEKey;)Ljava/util/Collection;"),
-            require = 0)
+            require = 1)
     private java.util.Collection<IPatternDetails> aco$memoizePatternLookup(ICraftingService service, AEKey key) {
         return CraftingCalculationMemo.patterns(job, service, key);
     }
@@ -42,7 +42,7 @@ public abstract class CraftingTreeCalculationMemoMixin {
     @Redirect(
             method = "findCraftedStack",
             at = @At(value = "INVOKE", target = "Lappeng/api/networking/crafting/ICraftingService;getFuzzyCraftable(Lappeng/api/stacks/AEKey;Lappeng/api/storage/AEKeyFilter;)Lappeng/api/stacks/AEKey;"),
-            require = 0)
+            require = 1)
     private AEKey aco$memoizeFuzzyCraftable(
             ICraftingService service, AEKey key, appeng.api.storage.AEKeyFilter filter) {
         return CraftingCalculationMemo.fuzzyCraftable(
@@ -52,7 +52,7 @@ public abstract class CraftingTreeCalculationMemoMixin {
     @Redirect(
             method = "addContainerItems",
             at = @At(value = "INVOKE", target = "Lappeng/api/crafting/IPatternDetails$IInput;getRemainingKey(Lappeng/api/stacks/AEKey;)Lappeng/api/stacks/AEKey;"),
-            require = 0)
+            require = 1)
     private AEKey aco$memoizeRemainingKey(IPatternDetails.IInput input, AEKey template) {
         return CraftingCalculationMemo.remainingKey(job, input, template);
     }

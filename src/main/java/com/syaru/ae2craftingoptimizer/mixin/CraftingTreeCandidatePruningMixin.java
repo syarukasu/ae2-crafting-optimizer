@@ -29,7 +29,7 @@ public abstract class CraftingTreeCandidatePruningMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lappeng/api/networking/crafting/ICraftingService;getCraftingFor(Lappeng/api/stacks/AEKey;)Ljava/util/Collection;"),
-            require = 0)
+            require = 1)
     private Collection<IPatternDetails> aco$pruneInvalidCandidates(ICraftingService craftingService, AEKey output) {
         return PatternCandidatePruner.prune(
                 CraftingCalculationMemo.patterns(job, craftingService, output), what);

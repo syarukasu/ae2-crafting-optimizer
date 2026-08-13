@@ -389,7 +389,7 @@ public final class TransactionalCraftingExecutorV2 {
                     return accountingMode == BatchCpuAccountingMode.SINGLE_PHYSICAL_OPERATION
                             ? 1
                             : Math.toIntExact(accepted);
-                } catch (Throwable failure) {
+                } catch (RuntimeException | LinkageError failure) {
                     if (!targetAccepted && !commitStarted) {
                         try {
                             selection.adapter().rollback(selection.context(), prepared);
@@ -405,7 +405,7 @@ public final class TransactionalCraftingExecutorV2 {
                                     level.getGameTime(),
                                     NOT_HANDLED,
                                     "source rollback will be retried after " + failure);
-                        } catch (Throwable rollbackFailure) {
+                        } catch (RuntimeException | LinkageError rollbackFailure) {
                             safeQuarantine(
                                     transaction,
                                     level.getGameTime(),
@@ -425,7 +425,7 @@ public final class TransactionalCraftingExecutorV2 {
                 }
             }
             return NOT_HANDLED;
-        } catch (Throwable failure) {
+        } catch (RuntimeException | LinkageError failure) {
             logFailure(logic.getClass(), failure);
             return NOT_HANDLED;
         }
@@ -688,7 +688,7 @@ public final class TransactionalCraftingExecutorV2 {
             String detail) {
         try {
             transaction.reconciliationRequired(gameTick, detail);
-        } catch (Throwable journalFailure) {
+        } catch (RuntimeException | LinkageError journalFailure) {
             AE2CraftingOptimizer.LOGGER.error(
                     "ACO could not persist V2 reconciliation state: {}",
                     journalFailure.toString());
@@ -701,7 +701,7 @@ public final class TransactionalCraftingExecutorV2 {
             String detail) {
         try {
             transaction.quarantine(gameTick, detail);
-        } catch (Throwable journalFailure) {
+        } catch (RuntimeException | LinkageError journalFailure) {
             AE2CraftingOptimizer.LOGGER.error(
                     "ACO could not persist V2 quarantine state: {}",
                     journalFailure.toString());
@@ -742,14 +742,14 @@ public final class TransactionalCraftingExecutorV2 {
             BatchTransactionRecord record) {
         try {
             Ae2BatchSourceReconciler.INSTANCE.forgetResolvedSource(level, record.toPublicView());
-        } catch (Throwable cleanupFailure) {
+        } catch (RuntimeException | LinkageError cleanupFailure) {
             AE2CraftingOptimizer.LOGGER.warn(
                     "ACO retained a terminal source receipt after journal completion {}: {}",
                     record.id(), cleanupFailure.toString());
         }
         try {
             adapter.forgetResolvedTarget(context, record.id());
-        } catch (Throwable cleanupFailure) {
+        } catch (RuntimeException | LinkageError cleanupFailure) {
             AE2CraftingOptimizer.LOGGER.warn(
                     "ACO retained a terminal target receipt after journal completion {}: {}",
                     record.id(), cleanupFailure.toString());

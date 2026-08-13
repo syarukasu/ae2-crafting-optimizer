@@ -28,7 +28,7 @@ public abstract class StorageServiceDeepCoalescingMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lappeng/me/service/StorageService;updateCachedStacks()V"),
-            require = 0)
+            require = 1)
     private void aco$coalesceAggregateRefresh(StorageService service) {
         long currentTick = TickHandler.instance().getCurrentTick();
         if (ACOConfig.deepNetworkForceUpdateCoalescing()
@@ -41,17 +41,17 @@ public abstract class StorageServiceDeepCoalescingMixin {
         aco$lastAggregateRefreshTick = currentTick;
     }
 
-    @Inject(method = "addNode", at = @At("HEAD"))
+    @Inject(method = "addNode", at = @At("HEAD"), require = 1)
     private void aco$refreshAfterNodeAdd(IGridNode node, CompoundTag savedData, CallbackInfo ci) {
         aco$lastAggregateRefreshTick = Long.MIN_VALUE;
     }
 
-    @Inject(method = "removeNode", at = @At("HEAD"))
+    @Inject(method = "removeNode", at = @At("HEAD"), require = 1)
     private void aco$refreshAfterNodeRemove(IGridNode node, CallbackInfo ci) {
         aco$lastAggregateRefreshTick = Long.MIN_VALUE;
     }
 
-    @Inject(method = "invalidateCache", at = @At("HEAD"))
+    @Inject(method = "invalidateCache", at = @At("HEAD"), require = 1)
     private void aco$refreshAfterExplicitInvalidation(CallbackInfo ci) {
         aco$lastAggregateRefreshTick = Long.MIN_VALUE;
     }

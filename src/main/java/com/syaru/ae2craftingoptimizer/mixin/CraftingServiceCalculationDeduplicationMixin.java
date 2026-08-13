@@ -6,6 +6,7 @@ import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.networking.IGrid;
 import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
+import com.syaru.ae2craftingoptimizer.access.CraftingServiceCalculationHookAccess;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDeduplicator;
 import com.syaru.ae2craftingoptimizer.optimization.DeterministicCraftingPreflight;
 import java.util.concurrent.Future;
@@ -18,12 +19,17 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = CraftingService.class, remap = false)
-public abstract class CraftingServiceCalculationDeduplicationMixin {
+public abstract class CraftingServiceCalculationDeduplicationMixin
+        implements CraftingServiceCalculationHookAccess {
     @Shadow
     @Final
     private IGrid grid;
 
-    @Inject(method = "beginCraftingCalculation", at = @At("HEAD"), cancellable = true)
+    @Inject(
+            method = "beginCraftingCalculation",
+            at = @At("HEAD"),
+            cancellable = true,
+            require = 1)
     private void aco$reuseActiveCraftingCalculation(
             Level level,
             ICraftingSimulationRequester requester,
@@ -56,7 +62,11 @@ public abstract class CraftingServiceCalculationDeduplicationMixin {
         }
     }
 
-    @Inject(method = "beginCraftingCalculation", at = @At("RETURN"))
+    @Inject(
+            method = "beginCraftingCalculation",
+            at = @At("RETURN"),
+            cancellable = true,
+            require = 1)
     private void aco$rememberActiveCraftingCalculation(
             Level level,
             ICraftingSimulationRequester requester,
@@ -64,7 +74,7 @@ public abstract class CraftingServiceCalculationDeduplicationMixin {
             long amount,
             CalculationStrategy strategy,
             CallbackInfoReturnable<Future<ICraftingPlan>> cir) {
-        CraftingCalculationDeduplicator.remember(
+        Future<ICraftingPlan> returned = CraftingCalculationDeduplicator.remember(
                 (CraftingService) (Object) this,
                 level,
                 requester,
@@ -72,5 +82,9 @@ public abstract class CraftingServiceCalculationDeduplicationMixin {
                 amount,
                 strategy,
                 cir.getReturnValue());
+        // 共有Futureを最初の呼出し元へ返し、個別キャンセルが他の利用者を壊さないようにする。
+        if (returned != cir.getReturnValue()) {
+            cir.setReturnValue(returned);
+        }
     }
 }

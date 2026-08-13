@@ -15,34 +15,39 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = StorageService.class, remap = false)
 public abstract class StorageServiceWatcherThrottleMixin {
+    @Inject(method = "postWatcherUpdate", at = @At("HEAD"), require = 1)
+    private void aco$advanceStorageGeneration(AEKey key, long amount, CallbackInfo ci) {
+        CraftingCalculationDeduplicator.onStorageChange();
+    }
+
     @Redirect(
             method = "postWatcherUpdate",
             at = @At(
                     value = "INVOKE",
                     target = "Lappeng/api/networking/storage/IStorageWatcherNode;onStackChange(Lappeng/api/stacks/AEKey;J)V"),
-            require = 0)
+            require = 2)
     private void aco$bufferStorageWatcherUpdate(IStorageWatcherNode watcher, AEKey key, long amount) {
         StorageWatcherUpdateBuffer.onStackChange(watcher, key, amount);
     }
 
-    @Inject(method = "onServerEndTick", at = @At("TAIL"))
+    @Inject(method = "onServerEndTick", at = @At("TAIL"), require = 1)
     private void aco$flushStorageWatcherUpdatesOnTick(CallbackInfo ci) {
         StorageWatcherUpdateBuffer.tick();
     }
 
-    @Inject(method = "addNode", at = @At("HEAD"))
+    @Inject(method = "addNode", at = @At("HEAD"), require = 1)
     private void aco$flushBeforeStorageNodeAdd(IGridNode node, CompoundTag savedData, CallbackInfo ci) {
         StorageWatcherUpdateBuffer.flush();
         CraftingCalculationDeduplicator.clearCompleted("storage node added");
     }
 
-    @Inject(method = "removeNode", at = @At("HEAD"))
+    @Inject(method = "removeNode", at = @At("HEAD"), require = 1)
     private void aco$flushBeforeStorageNodeRemove(IGridNode node, CallbackInfo ci) {
         StorageWatcherUpdateBuffer.flush();
         CraftingCalculationDeduplicator.clearCompleted("storage node removed");
     }
 
-    @Inject(method = "invalidateCache", at = @At("HEAD"))
+    @Inject(method = "invalidateCache", at = @At("HEAD"), require = 1)
     private void aco$flushBeforeStorageCacheInvalidation(CallbackInfo ci) {
         StorageWatcherUpdateBuffer.flush();
         CraftingCalculationDeduplicator.clearCompleted("storage cache invalidated");

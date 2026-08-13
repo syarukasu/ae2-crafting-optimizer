@@ -71,6 +71,13 @@ public final class Ae2CraftingPlanSidecars {
                 .map(BigIntegerCraftingPlan.class::cast);
     }
 
+    /** 素材不足のBigInteger simulationだけを取得する。実行親Jobとは分離する。 */
+    public static Optional<BigIntegerSimulationPlan> bigIntegerSimulation(ICraftingPlan plan) {
+        return metadata(plan)
+                .filter(BigIntegerSimulationPlan.class::isInstance)
+                .map(BigIntegerSimulationPlan.class::cast);
+    }
+
     /** 個別カウンタはlong内で、CPU容量合計だけがlongを超えた計画を取得する。 */
     public static Optional<BigCapacityCraftingPlan> bigCapacity(ICraftingPlan plan) {
         return metadata(plan)

@@ -168,6 +168,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue LOG_SLOW_CRAFT_CALCULATIONS;
     private static final ForgeConfigSpec.IntValue SLOW_CRAFT_CALCULATION_MILLIS;
     private static final ForgeConfigSpec.BooleanValue LOG_CACHE_STATISTICS;
+    private static final ForgeConfigSpec.BooleanValue LOG_BIG_INTEGER_PLAN_DECLINES;
     private static final ForgeConfigSpec.BooleanValue ENABLE_AQE_BIG_CRAFTING_PROFILE;
     private static final ForgeConfigSpec.BooleanValue ENABLE_INSANE_AE_BIG_CRAFTING_PROFILE;
     private static final ForgeConfigSpec.BooleanValue ENABLE_LONG_ROOT_CRAFT_AMOUNTS;
@@ -939,6 +940,11 @@ public final class ACOConfig {
         LOG_CACHE_STATISTICS = builder
                 .comment("Log preliminary missing preview cache hits, writes, and clears.")
                 .define("logCacheStatistics", false);
+        LOG_BIG_INTEGER_PLAN_DECLINES = builder
+                .comment(
+                        "Log the exact reason when an ACO BigInteger plan is declined or cannot be promoted.",
+                        "The /aco stats counters are kept even when this detailed log is disabled.")
+                .define("logBigIntegerPlanDeclines", false);
         builder.pop();
 
         SPEC = builder.build();
@@ -1581,6 +1587,10 @@ public final class ACOConfig {
 
     public static boolean logCacheStatistics() {
         return enableOptimizer() && LOG_CACHE_STATISTICS.get();
+    }
+
+    public static boolean logBigIntegerPlanDeclines() {
+        return enableOptimizer() && LOG_BIG_INTEGER_PLAN_DECLINES.get();
     }
 
     public static boolean enableExperimentalCraftingEngine() {

@@ -4,6 +4,7 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.CraftingTreeProcess;
 import appeng.crafting.inv.CraftingSimulationState;
+import com.syaru.ae2craftingoptimizer.access.CheckedCraftingArithmeticHookAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.CheckedLongMath;
 import java.util.Map;
@@ -16,7 +17,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Pattern入力Multiplierと出力数量のunchecked LMULを検査する。 */
 @Mixin(value = CraftingTreeProcess.class, remap = false)
-public abstract class CraftingTreeProcessCheckedMathMixin {
+public abstract class CraftingTreeProcessCheckedMathMixin
+        implements CheckedCraftingArithmeticHookAccess {
     @Shadow
     @Final
     private IPatternDetails details;
@@ -25,7 +27,7 @@ public abstract class CraftingTreeProcessCheckedMathMixin {
     @Final
     private Map<CraftingTreeNode, Long> nodes;
 
-    @Inject(method = "request", at = @At("HEAD"))
+    @Inject(method = "request", at = @At("HEAD"), require = 1)
     private void aco$validateProcessRequest(
             CraftingSimulationState inventory,
             long times,
