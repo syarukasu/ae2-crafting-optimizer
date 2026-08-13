@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -57,5 +58,45 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
                 false,
                 true,
                 false));
+    }
+
+    @Test
+    void retriesTheFirstStaleSnapshot() {
+        assertEquals(
+                Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.RETRY,
+                Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
+                        true,
+                        false,
+                        false));
+    }
+
+    @Test
+    void fallsBackToAe2AfterARepeatedOrdinaryStaleSnapshot() {
+        assertEquals(
+                Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.FALLBACK_TO_AE2,
+                Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
+                        false,
+                        false,
+                        false));
+    }
+
+    @Test
+    void neverFallsBackAProvenWidePlanToLongArithmetic() {
+        assertEquals(
+                Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.REJECT_WIDE,
+                Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
+                        false,
+                        false,
+                        true));
+    }
+
+    @Test
+    void cancellationTakesPriorityOverSnapshotRetry() {
+        assertEquals(
+                Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.CANCEL,
+                Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
+                        true,
+                        true,
+                        false));
     }
 }
