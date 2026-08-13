@@ -7,6 +7,7 @@ import com.syaru.ae2craftingoptimizer.engine.OverflowPromotingCraftingPlanner;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
+import com.syaru.ae2craftingoptimizer.engine.BigIntegerSimulationPlan;
 import com.syaru.ae2craftingoptimizer.engine.WideCraftingPlan;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import java.math.BigInteger;
@@ -82,9 +83,11 @@ public final class BigCraftingEngineApi {
     /**
      * Returns the exact plan sidecar for an ACO-created wide plan.
      *
-     * <p>This includes plans whose individual counters fit in {@code long} but
-     * whose exact CPU byte total does not. The returned view is empty for ordinary
-     * AE2 plans, preventing add-ons from treating unrelated saturated plans as exact.</p>
+     * <p>This includes missing simulations and plans whose individual counters fit
+     * in {@code long} but whose exact CPU byte total does not. Add-ons must never
+     * execute a view whose {@link BigIntegerCraftingPlanView#simulation()} flag is
+     * {@code true}. The returned view is empty for ordinary AE2 plans, preventing
+     * add-ons from treating unrelated saturated plans as exact.</p>
      */
     public static Optional<BigIntegerCraftingPlanView> inspectBigIntegerPlan(
             ICraftingPlan plan) {
@@ -109,6 +112,11 @@ public final class BigCraftingEngineApi {
             return Optional.of(viewOf(bigPlan));
         }
 
+        // 素材不足のwide計画も、実行不可フラグと正確な不足量を同じ公開Viewへ渡す。
+        if (metadata instanceof BigIntegerSimulationPlan simulationPlan) {
+            return Optional.of(viewOf(simulationPlan));
+        }
+
         // 合計bytesだけがlongを超えた計画も、同じ公開Viewで正確に取得できるようにする。
         if (metadata instanceof BigCapacityCraftingPlan capacityPlan) {
             return Optional.of(viewOf(capacityPlan));
@@ -125,6 +133,18 @@ public final class BigCraftingEngineApi {
                 bigPlan.exactPlan().usedInventory(),
                 bigPlan.exactPlan().emitted(),
                 bigPlan.exactPlan().missing());
+    }
+
+    private static BigIntegerCraftingPlanView viewOf(
+            BigIntegerSimulationPlan simulationPlan) {
+        return new BigIntegerCraftingPlanView(
+                simulationPlan.finalOutput(),
+                simulationPlan.exactBytes(),
+                simulationPlan.simulation(),
+                simulationPlan.exactPatternTimes(),
+                simulationPlan.exactPlan().usedInventory(),
+                simulationPlan.exactPlan().emitted(),
+                simulationPlan.exactPlan().missing());
     }
 
     private static BigIntegerCraftingPlanView viewOf(BigCapacityCraftingPlan capacityPlan) {
