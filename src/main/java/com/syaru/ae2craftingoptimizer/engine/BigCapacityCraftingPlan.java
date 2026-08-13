@@ -12,8 +12,8 @@ import java.util.Objects;
  * 各AEKey量とPattern回数はlongに収まるが、合計CPU容量だけがlongを超える厳密計画。
  *
  * <p>AE2の公開APIは容量をlongでしか受け取れないため、{@link #bytes()}は互換用に
- * {@link Long#MAX_VALUE}を返す。AQE Quantum Computerは{@link #exactBytes()}をSidecarへ
- * 予約し、互換値を容量会計の正本として使用しない。</p>
+ * {@link Long#MAX_VALUE}を返す。対応CPUアドオンは{@link #exactBytes()}を公開Sidecarから
+ * 取得し、互換値を容量会計の正本として使用しない。</p>
  */
 public final class BigCapacityCraftingPlan implements WideCraftingPlan {
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
