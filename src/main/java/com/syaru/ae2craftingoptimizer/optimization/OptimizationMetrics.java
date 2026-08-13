@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.optimization;
 
 import com.syaru.ae2craftingoptimizer.api.vector.VectorResourceMode;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
@@ -311,7 +312,7 @@ public final class OptimizationMetrics {
         long reflectionMisses = REFLECTION_LOOKUP_MISSES.sum();
         long upgradeHits = AE2_OVERCLOCK_UPGRADE_COUNT_HITS.sum();
         long upgradeMisses = AE2_OVERCLOCK_UPGRADE_COUNT_MISSES.sum();
-        return List.of(
+        List<String> lines = new ArrayList<>(List.of(
                 "Shared CPU budget: " + SHARED_BUDGET_LIMITS.sum()
                         + " limit(s), " + SHARED_DEFERRED_OPERATIONS.sum() + " operation(s) deferred",
                 "GTCEu intent candidate cache: " + gtHits + " hit(s), " + gtMisses
@@ -384,7 +385,9 @@ public final class OptimizationMetrics {
                 "ExtendedAE Assembly Matrix: " + ASSEMBLER_MATRIX_THREAD_COUNT_HITS.sum()
                         + " thread-count hit(s), " + ASSEMBLER_MATRIX_BUSY_COUNT_HITS.sum()
                         + " busy-count hit(s), " + ASSEMBLER_MATRIX_STATUS_UPDATES_COALESCED.sum()
-                        + " status update(s) coalesced");
+                         + " status update(s) coalesced"));
+        lines.addAll(BigIntegerPlanDiagnostics.summaryLines());
+        return List.copyOf(lines);
     }
 
     public static void reset() {
@@ -443,6 +446,7 @@ public final class OptimizationMetrics {
         EXACT_VECTOR_RECEIPT_FREE_ROLLBACKS.reset();
         EXACT_VECTOR_FINGERPRINT_REVALIDATIONS.reset();
         EXACT_VECTOR_MAX_ACTIVE_TICK_NANOS.reset();
+        BigIntegerPlanDiagnostics.reset();
         EXACT_VECTOR_STEPS_SCANNED.reset();
         EXACT_VECTOR_ACTIVE_STEPS_PROCESSED.reset();
         EXACT_VECTOR_ACCOUNTING_REBUILDS.reset();

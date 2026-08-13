@@ -6,6 +6,7 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
 import appeng.me.storage.NetworkStorage;
+import com.syaru.ae2craftingoptimizer.access.ExactBigIntegerInventoryHookAccess;
 import com.syaru.ae2craftingoptimizer.integration.BigIntegerStorageSnapshotBridge;
 import com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageSnapshotCache;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,11 +18,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /** mounted storageごとの正確値を集計し、同一世代の重複Network走査を抑える。 */
 @Mixin(value = NetworkStorage.class, priority = 900, remap = false)
-public abstract class NetworkStorageBigIntegerSnapshotMixin {
+public abstract class NetworkStorageBigIntegerSnapshotMixin
+        implements ExactBigIntegerInventoryHookAccess {
     @Inject(
             method = "getAvailableStacks",
             at = @At("HEAD"),
-            cancellable = true)
+            cancellable = true,
+            require = 1)
     private void aco$reuseExactNetworkSnapshot(
             KeyCounter networkCounter,
             CallbackInfo ci) {
@@ -50,7 +53,8 @@ public abstract class NetworkStorageBigIntegerSnapshotMixin {
 
     @Inject(
             method = "getAvailableStacks",
-            at = @At("RETURN"))
+            at = @At("RETURN"),
+            require = 1)
     private void aco$rememberExactNetworkSnapshot(
             KeyCounter networkCounter,
             CallbackInfo ci) {
@@ -61,7 +65,8 @@ public abstract class NetworkStorageBigIntegerSnapshotMixin {
 
     @Inject(
             method = {"mount", "unmount"},
-            at = @At("HEAD"))
+            at = @At("HEAD"),
+            require = 2)
     private void aco$invalidateExactSnapshotAfterMountChange(
             CallbackInfo ci) {
         // mount優先順または構成が変わる前に、依存する全Network Snapshotを失効させる。
@@ -70,7 +75,8 @@ public abstract class NetworkStorageBigIntegerSnapshotMixin {
 
     @Inject(
             method = "insert",
-            at = @At("RETURN"))
+            at = @At("RETURN"),
+            require = 1)
     private void aco$invalidateExactSnapshotAfterInsert(
             AEKey key,
             long amount,
@@ -85,7 +91,8 @@ public abstract class NetworkStorageBigIntegerSnapshotMixin {
 
     @Inject(
             method = "extract",
-            at = @At("RETURN"))
+            at = @At("RETURN"),
+            require = 1)
     private void aco$invalidateExactSnapshotAfterExtract(
             AEKey key,
             long amount,

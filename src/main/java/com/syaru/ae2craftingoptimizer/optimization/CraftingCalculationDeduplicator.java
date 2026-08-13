@@ -7,6 +7,7 @@ import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
@@ -15,6 +16,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 
@@ -22,6 +24,7 @@ public final class CraftingCalculationDeduplicator {
     private static final Map<CraftingService, Map<RequestKey, Entry>> ACTIVE_CALCULATIONS = new WeakHashMap<>();
     private static final Map<CraftingService, Map<RequestKey, CompletedEntry>> COMPLETED_PLANS = new WeakHashMap<>();
     private static final long NANOS_PER_TICK = 50_000_000L;
+    private static final AtomicLong STORAGE_GENERATION = new AtomicLong();
 
     private CraftingCalculationDeduplicator() {
     }
@@ -60,7 +63,11 @@ public final class CraftingCalculationDeduplicator {
                         strategy);
             }
             OptimizationMetrics.recordCraftingCalculationDeduplication(true);
-            return entry.future.acquire();
+            Future<ICraftingPlan> subscriber = entry.future.acquire();
+            // 最後の購読者がキャンセルした直後は、古い共有Futureを再利用しない。
+            return subscriber != null
+                    ? subscriber
+                    : findCompletedLocked(craftingService, requestKey, now);
         }
     }
 
@@ -72,7 +79,11 @@ public final class CraftingCalculationDeduplicator {
             long amount,
             CalculationStrategy strategy,
             Future<ICraftingPlan> future) {
-        if (!ACOConfig.deduplicateActiveCraftingCalculations() || future == null || future.isDone() || future.isCancelled()) {
+        // 重複排除OFFまたは再利用不能な戻り値は、所有権を変更せずそのまま返す。
+        if (!ACOConfig.deduplicateActiveCraftingCalculations()
+                || future == null
+                || future.isDone()
+                || future.isCancelled()) {
             return future;
         }
 
@@ -84,12 +95,22 @@ public final class CraftingCalculationDeduplicator {
             cleanupActive(craftingService, serviceEntries, now);
             Entry existing = serviceEntries.get(requestKey);
             if (existing != null && existing.isReusable(now)) {
+                // HEAD注入ですでに取得した購読者は、RETURN注入で再取得・cancelしない。
+                if (existing.future.owns(future)) {
+                    return future;
+                }
                 OptimizationMetrics.recordCraftingCalculationDeduplication(true);
-                return existing.future.acquire();
+                Future<ICraftingPlan> subscriber = existing.future.acquire();
+                // 共有Futureが閉じた競合窓では、今回のAE2 Futureを新しい所有者にする。
+                if (subscriber != null) {
+                    // 既存計算を返す場合、新しく生成された重複Futureだけを停止する。
+                    future.cancel(false);
+                    return subscriber;
+                }
             }
             SharedCalculationFuture<ICraftingPlan> shared = new SharedCalculationFuture<>(future);
             serviceEntries.put(requestKey, new Entry(shared, now));
-            return shared.acquire();
+            return shared.acquireOrDelegate();
         }
     }
 
@@ -103,16 +124,6 @@ public final class CraftingCalculationDeduplicator {
         }
     }
 
-    /** Invalidate only in-flight work when storage content changes. */
-    public static void clearActive(String reason) {
-        synchronized (ACTIVE_CALCULATIONS) {
-            ACTIVE_CALCULATIONS.clear();
-        }
-        if (ACOConfig.logCraftingCalculationDeduplication()) {
-            AE2CraftingOptimizer.LOGGER.debug("Cleared active AE2 crafting calculations: {}", reason);
-        }
-    }
-
     public static void clearCompleted(String reason) {
         synchronized (ACTIVE_CALCULATIONS) {
             COMPLETED_PLANS.clear();
@@ -120,6 +131,11 @@ public final class CraftingCalculationDeduplicator {
         if (ACOConfig.logCraftingCalculationDeduplication()) {
             AE2CraftingOptimizer.LOGGER.debug("Cleared completed AE2 crafting plan cache: {}", reason);
         }
+    }
+
+    public static void onStorageChange() {
+        // 内容世代を進め、変更前のactive計算とcompleted計画を新規要求から分離する。
+        STORAGE_GENERATION.incrementAndGet();
     }
 
     private static Future<ICraftingPlan> findCompletedLocked(CraftingService craftingService, RequestKey requestKey, long now) {
@@ -196,6 +212,11 @@ public final class CraftingCalculationDeduplicator {
             return false;
         }
 
+        // Wide実行計画は提出Claimと親Jobを一度だけ所有するため、成功計画キャッシュへ入れない。
+        if (Ae2CraftingPlanSidecars.isWide(plan) && !plan.simulation()) {
+            return false;
+        }
+
         if (AppliedECompatibility.requiresFreshCalculation(plan)) {
             // 一時Patternを再利用するとKnowledgeServiceへの追加処理を通らないため保持しない。
             OptimizationMetrics.recordAppliedECompletedPlanCacheBypass();
@@ -233,7 +254,8 @@ public final class CraftingCalculationDeduplicator {
             long amount,
             CalculationStrategy strategy,
             long patternGeneration,
-            long recipeGeneration) {
+            long recipeGeneration,
+            long storageGeneration) {
         private static RequestKey of(
                 Level level,
                 ICraftingSimulationRequester requester,
@@ -247,7 +269,8 @@ public final class CraftingCalculationDeduplicator {
                     amount,
                     strategy,
                     ProviderPatternGenerationTracker.generation(),
-                    RecipeGenerationTracker.generation());
+                    RecipeGenerationTracker.generation(),
+                    STORAGE_GENERATION.get());
         }
     }
 

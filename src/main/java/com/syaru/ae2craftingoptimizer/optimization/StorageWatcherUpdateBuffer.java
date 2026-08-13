@@ -16,9 +16,6 @@ public final class StorageWatcherUpdateBuffer {
     }
 
     public static void onStackChange(IStorageWatcherNode watcher, AEKey key, long amount) {
-        // Any in-flight plan may have used the previous amount. Do not reuse it
-        // across an inventory generation boundary.
-        CraftingCalculationDeduplicator.clearActive("storage watcher update");
         if (!ACOConfig.throttleStorageWatcherUpdates()) {
             watcher.onStackChange(key, amount);
             return;

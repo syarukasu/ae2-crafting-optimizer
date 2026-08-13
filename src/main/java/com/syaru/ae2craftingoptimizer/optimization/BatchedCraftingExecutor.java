@@ -210,7 +210,7 @@ public final class BatchedCraftingExecutor {
             return transactionCount >= maximumTransactions || !hasTimeRemaining(deadlineNanos)
                     ? 0
                     : NOT_HANDLED;
-        } catch (Throwable throwable) {
+        } catch (RuntimeException | LinkageError throwable) {
             if (pendingExtraction != null && pendingInventory != null && !commitStarted) {
                 CraftingCpuHelper.reinjectPatternInputs(
                         pendingInventory,
@@ -340,7 +340,7 @@ public final class BatchedCraftingExecutor {
                 }
             }
             return new BatchExtraction(extracted);
-        } catch (Throwable throwable) {
+        } catch (RuntimeException | LinkageError throwable) {
             CraftingCpuHelper.reinjectPatternInputs(inventory, extracted);
             throw throwable;
         }

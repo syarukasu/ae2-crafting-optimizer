@@ -46,9 +46,13 @@ public final class Ae2BigCraftingPlanFactory {
         Objects.requireNonNull(output, "output");
         int maximumBits = ACOConfig.getBigIntegerMaximumBits();
         BigCountMath.requireMaximumBits(requestedAmount, "BigInteger root request", maximumBits);
-        // 0以下の注文またはキャンセル済みスレッドからBig jobを作らない。
-        if (requestedAmount.signum() <= 0 || Thread.currentThread().isInterrupted()) {
+        // 0以下の注文はBig jobにしない。
+        if (requestedAmount.signum() <= 0) {
             return null;
+        }
+        // 割込みはAE2 long経路へ戻す理由ではなく、呼出側が再試行できる明示的な中断とする。
+        if (Thread.currentThread().isInterrupted()) {
+            throw new PlanningCancelledException(0);
         }
 
         long patternGeneration = ProviderPatternGenerationTracker.generation();

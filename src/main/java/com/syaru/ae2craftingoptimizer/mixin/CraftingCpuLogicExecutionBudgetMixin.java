@@ -23,7 +23,7 @@ public abstract class CraftingCpuLogicExecutionBudgetMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lappeng/me/cluster/implementations/CraftingCPUCluster;getCoProcessors()I"),
-            require = 0)
+            require = 1)
     private int aco$limitAe2CraftingExecution(CraftingCPUCluster cluster) {
         return CraftingExecutionBudget.limitCoProcessors(this, cluster, cluster.getCoProcessors());
     }
@@ -33,7 +33,7 @@ public abstract class CraftingCpuLogicExecutionBudgetMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lappeng/crafting/execution/CraftingCpuLogic;executeCrafting(ILappeng/me/service/CraftingService;Lappeng/api/networking/energy/IEnergyService;Lnet/minecraft/world/level/Level;)I"),
-            require = 0)
+            require = 1)
     private int aco$recordAe2CraftingExecution(
             CraftingCpuLogic logic,
             int maxOperations,

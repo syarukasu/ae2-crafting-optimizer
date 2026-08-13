@@ -64,7 +64,7 @@ public final class BatchTransactionRecovery {
                 case ACCEPTED -> reconcileAccepted(
                         journal, record, gameTick, adapter, source, level, target);
             }
-        } catch (Throwable throwable) {
+        } catch (RuntimeException | LinkageError throwable) {
             logOnce(record, "recovery threw " + throwable);
         }
     }
@@ -170,14 +170,14 @@ public final class BatchTransactionRecovery {
             BatchTransactionRecord record) {
         try {
             source.forgetResolvedSource(level, record);
-        } catch (Throwable cleanupFailure) {
+        } catch (RuntimeException | LinkageError cleanupFailure) {
             AE2CraftingOptimizer.LOGGER.warn(
                     "ACO retained a recovered terminal source receipt {}: {}",
                     record.id(), cleanupFailure.toString());
         }
         try {
             adapter.forgetResolvedTarget(level, record);
-        } catch (Throwable cleanupFailure) {
+        } catch (RuntimeException | LinkageError cleanupFailure) {
             AE2CraftingOptimizer.LOGGER.warn(
                     "ACO retained a recovered terminal target receipt {}: {}",
                     record.id(), cleanupFailure.toString());

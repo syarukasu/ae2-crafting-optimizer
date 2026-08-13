@@ -6,7 +6,6 @@ import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import java.math.BigInteger;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -19,8 +18,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * waitingFor、remainingOutput、容量を同じ実Jobへ設置する。通常AE2 CPUは専用Mixinで拒否する。</p>
  */
 public final class BigIntegerCraftingPlan implements WideCraftingPlan {
-    private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
-
     private final GenericStack finalOutput;
     private final BigCraftingPlan<AEKey> exactPlan;
     private final Map<IPatternDetails, BigInteger> exactPatternTimes;
@@ -47,7 +44,7 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
             boolean requiresBigIntegerExecution) {
         this.finalOutput = Objects.requireNonNull(finalOutput, "finalOutput");
         this.exactPlan = Objects.requireNonNull(exactPlan, "exactPlan");
-        this.exactPatternTimes = immutablePositiveCounts(
+        this.exactPatternTimes = BigIntegerPlanProjection.immutablePositiveCounts(
                 exactPatternTimes, "exactPatternTimes");
         this.preparedRoot = Objects.requireNonNull(preparedRoot, "preparedRoot");
         // 表示対象とBig親Jobが別注文を指す状態は、提出前に構築エラーとして止める。
@@ -63,10 +60,10 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
             throw new IllegalArgumentException(
                     "BigInteger crafting plan requires an exact-arithmetic reason");
         }
-        this.usedItems = projectKeyCounter(exactPlan.usedInventory());
-        this.emittedItems = projectKeyCounter(exactPlan.emitted());
-        this.missingItems = projectKeyCounter(exactPlan.missing());
-        this.patternTimes = projectPatternCounter(this.exactPatternTimes);
+        this.usedItems = BigIntegerPlanProjection.projectKeyCounter(exactPlan.usedInventory());
+        this.emittedItems = BigIntegerPlanProjection.projectKeyCounter(exactPlan.emitted());
+        this.missingItems = BigIntegerPlanProjection.projectKeyCounter(exactPlan.missing());
+        this.patternTimes = BigIntegerPlanProjection.projectPatternCounter(this.exactPatternTimes);
     }
 
     @Override
@@ -142,26 +139,6 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
                 && preparedRoot.recipeGeneration() == RecipeGenerationTracker.generation();
     }
 
-    private static KeyCounter projectKeyCounter(Map<AEKey, BigInteger> exact) {
-        KeyCounter projected = new KeyCounter();
-        // 画面同期用Facadeだけを作り、BigInteger正本Mapは変更しない。
-        exact.forEach((key, amount) -> projected.add(key, saturatedLong(amount)));
-        return projected;
-    }
-
-    private static Map<IPatternDetails, Long> projectPatternCounter(
-            Map<IPatternDetails, BigInteger> exact) {
-        Map<IPatternDetails, Long> projected = new LinkedHashMap<>();
-        // AE2の画面が要求するMap値だけを飽和し、実行回数はpreparedRoot内へ保持する。
-        exact.forEach((pattern, amount) -> projected.put(pattern, saturatedLong(amount)));
-        return Map.copyOf(projected);
-    }
-
-    private static long saturatedLong(BigInteger amount) {
-        // Long.MAX_VALUE以下だけをexact変換し、超過値を負数へwrapさせない。
-        return amount.compareTo(LONG_MAX) > 0 ? Long.MAX_VALUE : amount.longValueExact();
-    }
-
     private static boolean containsWideCounter(
             BigCraftingPlan<AEKey> plan,
             Map<IPatternDetails, BigInteger> exactPatternTimes) {
@@ -175,26 +152,11 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
         // 各値を個別に調べ、Map全体の合計だけが大きいBigCapacity計画とは区別する。
         for (BigInteger amount : counts.values()) {
             // 個別値がlongを超えた時点で専用親計画が必要になる。
-            if (amount.compareTo(LONG_MAX) > 0) {
+            if (BigIntegerPlanProjection.exceedsLong(amount)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static <K> Map<K, BigInteger> immutablePositiveCounts(
-            Map<K, BigInteger> counts,
-            String name) {
-        Map<K, BigInteger> copy = new LinkedHashMap<>();
-        Objects.requireNonNull(counts, name).forEach((key, amount) -> {
-            Objects.requireNonNull(key, name + " key");
-            BigCountMath.requireNonNegative(amount, name);
-            // Pattern回数0は実行計画へ含めず、負数は上の共通検査で拒否する。
-            if (amount.signum() <= 0) {
-                throw new IllegalArgumentException(name + " values must be positive");
-            }
-            copy.put(key, amount);
-        });
-        return Map.copyOf(copy);
-    }
 }
