@@ -250,7 +250,16 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
         BigInteger exactBytes = bigIntegerPlan != null
                 ? bigIntegerPlan.exactBytes()
                 : bigPlan.exactBytes();
-        boolean promoted = host != null
+        /*
+         * Advanced AE inserts the new CPU into activeCpus before this RETURN
+         * callback, while AQE's normal reconciliation is deferred until the
+         * next storage read. Synchronize that just-created facade reservation
+         * before promotion, otherwise previous == null is reported even when
+         * the host has sufficient exact BigInteger capacity.
+         */
+        boolean reservationsSynchronized = host != null
+                && aco$synchronizeActiveCpuReservations(host);
+        boolean promoted = reservationsSynchronized
                 && host.promoteExternalReservation(cpuId, exactBytes);
         // Sidecar昇格に失敗したJobを互換値Long.MAXのまま動かさず、Advanced AEの取消処理へ戻す。
         if (!promoted) {
@@ -294,6 +303,30 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
         AdvCraftingCPUCluster cluster = (AdvCraftingCPUCluster) (Object) this;
         cluster.recalculateRemainingStorage();
         cluster.markDirty();
+    }
+
+    /** ACO側の外部予約を、提出直後のAdvanced AE CPU一覧へ追いつける。 */
+    @Unique
+    private boolean aco$synchronizeActiveCpuReservations(
+            com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRuntime<?> host) {
+        Map<UUID, BigInteger> reservations = new LinkedHashMap<>();
+        // Advanced AEが現在所有している全CPUを一度だけ走査し、互換long予約を再構築する。
+        for (var entry : activeCpus.entrySet()) {
+            AdvCraftingCPU cpu = entry.getValue();
+            // null/ゼロ容量の削除済みCPUはACOの外部予約へ戻さない。
+            if (cpu != null && cpu.getAvailableStorage() > 0L) {
+                reservations.put(entry.getKey(), BigInteger.valueOf(cpu.getAvailableStorage()));
+            }
+        }
+        try {
+            host.replaceExternalReservations(reservations);
+            return true;
+        } catch (RuntimeException | LinkageError failure) {
+            AE2CraftingOptimizer.LOGGER.error(
+                    "ACO could not synchronize Advanced AE CPU reservations before exact promotion",
+                    failure);
+            return false;
+        }
     }
 
     @Unique

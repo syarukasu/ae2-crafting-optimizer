@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Synchronized Advanced AE CPU reservations before exact BigInteger promotion.
+- Kept ACO's transaction receipt state API applied when InsaneAE is installed,
+  while continuing to delegate overlapping execution hooks to InsaneAE.
+- Added regression coverage for fully qualified Mixin names so the compatibility
+  audit cannot fail from the same over-broad exclusion again.
+
 ## [1.5.15] - 2026-08-13
 
 ### Added
