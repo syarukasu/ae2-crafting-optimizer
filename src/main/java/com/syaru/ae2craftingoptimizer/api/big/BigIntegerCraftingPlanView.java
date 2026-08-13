@@ -9,11 +9,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Immutable exact view of an ACO BigInteger plan for optional CPU add-ons.
+ * Immutable exact view of an ACO wide plan for optional CPU add-ons.
  *
  * <p>The standard AE2 {@link ICraftingPlan} remains the compatibility facade.
- * Add-ons that can execute bounded windows may opt into this view without
- * depending on ACO's engine implementation classes.</p>
+ * Add-ons that can execute bounded windows may opt into this view for both
+ * BigInteger counters and capacity-only overflow, without depending on ACO's
+ * engine implementation classes.</p>
  */
 public record BigIntegerCraftingPlanView(
         GenericStack finalOutput,
