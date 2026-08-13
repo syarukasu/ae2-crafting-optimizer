@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.15] - 2026-08-13
+
+### Added
+
+- Added `PatternBatchIdentity.canonicalFingerprint` so external adapters use
+  the exact identity stored in ACO's durable journal.
+
+### Compatibility
+
+- Kept the existing public transaction recovery view and all 1.5.x batch API
+  behavior unchanged.
+
 ## [1.5.14] - 2026-08-13
 
 ### Fixed
