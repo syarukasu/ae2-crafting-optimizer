@@ -6,6 +6,7 @@
 | Issue | 症状 | 影響版 | 修正版 | 仕様書 |
 |---|---|---:|---:|---|
 | [#79](https://github.com/syarukasu/ae2-crafting-optimizer/issues/79) | 一つのroot内部だけでsigned long境界を超えるexact計画が失われる | 1.5.17 | 1.5.18 | [ISSUE-79.md](issues/ISSUE-79.md) |
+| [#90](https://github.com/syarukasu/ae2-crafting-optimizer/issues/90) | 無関係なProvider世代更新でBigInteger計画が提出時に失効する | 1.5.18 | 未リリース | [ISSUE-90.md](issues/ISSUE-90.md) |
 
 ## 運用
 
