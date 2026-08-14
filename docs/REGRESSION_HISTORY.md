@@ -6,6 +6,7 @@
 | Issue | 症状 | 影響版 | 修正版 | 仕様書 |
 |---|---|---:|---:|---|
 | [#79](https://github.com/syarukasu/ae2-crafting-optimizer/issues/79) | 一つのroot内部だけでsigned long境界を超えるexact計画が失われる | 1.5.17 | 1.5.18 | [ISSUE-79.md](issues/ISSUE-79.md) |
+| [#93](https://github.com/syarukasu/ae2-crafting-optimizer/issues/93) | Java 25でBigInteger在庫Sidecarの可視コピー中にJVMが終了する | 1.5.18 | 未定 | [ISSUE-93.md](issues/ISSUE-93.md) |
 
 ## 運用
 
