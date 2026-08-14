@@ -4,6 +4,34 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.19] - 2026-08-15
+
+### Added
+
+- Added a public registration boundary for add-ons that consume exact
+  BigInteger crafting plans without transferring CPU execution ownership to ACO.
+
+### Fixed
+
+- Reattached exact BigInteger sidecars when AE2 rebuilds a crafting-plan facade.
+- Prevented wide plans from silently falling back to an overflowing standard
+  `long` CPU path when no compatible external consumer is registered.
+- Removed ACO-owned execution assumptions for InsaneAE; add-ons continue to own
+  their structures, dispatch, progress, cancellation, and completion.
+
+## [1.5.18] - 2026-08-14
+
+### Fixed
+
+- Kept exact BigInteger plans available when one requested root item requires
+  more than `Long.MAX_VALUE` lower-pattern executions or boundary inputs.
+- Separated exact plan publication from the legacy root-count execution window,
+  allowing BigInteger CPU add-ons to receive the unchanged exact Pattern ledger.
+- Prevented ACO's legacy root-window command from submitting an exact-only plan
+  to a checked-long child job.
+- Added regression coverage for the 21-stage 8x compression boundary and the
+  public BigInteger plan sidecar used by optional CPU add-ons.
+
 ## [1.5.17] - 2026-08-14
 
 ### Compatibility

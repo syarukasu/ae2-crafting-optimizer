@@ -13,9 +13,11 @@ import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import appeng.crafting.CraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
+import com.syaru.ae2craftingoptimizer.engine.Ae2BigCraftingPlanFactory;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigExactCraftingByteCounter;
+import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerSimulationPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerSimulationPlanTestFactory;
 import com.syaru.ae2craftingoptimizer.engine.CompiledCraftingGraph;
@@ -206,6 +208,45 @@ class BigCraftingEngineApiPlanInspectionTest {
                 view.patternTimes().get(BLOCK_PATTERN));
         assertEquals(Map.of(), view.usedItems());
         assertEquals(Map.of(), view.emittedItems());
+    }
+
+    @Test
+    void exposesExactPatternPlanWhenNoRootWindowCanRepresentOneOutput() {
+        BigInteger exactPatternExecutions = BigInteger.ONE.shiftLeft(63);
+        BigInteger exactBytes = BigInteger.ONE.shiftLeft(64);
+        BigCraftingPlan<AEKey> exactPlan = new BigCraftingPlan<>(
+                BLOCK,
+                BigInteger.ONE,
+                Map.of(INGOT_PATTERN_ID, exactPatternExecutions),
+                Map.of(NUGGET, exactPatternExecutions),
+                Map.of(),
+                Map.of(),
+                1);
+        var prepared = new Ae2BigCraftingPlanFactory.PreparedBigRootPlan(
+                null,
+                exactPlan,
+                exactBytes,
+                TEST_GENERATION,
+                TEST_GENERATION,
+                Ae2BigCraftingPlanFactory.ExecutionMode.EXACT_PATTERN_EXECUTOR,
+                0L,
+                "test-epoch",
+                "test-fingerprint");
+        BigIntegerCraftingPlan metadata = new BigIntegerCraftingPlan(
+                new GenericStack(BLOCK, 1L),
+                exactPlan,
+                Map.of(INGOT_PATTERN, exactPatternExecutions),
+                prepared,
+                true);
+
+        CraftingPlan facade = Ae2CraftingPlanSidecars.expose(metadata);
+        BigIntegerCraftingPlanView view =
+                BigCraftingEngineApi.inspectAttachedExactPlan(facade).orElseThrow();
+
+        assertFalse(view.simulation());
+        assertEquals(exactBytes, view.exactBytes());
+        assertEquals(exactPatternExecutions, view.patternTimes().get(INGOT_PATTERN));
+        assertEquals(exactPatternExecutions, view.usedItems().get(NUGGET));
     }
 
     @Test

@@ -18,6 +18,11 @@ AE2 remains authoritative for normal recipes, providers, crafting jobs, and
 storage. Deep paths are used only when ACO can prove their complete accounting
 contract before moving any input.
 
+Development is governed by the [project charter](docs/PROJECT_CHARTER.md) and
+[Issue-first workflow](docs/ISSUE_WORKFLOW.md). Every implementation starts by
+reading the [class responsibility catalog](docs/CLASS_RESPONSIBILITIES.md) and a
+numbered specification under [`docs/issues`](docs/issues/README.md).
+
 The persistent branch for this line is `mc/1.21.1`, and `main` is the
 NeoForge 1.21.1 line. Release artifacts are named
 `aco<version>_1.21.1.jar`. The Forge 1.20.1 line is maintained independently

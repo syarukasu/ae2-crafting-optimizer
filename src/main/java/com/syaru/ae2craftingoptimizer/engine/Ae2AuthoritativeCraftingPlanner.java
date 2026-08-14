@@ -569,7 +569,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         capture.patternGeneration(),
                         capture.recipeGeneration(),
                         ACOConfig.getBigIntegerMaximumBits());
-        // 一回分すらAE2互換Windowへ写せない計画は提出可能Planとして返さない。
+        // 防御的にnullを扱う。現在のFactoryはExact専用計画も保持するため通常はnullにならない。
         if (prepared == null) {
             return null;
         }

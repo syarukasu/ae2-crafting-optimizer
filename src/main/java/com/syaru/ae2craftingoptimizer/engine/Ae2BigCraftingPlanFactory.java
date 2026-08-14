@@ -146,10 +146,9 @@ public final class Ae2BigCraftingPlanFactory {
     }
 
     /**
-     * 既に厳格検証済みのRoot Programから、再起動後も同じ安全幅を使うBig親Jobを作る。
-     * 呼出側は返却後にProvider・recipe・在庫世代を再検証する。
+     * 既に厳格検証済みのRoot Programから、正確な計画メタデータを作る。
+     * long子Jobへ分割できる場合だけ、再起動後も同じ安全幅を使う親Jobを添える。
      */
-    @Nullable
     static PreparedBigRootPlan prepareCompiledRoot(
             AEKey output,
             BigInteger requestedAmount,
@@ -163,49 +162,59 @@ public final class Ae2BigCraftingPlanFactory {
         Objects.requireNonNull(plan, "plan");
         Objects.requireNonNull(bytes, "bytes");
         Objects.requireNonNull(program, "program");
-        long safeWindow = maximumSafeRootWindow(
+        /*
+         * 回帰防止: ACO Issue #79
+         * https://github.com/syarukasu/ae2-crafting-optimizer/issues/79
+         * 詳細仕様: docs/issues/ISSUE-79.md
+         *
+         * 8倍圧縮21段では、完成品1個だけでも最下層需要が8^21 = 2^63となる。
+         * 以前は「root個数でlong子Jobへ分割できない」ことを「exact計画を作れない」ことと
+         * 同一視し、正確に計算済みのBigInteger計画まで破棄していた。
+         *
+         * exact計画の公開可否とlegacy root-windowの可否は必ず別々に扱うこと。
+         * 一回分がlongへ収まらなくてもnullを返したり、偽のwindow=1へ丸めたりせず、
+         * EXACT_PATTERN_EXECUTORとしてexact sidecarを保持し、rootWindowJobだけを省略する。
+         */
+        RootWindowDecision rootWindow = rootWindowDecision(
                 program,
                 requestedAmount,
                 ACOConfig.getBigIntegerExecutionWindow(),
                 maximumBits);
-        boolean exactVectorRequired = safeWindow <= 0L;
-        /*
-         * A single finished root can itself require counters above long. AQE's exact job owns the full
-         * BigInteger vector and does not need an AE2 child window, so retain that plan when Exact Vector
-         * execution is enabled. The placeholder limit is never scheduled by BigCraftingCpuLedger.
-         */
-        if (exactVectorRequired && !ACOConfig.enableAqeBigIntegerVectorParents()) {
-            return null;
+        String planningEpoch = PlanningRuntimeEpoch.current();
+        String fingerprint = programFingerprint(program);
+        BigCraftingJob<AEKey> rootWindowJob = null;
+        // ルート個数で安全に分割できる計画だけ、旧checked-long子Job用の親Jobを用意する。
+        if (rootWindow.mode() == ExecutionMode.ROOT_WINDOWS) {
+            rootWindowJob = BigCraftingJob.rootWindowed(
+                    UUID.randomUUID(),
+                    output,
+                    requestedAmount,
+                    bytes,
+                    patternGeneration,
+                    recipeGeneration,
+                    rootWindow.maximumRootExecutions(),
+                    planningEpoch,
+                    fingerprint);
         }
-        if (exactVectorRequired) {
-            safeWindow = 1L;
-        }
-        BigCraftingJob<AEKey> job = BigCraftingJob.rootWindowed(
-                UUID.randomUUID(),
-                output,
-                requestedAmount,
-                bytes,
-                patternGeneration,
-                recipeGeneration,
-                safeWindow,
-                PlanningRuntimeEpoch.current(),
-                programFingerprint(program),
-                exactVectorRequired);
         return new PreparedBigRootPlan(
-                job,
+                rootWindowJob,
                 plan,
                 bytes,
                 patternGeneration,
                 recipeGeneration,
-                safeWindow);
+                rootWindow.mode(),
+                rootWindow.maximumRootExecutions(),
+                planningEpoch,
+                fingerprint);
     }
 
     /**
      * 子AE2計画の各カウンタがsigned longへ収まる最大完成品数を二分探索する。
      * CPU byte総量だけのlong超過はBigCapacityCraftingPlanで扱えるため、ここでは除外しない。
+     * Issue #79の再発を防ぐため、一回分すら収まらない場合は失敗ではなくExact方式を返す。
      */
-    private static long maximumSafeRootWindow(
-            CompiledRootProgram<AEKey> program,
+    static <K> RootWindowDecision rootWindowDecision(
+            CompiledRootProgram<K> program,
             BigInteger requestedAmount,
             long configuredMaximum,
             int maximumBits) {
@@ -214,17 +223,20 @@ public final class Ae2BigCraftingPlanFactory {
                 .longValueExact();
         // 呼出元は正数注文だけを渡すが、境界を単独利用しても0幅を作らない。
         if (upper <= 0L) {
-            return 0L;
+            return new RootWindowDecision(ExecutionMode.EXACT_PATTERN_EXECUTOR, 0L);
         }
-        CompiledRootProgram.BigInventorySnapshot<AEKey> emptyInventory =
+        CompiledRootProgram.BigInventorySnapshot<K> emptyInventory =
                 program.captureBigInventory(ignored -> BigInteger.ZERO, maximumBits);
         // 設定上限のまま全個別カウンタがlongへ収まる場合は探索を省略する。
         if (fitsLongChild(program, emptyInventory, upper, maximumBits)) {
-            return upper;
+            return new RootWindowDecision(ExecutionMode.ROOT_WINDOWS, upper);
         }
-        // 一回分が収まらない場合、標準AE2 APIへ安全に分割できる正のWindowは存在しない。
+        /*
+         * 一回分が収まらない場合もBigInteger計画自体は正確である。
+         * rootを0件へ丸めず、Pattern単位のExact executorが必要な計画として残す。
+         */
         if (!fitsLongChild(program, emptyInventory, 1L, maximumBits)) {
-            return 0L;
+            return new RootWindowDecision(ExecutionMode.EXACT_PATTERN_EXECUTOR, 0L);
         }
 
         long low = 1L;
@@ -239,7 +251,7 @@ public final class Ae2BigCraftingPlanFactory {
                 high = middle - 1L;
             }
         }
-        return low;
+        return new RootWindowDecision(ExecutionMode.ROOT_WINDOWS, low);
     }
 
     /**
@@ -318,13 +330,13 @@ public final class Ae2BigCraftingPlanFactory {
                         + String.join("\n", nodes));
     }
 
-    private static boolean fitsLongChild(
-            CompiledRootProgram<AEKey> program,
-            CompiledRootProgram.BigInventorySnapshot<AEKey> emptyInventory,
+    private static <K> boolean fitsLongChild(
+            CompiledRootProgram<K> program,
+            CompiledRootProgram.BigInventorySnapshot<K> emptyInventory,
             long requestedAmount,
             int maximumBits) {
         try {
-            BigCraftingPlan<AEKey> child = program.planBig(
+            BigCraftingPlan<K> child = program.planBig(
                     BigInteger.valueOf(requestedAmount),
                     emptyInventory,
                     PlanningGuard.none(),
@@ -350,22 +362,64 @@ public final class Ae2BigCraftingPlanFactory {
         return true;
     }
 
+    public enum ExecutionMode {
+        /** 同じ完成品の正数個を、AE2標準long子Jobへ安全に分割できる。 */
+        ROOT_WINDOWS,
+        /** 完成品一個の内部がlongを超えるため、正確なPattern単位executorが必要。 */
+        EXACT_PATTERN_EXECUTOR
+    }
+
+    static record RootWindowDecision(
+            ExecutionMode mode,
+            long maximumRootExecutions) {
+        RootWindowDecision {
+            Objects.requireNonNull(mode, "mode");
+            // root-window方式だけが正のWindowを持ち、Exact方式は0を明示する。
+            if ((mode == ExecutionMode.ROOT_WINDOWS && maximumRootExecutions <= 0L)
+                    || (mode == ExecutionMode.EXACT_PATTERN_EXECUTOR
+                            && maximumRootExecutions != 0L)) {
+                throw new IllegalArgumentException("invalid BigInteger root-window decision");
+            }
+        }
+    }
+
     public record PreparedBigRootPlan(
-            BigCraftingJob<AEKey> job,
+            @Nullable BigCraftingJob<AEKey> rootWindowJob,
             BigCraftingPlan<AEKey> symbolicPlan,
             BigInteger reservedBytes,
             long patternGeneration,
             long recipeGeneration,
-            long maximumExecutionsPerWindow) {
+            ExecutionMode executionMode,
+            long maximumRootExecutionsPerWindow,
+            String planningEpoch,
+            String programFingerprint) {
         public PreparedBigRootPlan {
-            Objects.requireNonNull(job, "job");
             Objects.requireNonNull(symbolicPlan, "symbolicPlan");
             Objects.requireNonNull(reservedBytes, "reservedBytes");
-            // 保存Jobと計画メタデータのWindow上限が食い違う結果を外へ出さない。
-            if (maximumExecutionsPerWindow <= 0L
-                    || maximumExecutionsPerWindow != job.maximumExecutionsPerWindow()) {
-                throw new IllegalArgumentException("invalid prepared BigInteger execution-window limit");
+            Objects.requireNonNull(executionMode, "executionMode");
+            planningEpoch = Objects.requireNonNull(planningEpoch, "planningEpoch");
+            programFingerprint = Objects.requireNonNull(programFingerprint, "programFingerprint");
+            // root-window方式では、永続Jobと計画メタデータのWindow上限を一致させる。
+            if (executionMode == ExecutionMode.ROOT_WINDOWS
+                    && (rootWindowJob == null
+                            || maximumRootExecutionsPerWindow <= 0L
+                            || maximumRootExecutionsPerWindow
+                                    != rootWindowJob.maximumExecutionsPerWindow())) {
+                throw new IllegalArgumentException("invalid prepared BigInteger root-window job");
             }
+            // Exact方式は誤ってchecked-long子Jobへ渡らないよう、JobとWindowを持たない。
+            if (executionMode == ExecutionMode.EXACT_PATTERN_EXECUTOR
+                    && (rootWindowJob != null || maximumRootExecutionsPerWindow != 0L)) {
+                throw new IllegalArgumentException("invalid prepared BigInteger exact-pattern plan");
+            }
+            // 再計算に必要な識別子がない計画は、永続実行へ渡さない。
+            if (planningEpoch.isBlank() || programFingerprint.isBlank()) {
+                throw new IllegalArgumentException("missing prepared BigInteger planning identity");
+            }
+        }
+
+        public boolean supportsRootWindows() {
+            return executionMode == ExecutionMode.ROOT_WINDOWS;
         }
     }
 }
