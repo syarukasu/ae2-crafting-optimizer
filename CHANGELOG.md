@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.17] - 2026-08-14
+
+### Compatibility
+
+- Aligned the NeoForge 1.21.1 artifact version with the Forge 1.20.1 hotfix
+  release. Neo ECO 21.1.x compatibility remains unchanged.
+
 ## [1.5.16] - 2026-08-13
 
 ### Added
