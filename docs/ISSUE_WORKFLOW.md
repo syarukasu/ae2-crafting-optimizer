@@ -6,9 +6,10 @@ ACOの修正は、問題を理解する前にコードへ触らないことを�
 
 1. `docs/PROJECT_CHARTER.md`
 2. `docs/REGRESSION_HISTORY.md`
-3. 対象の`docs/issues/ISSUE-<番号>.md`
-4. 対象クラスの回帰防止コメント
-5. 対応する自動試験と`docs/TESTING.md`
+3. `docs/CLASS_RESPONSIBILITIES.md`
+4. 対象の`docs/issues/ISSUE-<番号>.md`
+5. 対象クラスの回帰防止コメント
+6. 対応する自動試験と`docs/TESTING.md`
 
 ## 実装前
 
@@ -25,7 +26,8 @@ ACOの修正は、問題を理解する前にコードへ触らないことを�
    - 修正方針とfallback境界
    - 先に失敗を確認する回帰試験
 4. 不明点を推測で埋めず、JAR、ソース、API、ログを調査します。
-5. 実装前チェックをすべて満たし、状態を`Ready`へ変更します。
+5. `docs/CLASS_RESPONSIBILITIES.md`で所有クラスと依存方向を確認します。
+6. 実装前チェックをすべて満たし、状態を`Ready`へ変更します。
 
 `Ready`になる前にJava、Mixin、リソース、Config、永続形式を変更してはいけません。
 
@@ -42,7 +44,7 @@ ACOの修正は、問題を理解する前にコードへ触らないことを�
 1. Issue仕様書へ実際の変更ファイルと採用した修正を記録します。
 2. 単体試験、境界試験、故障試験、ビルド結果を記録します。
 3. 未実施の起動、GameTest、実環境試験を明示します。
-4. `docs/REGRESSION_HISTORY.md`へIssueの索引を追加します。
+4. 回帰修正の場合だけ、`docs/REGRESSION_HISTORY.md`へIssueの索引を追加します。
 5. PR本文でIssue仕様書の読了・更新をチェックします。
 6. CI成功後にマージし、PRとリリース番号をIssue仕様書へ追記します。
 
