@@ -4,7 +4,7 @@
 - 状態: Verified
 - 対象版: ACO 1.5.18
 - 対象ローダー: Forge 1.20.1 / NeoForge 1.21.1
-- 関連Issue・PR: PR未作成
+- 関連Issue・PR: PR #94、PR #95
 
 ## 問題
 
@@ -104,7 +104,7 @@ JDKの`MapN`反復とfastutil検索を一つのC2ループへ融合させませ�
 
 ## 完了
 
-- PR: 未作成
+- PR: Forge #94、NeoForge #95
 - マージコミット: 未定
 - 修正版: 未定
 - リリース: 未定
