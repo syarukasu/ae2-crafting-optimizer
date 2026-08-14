@@ -1,7 +1,7 @@
 # Issue #84: Issue仕様書を先に読む開発手順とプロジェクト境界を明文化する
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/84
-- 状態: Ready
+- 状態: Verified
 - 対象版: ACO 1.5.18以降の開発手順
 - 対象ローダー: Forge 1.20.1 / NeoForge 1.21.1
 - 関連Issue・PR: Issue #79、PR #80、PR #81、PR #82、PR #83
@@ -72,15 +72,27 @@ Issue別仕様書へ移し、回帰履歴を索引として整理します。
 
 ## 実装結果
 
-実装後に更新します。
+- `AGENTS.md`からIssue先行手順を必須化
+- `docs/PROJECT_CHARTER.md`へ目的、非目標、所有権、禁止事項を集約
+- `docs/ISSUE_WORKFLOW.md`へ実装前・中・後の手順と状態を定義
+- `docs/issues/TEMPLATE.md`と一覧を追加
+- Issue #79を`docs/issues/ISSUE-79.md`へ移行
+- `REGRESSION_HISTORY.md`をIssue仕様書への索引へ変更
+- JavaのIssue #79コメントを詳細仕様書へ接続
+- `CONTRIBUTING.md`、README、PRテンプレートから必須手順へ誘導
 
 ## 検証結果
 
-実装後に更新します。
+- Markdown相対リンク検査: 成功
+- Issue仕様書の必須見出し検査: 成功
+- Forge/NeoForge共通文書のSHA-256一致: 成功
+- `gradlew.bat clean build --no-daemon`: 成功
+- JUnit: 356件、失敗0、エラー0
+- 起動、GameTest、ゲーム内動作: 文書変更のため未実施
 
 ## 完了
 
-- PR:
+- PR: https://github.com/syarukasu/ae2-crafting-optimizer/pull/86
 - マージコミット:
 - 修正版: 文書のみのため版番号変更なし
 - リリース: 不要
