@@ -51,7 +51,9 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
         if (!finalOutput.what().equals(exactPlan.requestedKey())
                 || !BigInteger.valueOf(finalOutput.amount()).equals(exactPlan.requestedAmount())
                 || !preparedRoot.symbolicPlan().equals(exactPlan)
-                || !preparedRoot.reservedBytes().equals(preparedRoot.job().reservedCapacity())) {
+                || (preparedRoot.rootWindowJob() != null
+                        && !preparedRoot.reservedBytes().equals(
+                                preparedRoot.rootWindowJob().reservedCapacity()))) {
             throw new IllegalArgumentException("BigInteger plan metadata is inconsistent");
         }
         // 個別値またはキー別合計がlong超過してAE2の乗算を使えない計画だけを運ぶ。

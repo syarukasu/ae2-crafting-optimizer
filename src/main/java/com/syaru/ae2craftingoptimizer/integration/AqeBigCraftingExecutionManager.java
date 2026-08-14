@@ -149,7 +149,14 @@ public final class AqeBigCraftingExecutionManager {
                     "The request is missing, ambiguous, cyclic, fuzzy, or changed during planning; nothing was submitted."));
             return 0;
         }
-        if (!host.submit(prepared.job())) {
+        BigCraftingJob<AEKey> rootWindowJob = prepared.rootWindowJob();
+        // 旧コマンド経路はroot単位子Jobしか実行できないため、Exact専用計画を誤送信しない。
+        if (rootWindowJob == null) {
+            source.sendFailure(Component.literal(
+                    "This request requires an exact-pattern BigInteger CPU executor; the legacy root-window command cannot run it."));
+            return 0;
+        }
+        if (!host.submit(rootWindowJob)) {
             source.sendFailure(Component.literal(
                     "The Quantum Computer does not have enough unreserved BigInteger crafting storage."));
             return 0;
@@ -160,7 +167,7 @@ public final class AqeBigCraftingExecutionManager {
         source.sendSuccess(
                 () -> Component.literal(
                         "Submitted ACO BigInteger job "
-                                + prepared.job().id()
+                                + rootWindowJob.id()
                                 + ": "
                                 + amount
                                 + " x "

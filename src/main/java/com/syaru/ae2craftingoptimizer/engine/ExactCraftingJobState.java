@@ -84,15 +84,14 @@ public final class ExactCraftingJobState {
             }
         });
         var prepared = plan.preparedRoot();
-        var parentJob = prepared.job();
         return new ExactCraftingJobState(
                 plan.finalOutput().what(),
                 plan.exactBytes(),
                 plan.exactPlan().usedInventory(),
                 prepared.patternGeneration(),
                 prepared.recipeGeneration(),
-                parentJob.planningEpoch(),
-                parentJob.programFingerprint(),
+                prepared.planningEpoch(),
+                prepared.programFingerprint(),
                 ExactCraftingJobLedger.planned(
                         tasks,
                         plan.exactPlan().emitted(),
