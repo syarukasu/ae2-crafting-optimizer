@@ -104,6 +104,25 @@ class Ae2CraftingPlanSidecarsTest {
         assertEquals(Long.MAX_VALUE, exposed.bytes());
     }
 
+    @Test
+    void aliasesARebuiltAe2FacadeToTheSameCalculationSidecar() {
+        FakeWidePlan metadata = new FakeWidePlan("rebuilt");
+        CraftingPlan original = Ae2CraftingPlanSidecars.expose(metadata);
+        CraftingPlan rebuilt = new CraftingPlan(
+                original.finalOutput(),
+                original.bytes(),
+                original.simulation(),
+                original.multiplePaths(),
+                original.usedItems(),
+                original.emittedItems(),
+                original.missingItems(),
+                original.patternTimes());
+
+        Ae2CraftingPlanSidecars.alias(rebuilt, original);
+
+        assertSame(metadata, Ae2CraftingPlanSidecars.metadata(rebuilt).orElseThrow());
+    }
+
     private record FakeWidePlan(String id) implements WideCraftingPlan {
         @Override
         public GenericStack finalOutput() {

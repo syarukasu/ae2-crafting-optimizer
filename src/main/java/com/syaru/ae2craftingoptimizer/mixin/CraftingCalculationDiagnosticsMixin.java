@@ -12,6 +12,7 @@ import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDiagnostic
 import com.syaru.ae2craftingoptimizer.optimization.CraftingFallbackDiagnostics;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
 import com.syaru.ae2craftingoptimizer.engine.Ae2AuthoritativeCraftingPlanner;
+import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import appeng.crafting.inv.NetworkCraftingSimulationState;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Final;
@@ -49,6 +50,9 @@ public abstract class CraftingCalculationDiagnosticsMixin {
 
     @Unique
     private Ae2AuthoritativeCraftingPlanner.Capture aco$authoritativeCapture;
+
+    @Unique
+    private ICraftingPlan aco$authoritativePlan;
 
     @Unique
     private boolean aco$usedAuthoritativePlan;
@@ -95,17 +99,23 @@ public abstract class CraftingCalculationDiagnosticsMixin {
         // Shadow認定済みProgramが結果を返した場合だけAE2計画本体を置き換える。
         if (accelerated != null) {
             aco$usedAuthoritativePlan = true;
+            aco$authoritativePlan = accelerated;
             cir.setReturnValue(accelerated);
         }
     }
 
     @Inject(method = "run", at = @At("RETURN"))
     private void aco$logSlowCalculation(CallbackInfoReturnable<ICraftingPlan> cir) {
+        ICraftingPlan returned = cir.getReturnValue();
+        // AE2の外側がFacadeを再構築しても、同じ計算インスタンスのSidecarだけを引き継ぐ。
+        if (aco$authoritativePlan != null && returned != null && returned != aco$authoritativePlan) {
+            Ae2CraftingPlanSidecars.alias(returned, aco$authoritativePlan);
+        }
         CraftingFallbackDiagnostics.Observation fallback = CraftingFallbackDiagnostics.take();
         CraftingCalculationDiagnostics.logIfSlow(
                 output,
                 requestedAmount,
-                cir.getReturnValue(),
+                returned,
                 System.nanoTime() - aco$calculationStartedAt,
                 aco$usedAuthoritativePlan
                         ? "compiled-strict"
@@ -118,7 +128,7 @@ public abstract class CraftingCalculationDiagnosticsMixin {
                     output,
                     requestedAmount,
                     strategy,
-                    cir.getReturnValue());
+                    returned);
         }
     }
 }

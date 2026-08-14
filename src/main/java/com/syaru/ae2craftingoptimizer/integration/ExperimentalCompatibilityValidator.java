@@ -38,8 +38,8 @@ public final class ExperimentalCompatibilityValidator {
     public static void validateEnabledFeatures() {
         List<String> failures = new ArrayList<>();
         /*
-         * InsaneAE単独プロファイルもBigInteger計算を使用する。
-         * AQEだけを見て早期returnすると、同じ必須Mixinの欠落を見逃すため共通判定を使う。
+         * AQEまたは登録済み外部コンシューマがBigInteger計算を使用する。
+         * 片方だけを見て早期returnすると、共通計算境界の欠落を見逃すため共通判定を使う。
          */
         boolean strictCraftingProfile = ACOConfig.enableExperimentalCraftingEngine()
                 || ACOConfig.enableBigCraftingProfile();

@@ -17,8 +17,8 @@ runtime qualification is P9 and is intentionally left to the pack operator.
 
 General deep behavior-changing paths are deliberately **disabled by default**.
 The narrow AQE profile is enabled only when Advanced AE and Advanced Quantum
-Engineering are both loaded. The optional InsaneAE profile provides the same
-calculation boundary when InsaneAE is loaded. It activates compiled observation, checked
+Engineering are both loaded. A registered external consumer such as InsaneAE
+provides the external calculation boundary through the public API. It activates compiled observation, checked
 arithmetic, exact wide-capacity planning, BigInteger execution windows, and
 ordinary-long replacement only for roots whose current AE2 Pattern API,
 candidate set, inventory, and generations pass the strict proof. It does not
@@ -55,7 +55,7 @@ condition for the checked BigInteger path:
 ```toml
 [experimentalCraftingEngine]
 enableAqeBigCraftingProfile = true
-enableInsaneAeBigCraftingProfile = true
+enableExternalBigCraftingProfile = true
 enableLongRootCraftAmounts = true
 enableExperimentalCraftingEngine = false
 enableShadowMode = true
