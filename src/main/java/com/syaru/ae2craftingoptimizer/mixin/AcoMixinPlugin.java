@@ -1,6 +1,8 @@
 package com.syaru.ae2craftingoptimizer.mixin;
 
 import com.syaru.ae2craftingoptimizer.integration.Ae2UelmCompatibility;
+import com.syaru.ae2craftingoptimizer.integration.NeoEcoVersionCompatibility;
+import com.syaru.ae2craftingoptimizer.integration.NeoEcoVersionCompatibility.ExecutionProfile;
 import java.util.List;
 import java.util.Set;
 import net.minecraftforge.fml.loading.FMLLoader;
@@ -15,6 +17,12 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 public final class AcoMixinPlugin implements IMixinConfigPlugin {
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        String simpleName = simpleMixinName(mixinClassName);
+        // Neo ECO 20.3/20.4は実行メソッドの記述子が異なるため、一致する片方だけを読み込む。
+        if (isNeoEcoExecutionBudgetMixin(simpleName)) {
+            return shouldApplyNeoEcoExecutionMixin(simpleName, loadedNeoEcoExecutionProfile());
+        }
+
         // InsaneAEが同じAE2実行入口を所有する場合は、ACOの予算・通常Batch入口を重ねない。
         // BigInteger会計とAQE専用のAdvanced AE連携Mixinはこの除外対象に含めない。
         if (isInsaneAeLoadedDuringBootstrap()
@@ -25,6 +33,26 @@ public final class AcoMixinPlugin implements IMixinConfigPlugin {
             return true;
         }
         return !Ae2UelmCompatibility.ownsAe2SurfaceMixin(mixinClassName);
+    }
+
+    static boolean shouldApplyNeoEcoExecutionMixin(
+            String mixinClassName,
+            ExecutionProfile profile) {
+        String simpleName = simpleMixinName(mixinClassName);
+        // 20.3の旧FastPathBatchBudget記述子は20.3系だけへ適用する。
+        if ("NeoEco20_3CraftingCpuExecutionBudgetMixin".equals(simpleName)) {
+            return profile == ExecutionProfile.NEO_ECO_20_3;
+        }
+        // 20.4の公開executeCrafting記述子は20.4系だけへ適用する。
+        if ("NeoEco20_4CraftingCpuExecutionBudgetMixin".equals(simpleName)) {
+            return profile == ExecutionProfile.NEO_ECO_20_4;
+        }
+        return false;
+    }
+
+    private static boolean isNeoEcoExecutionBudgetMixin(String simpleName) {
+        return "NeoEco20_3CraftingCpuExecutionBudgetMixin".equals(simpleName)
+                || "NeoEco20_4CraftingCpuExecutionBudgetMixin".equals(simpleName);
     }
 
     static boolean isInsaneAeOwnedExecutionMixin(String mixinClassName) {
@@ -73,6 +101,25 @@ public final class AcoMixinPlugin implements IMixinConfigPlugin {
             // Unknown bootstrap state must keep ACO's normal behavior intact.
         }
         return false;
+    }
+
+    private static ExecutionProfile loadedNeoEcoExecutionProfile() {
+        try {
+            var modFile = FMLLoader.getLoadingModList().getModFileById("neoecoae");
+            // Neo ECO未導入時は、どちらの任意連携Mixinも適用しない。
+            if (modFile == null) {
+                return ExecutionProfile.NONE;
+            }
+            return modFile.getMods().stream()
+                    .filter(mod -> "neoecoae".equals(mod.getModId()))
+                    .map(mod -> mod.getVersion().toString())
+                    .map(NeoEcoVersionCompatibility::executionProfile)
+                    .findFirst()
+                    .orElse(ExecutionProfile.NONE);
+        } catch (RuntimeException | LinkageError ignored) {
+            // 起動初期に版を確定できない場合は、誤った記述子を当てず連携だけを無効化する。
+            return ExecutionProfile.NONE;
+        }
     }
 
     @Override public void onLoad(String mixinPackage) {
