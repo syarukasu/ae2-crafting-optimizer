@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.18] - 2026-08-14
+
+### Fixed
+
+- Kept exact BigInteger plans available when one requested root item requires
+  more than `Long.MAX_VALUE` lower-pattern executions or boundary inputs.
+- Separated exact plan publication from the legacy root-count execution window,
+  allowing BigInteger CPU add-ons to receive the unchanged exact Pattern ledger.
+- Prevented ACO's legacy root-window command from submitting an exact-only plan
+  to a checked-long child job.
+- Added regression coverage for the 21-stage 8x compression boundary and the
+  public BigInteger plan sidecar used by optional CPU add-ons.
+
 ## [1.5.16] - 2026-08-13
 
 ### Added
