@@ -1,7 +1,6 @@
 package com.syaru.ae2craftingoptimizer.engine.craftingtable;
 
 import java.math.BigInteger;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -37,22 +36,10 @@ public final class ExactCraftingEscrow<K> {
     public boolean containsAll(
             Map<K, BigInteger> required) {
         Map<K, BigInteger> checked =
-                checkedCounts(
+                ExactCountMap.mutablePositiveCopy(
                         required,
                         "required");
-        // 一キーでも不足する場合は、親レシピを物理Workerへ渡さない。
-        for (Map.Entry<K, BigInteger> entry :
-                checked.entrySet()) {
-            // 現在量が必要量未満なら、この依存段はまだ実行不能。
-            if (amount(
-                            entry.getKey())
-                    .compareTo(
-                            entry.getValue())
-                    < 0) {
-                return false;
-            }
-        }
-        return true;
+        return ExactCountMap.containsAll(amounts, checked);
     }
 
     /**
@@ -63,12 +50,11 @@ public final class ExactCraftingEscrow<K> {
     public void debitExact(
             Map<K, BigInteger> required) {
         Map<K, BigInteger> checked =
-                checkedCounts(
+                ExactCountMap.mutablePositiveCopy(
                         required,
                         "required");
         // 事前検査で全キーが揃う場合だけ、後段の減算へ進む。
-        if (!containsAll(
-                checked)) {
+        if (!ExactCountMap.containsAll(amounts, checked)) {
             throw new IllegalStateException(
                     "crafting escrow does not contain every required input");
         }
@@ -96,16 +82,16 @@ public final class ExactCraftingEscrow<K> {
     public void credit(
             Map<K, BigInteger> produced) {
         Map<K, BigInteger> checked =
-                checkedCounts(
+                ExactCountMap.mutablePositiveCopy(
                         produced,
                         "produced");
         // 同じキーの中間素材と返却物は、数量だけを正確に合算する。
         for (Map.Entry<K, BigInteger> entry :
                 checked.entrySet()) {
-            amounts.merge(
+            ExactCountMap.mergePositive(
+                    amounts,
                     entry.getKey(),
-                    entry.getValue(),
-                    BigInteger::add);
+                    entry.getValue());
         }
     }
 
@@ -114,50 +100,17 @@ public final class ExactCraftingEscrow<K> {
     }
 
     public Map<K, BigInteger> snapshot() {
-        return Collections.unmodifiableMap(
-                new LinkedHashMap<>(
-                        amounts));
+        return ExactCountMap.immutableOrderedCopy(amounts);
     }
 
     public void restore(
             Map<K, BigInteger> restored) {
         Map<K, BigInteger> checked =
-                checkedCounts(
+                ExactCountMap.mutablePositiveCopy(
                         restored,
                         "restored");
         amounts.clear();
         amounts.putAll(
                 checked);
-    }
-
-    private static <K> Map<K, BigInteger> checkedCounts(
-            Map<K, BigInteger> source,
-            String name) {
-        Objects.requireNonNull(
-                source,
-                name);
-        Map<K, BigInteger> result =
-                new LinkedHashMap<>();
-        // Escrowへはnull、0、負数を入れず、保存順をそのまま維持する。
-        for (Map.Entry<K, BigInteger> entry :
-                source.entrySet()) {
-            K key =
-                    Objects.requireNonNull(
-                            entry.getKey(),
-                            name + " key");
-            BigInteger amount =
-                    Objects.requireNonNull(
-                            entry.getValue(),
-                            name + " amount");
-            // 0以下の値は「存在しないキー」と区別できないため拒否する。
-            if (amount.signum() <= 0) {
-                throw new IllegalArgumentException(
-                        name + " contains a non-positive amount");
-            }
-            result.put(
-                    key,
-                    amount);
-        }
-        return result;
     }
 }
