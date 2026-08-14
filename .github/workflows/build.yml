@@ -14,7 +14,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ae2Variant: [upstream, uelm]
+        include:
+          - ae2Variant: upstream
+            ae2File: appliedenergistics2-forge-15.4.10.jar
+            ae2Url: https://github.com/AppliedEnergistics/Applied-Energistics-2/releases/download/forge/v15.4.10/appliedenergistics2-forge-15.4.10.jar
+            ae2Sha256: fbfee05c6674cb6b00fe425e945ca4818d41eb34069b60dcb4a36221a0390fcc
+          - ae2Variant: uelm
+            ae2File: appliedenergistics2-forge-15.5.0-uelm.jar
+            ae2Url: https://github.com/AE2-Unofficial-Extended-Life-Modern/AE2-UELM/releases/download/forge/v15.5.0-uelm/appliedenergistics2-forge-15.5.0-uelm.jar
+            ae2Sha256: 6c7ce22131cc8500a9deba17a864fe69ad143b5e18b4596ea6e8523469eec198
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -28,25 +36,56 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Download Neo ECO compatibility contracts
+      - name: Download pinned compatibility artifacts
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build/compat
+          mkdir -p .ci/mods .ci/contracts
           curl --fail --location --retry 3 \
-            --output build/compat/neoecoae-20.3.0.jar \
+            --output ".ci/mods/${{ matrix.ae2File }}" \
+            "${{ matrix.ae2Url }}"
+          curl --fail --location --retry 3 \
+            --output .ci/mods/gtceu-1.20.1-7.5.3.jar \
+            https://github.com/GregTechCEu/GregTech-Modern/releases/download/v7.5.3-1.20.1/gtceu-1.20.1-7.5.3.jar
+          curl --fail --location --retry 3 \
+            --output .ci/mods/ldlib-forge-1.20.1-1.0.50.jar \
+            https://www.cursemaven.com/curse/maven/ldlib-626676/7809449/ldlib-626676-7809449.jar
+          curl --fail --location --retry 3 \
+            --output .ci/mods/Mekanism-1.20.1-10.4.16.80.jar \
+            https://github.com/mekanism/Mekanism/releases/download/v1.20.1-10.4.16.80/Mekanism-1.20.1-10.4.16.80.jar
+          curl --fail --location --retry 3 \
+            --output .ci/mods/Applied-Mekanistics-1.4.3.jar \
+            https://www.cursemaven.com/curse/maven/applied-mekanistics-574300/7244744/applied-mekanistics-574300-7244744.jar
+          curl --fail --location --retry 3 \
+            --output .ci/mods/AdvancedAE-1.3.5-1.20.1.jar \
+            https://www.cursemaven.com/curse/maven/advancedae-1084104/7939754/advancedae-1084104-7939754.jar
+          curl --fail --location --retry 3 \
+            --output .ci/contracts/neoecoae-20.3.0.jar \
             https://github.com/DancingSnow0517/NeoECOAEExtension/releases/download/20.3.0/neoecoae-20.3.0.jar
           curl --fail --location --retry 3 \
-            --output build/compat/neoecoae-20.4.0.jar \
+            --output .ci/contracts/neoecoae-20.4.0.jar \
             https://github.com/DancingSnow0517/NeoECOAEExtension/releases/download/20.4.0/neoecoae-20.4.0.jar
+
+          cat > .ci/SHA256SUMS <<EOF
+          ${{ matrix.ae2Sha256 }}  mods/${{ matrix.ae2File }}
+          d6560d8b695828a763389d3f45e0210ef70c1892c7b1633ac458544905df1a0d  mods/gtceu-1.20.1-7.5.3.jar
+          559d2a0cf8f77d7d6487b2c1620a8ee09e6bed94268be6df77cba0f7d8ac5112  mods/ldlib-forge-1.20.1-1.0.50.jar
+          ab0e251b8bda98973d1f4c05d534b8a328b7d6a48964489a51b3bd0e7f382423  mods/Mekanism-1.20.1-10.4.16.80.jar
+          e1aafd9c2ae1cab7bb6905ec61718aed41b9f07c05148c9a033e4bb886173d2c  mods/Applied-Mekanistics-1.4.3.jar
+          ee172c27c28b1d545e1501575021d8f0e5b34ca9dc8a901f7544b0a7fedf0262  mods/AdvancedAE-1.3.5-1.20.1.jar
+          b832af4000f33af4bf62fadf26df7a09b9c2a839d5fc5664ee9b6c140e61367f  contracts/neoecoae-20.3.0.jar
+          0f13b6a6014c0b42219849bbc75b414d946527f890ccab7a7668598cf03dd98d  contracts/neoecoae-20.4.0.jar
+          EOF
+          (cd .ci && sha256sum --check SHA256SUMS)
 
       - name: Build
         run: |
           chmod +x gradlew
           ./gradlew clean build --stacktrace \
             -Pae2Variant=${{ matrix.ae2Variant }} \
-            -PneoEco20_3Jar=build/compat/neoecoae-20.3.0.jar \
-            -PneoEco20_4Jar=build/compat/neoecoae-20.4.0.jar
+            -PacoLocalModsDir=.ci/mods \
+            -PneoEco20_3Jar=.ci/contracts/neoecoae-20.3.0.jar \
+            -PneoEco20_4Jar=.ci/contracts/neoecoae-20.4.0.jar
 
       - name: Verify 1.20.1 artifact boundary
         shell: bash
