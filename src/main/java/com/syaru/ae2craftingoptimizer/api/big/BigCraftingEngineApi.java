@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.stacks.AEKey;
@@ -33,12 +34,30 @@ public final class BigCraftingEngineApi {
     public static final int CALCULATION_PROFILE_API_VERSION = 1;
     /** アドオンがACOの正確なBigInteger上限を照会するAPIの契約番号。 */
     public static final int CAPACITY_LIMIT_API_VERSION = 1;
+    /** Version of the generic external CPU submission-boundary registration. */
+    public static final int EXTERNAL_CONSUMER_API_VERSION = 1;
+    private static final AtomicInteger EXTERNAL_CONSUMER_COUNT = new AtomicInteger();
 
     private BigCraftingEngineApi() {
     }
 
     public static boolean isEnabled() {
         return ACOConfig.enableBigIntegerCraftingBackend();
+    }
+
+    /**
+     * Registers a CPU add-on that owns execution of ACO BigInteger plans.
+     *
+     * <p>The registration is deliberately capability-based. ACO does not name,
+     * load, tick, or inspect any particular external CPU implementation.</p>
+     */
+    public static void registerExternalBigIntegerPlanConsumer() {
+        EXTERNAL_CONSUMER_COUNT.incrementAndGet();
+    }
+
+    /** Returns whether an external CPU has claimed the BigInteger submission boundary. */
+    public static boolean hasExternalBigIntegerPlanConsumer() {
+        return EXTERNAL_CONSUMER_COUNT.get() > 0;
     }
 
     /**

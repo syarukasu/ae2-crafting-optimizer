@@ -553,3 +553,15 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | クラス | 仕事 |
 |---|---|
 | `com.syaru.ae2craftingoptimizer.util.StableFingerprint` | StableFingerprintが示す対象を、順序と内容から安定して識別する。 |
+
+## BigInteger external-consumer boundary
+
+| クラス | 仕事 |
+|---|---|
+| `api.big.BigCraftingEngineApi` | 外部CPUコンシューマ登録と公開BigInteger計画APIの入口。外部CPUを実行しない。 |
+| `engine.Ae2CraftingPlanSidecars` | AE2のlong表示用`CraftingPlan`へ、正確なBigInteger計画をidentityで関連付ける。 |
+| `mixin.CraftingCalculationDiagnosticsMixin` | `CraftingCalculation`の実経路で返された計画へ、再構築後もsidecarを再接続する。 |
+| `mixin.CraftingCpuClusterBigCapacityGuardMixin` | 外部コンシューマ登録の有無と正確なsidecarを提出境界で確認する。実行・進捗は持たない。 |
+
+ACOの外部連携は上記の計画/API境界に限定する。InsaneAEのQuantum CPU実行、Bulk投入、
+進捗、完了会計、キャンセル、AQEのCPUホスト処理をACOへ戻してはいけない。

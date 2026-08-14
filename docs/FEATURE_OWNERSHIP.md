@@ -1,70 +1,76 @@
 # Feature Ownership
 
+This document is the ownership boundary for the BigInteger integration. It is
+also a guard against reintroducing the execution ownership bugs recorded in
+`ISSUE-BIGINT-EXTERNAL-CONSUMER.md`.
+
 ## ACO Owns
 
-- Provider/recipe generation tracking
-- Compiled deterministic Pattern graphs
-- `long` and `BigInteger` planning
-- Exact boundary-input and final-output formulas
-- Parent CPU capacity reservation and job progress
-- Transaction-local crafting escrow
-- Exact ME storage before/after reconciliation
-- Cancellation, recovery, quarantine, and fallback decisions
-- Per-CPU and per-grid TPS budgets
-- BigInteger NBT and status protocol
+- AE2 recipe/provider generation tracking and deterministic planning.
+- The exact `long`/`BigInteger` calculation result, including missing amounts.
+- The public BigInteger plan API and plan sidecar association.
+- Exact plan inspection and diagnostics for a plan that AE2 represents with a
+  saturated `long` facade.
+- Lossless conversion of a BigInteger remainder into one bounded physical
+  execution window.
+- Its own generic AE2 optimization paths and their fallback rules.
 
-ACO never asks AAC to decide whether a parent job is complete.
-
-## AAC Owns
-
-- AAC block and multiblock registration
-- Neo ECO structure integration
-- Pattern Bus to Worker routing
-- One real `assemble` proof for each accepted crafting-table step
-- Neo ECO Thread progress and power
-- Worker-local live ownership
-- Durable terminal output receipts
-- Physical Thread cancellation before output is complete
-
-AAC does not compile the crafting tree, reserve ME storage, complete the AQE
-parent job, or generate the tree's final output.
+ACO does **not** own an external CPU's crafting loop, Pattern dispatch,
+`waitingFor`, progress, cancellation, output receipt, power accounting, or
+job completion. ACO never creates a second execution ledger for an external
+CPU and never treats a saturated AE2 value as an exact amount.
 
 ## AE2 Owns
 
-- Encoded Pattern identity
-- Normal crafting jobs and recipe eligibility
-- Standard CPU inventories and links
-- Normal Provider routing and machine work
-- Standard insertion/extraction when no exact sidecar path is active
+- Encoded Pattern identity and recipe eligibility.
+- The standard calculation service and normal `CraftingPlan` lifecycle.
+- Standard CPU selection, job submission, inventories, links, and normal
+  provider routing.
+- Standard insertion/extraction when no external exact consumer accepts the
+  plan.
 
-## Neo ECO Owns
+## InsaneAE Owns
 
-- Pattern Bus, Worker, and Thread lifecycle
-- Structure formation and cluster lists
-- Physical progress and power consumption
-- Physical Thread NBT
+- Quantum CPU structure, CPU selection, and one-CPU/one-job rules.
+- Quantum CPU execution, Bulk/Task Fusion dispatch, provider backpressure,
+  power use, progress, `waitingFor`, receipts, persistence, cancellation, and
+  completion.
+- Registration as an external ACO BigInteger plan consumer.
+- Its own bounded `long` execution windows and exact BigInteger remainder.
 
-AAC subclasses and narrowly extends these components. It does not replace the
-Neo ECO cluster implementation.
+ACO may expose the plan and API to InsaneAE, but must not add an InsaneAE
+execution Mixin, inspect InsaneAE internals, or submit work on its behalf.
 
-## AQE and Advanced AE
+## AQE Owns
 
-AQE is an optional BigInteger host integration for ACO. Advanced AE continues
-to own its Quantum Computer structure and active CPU implementation.
+- Advanced Quantum Engineering CPU structures, hosts, capacity calculation,
+  CPU selection, active jobs, progress, persistence, and completion.
+- Its optional reflective ACO adapter. The adapter only registers AQE as an
+  external plan consumer and reads the public ACO contract.
 
-AAC does not require AQE at runtime for its execution code. AQE-dependent AAC
-progression recipes are Forge-conditional and load only when AQE is installed.
+AQE and ACO remain optional dependencies. ACO must still load without AQE;
+AQE must still load without ACO and use its native exact backend.
 
-## Fallback Boundary
+## External Consumer Contract
 
-Before boundary input ownership moves, an unsupported or unavailable physical
-path may return to AE2's normal execution.
+An external consumer must:
 
-After ownership moves, fallback is forbidden. The transaction must:
+1. register through `BigCraftingEngineApi`;
+2. read the exact plan/sidecar rather than the saturated AE2 `long` field;
+3. compare the exact requested capacity with its own exact CPU capacity;
+4. execute only bounded physical windows;
+5. retain the BigInteger remainder and reconcile the actual accepted amount.
 
-1. resume from its receipts;
-2. cancel and return exact escrow; or
-3. quarantine when ownership cannot be proven.
+If any of these proofs is unavailable, the consumer declines the plan and AE2
+handles the normal path. Declining must not throw from the AE2 calculation
+thread and must not create a `+1` fallback, duplicate output, or lost input.
 
-This boundary prevents a normal fallback from executing the same work a second
-time.
+## Forbidden Changes
+
+- ACO-side Quantum CPU execution, Task Fusion, or progress replacement.
+- ACO-side InsaneAE/AQE structure, GUI, texture, recipe, power, or NBT
+  ownership.
+- Converting the exact plan to `long` before choosing a physical window.
+- Returning a saturated plan without preserving its exact sidecar.
+- Running the same plan once through an external consumer and again through
+  AE2 because the external consumer declined it.
