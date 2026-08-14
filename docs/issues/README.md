@@ -17,3 +17,4 @@
 - [Issue #79](ISSUE-79.md): 一つのroot内部だけでsigned long境界を超える計画
 - [Issue #84](ISSUE-84.md): Issue先行開発手順とプロジェクト境界
 - [Issue #87](ISSUE-87.md): 全クラスの責務明文化とexact数量Mapの安全な共通化
+- [Issue #93](ISSUE-93.md): Java 25でBigInteger在庫Sidecarの可視コピー中にJVMが終了する

@@ -5,11 +5,14 @@ import appeng.api.stacks.KeyCounter;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.math.BigInteger;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * AE2のlong {@link KeyCounter}へ対応する、正確なBigInteger在庫Snapshot。
@@ -61,15 +64,40 @@ public final class BigKeyCounterSidecars {
             return;
         }
 
-        Map<AEKey, BigInteger> visible = new LinkedHashMap<>();
-        // AE2の抽出Simulationで除外されたキーをBigInteger側だけ復活させない。
-        for (Map.Entry<AEKey, BigInteger> entry : sourceSnapshot.amounts().entrySet()) {
-            // long側に正の在庫として残ったキーだけを計画用Sidecarへ伝播する。
-            if (target.get(entry.getKey()) > 0L) {
-                visible.put(entry.getKey(), entry.getValue());
+        // Issue #93: KeyCounter検索とJDK MapN反復を同じC2ループへ融合させない。
+        Set<AEKey> visibleKeys = capturePositiveKeys(target);
+        put(target, retainVisibleAmounts(sourceSnapshot, visibleKeys));
+    }
+
+    /** AE2のlong Facadeから、現在正量として見えているキーだけを独立Snapshotへ取り出す。 */
+    private static Set<AEKey> capturePositiveKeys(KeyCounter target) {
+        Set<AEKey> visibleKeys = new LinkedHashSet<>();
+        // 可変KeyCounterの走査をBigInteger Mapの走査から分離し、二種類の実装を同時に触らない。
+        for (var entry : target) {
+            // 0以下はAE2側で在庫として見えていないため、Sidecarにも伝播しない。
+            if (entry.getLongValue() <= 0L) {
+                continue;
             }
+            visibleKeys.add(entry.getKey());
         }
-        put(target, new Snapshot(visible, sourceSnapshot.complete()));
+        return Collections.unmodifiableSet(visibleKeys);
+    }
+
+    /** 不変source Snapshotから、AE2のlong Facadeに残ったキーだけを抽出する。 */
+    private static Snapshot retainVisibleAmounts(
+            Snapshot sourceSnapshot,
+            Set<AEKey> visibleKeys) {
+        Map<AEKey, BigInteger> visible = new LinkedHashMap<>();
+        // 可視キーSnapshotに存在する正確値だけを伝播し、AE2が除外したキーを復活させない。
+        for (Map.Entry<AEKey, BigInteger> entry : sourceSnapshot.amounts().entrySet()) {
+            AEKey key = entry.getKey();
+            // targetに存在しないキーは、BigInteger側だけで再追加しない。
+            if (!visibleKeys.contains(key)) {
+                continue;
+            }
+            visible.put(key, entry.getValue());
+        }
+        return new Snapshot(visible, sourceSnapshot.complete());
     }
 
     /** long FacadeとBigInteger Sidecarを一つの独立したKeyCounterへ複製する。 */
@@ -165,7 +193,8 @@ public final class BigKeyCounterSidecars {
                     checked.put(key, amount);
                 }
             }
-            amounts = Map.copyOf(checked);
+            // Issue #93: MapNとfastutil検索のC2融合を避けるため、所有Mapを読み取り専用化する。
+            amounts = Collections.unmodifiableMap(checked);
         }
 
         public BigInteger amount(AEKey key) {
