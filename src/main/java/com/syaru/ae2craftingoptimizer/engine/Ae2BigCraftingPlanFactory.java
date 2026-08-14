@@ -162,6 +162,19 @@ public final class Ae2BigCraftingPlanFactory {
         Objects.requireNonNull(plan, "plan");
         Objects.requireNonNull(bytes, "bytes");
         Objects.requireNonNull(program, "program");
+        /*
+         * 回帰防止: ACO Issue #79
+         * https://github.com/syarukasu/ae2-crafting-optimizer/issues/79
+         * 詳細履歴: docs/REGRESSION_HISTORY.md
+         *
+         * 8倍圧縮21段では、完成品1個だけでも最下層需要が8^21 = 2^63となる。
+         * 以前は「root個数でlong子Jobへ分割できない」ことを「exact計画を作れない」ことと
+         * 同一視し、正確に計算済みのBigInteger計画まで破棄していた。
+         *
+         * exact計画の公開可否とlegacy root-windowの可否は必ず別々に扱うこと。
+         * 一回分がlongへ収まらなくてもnullを返したり、偽のwindow=1へ丸めたりせず、
+         * EXACT_PATTERN_EXECUTORとしてexact sidecarを保持し、rootWindowJobだけを省略する。
+         */
         RootWindowDecision rootWindow = rootWindowDecision(
                 program,
                 requestedAmount,
@@ -198,6 +211,7 @@ public final class Ae2BigCraftingPlanFactory {
     /**
      * 子AE2計画の各カウンタがsigned longへ収まる最大完成品数を二分探索する。
      * CPU byte総量だけのlong超過はBigCapacityCraftingPlanで扱えるため、ここでは除外しない。
+     * Issue #79の再発を防ぐため、一回分すら収まらない場合は失敗ではなくExact方式を返す。
      */
     static <K> RootWindowDecision rootWindowDecision(
             CompiledRootProgram<K> program,
