@@ -5,6 +5,7 @@ import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.crafting.ICraftingSubmitResult;
 import appeng.api.networking.security.IActionSource;
+import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import appeng.crafting.CraftingPlan;
 import appeng.crafting.execution.CraftingSubmitResult;
@@ -17,7 +18,10 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
+import com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator;
 import com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext;
+import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
+import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDiagnostics;
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -75,8 +79,20 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
             // 自動要求は最終出力をCraftingLinkへ戻すExact転送が未対応なので、手動注文だけを受理する。
             if (requester != null
                     || !ACOConfig.enableBigIntegerGameplayExecution()
-                    || bigIntegerPlan.simulation()
-                    || !bigIntegerPlan.generationsAreCurrent()) {
+                    || bigIntegerPlan.simulation()) {
+                cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
+                return;
+            }
+            ExactPlanPatternRevalidator.Result validation =
+                    bigIntegerPlan.validateForSubmission(grid);
+            // Issue #90: 無関係なProvider更新は通し、参照Patternの変更だけを拒否する。
+            if (!validation.valid()) {
+                aco$recordGenerationDecline(
+                        bigIntegerPlan.finalOutput(),
+                        bigIntegerPlan.exactPlan().requestedAmount(),
+                        bigIntegerPlan.patternGeneration(),
+                        bigIntegerPlan.recipeGeneration(),
+                        validation);
                 cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
                 return;
             }
@@ -108,8 +124,19 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
         // 実験機能OFF、Missing計画、古いPattern世代は入力を抜く前に拒否する。
         if (!ACOConfig.enableAtomicBigCapacityPlans()
                 || bigPlan.simulation()
-                || !bigPlan.missingItems().isEmpty()
-                || !bigPlan.generationsAreCurrent()) {
+                || !bigPlan.missingItems().isEmpty()) {
+            cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
+            return;
+        }
+        ExactPlanPatternRevalidator.Result validation = bigPlan.validateForSubmission(grid);
+        // Issue #90: 合計容量だけがwideな計画にも、同じ対象限定の再検証を適用する。
+        if (!validation.valid()) {
+            aco$recordGenerationDecline(
+                    bigPlan.finalOutput(),
+                    BigInteger.valueOf(bigPlan.finalOutput().amount()),
+                    bigPlan.patternGeneration(),
+                    bigPlan.recipeGeneration(),
+                    validation);
             cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
             return;
         }
@@ -347,6 +374,23 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
                 new KeyCounter(),
                 new KeyCounter(),
                 Map.copyOf(oneExecution));
+    }
+
+    /** 世代再検証の拒否理由を、設定可能なBigInteger診断へ集約する。 */
+    @Unique
+    private static void aco$recordGenerationDecline(
+            GenericStack output,
+            BigInteger requestedAmount,
+            long patternGeneration,
+            long recipeGeneration,
+            ExactPlanPatternRevalidator.Result validation) {
+        BigIntegerPlanDiagnostics.record(
+                BigIntegerPlanDeclineReason.GENERATION_CHANGED,
+                output.what().getId().toString(),
+                requestedAmount,
+                patternGeneration,
+                recipeGeneration,
+                validation.detail());
     }
 
     private record SubmissionAttempt(

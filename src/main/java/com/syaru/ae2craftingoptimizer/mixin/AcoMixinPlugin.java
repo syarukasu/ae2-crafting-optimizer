@@ -23,12 +23,6 @@ public final class AcoMixinPlugin implements IMixinConfigPlugin {
             return shouldApplyNeoEcoExecutionMixin(simpleName, loadedNeoEcoExecutionProfile());
         }
 
-        // InsaneAEが同じAE2実行入口を所有する場合は、ACOの予算・通常Batch入口を重ねない。
-        // BigInteger会計とAQE専用のAdvanced AE連携Mixinはこの除外対象に含めない。
-        if (isInsaneAeLoadedDuringBootstrap()
-                && isInsaneAeOwnedExecutionMixin(mixinClassName)) {
-            return false;
-        }
         if (!isUelmLoadedDuringBootstrap()) {
             return true;
         }
@@ -55,20 +49,6 @@ public final class AcoMixinPlugin implements IMixinConfigPlugin {
                 || "NeoEco20_4CraftingCpuExecutionBudgetMixin".equals(simpleName);
     }
 
-    static boolean isInsaneAeOwnedExecutionMixin(String mixinClassName) {
-        String simpleName = simpleMixinName(mixinClassName);
-        return switch (simpleName) {
-            // 実行予算と実行入口だけをInsaneAEへ委譲する。
-            // BatchSourceReceiptMixinは実行を変更せず、V2会計に必要な状態APIを付与するため残す。
-            case "CraftingCpuLogicExecutionBudgetMixin",
-                    "CraftingCpuLogicTransactionalBatchV2Mixin",
-                    // Advanced AEの通常executeCraftingもInsaneAE側の互換Mixinを優先する。
-                    "AdvancedAeCraftingCpuLogicExecutionBudgetMixin",
-                    "AdvancedAeCraftingCpuLogicTransactionalBatchV2Mixin" -> true;
-            default -> false;
-        };
-    }
-
     /**
      * Mixinが渡す完全修飾名から、登録名との比較に使う単純名を取り出す。
      * 実行時の値はパッケージ付きになるため、単純名へ正規化しないと競合除外が働かない。
@@ -76,15 +56,6 @@ public final class AcoMixinPlugin implements IMixinConfigPlugin {
     private static String simpleMixinName(String mixinClassName) {
         int separator = mixinClassName.lastIndexOf('.');
         return separator >= 0 ? mixinClassName.substring(separator + 1) : mixinClassName;
-    }
-
-    private static boolean isInsaneAeLoadedDuringBootstrap() {
-        try {
-            return FMLLoader.getLoadingModList().getModFileById("insaneae") != null;
-        } catch (RuntimeException | LinkageError ignored) {
-            // 起動初期に判定できない場合は、既存のACO経路を維持する。
-            return false;
-        }
     }
 
     private static boolean isUelmLoadedDuringBootstrap() {
