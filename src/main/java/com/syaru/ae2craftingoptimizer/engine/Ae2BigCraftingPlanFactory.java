@@ -165,7 +165,7 @@ public final class Ae2BigCraftingPlanFactory {
         /*
          * 回帰防止: ACO Issue #79
          * https://github.com/syarukasu/ae2-crafting-optimizer/issues/79
-         * 詳細履歴: docs/REGRESSION_HISTORY.md
+         * 詳細仕様: docs/issues/ISSUE-79.md
          *
          * 8倍圧縮21段では、完成品1個だけでも最下層需要が8^21 = 2^63となる。
          * 以前は「root個数でlong子Jobへ分割できない」ことを「exact計画を作れない」ことと
