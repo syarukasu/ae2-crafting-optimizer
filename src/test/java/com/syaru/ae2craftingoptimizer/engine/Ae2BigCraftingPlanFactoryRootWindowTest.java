@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
+/** ACO Issue #79で再発した、一つのroot内部だけでsigned longを超える計画の回帰試験。 */
 class Ae2BigCraftingPlanFactoryRootWindowTest {
     /** 8^21 = 2^63。signed long境界を一段だけ超える再現条件である。 */
     private static final int OVERFLOWING_COMPRESSION_STAGES = 21;
