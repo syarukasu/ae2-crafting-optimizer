@@ -109,7 +109,7 @@
 
 ## 完了
 
-- Forge PR:
-- NeoForge PR:
+- Forge PR: https://github.com/syarukasu/ae2-crafting-optimizer/pull/91
+- NeoForge PR: https://github.com/syarukasu/ae2-crafting-optimizer/pull/92
 - 修正版:
 - リリース:
