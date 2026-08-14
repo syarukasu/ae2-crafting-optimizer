@@ -172,6 +172,12 @@ tasks.named('compileJava') {
 
 test {
     useJUnitPlatform()
+    // 指定された公開Neo ECO JARを、JUnitのバイトコード契約検査へ明示的に渡す。
+    ['neoEco20_3Jar', 'neoEco20_4Jar'].each { propertyName ->
+        if (project.hasProperty(propertyName)) {
+            systemProperty "aco.${propertyName}", file(project.property(propertyName)).absolutePath
+        }
+    }
 }
 
 processResources {

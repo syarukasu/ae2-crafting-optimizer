@@ -28,10 +28,25 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Download Neo ECO compatibility contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/compat
+          curl --fail --location --retry 3 \
+            --output build/compat/neoecoae-20.3.0.jar \
+            https://github.com/DancingSnow0517/NeoECOAEExtension/releases/download/20.3.0/neoecoae-20.3.0.jar
+          curl --fail --location --retry 3 \
+            --output build/compat/neoecoae-20.4.0.jar \
+            https://github.com/DancingSnow0517/NeoECOAEExtension/releases/download/20.4.0/neoecoae-20.4.0.jar
+
       - name: Build
         run: |
           chmod +x gradlew
-          ./gradlew clean build --stacktrace -Pae2Variant=${{ matrix.ae2Variant }}
+          ./gradlew clean build --stacktrace \
+            -Pae2Variant=${{ matrix.ae2Variant }} \
+            -PneoEco20_3Jar=build/compat/neoecoae-20.3.0.jar \
+            -PneoEco20_4Jar=build/compat/neoecoae-20.4.0.jar
 
       - name: Verify 1.20.1 artifact boundary
         shell: bash

@@ -31,7 +31,9 @@ class Ae2UelmCompatibilityTest {
         assertFalse(Ae2UelmCompatibility.ownsAe2SurfaceMixin(
                 "NetworkStorageBigIntegerSnapshotMixin"));
         assertFalse(Ae2UelmCompatibility.ownsAe2SurfaceMixin(
-                "com.syaru.ae2craftingoptimizer.mixin.NeoEcoCraftingCpuExecutionBudgetMixin"));
+                "com.syaru.ae2craftingoptimizer.mixin.NeoEco20_3CraftingCpuExecutionBudgetMixin"));
+        assertFalse(Ae2UelmCompatibility.ownsAe2SurfaceMixin(
+                "com.syaru.ae2craftingoptimizer.mixin.NeoEco20_4CraftingCpuExecutionBudgetMixin"));
         assertFalse(Ae2UelmCompatibility.ownsAe2StorageSurface());
     }
 }

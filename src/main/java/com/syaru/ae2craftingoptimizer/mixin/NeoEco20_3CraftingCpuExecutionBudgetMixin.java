@@ -2,10 +2,6 @@ package com.syaru.ae2craftingoptimizer.mixin;
 
 import appeng.api.networking.energy.IEnergyService;
 import appeng.me.service.CraftingService;
-import com.syaru.ae2craftingoptimizer.api.execution.VectorBatchExecutionOwner;
-import com.syaru.ae2craftingoptimizer.config.ACOConfig;
-import com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget;
-import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.Unique;
@@ -14,9 +10,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/** Neo ECO 20.3.xの旧FastPathBatchBudget記述子専用Mixin。 */
 @Pseudo
 @Mixin(targets = "cn.dancingsnow.neoecoae.api.me.ECOCraftingCPULogic", remap = false)
-public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
+public abstract class NeoEco20_3CraftingCpuExecutionBudgetMixin {
     @Unique
     private CraftingService aco$neoEcoCraftingService;
 
@@ -70,9 +67,7 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
             remap = false,
             require = 0)
     private void aco$beginNeoEcoExecution(CallbackInfoReturnable<Integer> callbackInfo) {
-        if (ACOConfig.throttleNeoEcoAeExecution()) {
-            aco$neoEcoExecutionStartedAt = System.nanoTime();
-        }
+        aco$neoEcoExecutionStartedAt = NeoEcoExecutionBudgetSupport.beginExecution();
     }
 
     @Inject(
@@ -81,26 +76,13 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
             remap = false,
             require = 0)
     private void aco$finishNeoEcoExecution(CallbackInfoReturnable<Integer> callbackInfo) {
-        long startedAt = aco$neoEcoExecutionStartedAt;
-        if (!ACOConfig.throttleNeoEcoAeExecution() || startedAt == 0L) {
-            return;
-        }
-
-        long elapsedNanos = System.nanoTime() - startedAt;
-        // Vector Batchは論理クラフト個数ではなく、実際に行った一回のBatch処理として学習する。
-        int completedOperations = aco$neoEcoVectorBatch
-                ? (callbackInfo.getReturnValueI() > 0 ? 1 : 0)
-                : Math.max(0, callbackInfo.getReturnValueI());
-        CraftingExecutionBudget.recordExecution(
+        NeoEcoExecutionBudgetSupport.recordExecution(
                 this,
-                aco$neoEcoRequestedOperations,
-                completedOperations,
-                elapsedNanos);
-        CraftingExecutionBudget.recordSharedExecution(
                 aco$neoEcoCraftingService,
-                this,
-                ServerTickClock.currentTick(),
-                elapsedNanos);
+                aco$neoEcoRequestedOperations,
+                aco$neoEcoVectorBatch,
+                aco$neoEcoExecutionStartedAt,
+                callbackInfo.getReturnValueI());
         aco$neoEcoExecutionStartedAt = 0L;
     }
 
@@ -122,41 +104,15 @@ public abstract class NeoEcoCraftingCpuExecutionBudgetMixin {
     private void aco$applyNeoEcoBudget(
             CallbackInfoReturnable<Integer> callbackInfo,
             boolean fastPath) {
-        if (!ACOConfig.throttleNeoEcoAeExecution()) {
-            return;
-        }
-
-        int originalOperations = callbackInfo.getReturnValueI();
-        if (originalOperations <= 0) {
-            return;
-        }
-
-        // 原子的Vector Batchを宣言した外部設備だけ、論理個数ではなく実時間で予算管理する。
-        if (fastPath
-                && this instanceof VectorBatchExecutionOwner vectorOwner
-                && vectorOwner.acoSupportsVectorBatchExecution()) {
-            // 大量個数を一つの不変Batchで処理する設備では、個数を通常push予算で切らない。
-            // ただしGridの時間予算を既に消費したtickでは一件だけに縮退し、次tickへ公平に譲る。
-            long remainingNanos = CraftingExecutionBudget.remainingSharedBudgetNanos(
-                    aco$neoEcoCraftingService,
-                    ServerTickClock.currentTick());
-            int vectorLimit = remainingNanos <= 0L ? 1 : originalOperations;
-            aco$neoEcoRequestedOperations = Math.max(aco$neoEcoRequestedOperations, 1);
-            aco$neoEcoVectorBatch = true;
-            callbackInfo.setReturnValue(vectorLimit);
-            return;
-        }
-
-        int perCpuOperations = CraftingExecutionBudget.limitExternalOperations(
+        NeoEcoExecutionBudgetSupport.LimitDecision decision = NeoEcoExecutionBudgetSupport.limitOperations(
                 this,
-                originalOperations,
-                "Neo ECO AE");
-        int limitedOperations = CraftingExecutionBudget.limitSharedOperations(
                 aco$neoEcoCraftingService,
-                this,
-                perCpuOperations,
-                ServerTickClock.currentTick());
-        aco$neoEcoRequestedOperations = Math.max(aco$neoEcoRequestedOperations, limitedOperations);
-        callbackInfo.setReturnValue(limitedOperations);
+                callbackInfo.getReturnValueI(),
+                fastPath);
+        aco$neoEcoRequestedOperations = Math.max(
+                aco$neoEcoRequestedOperations,
+                decision.requestedOperations());
+        aco$neoEcoVectorBatch |= decision.vectorBatch();
+        callbackInfo.setReturnValue(decision.limitedOperations());
     }
 }

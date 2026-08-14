@@ -169,7 +169,7 @@
 - AE2 Overclockは反射探索をキャッシュし、利用可能ならMethodHandleへ変換します。
 - AE2 OverclockのUpgrade Card数は同一host・同一tickだけ再利用します。
 - Upgrade Card変更は遅くとも次tickで反映します。
-- Neo ECOは `20.3.x` の独自Scheduler、FastPath、保存、表示、Recipe Logicを維持します。
+- Neo ECOは `20.3.x` / `20.4.x` の独自Scheduler、FastPath、保存、表示、Recipe Logicを維持します。
 - 任意連携の対象クラスまたは記述子が変わった場合、その連携だけを無効化して原因をログへ出します。
 
 ## Config方針
@@ -203,7 +203,7 @@
 - 現行パック確認対象はAdvanced AE `1.3.x` 系列です。同系列の公開版でACOのMixin対象クラス差分を確認済みです。
 - 現行パック確認対象はExtendedAE `1.4.15` です。
 - 現行パック確認対象はAE2 Overclocked `1.2.3-fix3` です。
-- Neo ECO AE Extension `20.3.0` は任意のcompile-only検証対象です。
+- Neo ECO AE Extension `20.3.0` と `20.4.0` は任意のバイトコード契約検証対象です。
 - バージョン範囲を広げる場合、クラス存在だけでなく実動作を試験します。
 - Arclight固有API、Bukkit API、Paper APIを使用しません。
 - EMI、JEI、KubeJSのRecipe表示・再読込を妨げてはいけません。

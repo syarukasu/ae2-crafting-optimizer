@@ -55,7 +55,7 @@ AE2 remains authoritative for crafting plans, missing ingredients, job submissio
 
 Install the same ACO jar on the dedicated server and every client.
 
-GTCEu Modern, Mekanism, Advanced AE, and Neo ECO AE Extension integrations are optional. Their pseudo-Mixins remain inactive when the corresponding mod is not installed. Advanced AE Quantum Computers receive only ACO's effective server execution cap. Neo ECO 20.3.x custom CPUs can join ACO's adaptive and shared execution budgets while retaining Neo ECO's own scheduler and FastPath. Capacity, structure rules, displayed values, and crafting results remain unchanged. The 1.2.0 accepted-execution-count API remains link-compatible, but its CPU execution Mixins are unregistered in 1.2.2.
+GTCEu Modern, Mekanism, Advanced AE, and Neo ECO AE Extension integrations are optional. Their pseudo-Mixins remain inactive when the corresponding mod is not installed. Advanced AE Quantum Computers receive only ACO's effective server execution cap. Neo ECO 20.3.x and 20.4.x custom CPUs can join ACO's adaptive and shared execution budgets while retaining Neo ECO's own scheduler and FastPath. ACO selects the matching execution hook because Neo ECO 20.4 changed its CPU method descriptor and long FastPath internals. Capacity, structure rules, displayed values, and crafting results remain unchanged. The 1.2.0 accepted-execution-count API remains link-compatible, but its CPU execution Mixins are unregistered in 1.2.2.
 
 ACO 1.2.2 unregisters terminal snapshots and craftable caching, storage-watcher pacing, aggregate refresh coalescing, rolling terminal range packets, client view coalescing, mutable Import/Export Bus and IO Port paths, capability/storage-simulation caches, grid-tick deferral, and legacy transactional CPU execution. Their old config keys remain readable but cannot reactivate those paths.
 
@@ -139,7 +139,7 @@ ACOはレシピの追加・削除、クラフト可否、AE2クラフトグラ�
 
 専用サーバーと全クライアントへ同じACOのJARを導入してください。
 
-GTCEu Modern、Mekanism、Advanced AE、Neo ECO AE Extensionは任意連携です。対象MODが無い場合、そのPseudo Mixinは適用されません。Advanced AE Quantum Computerには表示値を変えない実行上限だけを適用します。Neo ECO 20.3.xの独自CPUは、本体のスケジューラとFastPathを維持したままACOのCPU別適応予算・MEグリッド共有予算へ参加できます。容量、構造、表示値、クラフト結果は変更しません。1.2.0の実受理数APIはリンク互換のため残しますが、1.2.2ではCPU実行Mixinを登録していません。
+GTCEu Modern、Mekanism、Advanced AE、Neo ECO AE Extensionは任意連携です。対象MODが無い場合、そのPseudo Mixinは適用されません。Advanced AE Quantum Computerには表示値を変えない実行上限だけを適用します。Neo ECO 20.3.xと20.4.xの独自CPUは、本体のスケジューラとFastPathを維持したままACOのCPU別適応予算・MEグリッド共有予算へ参加できます。Neo ECO 20.4ではCPUメソッド記述子とlong FastPath内部が変わったため、ACOは実バージョンに一致する実行Hookだけを選択します。容量、構造、表示値、クラフト結果は変更しません。1.2.0の実受理数APIはリンク互換のため残しますが、1.2.2ではCPU実行Mixinを登録していません。
 
 ACO 1.2.2では、端末snapshot/craftable、Storage Watcher、aggregate refresh、端末range packet、client view、Import/Export Bus、IO Port、Capability、ストレージsimulation、Grid Tick遅延、旧transaction CPU実行を登録解除しています。以前のConfigキーは読み込めますが、これらの経路を再有効化しません。
 

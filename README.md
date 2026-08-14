@@ -31,7 +31,7 @@ uses `aco<version>_1.20.1.jar`; the NeoForge line is maintained separately on
 - AE2 Unofficial Extended Life Modern `15.5.0-uelm` (optional replacement
   profile; keeps the `ae2` mod id)
 - Optional Advanced AE `1.3.x-1.20.1` (Forge)
-- Optional Neo ECO AE Extension `20.3.x`
+- Optional Neo ECO AE Extension `20.3.x` or `20.4.x`
 - Optional GTCEu Modern `7.5.3`
 - Optional Mekanism `10.4.16`
 - Optional Applied Mekanistics `1.4.3`
