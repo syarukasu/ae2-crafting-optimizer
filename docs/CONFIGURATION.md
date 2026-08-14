@@ -24,7 +24,7 @@ Important calculation options include:
 | Key | Default | Purpose |
 | --- | ---: | --- |
 | `enableAqeBigCraftingProfile` | `true` | Activates the narrow AQE compiled/checked profile only when Advanced AE and AQE are installed. |
-| `enableInsaneAeBigCraftingProfile` | `true` | Activates the same strict calculation profile when InsaneAE is installed, so InsaneAE does not apply a competing calculation batch. |
+| `enableExternalBigCraftingProfile` | `true` | Allows a registered external CPU consumer to accept an exact BigInteger plan. Registration is performed by the consumer through the public API. |
 | `enableLongRootCraftAmounts` | `true` | Adds the signed-long root-order path while preserving AE2's original int path. |
 | `enableCompiledCraftingGraph` | `true` | Reuses a generation-keyed deterministic graph where the active profile allows it. |
 | `enableShadowMode` | `true` | Compares eligible compiled results against AE2 without changing normal results. |

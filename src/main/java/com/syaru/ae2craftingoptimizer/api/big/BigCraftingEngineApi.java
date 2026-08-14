@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.stacks.AEKey;
@@ -30,12 +31,28 @@ public final class BigCraftingEngineApi {
     public static final int AMOUNT_LEDGER_API_VERSION = 1;
     /** AE2計算プロファイル照会APIの契約番号。 */
     public static final int CALCULATION_PROFILE_API_VERSION = 1;
+    /** 外部CPUが正確なBigInteger計画の提出境界を所有するAPIの契約番号。 */
+    public static final int EXTERNAL_CONSUMER_API_VERSION = 1;
+    private static final AtomicInteger EXTERNAL_CONSUMER_COUNT = new AtomicInteger();
 
     private BigCraftingEngineApi() {
     }
 
     public static boolean isEnabled() {
         return ACOConfig.enableBigIntegerCraftingBackend();
+    }
+
+    /**
+     * 外部CPUアドオンがACO BigInteger計画の実行を所有することを登録する。
+     * ACOは登録先のCPUを識別・tick・実行せず、提出境界の能力だけを公開する。
+     */
+    public static void registerExternalBigIntegerPlanConsumer() {
+        EXTERNAL_CONSUMER_COUNT.incrementAndGet();
+    }
+
+    /** 外部CPUがBigInteger計画を引き受ける登録を済ませたか返す。 */
+    public static boolean hasExternalBigIntegerPlanConsumer() {
+        return EXTERNAL_CONSUMER_COUNT.get() > 0;
     }
 
     /**

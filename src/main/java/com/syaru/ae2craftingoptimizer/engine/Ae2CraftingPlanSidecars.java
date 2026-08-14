@@ -50,6 +50,30 @@ public final class Ae2CraftingPlanSidecars {
         return facade;
     }
 
+    /**
+     * AE2や重複計算キャッシュが同じ内容のCraftingPlanを再構築した場合に、
+     * 元のACO計画の正確なSidecarだけを新しいFacadeへ引き継ぐ。
+     * 内容やbytesが同じという理由で別Jobへ紐付けることはしない。
+     */
+    public static void alias(ICraftingPlan alias, ICraftingPlan source) {
+        // 通常AE2計画へ推測でSidecarを追加せず、純正Facade同士だけを対象にする。
+        if (!(alias instanceof CraftingPlan aliasFacade) || alias == source) {
+            return;
+        }
+        WideCraftingPlan metadata = metadata(source).orElse(null);
+        // 元計画にACO Sidecarが無い場合は、別Jobの正確値を流用しない。
+        // 同じ計算インスタンスのmetadataだけを再利用し、同値な別注文を混同しない。
+        if (metadata == null) {
+            return;
+        }
+        synchronized (SIDECARS) {
+            removeCollectedFacades();
+            SIDECARS.put(
+                    new IdentityWeakReference(aliasFacade, COLLECTED_FACADES),
+                    metadata);
+        }
+    }
+
     /** 純正Facadeまたは旧内部呼出しのACO計画から、正確なSidecarを取得する。 */
     public static Optional<WideCraftingPlan> metadata(ICraftingPlan plan) {
         if (plan instanceof WideCraftingPlan widePlan) {

@@ -169,7 +169,7 @@ public final class ACOConfig {
     private static final ModConfigSpec.BooleanValue LOG_CACHE_STATISTICS;
     private static final ModConfigSpec.BooleanValue LOG_BIG_INTEGER_PLAN_DECLINES;
     private static final ModConfigSpec.BooleanValue ENABLE_AQE_BIG_CRAFTING_PROFILE;
-    private static final ModConfigSpec.BooleanValue ENABLE_INSANE_AE_BIG_CRAFTING_PROFILE;
+    private static final ModConfigSpec.BooleanValue ENABLE_EXTERNAL_BIG_CRAFTING_PROFILE;
     private static final ModConfigSpec.BooleanValue ENABLE_LONG_ROOT_CRAFT_AMOUNTS;
     private static final ModConfigSpec.BooleanValue ENABLE_EXPERIMENTAL_CRAFTING_ENGINE;
     private static final ModConfigSpec.BooleanValue ENABLE_CRAFTING_ENGINE_SHADOW_MODE;
@@ -734,12 +734,12 @@ public final class ACOConfig {
                         "Enable only the AQE BigInteger calculation and execution path when Advanced AE and Advanced Quantum Engineering are installed.",
                         "This does not enable Native Batch, bus rewrites, terminal rewrites, or normal-AE2 authoritative replacement.")
                 .define("enableAqeBigCraftingProfile", true);
-        ENABLE_INSANE_AE_BIG_CRAFTING_PROFILE = builder
+        ENABLE_EXTERNAL_BIG_CRAFTING_PROFILE = builder
                 .comment(
-                        "Enable the same strict BigInteger calculation profile when InsaneAE is installed.",
-                        "InsaneAE's calculation batch defers to ACO while this profile is active.",
+                        "Enable the strict BigInteger calculation profile for an external CPU add-on.",
+                        "The add-on must explicitly register the public BigInteger plan-consumer API.",
                         "This does not enable Native Batch, bus rewrites, terminal rewrites, or ambiguous recipe replacement.")
-                .define("enableInsaneAeBigCraftingProfile", true);
+                .define("enableExternalBigCraftingProfile", true);
         ENABLE_LONG_ROOT_CRAFT_AMOUNTS = builder
                 .comment(
                         "Allow the AE2 craft-amount screen to submit root amounts from Integer.MAX_VALUE + 1 through Long.MAX_VALUE.",
@@ -1603,19 +1603,14 @@ public final class ACOConfig {
                 && ModList.get().isLoaded("advanced_quantum_engineering");
     }
 
-    /**
-     * InsaneAE搭載時だけ、AQEと同じ厳密BigInteger計算プロファイルを有効にする。
-     * 計画を作れない環境へ広い値を公開しないよう、設定とMod検出を両方確認する。
-     */
-    public static boolean enableInsaneAeBigCraftingProfile() {
-        return enableOptimizer()
-                && ENABLE_INSANE_AE_BIG_CRAFTING_PROFILE.get()
-                && ModList.get().isLoaded("insaneae");
+    /** 外部CPUアドオン向けの厳密BigInteger計算プロファイルを設定で切り替える。 */
+    public static boolean enableExternalBigCraftingProfile() {
+        return enableOptimizer() && ENABLE_EXTERNAL_BIG_CRAFTING_PROFILE.get();
     }
 
-    /** AQEまたはInsaneAEがBigInteger計算の連携先として存在するかを返す。 */
+    /** AQEまたは公開APIへ登録された外部CPUがBigInteger計算の連携先として存在するかを返す。 */
     public static boolean enableBigCraftingProfile() {
-        return enableAqeBigCraftingProfile() || enableInsaneAeBigCraftingProfile();
+        return enableAqeBigCraftingProfile() || enableExternalBigCraftingProfile();
     }
 
     public static boolean enableLongRootCraftAmounts() {
