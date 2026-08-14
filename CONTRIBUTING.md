@@ -7,10 +7,11 @@ resources, configs, persistence, or build logic:
 
 1. Read `docs/PROJECT_CHARTER.md`.
 2. Read `docs/REGRESSION_HISTORY.md`.
-3. Create or update `docs/issues/ISSUE-<number>.md` from the template.
-4. Document the problem, evidence, ownership, invariants, forbidden changes,
+3. Read `docs/CLASS_RESPONSIBILITIES.md` and identify the owning class or layer.
+4. Create or update `docs/issues/ISSUE-<number>.md` from the template.
+5. Document the problem, evidence, ownership, invariants, forbidden changes,
    implementation plan, and tests.
-5. Mark the specification `Ready` only after every pre-implementation check is complete.
+6. Mark the specification `Ready` only after every pre-implementation check is complete.
 
 Do not begin implementation while the Issue specification is `Draft`. If the
 code proves an assumption wrong, update the specification before changing the

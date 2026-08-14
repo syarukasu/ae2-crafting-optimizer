@@ -15,6 +15,7 @@ AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのNeoForge
 
 開発変更は[プロジェクト憲章](docs/PROJECT_CHARTER.md)と
 [Issue先行開発手順](docs/ISSUE_WORKFLOW.md)に従います。実装前に必ず
+[クラス責務一覧](docs/CLASS_RESPONSIBILITIES.md)と
 [`docs/issues`](docs/issues/README.md)の番号付き仕様書を読みます。
 
 この系統の永続ブランチは `mc/1.21.1` で、`main` はNeoForge 1.21.1系です。

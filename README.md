@@ -20,7 +20,8 @@ contract before moving any input.
 
 Development is governed by the [project charter](docs/PROJECT_CHARTER.md) and
 [Issue-first workflow](docs/ISSUE_WORKFLOW.md). Every implementation starts by
-reading a numbered specification under [`docs/issues`](docs/issues/README.md).
+reading the [class responsibility catalog](docs/CLASS_RESPONSIBILITIES.md) and a
+numbered specification under [`docs/issues`](docs/issues/README.md).
 
 The persistent branch for this line is `mc/1.21.1`, and `main` is the
 NeoForge 1.21.1 line. Release artifacts are named

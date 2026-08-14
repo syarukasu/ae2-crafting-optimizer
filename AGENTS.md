@@ -5,9 +5,10 @@
 1. GitHub Issue番号を確定する。
 2. `docs/PROJECT_CHARTER.md`を読む。
 3. `docs/REGRESSION_HISTORY.md`を読む。
-4. `docs/issues/ISSUE-<番号>.md`を作成または更新する。
-5. そのIssue仕様書の状態を`Ready`にする。
-6. `docs/ISSUE_WORKFLOW.md`に従ってから実装を始める。
+4. `docs/CLASS_RESPONSIBILITIES.md`を読み、変更対象の所有クラスと依存方向を確定する。
+5. `docs/issues/ISSUE-<番号>.md`を作成または更新する。
+6. そのIssue仕様書の状態を`Ready`にする。
+7. `docs/ISSUE_WORKFLOW.md`に従ってから実装を始める。
 
 実装中に前提が変わった場合は、コードより先にIssue仕様書を更新してください。
 

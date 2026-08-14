@@ -2415,67 +2415,19 @@ public final class PhysicalCraftingTreeTransaction {
             Map<K, BigInteger> target,
             K key,
             BigInteger amount) {
-        Objects.requireNonNull(
-                key,
-                "key");
-        BigInteger checked =
-                Objects.requireNonNull(
-                        amount,
-                        "amount");
-        // 0以下を在庫へ入れず、同一キーはBigInteger加算で一行に畳み込む。
-        if (checked.signum() <= 0) {
-            throw new IllegalArgumentException(
-                    "exact crafting amount must be positive");
-        }
-        target.merge(
-                key,
-                checked,
-                BigInteger::add);
+        ExactCountMap.mergePositive(target, key, amount);
     }
 
     private static <K> Map<K, BigInteger> checkedCounts(
             Map<K, BigInteger> source,
             String name,
             boolean allowEmpty) {
-        Objects.requireNonNull(
+        // 65,536件は数量上限ではなく、破損NBTによる巨大Map確保を防ぐ既存上限。
+        return ExactCountMap.immutablePositiveCopy(
                 source,
-                name);
-        // キー件数上限は数量ではなく、破損NBTによる巨大Map確保だけを防ぐ。
-        if (source.size()
-                > MAXIMUM_EXACT_KEYS) {
-            throw new IllegalArgumentException(
-                    name + " has too many keys");
-        }
-        Map<K, BigInteger> result =
-                new LinkedHashMap<>();
-        // 各キーを正数BigIntegerとして順序付き不変Mapへ複製する。
-        for (Map.Entry<K, BigInteger> entry :
-                source.entrySet()) {
-            K key =
-                    Objects.requireNonNull(
-                            entry.getKey(),
-                            name + " key");
-            BigInteger amount =
-                    Objects.requireNonNull(
-                            entry.getValue(),
-                            name + " amount");
-            // 0以下のentryは存在しないキーと区別できないため拒否する。
-            if (amount.signum() <= 0) {
-                throw new IllegalArgumentException(
-                        name + " contains a non-positive amount");
-            }
-            result.put(
-                    key,
-                    amount);
-        }
-        // 呼出側が空を許可しない台帳には一件以上を要求する。
-        if (!allowEmpty
-                && result.isEmpty()) {
-            throw new IllegalArgumentException(
-                    name + " must not be empty");
-        }
-        return immutableOrderedMap(
-                result);
+                name,
+                allowEmpty,
+                MAXIMUM_EXACT_KEYS);
     }
 
     private static Map<String, PatternAccountingIdentity> checkedPatternIdentities(
@@ -2654,9 +2606,7 @@ public final class PhysicalCraftingTreeTransaction {
 
     private static <K> Map<K, BigInteger> immutableOrderedMap(
             Map<K, BigInteger> source) {
-        return Collections.unmodifiableMap(
-                new LinkedHashMap<>(
-                        source));
+        return ExactCountMap.immutableOrderedCopy(source);
     }
 
     private static ListTag encodeCounts(
@@ -2797,21 +2747,7 @@ public final class PhysicalCraftingTreeTransaction {
     private static <K> boolean containsAll(
             Map<K, BigInteger> available,
             Map<K, BigInteger> required) {
-        // 全要求キーが正確な在庫量以下の場合だけ、Batch抽出を許可する。
-        for (Map.Entry<K, BigInteger> entry :
-                required.entrySet()) {
-            // 一件でも不足すればセルへ触る前にfalseを返す。
-            if (available
-                            .getOrDefault(
-                                    entry.getKey(),
-                                    BigInteger.ZERO)
-                            .compareTo(
-                                    entry.getValue())
-                    < 0) {
-                return false;
-            }
-        }
-        return true;
+        return ExactCountMap.containsAll(available, required);
     }
 
     private static ListTag requireCompoundList(
