@@ -123,4 +123,5 @@ ACOは計画、BigInteger会計、物理クラフト、Batch、tick予算、任�
 
 ## Pull Requests
 
-作成前。Forge 1.20.1とNeoForge 1.21.1を別PRにする。
+- Forge 1.20.1: https://github.com/syarukasu/ae2-crafting-optimizer/pull/88
+- NeoForge 1.21.1: https://github.com/syarukasu/ae2-crafting-optimizer/pull/89
