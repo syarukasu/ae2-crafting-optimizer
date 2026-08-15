@@ -29,6 +29,8 @@ Important calculation options include:
 | `enableShadowMode` | `true` | Compares eligible compiled results against AE2 without changing normal results. |
 | `enableExactBigIntegerInventorySnapshots` | `true` | Keeps exact sidecar stock while AE2 sees a saturated long facade. |
 | `enableAtomicBigCapacityPlans` | `true` | Allows exact planning above signed-long aggregate limits for supported hosts. |
+| `retryIncompleteCraftingGraphSnapshot` | `true` | Rebuilds the compiled graph when a root program was unavailable only because that snapshot was incomplete, at most once per snapshot. Structural reasons are never retried. |
+| `logWidePlanSubmissionDeclines` | `true` | Logs once per output when a crafting CPU without a BigInteger ledger declines a plan above signed-long limits. The decline itself is unaffected. |
 | `bigIntegerMaximumBits` | implementation ceiling | Bounds all BigInteger intermediates and persistence. |
 
 The exact decimal ceiling is `10^16384 - 1`.

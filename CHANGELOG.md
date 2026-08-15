@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Stopped reporting `CPU_TOO_SMALL` when a crafting CPU declines a plan whose
+  exact byte cost exceeds signed long (issue #103, problem 1). The refusal is
+  unrelated to free capacity, so the previous code sent players to add crafting
+  storage that could never help. The decline now counts the CPU as excluded
+  rather than too small and, unless `logWidePlanSubmissionDeclines` is off,
+  logs one warning per output with the exact byte cost and the free bytes the
+  CPU reports. The refusal itself remains fail-closed and unchanged.
+- Split the single "no compiled root program" fallback into distinct reasons
+  (issue #103, problem 2). Cycles, multiple producers, byproduct patterns, and
+  size limits keep their own reason codes; a root that failed only because that
+  generation's graph snapshot was incomplete now reports
+  `INCOMPLETE_GRAPH_SNAPSHOT` instead of being reported as an ambiguous
+  producer, and is logged once per output and generation pair. A root that AE2
+  currently has patterns for, but which is absent from the snapshot, is no
+  longer compiled into a degenerate terminal-only program.
+
+### Added
+
+- `retryIncompleteCraftingGraphSnapshot` rebuilds the compiled crafting graph
+  when a root program was unavailable only because that snapshot was
+  incomplete. The rebuild is bounded to one per snapshot, so a network holding
+  a pattern that can never compile does not rebuild the graph on every
+  calculation. Structural failures are never retried because they cannot change
+  within a generation.
+
 ## [1.6.2] - 2026-08-08
 
 ### Added

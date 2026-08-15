@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
@@ -70,6 +71,37 @@ public final class Ae2CompiledCraftingGraphCache {
                         0L,
                         RecipeGenerationTracker.generation()),
                 0);
+    }
+
+    /**
+     * 指定したSnapshotがまだ現役なら破棄してから、同じ世代でもう一度コンパイルする。
+     *
+     * <p>世代の取り遅れで不完全なSnapshotが残った場合の取り直し用。ただし
+     * AppliedEのように「その世代では必ずコンパイルできない」Patternも同じ不完全印を付けるため、
+     * 一つのSnapshotにつき取り直しは一回までに固定する。これがないと、恒久的に不完全な
+     * ネットワークで注文のたびにGraph全体を作り直してしまう。</p>
+     *
+     * <p>取り直しても不完全なままなら、その結果へ印が付き、以後は世代が変わるまで
+     * 再構築を行わない。</p>
+     */
+    public static Snapshot recompile(IGrid grid, Level level, Snapshot stale) {
+        // 同じSnapshotから二度目の取り直しはしない。原因が世代なら一度で解ける。
+        if (!stale.claimRetryRebuild()) {
+            return stale;
+        }
+        ICraftingService service = grid.getCraftingService();
+        synchronized (CACHE) {
+            Map<ResourceKey<Level>, Snapshot> byDimension = CACHE.get(service);
+            Snapshot current = byDimension == null ? null : byDimension.get(level.dimension());
+            // 取り直しの引き金になった当人がまだ載っている場合だけ捨てる。
+            if (current == stale && byDimension != null) {
+                byDimension.remove(level.dimension());
+            }
+        }
+        Snapshot rebuilt = getOrCompile(grid, level);
+        // 作り直した結果がまだ不完全でも、同じ世代でこれ以上作り直さない。
+        rebuilt.claimRetryRebuild();
+        return rebuilt;
     }
 
     public static void clear() {
@@ -152,10 +184,12 @@ public final class Ae2CompiledCraftingGraphCache {
         private final Set<AEKey> incompletelyCompiledOutputs;
         private final Set<AEKey> craftables;
         private final long recipeGeneration;
-        private final Map<AEKey, Optional<CompiledRootProgram<AEKey>>> rootPrograms =
+        private final Map<AEKey, CompiledRootProgram.Outcome<AEKey>> rootPrograms =
                 new LinkedHashMap<>();
         private final Map<AEKey, Optional<Ae2StrictCraftingTopology>> strictTopologies =
                 new LinkedHashMap<>();
+        /** このSnapshotを起点にした取り直しを既に一度使ったか。 */
+        private final AtomicBoolean retryRebuildClaimed = new AtomicBoolean();
 
         private Snapshot(
                 ICraftingService service,
@@ -180,6 +214,11 @@ public final class Ae2CompiledCraftingGraphCache {
 
         public CompiledCraftingGraph<AEKey> graph() {
             return graph;
+        }
+
+        /** 取り直し権を一度だけ与える。既に使われていればfalseを返す。 */
+        private boolean claimRetryRebuild() {
+            return retryRebuildClaimed.compareAndSet(false, true);
         }
 
         public String id(IPatternDetails pattern) {
@@ -223,24 +262,47 @@ public final class Ae2CompiledCraftingGraphCache {
          * 世代変更時はSnapshotごと破棄されるため、古いPattern参照は残らない。
          */
         public Optional<CompiledRootProgram<AEKey>> rootProgram(AEKey root) {
+            return rootProgramOutcome(root).program();
+        }
+
+        /**
+         * {@link #rootProgram} と同じ結果に、コンパイルできなかった理由を添えて返す。
+         *
+         * <p>構造的に組めないルートと、この世代のSnapshotが揃わなかっただけのルートを
+         * 呼出側が区別できないと、プレイヤーへ直せない原因を「曖昧」として提示してしまう。</p>
+         */
+        public CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(AEKey root) {
             synchronized (rootPrograms) {
-                Optional<CompiledRootProgram<AEKey>> cached = rootPrograms.get(root);
+                CompiledRootProgram.Outcome<AEKey> cached = rootPrograms.get(root);
                 // 既に成功またはFallbackが確定したルートは、同じ世代中に再探索しない。
                 if (cached != null) {
                     return cached;
                 }
             }
 
-            Optional<CompiledRootProgram<AEKey>> compiled = CompiledRootProgram.tryCompile(
+            CompiledRootProgram.Outcome<AEKey> compiled = CompiledRootProgram.compile(
                     graph,
                     root,
                     service::canEmitFor);
-            if (compiled.isPresent() && touchesIncompletePattern(compiled.get())) {
+            if (compiled.program().isPresent()
+                    && touchesIncompletePattern(compiled.program().get())) {
                 // 未コンパイルPatternを終端素材と誤認したShadow計算も作らず、直ちにAE2へ戻す。
-                compiled = Optional.empty();
+                compiled = compiled.withFailure(RootProgramFailure.INCOMPLETE_PATTERN_SNAPSHOT);
+            } else if (compiled.program().isPresent()
+                    && graph.patternsFor(root).isEmpty()
+                    && registeredPatternsByOutput.getOrDefault(root, 0) == 0
+                    && !service.getCraftingFor(root).isEmpty()) {
+                /*
+                 * AE2は現在このルートのPatternを持っているのに、Snapshotには一件も無い。
+                 * その場合コンパイルは終端ノード一個のProgramとして成立してしまうが、正体は
+                 * 世代の取り遅れなので採用しない。AE2側にもPatternが無い通常の不足要求は、
+                 * これまで通り終端Programのまま扱う。
+                 */
+                compiled = CompiledRootProgram.Outcome.failed(
+                        RootProgramFailure.MISSING_FROM_SNAPSHOT);
             }
             synchronized (rootPrograms) {
-                Optional<CompiledRootProgram<AEKey>> raced = rootPrograms.get(root);
+                CompiledRootProgram.Outcome<AEKey> raced = rootPrograms.get(root);
                 // 別計算スレッドが先に登録した場合は、その同一世代Programを採用する。
                 if (raced != null) {
                     return raced;

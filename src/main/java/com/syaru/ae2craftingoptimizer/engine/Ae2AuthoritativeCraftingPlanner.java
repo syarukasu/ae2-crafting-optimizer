@@ -32,6 +32,9 @@ public final class Ae2AuthoritativeCraftingPlanner {
     /** 64ノードごとに世代と割込みを再検証するためのbit mask。 */
     private static final int GENERATION_CHECK_INTERVAL_MASK = 63;
     private static final Set<String> LOGGED_FALLBACKS = ConcurrentHashMap.newKeySet();
+    /** Snapshot都合のFallbackログ重複除去表の固定上限。超えたら一括破棄する。 */
+    private static final int MAXIMUM_LOGGED_SNAPSHOT_FALLBACKS = 4096;
+    private static final Set<String> LOGGED_SNAPSHOT_FALLBACKS = ConcurrentHashMap.newKeySet();
 
     private Ae2AuthoritativeCraftingPlanner() {
     }
@@ -91,11 +94,29 @@ public final class Ae2AuthoritativeCraftingPlanner {
             capture.requireCurrentGenerations();
             Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot =
                     Ae2CompiledCraftingGraphCache.getOrCompile(capture.grid(), capture.level());
-            var optionalProgram = graphSnapshot.rootProgram(output);
+            CompiledRootProgram.Outcome<AEKey> outcome = graphSnapshot.rootProgramOutcome(output);
+            /*
+             * 構造的に組めないルートは取り直しても同じ結果になる。Snapshotが揃わなかっただけの
+             * 失敗に限り、同じ注文の中で一度だけGraphを取り直してから諦める。
+             */
+            if (shouldRetryRootProgram(
+                    outcome.failure(),
+                    ACOConfig.retryIncompleteCraftingGraphSnapshot())) {
+                graphSnapshot = Ae2CompiledCraftingGraphCache.recompile(
+                        capture.grid(),
+                        capture.level(),
+                        graphSnapshot);
+                outcome = graphSnapshot.rootProgramOutcome(output);
+            }
+            var optionalProgram = outcome.program();
             // 曖昧、循環、複数出力などを含むルートはコンパイルせずAE2へ戻す。
             if (optionalProgram.isEmpty()) {
-                CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
-                        FallbackReasonCode.AMBIGUOUS_PRODUCER);
+                CraftingFallbackDiagnostics.record(
+                        output,
+                        capture.patternGeneration(),
+                        capture.recipeGeneration(),
+                        classifyRootProgramFailure(outcome.failure()));
+                logRootProgramFailureOnce(output, outcome.failure(), capture);
                 return null;
             }
             CompiledRootProgram<AEKey> program = optionalProgram.get();
@@ -434,6 +455,36 @@ public final class Ae2AuthoritativeCraftingPlanner {
     }
 
     /**
+     * Root Programを取り直す価値があるのは、Snapshot都合の失敗だけ。
+     *
+     * <p>曖昧・循環・複数出力・上限超過は同じ世代で必ず同じ結果になるため、
+     * 取り直しはGraph再構築の費用を払うだけで結果が変わらない。</p>
+     */
+    static boolean shouldRetryRootProgram(
+            RootProgramFailure failure,
+            boolean retryEnabled) {
+        return retryEnabled && failure.snapshotShaped();
+    }
+
+    /**
+     * 「プレイヤーが構成を直せば解ける理由」と「Snapshotが揃わなかった理由」を別の診断コードへ割る。
+     *
+     * <p>両方を{@code AMBIGUOUS_PRODUCER}へ潰すと、曖昧でないルートまで曖昧として報告される。</p>
+     */
+    static FallbackReasonCode classifyRootProgramFailure(RootProgramFailure failure) {
+        return switch (failure) {
+            case CYCLE -> FallbackReasonCode.CYCLE;
+            case MULTIPLE_PRODUCERS -> FallbackReasonCode.AMBIGUOUS_PRODUCER;
+            case MULTIPLE_OUTPUTS -> FallbackReasonCode.UNSUPPORTED_PATTERN;
+            case PROGRAM_TOO_LARGE -> FallbackReasonCode.PROGRAM_TOO_LARGE;
+            case INCOMPLETE_PATTERN_SNAPSHOT, MISSING_FROM_SNAPSHOT ->
+                    FallbackReasonCode.INCOMPLETE_GRAPH_SNAPSHOT;
+            // Programが無いのに理由もない結果は作れないが、診断を落とさず残す。
+            case NONE -> FallbackReasonCode.NO_COMPILED_PROGRAM;
+        };
+    }
+
+    /**
      * 厳密Topologyが既に成立した後の採用規則。
      * wide注文だけはAE2標準計算でShadow教材を作れないため、専用設定を維持する。
      */
@@ -501,6 +552,41 @@ public final class Ae2AuthoritativeCraftingPlanner {
         Map<String, BigInteger> result = new LinkedHashMap<>();
         counts.forEach((key, amount) -> result.put(key, BigInteger.valueOf(amount)));
         return Map.copyOf(result);
+    }
+
+    /**
+     * 取り直しても解けなかったSnapshot都合のFallbackだけを、世代付きで一度ずつ記録する。
+     *
+     * <p>構造的な理由はプレイヤーが構成を見れば分かるが、こちらは外から一切見えない。
+     * 表は出力・理由・世代の組で重複を除き、固定件数を超えたら丸ごと捨てる。</p>
+     */
+    private static void logRootProgramFailureOnce(
+            AEKey output,
+            RootProgramFailure failure,
+            Capture capture) {
+        // 構造的な理由は同じ世代で毎回再現するため、ログを増やす価値がない。
+        if (!failure.snapshotShaped()) {
+            return;
+        }
+        String key = output.getId()
+                + ":" + failure
+                + ":" + capture.patternGeneration()
+                + ":" + capture.recipeGeneration();
+        // 世代が進み続ける環境でも常駐量を固定するため、上限で一括破棄する。
+        if (LOGGED_SNAPSHOT_FALLBACKS.size() >= MAXIMUM_LOGGED_SNAPSHOT_FALLBACKS) {
+            LOGGED_SNAPSHOT_FALLBACKS.clear();
+        }
+        if (!LOGGED_SNAPSHOT_FALLBACKS.add(key)) {
+            return;
+        }
+        AE2CraftingOptimizer.LOGGER.warn(
+                "ACO returned {} to AE2 because its compiled crafting graph snapshot was incomplete"
+                        + " ({}); patternGeneration={} recipeGeneration={}."
+                        + " This is not an ambiguous recipe and cannot be fixed by changing patterns.",
+                output.getId(),
+                failure,
+                capture.patternGeneration(),
+                capture.recipeGeneration());
     }
 
     private static void logFallbackOnce(AEKey output, Throwable failure) {

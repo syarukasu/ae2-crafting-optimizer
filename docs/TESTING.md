@@ -24,6 +24,10 @@ Automated tests cover:
 - physical Worker formula multiplication;
 - durable terminal receipt identity and explicit forget.
 - nine identical signed-long input slots without merged-input rejection.
+- distinct compiled root-program failure reasons for cycles, multiple
+  producers, byproduct patterns, and incomplete graph snapshots;
+- retrying only snapshot-shaped root-program failures;
+- refusing a wide plan without claiming that the crafting CPU is too small.
 - exact NetworkStorage snapshot reuse within one tick;
 - same-tick invalidation after a storage generation change;
 - refusal to reuse a snapshot across ticks;
@@ -190,6 +194,50 @@ must return as output, never as both output and original input.
 3. Confirm per-grid start and active-stage budgets are respected.
 4. Confirm the small job continues to receive scheduler opportunities.
 5. Record TPS, MSPT, GC allocation, and `/aco stats`.
+
+### Wide Plan Submission Refusal
+
+Covers issue #103, problem 1.
+
+1. Build a two-stage chain whose total executions exceed `Long.MAX_VALUE`
+   (for example `1 log -> 4 planks` and `1 plank -> 1 button`, then order
+   `Long.MAX_VALUE` buttons). Two stages put the execution total at roughly
+   1.25x the order, which no longer fits a signed long.
+2. Give the network a standard AE2 crafting CPU with `Long.MAX_VALUE` free
+   bytes, so the required bytes and the free bytes print as the same number.
+3. Submit the job and confirm the refusal does **not** say the CPU is too
+   small. The plan is declined because no signed-long CPU ledger can hold it.
+4. Confirm `latest.log` contains exactly one `ACO refused to submit a plan for
+   ... to a standard AE2 crafting CPU` warning per output, carrying the exact
+   byte count and the free bytes the CPU reports.
+5. Add crafting storage and resubmit. The refusal must be unchanged; the
+   message must not have sent the player to add storage in the first place.
+6. Repeat with an Advanced AE crafting CPU that has no registered BigInteger
+   host and confirm the same non-capacity refusal.
+7. Set `logWidePlanSubmissionDeclines = false` and confirm the refusal itself
+   still happens with no new warning line.
+
+### Incomplete Graph Snapshot Fallback
+
+Covers issue #103, problem 2.
+
+1. Order the same two-stage chain while patterns are being added or removed so
+   the pattern generation moves during the calculation.
+2. When ACO returns the calculation to AE2, confirm `/aco stats` and the slow
+   calculation line report `INCOMPLETE_GRAPH_SNAPSHOT`, never
+   `AMBIGUOUS_PRODUCER`, for a root that has exactly one pattern.
+3. Confirm `latest.log` carries one `compiled crafting graph snapshot was
+   incomplete` warning per output and generation pair, including
+   `patternGeneration` and `recipeGeneration`.
+4. Encode a genuinely ambiguous root (two patterns for the same output) and
+   confirm it still reports `AMBIGUOUS_PRODUCER`, and that no graph rebuild
+   is triggered for it.
+5. Install a mod whose patterns ACO cannot compile (AppliedE is the reference
+   case) and order repeatedly through a root that touches one. Confirm with
+   Spark that the graph is rebuilt at most once per pattern generation, not
+   once per calculation.
+6. Set `retryIncompleteCraftingGraphSnapshot = false` and confirm the same
+   reason code is reported with no second graph build.
 
 ### Diagnostics
 
