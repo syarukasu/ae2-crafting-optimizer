@@ -19,6 +19,17 @@ class BigIntegerOwnershipContractTest {
     }
 
     @Test
+    void externalCpuGuardUsesThePublicExactViewForEveryWidePlanKind() throws IOException {
+        String source = readSource(
+                "src/main/java/com/syaru/ae2craftingoptimizer/mixin/"
+                        + "CraftingCpuClusterBigCapacityGuardMixin.java");
+
+        // Issue #98: BigCapacity計画をBigIntegerCraftingPlanだけの狭い判定へ戻さない。
+        assertTrue(source.contains("inspectBigIntegerPlan(plan)"));
+        assertFalse(source.contains("Ae2CraftingPlanSidecars.bigInteger(plan)"));
+    }
+
+    @Test
     void mixinPluginDoesNotOwnInsaneAeExecution() throws IOException {
         String source = readSource("src/main/java/com/syaru/ae2craftingoptimizer/mixin/AcoMixinPlugin.java");
 
