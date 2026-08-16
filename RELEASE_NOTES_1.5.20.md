@@ -13,8 +13,10 @@ index was still on the previous state.
 - Failed root-program compilation is no longer negatively cached. A temporary
   `canEmitFor` mismatch can therefore recover on the next attempt.
 - `NO_COMPILED_PROGRAM` is recorded as its own planner diagnostic instead of
-  being folded into `AMBIGUOUS_PRODUCER` or confused with later CPU capacity
-  selection.
+  being folded into `AMBIGUOUS_PRODUCER`.
+- A wide plan that lacks exact BigInteger execution backing now returns
+  `INCOMPLETE_PLAN`, records `SUBMISSION_BACKING_MISSING`, and emits a one-time
+  warning. It is no longer misreported as the capacity error `CPU_TOO_SMALL`.
 
 ## Compatibility
 
