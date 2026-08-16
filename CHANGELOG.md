@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.20] - 2026-08-16
+
+### Fixed
+
+- Published crafting-provider generations only after AE2 finished replacing its
+  provider index, preventing an asynchronous planner from accepting a new
+  generation with an old graph.
+- Revalidated provider and recipe generations around lazy root-program and
+  strict-topology compilation.
+- Cached only successful root programs, so a transient `canEmitFor` mismatch no
+  longer pins `NO_COMPILED_PROGRAM` for the lifetime of a graph snapshot.
+- Reported a missing compiled root program separately from producer ambiguity;
+  CPU suitability remains a later submission diagnostic and is not used as the
+  planner failure reason.
+
+
 ## [1.5.19] - 2026-08-15
 
 ### Added

@@ -134,7 +134,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
             // 曖昧、循環、複数出力などを含むルートはコンパイルせずAE2へ戻す。
             if (optionalProgram.isEmpty()) {
                 CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
-                        FallbackReasonCode.AMBIGUOUS_PRODUCER);
+                        FallbackReasonCode.NO_COMPILED_PROGRAM);
                 return declineOrThrow(
                         capture,
                         output,
