@@ -2,6 +2,7 @@ package com.syaru.ae2craftingoptimizer.optimization;
 
 /** Stable, bounded reason codes for returning a calculation to AE2. */
 public enum FallbackReasonCode {
+    NO_COMPILED_PROGRAM,
     AMBIGUOUS_PRODUCER,
     MULTIPLE_PATHS,
     DYNAMIC_PATTERN,

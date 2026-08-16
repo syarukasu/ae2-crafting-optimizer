@@ -152,7 +152,7 @@ public final class Ae2CompiledCraftingGraphCache {
         private final Set<AEKey> incompletelyCompiledOutputs;
         private final Set<AEKey> craftables;
         private final long recipeGeneration;
-        private final Map<AEKey, Optional<CompiledRootProgram<AEKey>>> rootPrograms =
+        private final Map<AEKey, CompiledRootProgram<AEKey>> rootPrograms =
                 new LinkedHashMap<>();
         private final Map<AEKey, Optional<Ae2StrictCraftingTopology>> strictTopologies =
                 new LinkedHashMap<>();
@@ -219,15 +219,15 @@ public final class Ae2CompiledCraftingGraphCache {
         }
 
         /**
-         * 同じProvider/recipe世代ではルートごとの数式Programを再利用する。
-         * 世代変更時はSnapshotごと破棄されるため、古いPattern参照は残らない。
+         * 同じProvider/recipe世代では、正常にコンパイルできたルートProgramだけを再利用する。
+         * 一時的なcanEmitFor不一致や更新途中の失敗は固定せず、次の要求で再評価する。
          */
         public Optional<CompiledRootProgram<AEKey>> rootProgram(AEKey root) {
+            requireCurrentGenerations();
             synchronized (rootPrograms) {
-                Optional<CompiledRootProgram<AEKey>> cached = rootPrograms.get(root);
-                // 既に成功またはFallbackが確定したルートは、同じ世代中に再探索しない。
+                CompiledRootProgram<AEKey> cached = rootPrograms.get(root);
                 if (cached != null) {
-                    return cached;
+                    return Optional.of(cached);
                 }
             }
 
@@ -239,19 +239,41 @@ public final class Ae2CompiledCraftingGraphCache {
                 // 未コンパイルPatternを終端素材と誤認したShadow計算も作らず、直ちにAE2へ戻す。
                 compiled = Optional.empty();
             }
+
+            // Lazy compileの途中にprovider/recipe世代が変わった結果は、Fallbackとして固定しない。
+            requireCurrentGenerations();
+            if (compiled.isEmpty()) {
+                return Optional.empty();
+            }
+
+            CompiledRootProgram<AEKey> candidate = compiled.orElseThrow();
             synchronized (rootPrograms) {
-                Optional<CompiledRootProgram<AEKey>> raced = rootPrograms.get(root);
+                CompiledRootProgram<AEKey> raced = rootPrograms.get(root);
                 // 別計算スレッドが先に登録した場合は、その同一世代Programを採用する。
                 if (raced != null) {
-                    return raced;
+                    return Optional.of(raced);
                 }
                 // 固定上限へ達した場合は古いルートを一括破棄し、無制限な常駐を防ぐ。
                 if (rootPrograms.size() >= MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT) {
                     rootPrograms.clear();
                     strictTopologies.clear();
                 }
-                rootPrograms.put(root, compiled);
-                return compiled;
+                rootPrograms.put(root, candidate);
+                return Optional.of(candidate);
+            }
+        }
+
+        private void requireCurrentGenerations() {
+            long currentPatternGeneration = ProviderPatternGenerationTracker.generation();
+            long currentRecipeGeneration = RecipeGenerationTracker.generation();
+            if (graph.generation() != currentPatternGeneration
+                    || recipeGeneration != currentRecipeGeneration) {
+                throw new StalePlanningSnapshotException(
+                        new PlanningGenerationSnapshot(
+                                graph.generation(),
+                                0L,
+                                recipeGeneration),
+                        0);
             }
         }
 
@@ -270,6 +292,7 @@ public final class Ae2CompiledCraftingGraphCache {
                 Level level,
                 IGrid grid,
                 CompiledRootProgram<AEKey> program) {
+            requireCurrentGenerations();
             AEKey root = program.root();
             synchronized (rootPrograms) {
                 Optional<Ae2StrictCraftingTopology> cached = strictTopologies.get(root);
@@ -280,6 +303,7 @@ public final class Ae2CompiledCraftingGraphCache {
             }
             Optional<Ae2StrictCraftingTopology> compiled = Optional.ofNullable(
                     Ae2StrictCraftingTopology.compile(level, grid, this, program));
+            requireCurrentGenerations();
             synchronized (rootPrograms) {
                 Optional<Ae2StrictCraftingTopology> raced = strictTopologies.get(root);
                 // 別計算スレッドが先に証明を登録した場合は、その結果を使う。
