@@ -5,10 +5,10 @@ import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.crafting.ICraftingSubmitResult;
 import appeng.api.networking.security.IActionSource;
-import appeng.crafting.execution.CraftingSubmitResult;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
+import com.syaru.ae2craftingoptimizer.engine.WidePlanSubmissionGuard;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -27,7 +27,13 @@ public abstract class CraftingCpuClusterBigCapacityGuardMixin
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
         // Long.MAXは真の容量ではないため、対応Sidecarを持たない標準CPUでは実行しない。
         if (Ae2CraftingPlanSidecars.isWide(plan)) {
-            cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
+            /*
+             * 容量不足コードを返すとプレイヤーはストレージを増やしに行くが、
+             * この拒否は空き容量と一切関係がない。理由が伝わる返答へ差し替える。
+             */
+            cir.setReturnValue(WidePlanSubmissionGuard.declineOnUnsupportedCpu(
+                    plan,
+                    ((CraftingCPUCluster) (Object) this).getAvailableStorage()));
         }
     }
 }

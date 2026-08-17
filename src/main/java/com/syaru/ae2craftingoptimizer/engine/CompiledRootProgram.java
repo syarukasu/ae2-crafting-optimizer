@@ -99,6 +99,18 @@ public final class CompiledRootProgram<K> {
             CompiledCraftingGraph<K> graph,
             K root,
             Predicate<? super K> canEmit) {
+        return compile(graph, root, canEmit).program();
+    }
+
+    /**
+     * {@link #tryCompile} と同じ判定を行い、失敗した場合はその理由も返す。
+     *
+     * <p>診断側が「構成が曖昧」と「Snapshotが揃わなかった」を混同しないために必要。</p>
+     */
+    public static <K> Outcome<K> compile(
+            CompiledCraftingGraph<K> graph,
+            K root,
+            Predicate<? super K> canEmit) {
         Objects.requireNonNull(graph, "graph");
         Objects.requireNonNull(root, "root");
         Objects.requireNonNull(canEmit, "canEmit");
@@ -119,11 +131,11 @@ public final class CompiledRootProgram<K> {
             }
             // Emitterや終端だけが大量に並ぶ場合も、固定ノード上限を必ず適用する。
             if (reachable.size() > MAXIMUM_PROGRAM_NODES) {
-                return Optional.empty();
+                return Outcome.failed(RootProgramFailure.PROGRAM_TOO_LARGE);
             }
             // SCCに属するキーは数式一巡では安全に解けないため、AE2標準計算へ戻す。
             if (graph.isCyclic(key)) {
-                return Optional.empty();
+                return Outcome.failed(RootProgramFailure.CYCLE);
             }
             // Emitterで供給できるキーは終端として扱い、その先のPatternを展開しない。
             if (canEmit.test(key)) {
@@ -140,13 +152,13 @@ public final class CompiledRootProgram<K> {
             }
             // 複数Patternの優先順位は在庫状態に依存するため、数式経路では選択しない。
             if (candidates.size() != 1) {
-                return Optional.empty();
+                return Outcome.failed(RootProgramFailure.MULTIPLE_PRODUCERS);
             }
 
             CompiledPattern<K> pattern = candidates.get(0);
             // 副産物や複数出力は余剰在庫会計が必要なため、単一路線から除外する。
             if (pattern.outputs().size() != 1 || pattern.outputAmount(key) <= 0L) {
-                return Optional.empty();
+                return Outcome.failed(RootProgramFailure.MULTIPLE_OUTPUTS);
             }
 
             Set<K> children = new LinkedHashSet<>();
@@ -166,7 +178,7 @@ public final class CompiledRootProgram<K> {
         List<K> order = topologicalOrder(reachable, dependencies);
         // 全ノードを並べられなかった場合は、探索中に見えなかった循環があるためFallbackする。
         if (order.size() != reachable.size()) {
-            return Optional.empty();
+            return Outcome.failed(RootProgramFailure.CYCLE);
         }
 
         Map<K, Integer> indexByKey = new LinkedHashMap<>();
@@ -191,12 +203,12 @@ public final class CompiledRootProgram<K> {
                                 slot.alternatives().size());
                     }
                 } catch (ArithmeticException overflow) {
-                    return Optional.empty();
+                    return Outcome.failed(RootProgramFailure.PROGRAM_TOO_LARGE);
                 }
                 // slotまたは候補辺の固定上限を超えるデータは、配列確保前にFallbackする。
                 if (slotCount > MAXIMUM_PROGRAM_INPUT_EDGES
                         || alternativeCount > MAXIMUM_PROGRAM_INPUT_EDGES) {
-                    return Optional.empty();
+                    return Outcome.failed(RootProgramFailure.PROGRAM_TOO_LARGE);
                 }
             }
         }
@@ -241,7 +253,7 @@ public final class CompiledRootProgram<K> {
                      * トポロジカル順が壊れているためFallbackする。
                      */
                     if (childIndex == null || childIndex <= node) {
-                        return Optional.empty();
+                        return Outcome.failed(RootProgramFailure.CYCLE);
                     }
                     inputIndices[alternativeCursor] = childIndex;
                     inputAmounts[alternativeCursor] = input.amount();
@@ -256,9 +268,9 @@ public final class CompiledRootProgram<K> {
         Integer rootIndex = indexByKey.get(root);
         // ルートは必ず到達集合へ入るが、防御的に欠落を検出してFallbackする。
         if (rootIndex == null) {
-            return Optional.empty();
+            return Outcome.failed(RootProgramFailure.CYCLE);
         }
-        return Optional.of(new CompiledRootProgram<>(
+        return Outcome.compiled(new CompiledRootProgram<>(
                 graph.generation(),
                 root,
                 rootIndex,
@@ -1289,6 +1301,42 @@ public final class CompiledRootProgram<K> {
 
         public int size() {
             return amounts.length;
+        }
+    }
+
+    /**
+     * コンパイル結果と、失敗した場合の理由。
+     *
+     * <p>{@code program} が存在するときの {@code failure} は必ず {@link RootProgramFailure#NONE}。</p>
+     */
+    public record Outcome<K>(
+            Optional<CompiledRootProgram<K>> program,
+            RootProgramFailure failure) {
+        public Outcome {
+            Objects.requireNonNull(program, "program");
+            Objects.requireNonNull(failure, "failure");
+            // 成功と失敗理由が同時に立った結果は、診断側が読み違えるため作らせない。
+            if (program.isPresent() != (failure == RootProgramFailure.NONE)) {
+                throw new IllegalArgumentException(
+                        "compiled root program outcome must carry exactly one of a program or a failure");
+            }
+        }
+
+        static <K> Outcome<K> compiled(CompiledRootProgram<K> program) {
+            return new Outcome<>(Optional.of(program), RootProgramFailure.NONE);
+        }
+
+        static <K> Outcome<K> failed(RootProgramFailure failure) {
+            // NONEは成功を意味するため、失敗結果としては受け付けない。
+            if (failure == RootProgramFailure.NONE) {
+                throw new IllegalArgumentException("failed outcome requires a concrete reason");
+            }
+            return new Outcome<>(Optional.empty(), failure);
+        }
+
+        /** 数式としては成立したProgramを、採用しない理由付きの失敗へ落とす。 */
+        public Outcome<K> withFailure(RootProgramFailure replacement) {
+            return failed(replacement);
         }
     }
 }

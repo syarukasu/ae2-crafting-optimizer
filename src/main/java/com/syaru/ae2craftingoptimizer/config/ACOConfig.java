@@ -192,6 +192,8 @@ public final class ACOConfig {
     private static final ModConfigSpec.IntValue NATIVE_BATCH_MAXIMUM_EXECUTIONS;
     private static final ModConfigSpec.BooleanValue ENABLE_BIG_INTEGER_CRAFTING_BACKEND;
     private static final ModConfigSpec.BooleanValue ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS;
+    private static final ModConfigSpec.BooleanValue RETRY_INCOMPLETE_CRAFTING_GRAPH_SNAPSHOT;
+    private static final ModConfigSpec.BooleanValue LOG_WIDE_PLAN_SUBMISSION_DECLINES;
     private static final ModConfigSpec.BooleanValue ENABLE_ATOMIC_BIG_CAPACITY_PLANS;
     private static final ModConfigSpec.BooleanValue ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION;
     private static final ModConfigSpec.IntValue BIG_INTEGER_MAXIMUM_BITS;
@@ -832,6 +834,17 @@ public final class ACOConfig {
                         "Capture exact per-key BigInteger stock from supported storage add-ons while exposing a saturated long facade to AE2.",
                         "This prevents KeyCounter overflow and allows ACO planning to use ExtendedAE Plus Infinity BigInteger Cell amounts above Long.MAX_VALUE.")
                 .define("enableExactBigIntegerInventorySnapshots", true);
+        RETRY_INCOMPLETE_CRAFTING_GRAPH_SNAPSHOT = builder
+                .comment(
+                        "Rebuild the compiled crafting graph once when a root program is unavailable only because that snapshot was incomplete.",
+                        "Bounded to one rebuild per snapshot, so a network with permanently uncompilable patterns does not rebuild the graph on every calculation.",
+                        "Structural reasons (ambiguous producers, cycles, multiple outputs, size limits) are never retried because they cannot change within a generation.")
+                .define("retryIncompleteCraftingGraphSnapshot", true);
+        LOG_WIDE_PLAN_SUBMISSION_DECLINES = builder
+                .comment(
+                        "Log once per output when a plan above signed-long limits is declined by a crafting CPU that has no BigInteger ledger.",
+                        "The decline itself is fail-closed and is not affected by this switch.")
+                .define("logWidePlanSubmissionDeclines", true);
         ENABLE_ATOMIC_BIG_CAPACITY_PLANS = builder
                 .comment(
                         "Safely calculate plans whose individual or aggregate AEKey counts, Pattern counts, or exact CPU-byte cost exceed Long.MAX_VALUE.",
@@ -1683,6 +1696,15 @@ public final class ACOConfig {
     public static boolean enableExactBigIntegerInventorySnapshots() {
         return enableBigIntegerCraftingBackend()
                 && ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS.get();
+    }
+
+    public static boolean retryIncompleteCraftingGraphSnapshot() {
+        return enableCompiledCraftingGraph()
+                && RETRY_INCOMPLETE_CRAFTING_GRAPH_SNAPSHOT.get();
+    }
+
+    public static boolean logWidePlanSubmissionDeclines() {
+        return LOG_WIDE_PLAN_SUBMISSION_DECLINES.get();
     }
 
     public static boolean enableAtomicBigCapacityPlans() {
