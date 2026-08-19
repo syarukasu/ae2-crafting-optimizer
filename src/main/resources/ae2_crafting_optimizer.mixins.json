@@ -22,12 +22,9 @@
     "GenericStackInvGenerationMixin",
     "KeyCounterBigIntegerSidecarLifecycleMixin",
     "ListCraftingInventoryExactCountsMixin",
-    "NetworkCraftingSimulationStateBigIntegerSnapshotMixin",
     "NetworkCraftingSimulationStateAccessor",
-    "NetworkStorageBigIntegerSnapshotMixin",
     "NetworkStorageMountsAccessor",
     "PatternProviderLogicNativeBatchReceiptMixin",
-    "StorageServiceExactSnapshotInvalidationMixin",
     "TaskProgressTransactionAccessMixin"
   ],
   "client": [

@@ -109,6 +109,24 @@ class BigIntegerStorageSnapshotBridgeTest {
     }
 
     @Test
+    void planningSnapshotKeepsExactAmountsWithoutChangingTheSharedNetworkPath() {
+        BigInteger exactAmount = BigInteger.TEN.pow(64);
+        FakePublicExactStorage exactStorage =
+                new FakePublicExactStorage(exactAmount, true);
+
+        KeyCounter planning = PlanningExactInventorySnapshot.captureMountedStorages(
+                List.of(
+                        List.of(exactStorage),
+                        List.of(exactStorage, new LongStorage(7L))));
+
+        assertEquals(Long.MAX_VALUE, planning.get(TEST_KEY));
+        BigKeyCounterSidecars.Snapshot exact =
+                BigKeyCounterSidecars.snapshot(planning).orElseThrow();
+        assertTrue(exact.complete());
+        assertEquals(exactAmount.add(BigInteger.valueOf(7L)), exact.amount(TEST_KEY));
+    }
+
+    @Test
     void rejectsAPublicProviderThatOmitsAnExposedFacadeKey() {
         KeyCounter network = new KeyCounter();
 

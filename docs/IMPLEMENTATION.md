@@ -218,27 +218,18 @@ The parent commit only:
 
 It does not create or insert output.
 
-## Exact Inventory Snapshot Reuse
+## Planner-local Exact Inventory Snapshot
 
-`NetworkStorageBigIntegerSnapshotMixin` still builds one saturated AE2
-`KeyCounter` facade plus one exact `BigInteger` sidecar. The completed pair is
-now reusable only when all of the following remain true:
+`PlanningExactInventorySnapshot` builds a saturated AE2 `KeyCounter` facade
+and an exact `BigInteger` sidecar only when ACO starts an authoritative
+crafting calculation. The shared `NetworkStorage#getAvailableStacks` path is
+not redirected.
 
-- the same `NetworkStorage` instance is queried;
-- the server tick is unchanged;
-- the global storage generation is unchanged;
-- the destination counter is empty.
-
-Real `NetworkStorage` insert/extract operations, mount changes, and AE2
-`StorageService.invalidateCache()` advance the shared generation immediately.
-An in-progress capture whose generation changes is discarded. The one-tick
-ceiling is intentional: an arbitrary storage add-on may not expose a durable
-content generation, so ACO does not retain its snapshot across ticks.
-
-Nested storage networks are still enumerated once when their current value is
-required. A second request for the same nested network in the same tick reuses
-the completed facade and exact sidecar instead of rebuilding every mounted
-storage.
+This separation keeps terminal serials, buses, watchers, normal insert/extract,
+and ordinary AE2 cached inventory under AE2 ownership. The planner-local
+snapshot still enumerates mounted storage in AE2 priority order, deduplicates
+identical mount instances, preserves `10^64` exact cell amounts, and exposes
+`Long.MAX_VALUE` only as the compatibility facade.
 
 For a normal full-grid ME terminal,
 `MEStorageMenuGridSnapshotReuseMixin` copies
