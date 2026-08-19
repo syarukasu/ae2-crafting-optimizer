@@ -3,6 +3,9 @@ package com.syaru.ae2craftingoptimizer;
 import com.mojang.logging.LogUtils;
 import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchApi;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchV2Api;
+import com.syaru.ae2craftingoptimizer.api.contract.ExactCountLimits;
+import com.syaru.ae2craftingoptimizer.api.contract.IntegrationCapabilities;
+import com.syaru.ae2craftingoptimizer.api.contract.IntegrationCapabilitiesRegistry;
 import com.syaru.ae2craftingoptimizer.command.ACOIntentCommands;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.lifecycle.ACOServerLifecycle;
@@ -39,7 +42,15 @@ public final class AE2CraftingOptimizer {
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
+        IntegrationCapabilities capabilities = IntegrationCapabilities.forAco(ExactCountLimits.defaults());
+        IntegrationCapabilitiesRegistry.initializeOnce(capabilities);
         LOGGER.info("{} initialized", MOD_NAME);
+        LOGGER.info(
+                "ACO exact-count contract: {} count bits, {} canonical bytes, {} payload keys, {} encoded bytes",
+                capabilities.exactCountLimits().maximumCountBits(),
+                capabilities.exactCountLimits().maximumCanonicalBytes(),
+                capabilities.exactCountLimits().maximumKeysPerPayload(),
+                capabilities.exactCountLimits().maximumEncodedPayloadBytes());
     }
 
     private void onRegisterCommands(RegisterCommandsEvent event) {

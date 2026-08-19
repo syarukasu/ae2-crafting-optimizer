@@ -19,3 +19,5 @@
 - [Issue #87](ISSUE-87.md): 全クラスの責務明文化とexact数量Mapの安全な共通化
 - [Issue #93](ISSUE-93.md): Java 25でBigInteger在庫Sidecarの可視コピー中にJVMが終了する
 - [Issue #98](ISSUE-98.md): 外部BigInteger CPUがBigCapacity計画を誤拒否する
+- [Issue #101](ISSUE-101.md): 外部セル向け正確BigInteger在庫API
+- [Issue #102](ISSUE-102.md): 小規模クラフトの初回プローブによる配送遅延
