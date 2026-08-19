@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.api;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -15,6 +16,17 @@ class BigIntegerOwnershipContractTest {
 
         assertTrue(source.contains("registerExternalBigIntegerPlanConsumer"));
         assertTrue(source.contains("EXTERNAL_CONSUMER_API_VERSION"));
+    }
+
+    @Test
+    void externalCpuGuardUsesThePublicExactViewForEveryWidePlanKind() throws IOException {
+        String source = readSource(
+                "src/main/java/com/syaru/ae2craftingoptimizer/mixin/"
+                        + "CraftingCpuClusterBigCapacityGuardMixin.java");
+
+        // Issue #98: BigCapacity計画をBigIntegerCraftingPlanだけの狭い判定へ戻さない。
+        assertTrue(source.contains("inspectBigIntegerPlan(plan)"));
+        assertFalse(source.contains("Ae2CraftingPlanSidecars.bigInteger(plan)"));
     }
 
     private static String readSource(String relativePath) throws IOException {
