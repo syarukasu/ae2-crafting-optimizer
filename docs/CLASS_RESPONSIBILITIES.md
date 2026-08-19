@@ -377,16 +377,17 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility` | AppliedE本家とTPS Fix forkに共通する動的パターン境界を扱う。 |
 | `com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext` | 標準容量判定へ、現在投入中のBig子Job一件分だけを一時的に貸し出すサーバースレッド文脈。 |
 | `com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionManager` | Advanced AE CPU HostとACO exact計画を接続し、予約、実行、取消、復元を調停する外部境界。 |
-| `com.syaru.ae2craftingoptimizer.integration.BigIntegerStorageSnapshotBridge` | NetworkStorageが各mountを集計する境界で、AE2用long FacadeとBigInteger正本を分離する。 |
+| `com.syaru.ae2craftingoptimizer.integration.BigIntegerStorageSnapshotBridge` | Plannerが一つのmountを読む時だけ、AE2用long FacadeとBigInteger正本を分離する。通常NetworkStorageへは介入しない。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactBigIntegerCellConsistency` | ACOが直接更新したExtendedAE Plus在庫Mapと、同MODの保存用総量を結ぶ弱Sidecar。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageBridge` | ME storageへのexact snapshot、reserve、insert、rollbackをAE2権限境界内で行う。 |
-| `com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageSnapshotCache` | 同一server tick内で完成済みのNetworkStorage在庫集計を再利用する。 |
+| `com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageSnapshotCache` | 旧共有Snapshot実装。Issue #109再発防止のためMixin未登録で、通常AE2からは使用しない。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactVectorGridTickBudget` | BigInteger親Jobと標準AQE Jobが共有する、Grid単位のExact Vector tick予算。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator` | 有効化された実験Mixinの対象クラス、Accessor、内部契約を起動時に監査する。 |
-| `com.syaru.ae2craftingoptimizer.integration.GridStorageSnapshotBridge` | 通常MEネットワーク端末へ、AE2 StorageServiceが管理する同じ在庫Snapshotを複製する。 |
+| `com.syaru.ae2craftingoptimizer.integration.GridStorageSnapshotBridge` | 旧端末Snapshot実装。Issue #109再発防止のため通常ME端末からは使用しない。 |
 | `com.syaru.ae2craftingoptimizer.integration.NeoEcoVersionCompatibility` | Neo ECOの実行API世代を、Mixinが参照する前に文字列だけで判定する。 |
 | `com.syaru.ae2craftingoptimizer.integration.OptionalAqeBigCraftingExecution` | Advanced AE未導入環境で対象クラスを解決しないための遅延境界。 |
 | `com.syaru.ae2craftingoptimizer.integration.OptionalNativeBatchIntegrations` | 動作確認済みの依存MODバージョンに限ってNative Batch Adapterを遅延登録する。 |
+| `com.syaru.ae2craftingoptimizer.integration.PlanningExactInventorySnapshot` | Issue #109の責務分離。クラフト計算時だけmountを列挙し、端末・バス・通常AE2へSidecarを漏らさない。 |
 | `com.syaru.ae2craftingoptimizer.integration.ProgramFingerprintRevalidationCache` | 現在のPattern/recipe世代で再検証済みの数式Program指紋を保持する。 |
 
 ### `com.syaru.ae2craftingoptimizer.intent`
@@ -489,15 +490,15 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.mixin.NeoEco20_4CraftingCpuExecutionBudgetMixin` | NeoEco20_4CraftingCpuExecutionBudgetMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NeoEcoExecutionBudgetSupport` | Neo ECO 20.3/20.4の記述子差分から独立した、共通の実行予算計算。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkCraftingSimulationStateAccessor` | NetworkCraftingSimulationStateAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
-| `com.syaru.ae2craftingoptimizer.mixin.NetworkCraftingSimulationStateBigIntegerSnapshotMixin` | NetworkCraftingSimulationStateBigIntegerSnapshotMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
-| `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageBigIntegerSnapshotMixin` | NetworkStorageBigIntegerSnapshotMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.NetworkCraftingSimulationStateBigIntegerSnapshotMixin` | 旧共有Sidecar実装。Issue #109再発防止のためMixin設定へ登録しない。 |
+| `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageBigIntegerSnapshotMixin` | 旧全Network介入実装。Issue #109再発防止のためMixin設定へ登録しない。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageMountsAccessor` | NetworkStorageMountsAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NumberEntryWidgetAccessor` | NumberEntryWidgetAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.P2PServiceTopologyDeduplicationMixin` | P2PServiceTopologyDeduplicationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.PatternProviderLogicIntentCaptureMixin` | PatternProviderLogicIntentCaptureMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.PatternProviderLogicNativeBatchReceiptMixin` | PatternProviderLogicNativeBatchReceiptMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.StorageServiceDeepCoalescingMixin` | StorageServiceDeepCoalescingMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
-| `com.syaru.ae2craftingoptimizer.mixin.StorageServiceExactSnapshotInvalidationMixin` | StorageServiceExactSnapshotInvalidationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.StorageServiceExactSnapshotInvalidationMixin` | 旧共有Snapshot失効実装。Issue #109再発防止のためMixin設定へ登録しない。 |
 | `com.syaru.ae2craftingoptimizer.mixin.StorageServiceWatcherThrottleMixin` | StorageServiceWatcherThrottleMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.TaskProgressTransactionAccessMixin` | TaskProgressTransactionAccessMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 

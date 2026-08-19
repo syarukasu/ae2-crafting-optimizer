@@ -57,9 +57,7 @@
     "MultiCraftingTrackerCraftRequestThrottleMixin",
     "NeoEco20_3CraftingCpuExecutionBudgetMixin",
     "NeoEco20_4CraftingCpuExecutionBudgetMixin",
-    "NetworkCraftingSimulationStateBigIntegerSnapshotMixin",
     "NetworkCraftingSimulationStateAccessor",
-    "NetworkStorageBigIntegerSnapshotMixin",
     "NetworkStorageMountsAccessor",
     "PatternProviderLogicIntentCaptureMixin",
     "PatternProviderLogicNativeBatchReceiptMixin",
@@ -69,7 +67,6 @@
     "ExtendedAePlusBigIntegerCellConsistencyMixin",
     "ExtendedAePlusInfinityDataStorageConsistencyMixin",
     "MekanismCachedRecipeAccessor",
-    "StorageServiceExactSnapshotInvalidationMixin",
     "P2PServiceTopologyDeduplicationMixin"
   ],
   "client": [

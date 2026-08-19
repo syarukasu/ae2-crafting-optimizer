@@ -7,6 +7,7 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import appeng.core.AEConfig;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.integration.PlanningExactInventorySnapshot;
 import java.math.BigInteger;
 import java.util.Objects;
 import org.jetbrains.annotations.Nullable;
@@ -78,7 +79,7 @@ final class Ae2ReferencedInventory {
             AEKey requestedOutput) {
         Objects.requireNonNull(grid, "grid");
         Objects.requireNonNull(source, "source");
-        KeyCounter cached = grid.getStorageService().getCachedInventory();
+        KeyCounter cached = PlanningExactInventorySnapshot.capture(grid);
         BigKeyCounterSidecars.Snapshot exact =
                 BigKeyCounterSidecars.snapshot(cached).orElse(null);
         // 再検証時も、計画が参照するキーだけはBigInteger正本で一致を確認する。
