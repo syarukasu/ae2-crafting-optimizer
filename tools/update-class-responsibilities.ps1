@@ -67,6 +67,7 @@ $overrides = @{
     'com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusInbox' = '分割受信したBigInteger進捗pageをHost世代ごとに集約するclient側受信箱。'
     'com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusPage' = 'BigInteger容量・使用量・Job進捗の一部分を運ぶ版付きpage。'
     'com.syaru.ae2craftingoptimizer.api.big.BigIntegerCraftingPlanView' = '外部MODがACO計画のexact bytes、要求量、不足量を切り捨てず読むための公開view。'
+    'com.syaru.ae2craftingoptimizer.api.contract.ExactStorageAmountProvider' = '外部ストレージがAEKey別の正確なBigInteger在庫SnapshotをACOへ公開する安定契約。'
     'com.syaru.ae2craftingoptimizer.client.AsyncTerminalView' = '端末検索・sortの非同期結果を世代付きで保持し、古い結果の反映を拒否する。'
     'com.syaru.ae2craftingoptimizer.command.ACOIntentCommands' = 'Recipe Intent、cache、Batch、計算統計を表示・安全に失効するserver commandを登録する。'
     'com.syaru.ae2craftingoptimizer.engine.BigCountMath' = 'BigInteger数量Mapの加算・乗算・ceilDivを正確に行う副作用なし算術。'
