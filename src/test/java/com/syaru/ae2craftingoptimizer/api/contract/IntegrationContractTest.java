@@ -16,6 +16,7 @@ class IntegrationContractTest {
         assertSame(limits, capabilities.exactCountLimits());
         assertTrue(capabilities.supports(SupportedFeature.HOST_ATOMIC_SNAPSHOT));
         assertTrue(capabilities.supports(SupportedFeature.EXPLICIT_HOST_REGISTRATION));
+        assertTrue(capabilities.supports(SupportedFeature.EXACT_STORAGE_AMOUNT_PROVIDER));
         assertFalse(capabilities.supports(SupportedFeature.EXACT_STORAGE_OPERATION_JOURNAL));
         assertThrows(IllegalStateException.class,
                 () -> capabilities.requireFeatures(Set.of(SupportedFeature.LIVE_TRANSACTION_PROOF)));

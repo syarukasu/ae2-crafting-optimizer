@@ -93,6 +93,14 @@ public final class SequentialInstantDispatcher {
             return 0;
         }
         int hardLimit = Math.min(requestedOperations, Math.max(1, maximumWaveOperations));
+        /*
+         * issue #74/#102: 初回計測値が無いだけで小規模ジョブをprobe件数へ縮めると、
+         * AE2標準Pattern Providerの面ラウンドロビンが本来のtick内に完了しない。
+         * 設定済みの一波上限へ全件収まる小口は、その上限自体が安全境界なので分割しない。
+         */
+        if (requestedOperations <= maximumWaveOperations) {
+            return hardLimit;
+        }
         if (nanosPerOperation <= 0L) {
             return Math.min(hardLimit, Math.max(1, probeOperations));
         }

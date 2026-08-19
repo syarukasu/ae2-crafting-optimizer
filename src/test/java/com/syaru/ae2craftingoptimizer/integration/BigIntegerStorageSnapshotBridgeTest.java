@@ -11,6 +11,7 @@ import appeng.api.storage.MEStorage;
 import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
 import com.syaru.ae2craftingoptimizer.access.DelegatingMEInventoryAccess;
 import com.syaru.ae2craftingoptimizer.access.ExtendedAePlusBigIntegerCellInventoryAccess;
+import com.syaru.ae2craftingoptimizer.api.contract.ExactStorageAmountProvider;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import java.math.BigInteger;
@@ -88,6 +89,36 @@ class BigIntegerStorageSnapshotBridgeTest {
                 BigKeyCounterSidecars.snapshot(network).orElseThrow();
         assertTrue(exact.complete());
         assertEquals(exactAmount, exact.amount(TEST_KEY));
+    }
+
+    @Test
+    void readsExactAmountFromThePublicStorageProviderContract() {
+        BigInteger exactAmount = BigInteger.TEN.pow(256);
+        KeyCounter network = new KeyCounter();
+
+        BigIntegerStorageSnapshotBridge.collect(
+                new FakePublicExactStorage(exactAmount, true),
+                network,
+                true);
+
+        assertEquals(Long.MAX_VALUE, network.get(TEST_KEY));
+        BigKeyCounterSidecars.Snapshot exact =
+                BigKeyCounterSidecars.snapshot(network).orElseThrow();
+        assertTrue(exact.complete());
+        assertEquals(exactAmount, exact.amount(TEST_KEY));
+    }
+
+    @Test
+    void rejectsAPublicProviderThatOmitsAnExposedFacadeKey() {
+        KeyCounter network = new KeyCounter();
+
+        BigIntegerStorageSnapshotBridge.collect(
+                new FakePublicExactStorage(BigInteger.ZERO, false),
+                network,
+                true);
+
+        assertEquals(Long.MAX_VALUE, network.get(TEST_KEY));
+        assertFalse(BigKeyCounterSidecars.snapshot(network).orElseThrow().complete());
     }
 
     @Test
@@ -340,6 +371,25 @@ class BigIntegerStorageSnapshotBridgeTest {
         @Override
         public Component getDescription() {
             return Component.literal("counting storage");
+        }
+    }
+
+    private record FakePublicExactStorage(
+            BigInteger amount,
+            boolean exposeExactKey) implements MEStorage, ExactStorageAmountProvider {
+        @Override
+        public void getAvailableStacks(KeyCounter out) {
+            out.set(TEST_KEY, Long.MAX_VALUE);
+        }
+
+        @Override
+        public Map<AEKey, BigInteger> exactStoredAmounts() {
+            return exposeExactKey ? Map.of(TEST_KEY, amount) : Map.of();
+        }
+
+        @Override
+        public Component getDescription() {
+            return Component.literal("public exact storage provider");
         }
     }
 

@@ -50,6 +50,19 @@ The feature enum reserves contracts for atomic host snapshots, explicit host reg
 slot reservation, live transaction proof, revision wakeup, quarantined thread state, and exact
 storage journals.
 
+## Exact storage amounts
+
+Storage add-ons that keep counts beyond signed `long` may implement
+`ExactStorageAmountProvider`. ACO copies the returned `Map<AEKey, BigInteger>` and accepts it only
+when every key exposed by the normal AE2 `MEStorage` facade is present with a positive exact amount.
+Counts and key cardinality are validated with `ExactCountLimits`; invalid or incomplete providers
+fall back to an incomplete long facade and are never treated as authoritative exact inventory.
+
+Add-ons can negotiate this boundary through
+`SupportedFeature.EXACT_STORAGE_AMOUNT_PROVIDER`. The older
+`ExtendedAePlusBigIntegerCellInventoryAccess` remains an internal compatibility adapter and must not
+be implemented by new integrations.
+
 ## Big Crafting Host lifecycle
 
 `BigCraftingHostRegistry.register(owner, runtime)` returns a

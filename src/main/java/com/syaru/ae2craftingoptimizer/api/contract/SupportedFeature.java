@@ -8,5 +8,7 @@ public enum SupportedFeature {
     LIVE_TRANSACTION_PROOF,
     TARGET_REVISION_WAKEUP,
     QUARANTINED_THREAD_STATE,
-    EXACT_STORAGE_OPERATION_JOURNAL
+    EXACT_STORAGE_OPERATION_JOURNAL,
+    /** Storage add-ons may expose validated per-key BigInteger stock through the public contract. */
+    EXACT_STORAGE_AMOUNT_PROVIDER
 }
