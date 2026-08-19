@@ -12,6 +12,12 @@ class SequentialInstantDispatcherTest {
     }
 
     @Test
+    void coldSmallJobPreservesAe2PatternProviderRoundRobinCadence() {
+        assertEquals(10, SequentialInstantDispatcher.calculateWaveOperations(
+                10, 4_000_000L, 0L, 2, 65_536));
+    }
+
+    @Test
     void measuredWaveUsesSeventyFivePercentOfRemainingBudget() {
         assertEquals(3_000, SequentialInstantDispatcher.calculateWaveOperations(
                 264_192, 4_000_000L, 1_000L, 256, 65_536));

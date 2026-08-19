@@ -6,12 +6,15 @@ import appeng.api.storage.MEStorage;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.access.DelegatingMEInventoryAccess;
 import com.syaru.ae2craftingoptimizer.access.ExtendedAePlusBigIntegerCellInventoryAccess;
+import com.syaru.ae2craftingoptimizer.api.contract.ExactCountLimits;
+import com.syaru.ae2craftingoptimizer.api.contract.ExactStorageAmountProvider;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -23,6 +26,7 @@ public final class BigIntegerStorageSnapshotBridge {
     /** 通常のDriveWatcherは一段だが、アドオンの委譲層を含めても無限循環しない上限。 */
     private static final int MAXIMUM_DELEGATE_DEPTH = 16;
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
+    private static final ExactCountLimits EXACT_COUNT_LIMITS = ExactCountLimits.defaults();
     private static final AtomicBoolean LOGGED_ADAPTER_FAILURE = new AtomicBoolean();
     private static final ThreadLocal<ArrayDeque<KeyCounter>> TEMPORARY_COUNTERS =
             ThreadLocal.withInitial(ArrayDeque::new);
@@ -78,28 +82,27 @@ public final class BigIntegerStorageSnapshotBridge {
         }
 
         MEStorage exactStorage = unwrapDelegates(storage);
+        // 公開契約を実装したStorageは、Mod固有Mixinより先に正確な在庫正本として扱う。
+        if (exactStorage instanceof ExactStorageAmountProvider provider) {
+            try {
+                return captureValidatedProviderAmounts(
+                        provider.exactStoredAmounts(),
+                        facadeContribution);
+            } catch (RuntimeException | LinkageError failure) {
+                logAdapterFailure(failure);
+                return incompleteFacadeSnapshot(facadeContribution);
+            }
+        }
         // DriveWatcher等の内側にあるInfinityBigIntegerCellから、正確な内部Mapを読む。
         if (exactStorage
                 instanceof ExtendedAePlusBigIntegerCellInventoryAccess accessor) {
             try {
-                Map<AEKey, BigInteger> copy = new LinkedHashMap<>();
-                /*
-                 * セル内部Mapは可変なので複製する。委譲Storageがpartition等で隠したキーは
-                 * facadeContributionに存在しないため、BigInteger側だけ復活させない。
-                 */
-                for (Map.Entry<AEKey, BigInteger> entry :
-                        accessor.aco$getExactStoredAmounts().entrySet()) {
-                    // 0以外のFacadeが存在するキーだけが、このmountから実際に公開されている。
-                    if (facadeContribution.get(entry.getKey()) != 0L) {
-                        copy.put(entry.getKey(), entry.getValue());
-                    }
-                }
-                return new BigKeyCounterSidecars.Snapshot(copy, true);
+                return captureValidatedProviderAmounts(
+                        accessor.aco$getExactStoredAmounts(),
+                        facadeContribution);
             } catch (RuntimeException | LinkageError failure) {
                 logAdapterFailure(failure);
-                return new BigKeyCounterSidecars.Snapshot(
-                        BigKeyCounterSidecars.fromFacade(facadeContribution).amounts(),
-                        false);
+                return incompleteFacadeSnapshot(facadeContribution);
             }
         }
 
@@ -107,11 +110,49 @@ public final class BigIntegerStorageSnapshotBridge {
         if (isExtendedAePlusBigCell(exactStorage)) {
             logAdapterFailure(new IllegalStateException(
                     "ExtendedAE Plus BigInteger cell accessor was not applied"));
-            return new BigKeyCounterSidecars.Snapshot(
-                    BigKeyCounterSidecars.fromFacade(facadeContribution).amounts(),
-                    false);
+            return incompleteFacadeSnapshot(facadeContribution);
         }
         return BigKeyCounterSidecars.fromFacade(facadeContribution);
+    }
+
+    /** 公開Providerの可変Mapを有限契約で検査し、このmountが公開するキーだけ複製する。 */
+    static BigKeyCounterSidecars.Snapshot captureValidatedProviderAmounts(
+            Map<AEKey, BigInteger> source,
+            KeyCounter facadeContribution) {
+        Objects.requireNonNull(source, "exact stored amounts");
+        Objects.requireNonNull(facadeContribution, "facade contribution");
+        EXACT_COUNT_LIMITS.validateKeyCount(source.size());
+
+        Map<AEKey, BigInteger> validated = new LinkedHashMap<>();
+        // Providerが返した全値を先に検査し、隠しキーに不正値があっても完全Snapshotにしない。
+        for (Map.Entry<AEKey, BigInteger> entry : source.entrySet()) {
+            AEKey key = Objects.requireNonNull(entry.getKey(), "exact storage key");
+            BigInteger amount = Objects.requireNonNull(entry.getValue(), "exact storage amount");
+            EXACT_COUNT_LIMITS.validateNonNegative(amount);
+            // partition等でFacadeから隠れたキーは、正確在庫側だけへ復活させない。
+            if (facadeContribution.get(key) != 0L && amount.signum() > 0) {
+                validated.put(key, amount);
+            }
+        }
+
+        // Facadeが公開する全キーをProviderが覆う場合だけ、完全な正確Snapshotと認定する。
+        for (var entry : facadeContribution) {
+            if (entry.getLongValue() == 0L) {
+                continue;
+            }
+            BigInteger exactAmount = source.get(entry.getKey());
+            if (exactAmount == null || exactAmount.signum() <= 0) {
+                throw new IllegalArgumentException(
+                        "exact storage provider omitted an exposed positive key");
+            }
+        }
+        return new BigKeyCounterSidecars.Snapshot(validated, true);
+    }
+
+    private static BigKeyCounterSidecars.Snapshot incompleteFacadeSnapshot(KeyCounter facadeContribution) {
+        return new BigKeyCounterSidecars.Snapshot(
+                BigKeyCounterSidecars.fromFacade(facadeContribution).amounts(),
+                false);
     }
 
     private static MEStorage unwrapDelegates(MEStorage storage) {
@@ -119,7 +160,8 @@ public final class BigIntegerStorageSnapshotBridge {
         // AE2やアドオンの委譲Storageだけを上限付きで辿り、任意Reflectionは使用しない。
         for (int depth = 0; depth < MAXIMUM_DELEGATE_DEPTH; depth++) {
             // BigIntegerセル本体へ到達したら、それ以上委譲先を探さない。
-            if (current instanceof ExtendedAePlusBigIntegerCellInventoryAccess) {
+            if (current instanceof ExactStorageAmountProvider
+                    || current instanceof ExtendedAePlusBigIntegerCellInventoryAccess) {
                 return current;
             }
             // AE2標準DelegatingMEInventory以外は、安全に内部Storageを取得できないため停止する。
@@ -189,7 +231,7 @@ public final class BigIntegerStorageSnapshotBridge {
         // 同じ互換失敗をtickごとに出さず、最初の一件だけ明確な原因として記録する。
         if (LOGGED_ADAPTER_FAILURE.compareAndSet(false, true)) {
             AE2CraftingOptimizer.LOGGER.error(
-                    "ACO could not capture exact ExtendedAE Plus BigInteger cell inventory. "
+                    "ACO could not capture an exact BigInteger storage snapshot. "
                             + "BigInteger planning will fall back instead of using clamped stock.",
                     failure);
         }
