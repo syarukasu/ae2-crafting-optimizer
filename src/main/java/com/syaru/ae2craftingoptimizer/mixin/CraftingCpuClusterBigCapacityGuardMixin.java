@@ -26,13 +26,21 @@ public abstract class CraftingCpuClusterBigCapacityGuardMixin
             IActionSource source,
             ICraftingRequester requester,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
-        // Long.MAXは真の容量ではないため、対応Sidecarを持たない標準CPUでは実行しない。
-        boolean exactPlan = Ae2CraftingPlanSidecars.bigInteger(plan).isPresent();
-        boolean integratedExactPlan = exactPlan
-                && BigCraftingEngineApi.hasExternalBigIntegerPlanConsumer();
-        // 外部CPUの登録が無い計画は、容量だけをlongへ飽和した標準CPUへ渡さない。
-        if (Ae2CraftingPlanSidecars.isWide(plan) && !integratedExactPlan) {
-            cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
+        // 通常long計画はIssue #98の保護対象ではなく、AE2本来の提出処理へそのまま渡す。
+        if (!Ae2CraftingPlanSidecars.isWide(plan)) {
+            return;
         }
+
+        boolean externalConsumer = BigCraftingEngineApi.hasExternalBigIntegerPlanConsumer();
+        boolean executableExactPlan = BigCraftingEngineApi.inspectBigIntegerPlan(plan)
+                .filter(view -> !view.simulation())
+                .isPresent();
+        // Issue #98: 個別数量がlong内でも合計bytesだけ超過するBigCapacity計画を許可する。
+        if (externalConsumer && executableExactPlan) {
+            return;
+        }
+
+        // 対応CPUが無いwide計画を、容量だけLong.MAXへ飽和した標準CPUへ誤投入させない。
+        cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
     }
 }

@@ -18,3 +18,4 @@
 - [Issue #84](ISSUE-84.md): Issue先行開発手順とプロジェクト境界
 - [Issue #87](ISSUE-87.md): 全クラスの責務明文化とexact数量Mapの安全な共通化
 - [Issue #93](ISSUE-93.md): Java 25でBigInteger在庫Sidecarの可視コピー中にJVMが終了する
+- [Issue #98](ISSUE-98.md): 外部BigInteger CPUがBigCapacity計画を誤拒否する
