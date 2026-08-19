@@ -12,6 +12,7 @@
 | [#44](https://github.com/syarukasu/ae2-crafting-optimizer/issues/44), [#55](https://github.com/syarukasu/ae2-crafting-optimizer/issues/55) | 実AE2経路でexact sidecarが失われ、外部CPUが論理操作数を物理Bulk上限として扱う | 1.5.18 | 1.5.19 | [BigInteger external consumer](ISSUE-BIGINT-EXTERNAL-CONSUMER.md) |
 | [#90](https://github.com/syarukasu/ae2-crafting-optimizer/issues/90) | 無関係なProvider世代更新でBigInteger計画が提出時に失効する | 1.5.18 | 1.5.20 | [ISSUE-90.md](issues/ISSUE-90.md) |
 | [#93](https://github.com/syarukasu/ae2-crafting-optimizer/issues/93) | Java 25でBigInteger在庫Sidecarの可視コピー中にJVMが終了する | 1.5.18 | 1.5.20 | [ISSUE-93.md](issues/ISSUE-93.md) |
+| [#103](https://github.com/syarukasu/ae2-crafting-optimizer/issues/103) | wide計画の非同期compile競合と実行裏付け不足の誤診断 | 1.5.19 | 1.5.20 | [ISSUE-103.md](issues/ISSUE-103.md) |
 
 ## 運用
 

@@ -22,3 +22,4 @@
 - [Issue #102](ISSUE-102.md): 小規模クラフトの初回プローブによる配送遅延
 - [Issue #90](ISSUE-90.md): 無関係なProvider更新によるexact計画失効
 - [Issue #93](ISSUE-93.md): Java 25でBigInteger在庫Sidecarの可視コピー中にJVMが終了する
+- [Issue #103](ISSUE-103.md): wide計画の非同期compile競合と実行裏付け不足の誤診断
