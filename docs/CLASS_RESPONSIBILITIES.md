@@ -321,6 +321,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.engine.CountOverflowException` | CountOverflowExceptionが示す失敗を呼出側へ型付きで通知する。 |
 | `com.syaru.ae2craftingoptimizer.engine.CraftingPlanShadowComparator` | ACO計画とAE2標準計画の結果・不足・bytesを比較し、不一致なら採用を拒否する。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingByteCounter` | AE2 19.2.17の線形CraftingTreeと同じ順番でCPU bytesを再計算する。 |
+| `com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator` | exact計画の提出時に参照Patternだけを現行CraftingService索引へ再照合し、無関係なProvider世代更新を区別する。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobLedger` | AE2実JobのBigIntegerカウンタを再起動後も検証する永続Journal。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState` | Advanced AE実Jobへ付随するexact task、waiting、output、Receiptのsidecar正本。 |
 | `com.syaru.ae2craftingoptimizer.engine.GenerationAwareGraphCache` | GenerationAwareGraphCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
