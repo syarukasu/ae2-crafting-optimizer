@@ -23,3 +23,4 @@
 - [Issue #101](ISSUE-101.md): 外部セル向け正確BigInteger在庫API
 - [Issue #102](ISSUE-102.md): 小規模クラフトの初回プローブによる配送遅延
 - [Issue #103](ISSUE-103.md): wide計画の実行裏付け不足をCPU容量不足と誤報する
+- [Issue #109](ISSUE-109.md): BigInteger API連携が通常AE2の責務境界を越える
