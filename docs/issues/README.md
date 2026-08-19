@@ -20,3 +20,5 @@
 - [Issue #98](ISSUE-98.md): 外部BigInteger CPUがBigCapacity計画を誤拒否する
 - [Issue #101](ISSUE-101.md): 外部セル向け正確BigInteger在庫API
 - [Issue #102](ISSUE-102.md): 小規模クラフトの初回プローブによる配送遅延
+- [Issue #90](ISSUE-90.md): 無関係なProvider更新によるexact計画失効
+- [Issue #93](ISSUE-93.md): Java 25でBigInteger在庫Sidecarの可視コピー中にJVMが終了する
