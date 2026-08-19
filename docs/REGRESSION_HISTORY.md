@@ -12,6 +12,7 @@
 | [#101](https://github.com/syarukasu/ae2-crafting-optimizer/issues/101) | 外部セルが正確なBigInteger在庫を公開する安定APIがない | 1.5.19 | 1.5.20 | [ISSUE-101.md](issues/ISSUE-101.md) |
 | [#102](https://github.com/syarukasu/ae2-crafting-optimizer/issues/102) | 小規模ジョブが初回probeへ縮小されPattern Provider配送が遅延する | 1.5.19 | 1.5.20 | [ISSUE-102.md](issues/ISSUE-102.md) |
 | [#103](https://github.com/syarukasu/ae2-crafting-optimizer/issues/103) | wide計画の実行裏付け不足がCPU容量不足と誤報される | 1.5.19 | 1.5.20 | [ISSUE-103.md](issues/ISSUE-103.md) |
+| [#109](https://github.com/syarukasu/ae2-crafting-optimizer/issues/109) | BigInteger API連携が通常AE2の責務境界を越える | 1.5.20 | 1.5.21 | [ISSUE-109.md](issues/ISSUE-109.md) |
 | 外部コンシューマ回帰 | 実経路でsidecarが消える、またはQuantum Bulkが`maxPatterns=1`へ誤って制限される | 1.5.18系 | 作業中 | [ISSUE-BIGINT-EXTERNAL-CONSUMER.md](ISSUE-BIGINT-EXTERNAL-CONSUMER.md) |
 
 ## 運用

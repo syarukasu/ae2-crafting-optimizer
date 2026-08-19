@@ -49,7 +49,9 @@ public final class BigCraftingEngineApi {
      * Registers a CPU add-on that owns execution of ACO BigInteger plans.
      *
      * <p>The registration is deliberately capability-based. ACO does not name,
-     * load, tick, or inspect any particular external CPU implementation.</p>
+     * load, tick, or inspect any particular external CPU implementation.
+     * Registration does not alter AE2's standard CPU submission path; the add-on
+     * remains responsible for validating and submitting its own CPU job.</p>
      */
     public static void registerExternalBigIntegerPlanConsumer() {
         EXTERNAL_CONSUMER_COUNT.incrementAndGet();

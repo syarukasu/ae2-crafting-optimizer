@@ -19,14 +19,11 @@ class BigIntegerOwnershipContractTest {
     }
 
     @Test
-    void externalCpuGuardUsesThePublicExactViewForEveryWidePlanKind() throws IOException {
-        String source = readSource(
-                "src/main/java/com/syaru/ae2craftingoptimizer/mixin/"
-                        + "CraftingCpuClusterBigCapacityGuardMixin.java");
+    void externalCpuRegistrationDoesNotOwnStandardCpuSubmission() throws IOException {
+        String mixins = readSource("src/main/resources/ae2_crafting_optimizer.mixins.json");
 
-        // Issue #98: BigCapacity計画をBigIntegerCraftingPlanだけの狭い判定へ戻さない。
-        assertTrue(source.contains("inspectBigIntegerPlan(plan)"));
-        assertFalse(source.contains("Ae2CraftingPlanSidecars.bigInteger(plan)"));
+        // Issue #109: API利用宣言だけで標準AE2 CPUの提出結果を変更しない。
+        assertFalse(mixins.contains("CraftingCpuClusterBigCapacityGuardMixin"));
     }
 
     @Test
