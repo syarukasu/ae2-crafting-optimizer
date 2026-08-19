@@ -1704,7 +1704,12 @@ public final class ACOConfig {
     }
 
     public static boolean enableBigIntegerCraftingBackend() {
-        return ENABLE_BIG_INTEGER_CRAFTING_BACKEND.get();
+        /*
+         * 回帰防止: ACO Issue #109
+         * master switchを切った環境では、公開APIの実体を含むランタイム介入を残さない。
+         * 詳細仕様: docs/issues/ISSUE-109.md
+         */
+        return enableOptimizer() && ENABLE_BIG_INTEGER_CRAFTING_BACKEND.get();
     }
 
     public static boolean enableExactBigIntegerInventorySnapshots() {

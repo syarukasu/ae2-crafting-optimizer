@@ -86,11 +86,6 @@ public final class ExperimentalCompatibilityValidator {
                     SUPPORTED_ADVANCED_AE_VERSION_PREFIX,
                     SUPPORTED_ADVANCED_AE_VERSION_SUFFIX);
         }
-        // Wide計画を有効にする時は、受理側と拒否側の両境界Mixinを起動時に証明する。
-        if (ACOConfig.enableAtomicBigCapacityPlans()) {
-            require(failures, "appeng.me.cluster.implementations.CraftingCPUCluster",
-                    BigCapacityPlanBoundaryAccess.class);
-        }
         /*
          * Advanced AEのBigInteger提出境界はAtomic long計画とExact計画の双方が使用する。
          * どちらか一方でも有効なら、Cluster Mixinが実在することを監査する。

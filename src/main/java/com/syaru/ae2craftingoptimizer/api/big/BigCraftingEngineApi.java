@@ -45,6 +45,7 @@ public final class BigCraftingEngineApi {
     /**
      * 外部CPUアドオンがACO BigInteger計画の実行を所有することを登録する。
      * ACOは登録先のCPUを識別・tick・実行せず、提出境界の能力だけを公開する。
+     * 登録してもAE2標準CPUの提出経路は変更せず、検証と提出は外部CPUが所有する。
      */
     public static void registerExternalBigIntegerPlanConsumer() {
         EXTERNAL_CONSUMER_COUNT.incrementAndGet();
