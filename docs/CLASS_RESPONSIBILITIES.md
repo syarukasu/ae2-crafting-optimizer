@@ -44,7 +44,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | クラス | 行数 | 判断 |
 |---|---:|---|
 | `PhysicalCraftingTreeTransaction` | 3726 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
-| `ACOConfig` | 1825 | 中。長大だがConfig IDと既定値の正本として凝集している。key互換を固定する試験なしに分割しない。 |
+| `ACOConfig` | 1820 | 中。長大だがConfig IDと既定値の正本として凝集している。key互換を固定する試験なしに分割しない。 |
 | `AqeBigCraftingExecutionManager` | 1678 | 高。外部CPU所有権と復旧境界。起動・再起動・取消試験を用意してから段階分割する。 |
 | `CompiledRootProgram` | 1294 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
 | `BigCraftingJob` | 1266 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
@@ -63,7 +63,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.api.batch` | 旧Pattern Batch公開API。互換性維持を優先する。 |
 | `com.syaru.ae2craftingoptimizer.api.batch.v2` | 所有権、Receipt、commit、復旧を明示するTransactional Batch公開API。 |
 | `com.syaru.ae2craftingoptimizer.api.big` | BigInteger計画、Host、進捗、公開連携API。 |
-| `com.syaru.ae2craftingoptimizer.api.contract` | 1.21.1連携向けの版付きpayload、revision、Receipt契約。 |
+| `com.syaru.ae2craftingoptimizer.api.contract` | 版付きpayload、revision、Receipt、正確在庫の公開連携契約。 |
 | `com.syaru.ae2craftingoptimizer.api.craftingtable` | 作業台物理Batch Workerとの公開契約。 |
 | `com.syaru.ae2craftingoptimizer.api.execution` | Exact Vector実行所有者を宣言する公開契約。 |
 | `com.syaru.ae2craftingoptimizer.api.vector` | exact数量のVector計画、保存、Storage境界API。 |
@@ -89,7 +89,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **354件**
+本版の本番トップレベル型: **356件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -185,6 +185,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.api.contract.ExactCountLimits` | ExactCountLimitsが示す上限、時間予算、適格条件を副作用なしで判定する。 |
 | `com.syaru.ae2craftingoptimizer.api.contract.ExactCountPayload` | ExactCountPayloadが示す計画または取引の一要素を、不変のexact値として保持する。 |
 | `com.syaru.ae2craftingoptimizer.api.contract.ExactCountPayloadCodec` | ExactCountPayloadCodecが示す値を、上限とschemaを検証しながら保存・通信形式へ相互変換する。 |
+| `com.syaru.ae2craftingoptimizer.api.contract.ExactStorageAmountProvider` | 外部ストレージがAEKey別の正確なBigInteger在庫SnapshotをACOへ公開する安定契約。 |
 | `com.syaru.ae2craftingoptimizer.api.contract.IntegrationCapabilities` | IntegrationCapabilitiesが示す任意連携の能力または登録寿命を表す。 |
 | `com.syaru.ae2craftingoptimizer.api.contract.IntegrationCapabilitiesRegistry` | IntegrationCapabilitiesRegistryが示す実装またはHostの登録、解除、検索を管理する。 |
 | `com.syaru.ae2craftingoptimizer.api.contract.LiveTransactionProof` | LiveTransactionProofが示す所有権移転または完了事実を、検証可能な証跡として保持する。 |
@@ -322,6 +323,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingByteCounter` | AE2 19.2.17の線形CraftingTreeと同じ順番でCPU bytesを再計算する。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobLedger` | AE2実JobのBigIntegerカウンタを再起動後も検証する永続Journal。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState` | Advanced AE実Jobへ付随するexact task、waiting、output、Receiptのsidecar正本。 |
+| `com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator` | Exact計画が参照するPatternだけを、CPU提出直前のCraftingServiceへ再照合する。 |
 | `com.syaru.ae2craftingoptimizer.engine.GenerationAwareGraphCache` | GenerationAwareGraphCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlan` | LongCraftingPlanが示すクラフト計画またはコンパイル済みプログラムを不変値として保持する。 |
 | `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlanner` | 通常規模の注文をchecked long演算で展開するPlanner。 |

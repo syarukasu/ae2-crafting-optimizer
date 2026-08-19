@@ -33,6 +33,7 @@ public final class IntegrationCapabilities {
         this.exactCountLimits = Objects.requireNonNull(exactCountLimits, "exactCountLimits");
         Objects.requireNonNull(supportedFeatures, "supportedFeatures");
         EnumSet<SupportedFeature> copy = EnumSet.noneOf(SupportedFeature.class);
+        // 呼出側が渡したFeature集合をnull検査し、起動後に変化しないコピーへ固定する。
         for (SupportedFeature feature : supportedFeatures) {
             copy.add(Objects.requireNonNull(feature, "supportedFeatures contains null"));
         }
@@ -50,7 +51,8 @@ public final class IntegrationCapabilities {
                 limits,
                 Set.of(
                         SupportedFeature.HOST_ATOMIC_SNAPSHOT,
-                        SupportedFeature.EXPLICIT_HOST_REGISTRATION));
+                        SupportedFeature.EXPLICIT_HOST_REGISTRATION,
+                        SupportedFeature.EXACT_STORAGE_AMOUNT_PROVIDER));
     }
 
     public int bigCraftingApiVersion() {
@@ -87,6 +89,7 @@ public final class IntegrationCapabilities {
 
     public void requireFeatures(Set<SupportedFeature> required) {
         Objects.requireNonNull(required, "required");
+        // 必須Featureを一件ずつ確認し、部分対応のアドオンを曖昧に起動させない。
         for (SupportedFeature feature : required) {
             if (!supports(feature)) {
                 throw new IllegalStateException("required integration feature is unavailable: " + feature);

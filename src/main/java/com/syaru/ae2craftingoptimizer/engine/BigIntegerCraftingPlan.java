@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import appeng.api.crafting.IPatternDetails;
+import appeng.api.networking.IGrid;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
@@ -135,7 +136,30 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
         submissionClaimed.set(false);
     }
 
-    /** 計算後にPatternまたはrecipeが変わった親Jobを実行しない。 */
+    /** CPU提出時に、この親Jobが実際に参照するPatternだけを現在索引へ再照合する。 */
+    public ExactPlanPatternRevalidator.Result validateForSubmission(IGrid grid) {
+        return ExactPlanPatternRevalidator.validate(
+                grid,
+                preparedRoot.patternGeneration(),
+                preparedRoot.recipeGeneration(),
+                exactPatternTimes.keySet());
+    }
+
+    public long patternGeneration() {
+        return preparedRoot.patternGeneration();
+    }
+
+    public long recipeGeneration() {
+        return preparedRoot.recipeGeneration();
+    }
+
+    /**
+     * 全体世代だけを確認する旧互換API。
+     *
+     * @deprecated CPU提出時は、無関係なProvider更新を区別できる
+     *     {@link #validateForSubmission(IGrid)}を使用する。
+     */
+    @Deprecated(forRemoval = false)
     public boolean generationsAreCurrent() {
         return preparedRoot.patternGeneration() == ProviderPatternGenerationTracker.generation()
                 && preparedRoot.recipeGeneration() == RecipeGenerationTracker.generation();
