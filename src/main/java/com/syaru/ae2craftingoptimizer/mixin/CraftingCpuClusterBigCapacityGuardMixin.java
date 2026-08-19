@@ -7,10 +7,15 @@ import appeng.api.networking.crafting.ICraftingSubmitResult;
 import appeng.api.networking.security.IActionSource;
 import appeng.crafting.execution.CraftingSubmitResult;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
+import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingEngineApi;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
+import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
+import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDiagnostics;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -19,6 +24,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = CraftingCPUCluster.class, remap = false)
 public abstract class CraftingCpuClusterBigCapacityGuardMixin
         implements BigCapacityPlanBoundaryAccess {
+    @Unique
+    private static final AtomicBoolean ACO_LOGGED_MISSING_BIG_PLAN_BACKING =
+            new AtomicBoolean();
+
     @Inject(method = "submitJob", at = @At("HEAD"), cancellable = true, require = 1)
     private void aco$rejectBigCapacityFacade(
             IGrid grid,
@@ -32,15 +41,34 @@ public abstract class CraftingCpuClusterBigCapacityGuardMixin
         }
 
         boolean externalConsumer = BigCraftingEngineApi.hasExternalBigIntegerPlanConsumer();
-        boolean executableExactPlan = BigCraftingEngineApi.inspectBigIntegerPlan(plan)
-                .filter(view -> !view.simulation())
-                .isPresent();
+        var exactView = BigCraftingEngineApi.inspectBigIntegerPlan(plan).orElse(null);
+        boolean executableExactPlan = exactView != null && !exactView.simulation();
         // Issue #98: 個別数量がlong内でも合計bytesだけ超過するBigCapacity計画を許可する。
         if (externalConsumer && executableExactPlan) {
             return;
         }
 
-        // 対応CPUが無いwide計画を、容量だけLong.MAXへ飽和した標準CPUへ誤投入させない。
-        cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
+        String detail;
+        // 診断ではSidecar欠落、simulation、外部Consumer欠落を別々に記録する。
+        if (exactView == null) {
+            detail = "wide plan has no exact BigInteger execution view";
+        } else if (exactView.simulation()) {
+            detail = "wide plan is a simulation and cannot be submitted for execution";
+        } else {
+            detail = "wide plan has exact backing, but no external BigInteger consumer is registered";
+        }
+        BigIntegerPlanDiagnostics.record(
+                BigIntegerPlanDeclineReason.SUBMISSION_BACKING_MISSING,
+                null,
+                detail);
+        // 同一原因を注文ごとに積み上げず、起動中の最初の一件だけ明示する。
+        if (ACO_LOGGED_MISSING_BIG_PLAN_BACKING.compareAndSet(false, true)) {
+            AE2CraftingOptimizer.LOGGER.warn(
+                    "ACO rejected a wide crafting plan because its exact BigInteger execution backing "
+                            + "was unavailable ({}). This is not a CPU storage-capacity failure.",
+                    detail);
+        }
+        // CPU_TOO_SMALLは実容量不足専用。裏付け不足はINCOMPLETE_PLANとしてfail closedする。
+        cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
     }
 }
