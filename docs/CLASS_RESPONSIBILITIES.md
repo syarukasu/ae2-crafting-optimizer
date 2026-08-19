@@ -186,7 +186,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.api.contract.ExactCountLimits` | ExactCountLimitsが示す上限、時間予算、適格条件を副作用なしで判定する。 |
 | `com.syaru.ae2craftingoptimizer.api.contract.ExactCountPayload` | ExactCountPayloadが示す計画または取引の一要素を、不変のexact値として保持する。 |
 | `com.syaru.ae2craftingoptimizer.api.contract.ExactCountPayloadCodec` | ExactCountPayloadCodecが示す値を、上限とschemaを検証しながら保存・通信形式へ相互変換する。 |
-| `com.syaru.ae2craftingoptimizer.api.contract.ExactStorageAmountProvider` | ExactStorageAmountProviderは、版付きpayload、revision、Receipt、正確在庫の公開連携契約。に属するクラス名どおりの単一処理または値を担当する。 |
+| `com.syaru.ae2craftingoptimizer.api.contract.ExactStorageAmountProvider` | 外部ストレージがAEKey別の正確なBigInteger在庫SnapshotをACOへ公開する安定契約。 |
 | `com.syaru.ae2craftingoptimizer.api.contract.IntegrationCapabilities` | IntegrationCapabilitiesが示す任意連携の能力または登録寿命を表す。 |
 | `com.syaru.ae2craftingoptimizer.api.contract.IntegrationCapabilitiesRegistry` | IntegrationCapabilitiesRegistryが示す実装またはHostの登録、解除、検索を管理する。 |
 | `com.syaru.ae2craftingoptimizer.api.contract.LiveTransactionProof` | LiveTransactionProofが示す所有権移転または完了事実を、検証可能な証跡として保持する。 |
