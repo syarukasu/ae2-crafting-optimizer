@@ -14,7 +14,6 @@
     "CraftingServicePatternLookupCacheMixin",
     "CraftingTreeCandidatePruningMixin",
     "CraftingTreeCalculationMemoMixin",
-    "MEStorageMenuGridSnapshotReuseMixin",
     "MultiCraftingTrackerCraftRequestThrottleMixin",
     "PatternProviderLogicIntentCaptureMixin",
     "P2PServiceTopologyDeduplicationMixin"

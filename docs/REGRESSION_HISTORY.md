@@ -13,6 +13,7 @@
 | [#90](https://github.com/syarukasu/ae2-crafting-optimizer/issues/90) | 無関係なProvider世代更新でBigInteger計画が提出時に失効する | 1.5.18 | 1.5.20 | [ISSUE-90.md](issues/ISSUE-90.md) |
 | [#93](https://github.com/syarukasu/ae2-crafting-optimizer/issues/93) | Java 25でBigInteger在庫Sidecarの可視コピー中にJVMが終了する | 1.5.18 | 1.5.20 | [ISSUE-93.md](issues/ISSUE-93.md) |
 | [#103](https://github.com/syarukasu/ae2-crafting-optimizer/issues/103) | wide計画の非同期compile競合と実行裏付け不足の誤診断 | 1.5.19 | 1.5.20 | [ISSUE-103.md](issues/ISSUE-103.md) |
+| [#109](https://github.com/syarukasu/ae2-crafting-optimizer/issues/109) | BigInteger API連携が通常AE2の責務境界を越える | 1.5.20 | 1.5.21 | [ISSUE-109.md](issues/ISSUE-109.md) |
 
 ## 運用
 

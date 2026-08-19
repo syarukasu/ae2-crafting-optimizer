@@ -10,7 +10,6 @@
     "CraftingBlockEntityTransactionAccessMixin",
     "CraftingCalculationCheckedMathMixin",
     "CraftingCalculationDiagnosticsMixin",
-    "CraftingCpuClusterBigCapacityGuardMixin",
     "CraftingCpuClusterTransactionAccessMixin",
     "CraftingCpuLogicBatchSourceReceiptMixin",
     "CraftingCpuLogicTransactionalBatchV2Mixin",

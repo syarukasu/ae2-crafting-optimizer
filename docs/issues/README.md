@@ -23,3 +23,4 @@
 - [Issue #90](ISSUE-90.md): 無関係なProvider更新によるexact計画失効
 - [Issue #93](ISSUE-93.md): Java 25でBigInteger在庫Sidecarの可視コピー中にJVMが終了する
 - [Issue #103](ISSUE-103.md): wide計画の非同期compile競合と実行裏付け不足の誤診断
+- [Issue #109](ISSUE-109.md): BigInteger API連携が通常AE2の責務境界を越える

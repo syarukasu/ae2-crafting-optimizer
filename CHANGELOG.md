@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.21] - 2026-08-19
+
+### Fixed
+
+- Isolated the optional BigInteger planning API from ordinary AE2 crafting
+  calculations and CPU submission.
+- Stopped normal long-range jobs from being replaced unless the experimental
+  crafting engine is explicitly enabled.
+- Removed ACO interception of standard AE2 CPU submission; external CPU add-ons
+  retain ownership of capacity checks, submission, execution, and progress.
+- Removed the ME terminal inventory snapshot redirect that could expose stale
+  terminal state during normal insertion and extraction.
+- Made the optimizer master switch disable the BigInteger runtime backend as
+  well as the ordinary optimization features.
+
 ## [1.5.20] - 2026-08-16
 
 ### Fixed
