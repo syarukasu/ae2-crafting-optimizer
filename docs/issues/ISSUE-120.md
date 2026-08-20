@@ -1,7 +1,8 @@
 # Issue #120: Advanced AE Mixinが自分で無効化され監査だけが失敗する
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/120
-- 状態: Implemented
+- 状態: Verified
+- 修正版: ACO 1.5.23再公開ビルド
 - 影響版: ACO 1.5.23
 - 対象ローダー: NeoForge 1.21.1
 - 対象依存: Advanced AE 1.6.x
