@@ -5,6 +5,8 @@
   "plugin": "com.syaru.ae2craftingoptimizer.mixin.CoreMixinConfigPlugin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "Ae2BigCapacityPlanSubmissionMixin",
+    "Ae2ExactCraftingLogicMixin",
     "CraftAmountMenuLongAmountMixin",
     "CraftConfirmMenuLongAmountMixin",
     "CraftingBlockEntityTransactionAccessMixin",

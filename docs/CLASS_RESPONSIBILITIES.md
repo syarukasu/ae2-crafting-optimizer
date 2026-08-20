@@ -46,6 +46,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `PhysicalCraftingTreeTransaction` | 3726 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
 | `ACOConfig` | 1825 | 中。長大だがConfig IDと既定値の正本として凝集している。key互換を固定する試験なしに分割しない。 |
 | `AqeBigCraftingExecutionManager` | 1678 | 高。外部CPU所有権と復旧境界。起動・再起動・取消試験を用意してから段階分割する。 |
+| `Ae2BigCraftingExecutionManager` | 505 | 高。標準AE2 exact Jobの物理所有権、Receipt、取消、復旧を一元管理する。Issue #115の境界試験なしに分割しない。 |
 | `CompiledRootProgram` | 1294 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
 | `BigCraftingJob` | 1266 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
 | `ExactNetworkStorageBridge` | 1161 | 高。実在庫境界。snapshotとmutationの分離候補だが原子性試験が先。 |
@@ -103,6 +104,8 @@ mixin + access  ->  integration  ->  optimization / scheduler
 |---|---|
 | `com.syaru.ae2craftingoptimizer.access.AdvancedAeClusterExecutionAccess` | AdvancedAeClusterExecutionAccessが示す外部状態を型付きで公開するMixin用Access契約。判断や会計は持たない。 |
 | `com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingJobAccess` | Advanced AE実JobへBigInteger正本を設置・同期するためのversion-pinned契約。 |
+| `com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess` | AE2系の実JobへBigInteger正本、Receipt Journal、正確カウンタを設置・同期する共通契約。 |
+| `com.syaru.ae2craftingoptimizer.access.ExactCraftingLogicAccess` | AE2系CraftingCpuLogicを本来の完了通知順序で閉じる共通契約。 |
 | `com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingLogicAccess` | Advanced AE標準の完了・取消通知経路へExact Jobを戻すための最小Invoker契約。 |
 | `com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess` | Big容量計画を受理または拒否する専用Mixinが対象CPUへ適用済みであることを示す。 |
 | `com.syaru.ae2craftingoptimizer.access.CheckedCraftingArithmeticHookAccess` | AE2クラフト計算のlong境界検査Mixinが適用済みであることを示す印。 |
@@ -374,6 +377,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility` | AppliedE本家とTPS Fix forkに共通する動的パターン境界を扱う。 |
 | `com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext` | 標準容量判定へ、現在投入中のBig子Job一件分だけを一時的に貸し出すサーバースレッド文脈。 |
 | `com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionManager` | Advanced AE CPU HostとACO exact計画を接続し、予約、実行、取消、復元を調停する外部境界。 |
+| `com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager` | 標準AE2クラスタが受理したexact Jobだけを既存PhysicalCraftingTreeTransactionへ接続するIssue #115の実行境界。 |
 | `com.syaru.ae2craftingoptimizer.integration.BigIntegerStorageSnapshotBridge` | Plannerが一つのmountを読む時だけ、AE2用long FacadeとBigInteger正本を分離する。通常NetworkStorageへは介入しない。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactBigIntegerCellConsistency` | ACOが直接更新したExtendedAE Plus在庫Mapと、同MODの保存用総量を結ぶ弱Sidecar。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageBridge` | ME storageへのexact snapshot、reserve、insert、rollbackをAE2権限境界内で行う。 |
@@ -420,6 +424,8 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | クラス | 仕事 |
 |---|---|
 | `com.syaru.ae2craftingoptimizer.mixin.AdvancedAeBigCapacityPlanSubmissionMixin` | AdvancedAeBigCapacityPlanSubmissionMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.Ae2BigCapacityPlanSubmissionMixin` | 標準AE2が受理したACO exact計画だけを一回分Facadeで実Job化し、正確Sidecarを設置する提出境界。 |
+| `com.syaru.ae2craftingoptimizer.mixin.Ae2ExactCraftingLogicMixin` | 標準AE2 exact Jobの保存、復元、取消、完了を物理Receipt Managerへ接続する薄いMixin境界。 |
 | `com.syaru.ae2craftingoptimizer.mixin.AdvancedAeCraftingBlockEntityTransactionAccessMixin` | AdvancedAeCraftingBlockEntityTransactionAccessMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.AdvancedAeCraftingClusterBigWindowMixin` | AdvancedAeCraftingClusterBigWindowMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.AdvancedAeCraftingCpuAccessorMixin` | AdvancedAeCraftingCpuAccessorMixinの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
