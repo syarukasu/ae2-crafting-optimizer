@@ -100,7 +100,7 @@ Issue仕様書と試験ファイルは個別に存在するが、全Issueを横�
 
 ## 完了
 
-- PR:
+- PR: https://github.com/syarukasu/ae2-crafting-optimizer/pull/124
 - マージコミット:
 - 修正版:
 - リリース:
