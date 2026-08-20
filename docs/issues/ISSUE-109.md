@@ -61,3 +61,9 @@ BigInteger APIの「利用可能」「consumer登録済み」「AE2標準経路�
 - 標準AE2 CPUの提出、使用中判定、容量判定はAE2本来の経路で決まる
 - AQE/InsaneAEは各MOD自身のCPU境界でexact planを受理する
 - ME端末の入庫、出庫、クラフト開始操作がACOなしの場合と一致する
+
+## Issue #115による限定追加
+
+Issue #115では、標準AE2クラスタが自身の容量・使用中・セキュリティ判定を通して既に受理した
+ACO exact計画に限り、同じAE2 JobへSidecarを設置してACO物理Receipt経路を使用する。
+外部consumer登録の有無では分岐せず、通常long計画、共有在庫一覧、端末、バスは変更しない。

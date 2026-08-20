@@ -21,10 +21,15 @@ class Issue109MixinBoundarySourceTest {
     }
 
     @Test
-    void standardAe2CpuSubmissionIsNotIntercepted() {
+    void externalConsumerRegistrationDoesNotInstallTheRemovedBroadCpuGuard() {
         String mixins = read(MAIN.resolve(Path.of(
                 "resources", "ae2_crafting_optimizer.mixins.json")));
         assertFalse(mixins.contains("CraftingCpuClusterBigCapacityGuardMixin"));
+        String issue115Boundary = read(MAIN.resolve(Path.of(
+                "java", "com", "syaru", "ae2craftingoptimizer", "mixin",
+                "Ae2BigCapacityPlanSubmissionMixin.java")));
+        assertFalse(issue115Boundary.contains("hasExternalBigIntegerPlanConsumer"));
+        assertTrue(issue115Boundary.contains("if (exact == null)"));
     }
 
     @Test
