@@ -113,7 +113,7 @@ InsaneAEのQuantum CPUは標準AE2クラスタを使用する一例です。ACO�
 
 ## 完了
 
-- PR:
-- マージコミット:
+- PR: NeoForge #116 / Forge #117
+- マージコミット: NeoForge `18e8777e84e159eb1f37e861fb0defc0c8b28b7e` / ForgeはPR #117で生成
 - 修正版: 1.5.23
 - リリース: https://github.com/syarukasu/ae2-crafting-optimizer/releases/tag/v1.5.23
