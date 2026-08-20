@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
 import org.junit.jupiter.api.Test;
 
 class Ae2AuthoritativeCraftingPlannerPolicyTest {
@@ -43,6 +44,34 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
                 false,
                 false,
                 false,
+                false));
+    }
+
+    @Test
+    void reportsSnapshotFailureSeparatelyFromAmbiguousProducer() {
+        assertEquals(
+                BigIntegerPlanDeclineReason.INCOMPLETE_GRAPH_SNAPSHOT,
+                Ae2AuthoritativeCraftingPlanner.classifyRootProgramFailure(
+                        RootProgramFailure.INCOMPLETE_PATTERN_SNAPSHOT));
+        assertEquals(
+                BigIntegerPlanDeclineReason.INCOMPLETE_GRAPH_SNAPSHOT,
+                Ae2AuthoritativeCraftingPlanner.classifyRootProgramFailure(
+                        RootProgramFailure.MISSING_FROM_SNAPSHOT));
+    }
+
+    @Test
+    void retriesOnlySnapshotShapedRootProgramFailures() {
+        assertTrue(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
+                RootProgramFailure.INCOMPLETE_PATTERN_SNAPSHOT,
+                true));
+        assertFalse(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
+                RootProgramFailure.MULTIPLE_PRODUCERS,
+                true));
+        assertFalse(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
+                RootProgramFailure.CYCLE,
+                true));
+        assertFalse(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
+                RootProgramFailure.MISSING_FROM_SNAPSHOT,
                 false));
     }
 

@@ -275,6 +275,13 @@ checks because AE2 encoded items require the real mod registry lifecycle.
 3. Disable AAC vector execution and confirm its controller delegates performance
    behavior to Neo ECO.
 
+## Issue #103 Backport Checks
+
+- Root Programの循環と複数Producerが別理由になること。
+- 不完全Snapshotだけが一回の再構築対象になること。
+- 公開Wide計画が正確なbyte数を保持し、外部CPUの容量判定へ渡せること。
+- Forge 1.20.1とNeoForge 1.21.1の両方で全JUnitと`clean build`を通すこと。
+
 ## Not Proven by Gradle
 
 Gradle tests do not prove:

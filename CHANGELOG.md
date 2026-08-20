@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Classify compiled Root Program failures instead of collapsing incomplete
+  snapshots, cycles, ambiguous producers, and size limits into one generic
+  `NO_COMPILED_PROGRAM` result.
+- Rebuild a snapshot-shaped incomplete graph at most once. Structural failures
+  remain on the normal AE2 planning path and are never retried as if transient.
+- Keep exact BigInteger byte counts on the public wide-plan boundary so CPU
+  add-ons can make their own capacity decision without ACO taking ownership of
+  their submission or execution logic.
+
 ## [1.5.27] - 2026-08-23
 
 ### Changed
