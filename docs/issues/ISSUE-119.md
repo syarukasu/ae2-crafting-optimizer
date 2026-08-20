@@ -1,7 +1,8 @@
 # Issue #119: 停止時のexact Job保存がRegistry Provider消失で失敗する
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/119
-- 状態: Implemented
+- 状態: Verified
+- 修正版: ACO 1.5.23再公開ビルド
 - 影響版: ACO 1.5.23
 - 対象ローダー: Forge 1.20.1 / NeoForge 1.21.1
 

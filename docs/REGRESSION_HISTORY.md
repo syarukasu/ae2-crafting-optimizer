@@ -14,9 +14,9 @@
 | [#93](https://github.com/syarukasu/ae2-crafting-optimizer/issues/93) | Java 25でBigInteger在庫Sidecarの可視コピー中にJVMが終了する | 1.5.18 | 1.5.20 | [ISSUE-93.md](issues/ISSUE-93.md) |
 | [#103](https://github.com/syarukasu/ae2-crafting-optimizer/issues/103) | wide計画の非同期compile競合と実行裏付け不足の誤診断 | 1.5.19 | 1.5.20 | [ISSUE-103.md](issues/ISSUE-103.md) |
 | [#109](https://github.com/syarukasu/ae2-crafting-optimizer/issues/109) | BigInteger API連携が通常AE2の責務境界を越える | 1.5.20 | 1.5.21 | [ISSUE-109.md](issues/ISSUE-109.md) |
-| [#118](https://github.com/syarukasu/ae2-crafting-optimizer/issues/118) | 正常な空Journalを成功量0として扱いexact物理実行が自己隔離する | 1.5.23 | 次回修正 | [ISSUE-118.md](issues/ISSUE-118.md) |
-| [#119](https://github.com/syarukasu/ae2-crafting-optimizer/issues/119) | 停止時にRegistry Providerを先に破棄しexact JobとBlock EntityのNBT保存が失敗する | 1.5.23 | 次回修正 | [ISSUE-119.md](issues/ISSUE-119.md) |
-| [#120](https://github.com/syarukasu/ae2-crafting-optimizer/issues/120) | Mixin初期化中のModList判定でAdvanced AE変換を自己無効化する | 1.5.23 | 次回修正 | [ISSUE-120.md](issues/ISSUE-120.md) |
+| [#118](https://github.com/syarukasu/ae2-crafting-optimizer/issues/118) | 正常な空Journalを成功量0として扱いexact物理実行が自己隔離する | 1.5.23初回Draft | 1.5.23再公開 | [ISSUE-118.md](issues/ISSUE-118.md) |
+| [#119](https://github.com/syarukasu/ae2-crafting-optimizer/issues/119) | 停止時にRegistry Providerを先に破棄しexact JobとBlock EntityのNBT保存が失敗する | 1.5.23初回Draft | 1.5.23再公開 | [ISSUE-119.md](issues/ISSUE-119.md) |
+| [#120](https://github.com/syarukasu/ae2-crafting-optimizer/issues/120) | Mixin初期化中のModList判定でAdvanced AE変換を自己無効化する | 1.5.23初回Draft | 1.5.23再公開 | [ISSUE-120.md](issues/ISSUE-120.md) |
 
 ## 運用
 
