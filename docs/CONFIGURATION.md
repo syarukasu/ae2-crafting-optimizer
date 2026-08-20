@@ -29,6 +29,8 @@ Important calculation options include:
 | `enableCompiledCraftingGraph` | `true` | Reuses a generation-keyed deterministic graph where the active profile allows it. |
 | `enableShadowMode` | `true` | Compares eligible compiled results against AE2 without changing normal results. |
 | `enableExactBigIntegerInventorySnapshots` | `true` | Keeps exact sidecar stock while AE2 sees a saturated long facade. |
+| `retryIncompleteCraftingGraphSnapshot` | `true` | Rebuilds a snapshot-shaped incomplete graph once per snapshot; structural failures are not retried. |
+| `logWidePlanSubmissionDeclines` | `true` | Logs bounded diagnostics when a wide plan cannot use a CPU BigInteger ledger. |
 | `enableAtomicBigCapacityPlans` | `true` | Allows exact planning above signed-long aggregate limits for supported hosts. |
 | `bigIntegerMaximumBits` | implementation ceiling | Bounds all BigInteger intermediates and persistence. |
 

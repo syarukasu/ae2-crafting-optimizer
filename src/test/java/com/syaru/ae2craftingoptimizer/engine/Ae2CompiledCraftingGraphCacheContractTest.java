@@ -23,7 +23,7 @@ class Ae2CompiledCraftingGraphCacheContractTest {
                 "Map<AEKey, CompiledRootProgram<AEKey>> rootPrograms"));
         assertFalse(source.contains(
                 "Map<AEKey, Optional<CompiledRootProgram<AEKey>>> rootPrograms"));
-        assertTrue(source.contains("if (compiled.isEmpty())"));
+        assertTrue(source.contains("if (compiled.program().isEmpty())"));
         assertTrue(source.contains("rootPrograms.put(root, candidate);"));
         assertFalse(source.contains("rootPrograms.put(root, compiled);"));
     }
@@ -39,8 +39,8 @@ class Ae2CompiledCraftingGraphCacheContractTest {
                 "long currentRecipeGeneration = RecipeGenerationTracker.generation();"));
 
         int rootMethod = source.indexOf(
-                "public Optional<CompiledRootProgram<AEKey>> rootProgram(AEKey root)");
-        int compile = source.indexOf("CompiledRootProgram.tryCompile(", rootMethod);
+                "public CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(AEKey root)");
+        int compile = source.indexOf("CompiledRootProgram.compile(", rootMethod);
         int firstGuard = source.indexOf("requireCurrentGenerations();", rootMethod);
         int secondGuard = source.indexOf("requireCurrentGenerations();", firstGuard + 1);
         assertTrue(rootMethod >= 0 && firstGuard < compile && secondGuard > compile);
@@ -50,8 +50,8 @@ class Ae2CompiledCraftingGraphCacheContractTest {
     void missingProgramHasItsOwnDiagnostic() throws Exception {
         String planner = Files.readString(PLANNER_SOURCE);
 
-        assertTrue(planner.contains("FallbackReasonCode.NO_COMPILED_PROGRAM"));
-        assertTrue(planner.contains("BigIntegerPlanDeclineReason.NO_COMPILED_PROGRAM"));
-        assertTrue(planner.contains("\"no compiled root program\""));
+        assertTrue(planner.contains("FallbackReasonCode.INCOMPLETE_GRAPH_SNAPSHOT"));
+        assertTrue(planner.contains("BigIntegerPlanDeclineReason.INCOMPLETE_GRAPH_SNAPSHOT"));
+        assertTrue(planner.contains("\"root program unavailable: \""));
     }
 }

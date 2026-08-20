@@ -18,6 +18,7 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
+import com.syaru.ae2craftingoptimizer.engine.WidePlanSubmissionGuard;
 import com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator;
 import com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
@@ -97,8 +98,14 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
                 return;
             }
             var host = BigCraftingHostRegistry.find(this).orElse(null);
-            if (host == null
-                    || host.available().compareTo(bigIntegerPlan.exactBytes()) < 0) {
+            // BigInteger台帳が無いことは容量不足ではないため、別の拒否理由を返す。
+            if (host == null) {
+                cir.setReturnValue(WidePlanSubmissionGuard.declineOnUnsupportedCpu(
+                        plan,
+                        ((AdvCraftingCPUCluster) (Object) this).getAvailableStorage()));
+                return;
+            }
+            if (host.available().compareTo(bigIntegerPlan.exactBytes()) < 0) {
                 cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
                 return;
             }
@@ -148,8 +155,14 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
          * 文脈に真値があるのにPlanと一致しない場合は、別Windowの取り違えとして拒否する。
          */
         boolean parentOwnedWindow = parentOwnedAllowance.signum() > 0;
-        if (host == null
-                || (parentOwnedWindow
+        // BigInteger台帳が無いことは容量不足ではないため、別の拒否理由を返す。
+        if (host == null) {
+            cir.setReturnValue(WidePlanSubmissionGuard.declineOnUnsupportedCpu(
+                    plan,
+                    ((AdvCraftingCPUCluster) (Object) this).getAvailableStorage()));
+            return;
+        }
+        if ((parentOwnedWindow
                         && !parentOwnedAllowance.equals(bigPlan.exactBytes()))
                 || (!parentOwnedWindow
                         && host.available().compareTo(bigPlan.exactBytes()) < 0)) {
