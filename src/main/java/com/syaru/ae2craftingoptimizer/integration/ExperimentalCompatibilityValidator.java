@@ -14,6 +14,7 @@ import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactBigIntegerInventoryHookAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingInventoryAccess;
 import com.syaru.ae2craftingoptimizer.access.MekanismCachedRecipeAccess;
+import com.syaru.ae2craftingoptimizer.access.NetworkStorageMountsAccess;
 import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
@@ -63,15 +64,11 @@ public final class ExperimentalCompatibilityValidator {
             require(failures, "appeng.crafting.inv.CraftingSimulationState",
                     CheckedCraftingArithmeticHookAccess.class);
         }
-        // BigInteger在庫は集計・複製・Sidecar破棄・Cache失効の四境界を一組として監査する。
+        // BigInteger在庫はPlanner専用mount列挙と一時KeyCounterのSidecar破棄だけを監査する。
         if (ACOConfig.enableExactBigIntegerInventorySnapshots()) {
             require(failures, "appeng.me.storage.NetworkStorage",
-                    ExactBigIntegerInventoryHookAccess.class);
-            require(failures, "appeng.crafting.inv.NetworkCraftingSimulationState",
-                    ExactBigIntegerInventoryHookAccess.class);
+                    NetworkStorageMountsAccess.class);
             require(failures, "appeng.api.stacks.KeyCounter",
-                    ExactBigIntegerInventoryHookAccess.class);
-            require(failures, "appeng.me.service.StorageService",
                     ExactBigIntegerInventoryHookAccess.class);
         }
         if ((ACOConfig.enableTransactionalBatchingV2()

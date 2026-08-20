@@ -55,6 +55,12 @@ public abstract class ExtendedAePlusBigIntegerCellConsistencyMixin {
             Actionable mode,
             IActionSource source,
             CallbackInfoReturnable<Long> callback) {
+        Object2ObjectMap<AEKey, BigInteger> amounts =
+                getCellStoredMap();
+        // ACOが直接変更していないセルは、ExtendedAE Plus本来の搬入出だけへ完全に任せる。
+        if (ExactBigIntegerCellConsistency.expectedTotal(amounts).isEmpty()) {
+            return;
+        }
         refreshCachedStateFromStorage();
     }
 
@@ -86,6 +92,10 @@ public abstract class ExtendedAePlusBigIntegerCellConsistencyMixin {
         }
         Object2ObjectMap<AEKey, BigInteger> amounts =
                 getCellStoredMap();
+        // 通常経路しか使っていないセルへACOの台帳を新規作成しない。
+        if (ExactBigIntegerCellConsistency.expectedTotal(amounts).isEmpty()) {
+            return;
+        }
         ExactBigIntegerCellConsistency.record(
                 amounts,
                 totalAEKey2Amounts);
