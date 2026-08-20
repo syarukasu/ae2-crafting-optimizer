@@ -18,6 +18,7 @@ import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import org.spongepowered.asm.mixin.Final;
@@ -93,7 +94,8 @@ public abstract class AdvancedAeExecutingCraftingJobTransactionAccessMixin
 
     @Override
     public void aco$loadExactState(
-            CompoundTag owner) {
+            CompoundTag owner,
+            HolderLookup.Provider registries) {
         if (!owner.contains(
                 ACO_EXACT_JOB_NBT,
                 Tag.TAG_COMPOUND)) {
@@ -102,13 +104,15 @@ public abstract class AdvancedAeExecutingCraftingJobTransactionAccessMixin
         }
         aco$exactState = ExactCraftingJobState.load(
                 owner.getCompound(ACO_EXACT_JOB_NBT),
-                ACOConfig.getBigIntegerMaximumBits());
+                ACOConfig.getBigIntegerMaximumBits(),
+                registries);
         aco$applyExactRuntimeCounters();
     }
 
     @Override
     public void aco$writeExactState(
-            CompoundTag owner) {
+            CompoundTag owner,
+            HolderLookup.Provider registries) {
         if (aco$exactState == null) {
             return;
         }
@@ -123,7 +127,8 @@ public abstract class AdvancedAeExecutingCraftingJobTransactionAccessMixin
         owner.put(
                 ACO_EXACT_JOB_NBT,
                 aco$exactState.save(
-                        ACOConfig.getBigIntegerMaximumBits()));
+                        ACOConfig.getBigIntegerMaximumBits(),
+                        registries));
     }
 
     @Override

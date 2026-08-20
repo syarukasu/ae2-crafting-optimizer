@@ -33,6 +33,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.bus.api.EventPriority;
@@ -59,6 +60,8 @@ public final class ACOServerLifecycle {
         NeoForge.EVENT_BUS.addListener(
                 EventPriority.HIGHEST,
                 ACOServerLifecycle::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(
+                ACOServerLifecycle::onServerStopped);
     }
 
     private static void onServerAboutToStart(ServerAboutToStartEvent event) {
@@ -127,11 +130,15 @@ public final class ACOServerLifecycle {
         BigCraftingStatusInbox.clear();
         Ae2BigCraftingExecutionManager.clear();
         OptionalAqeBigCraftingExecution.clear();
-        /*
-         * AQE側の未送信窓を先に戻してからRegistryを破棄する。
-         * 順序を逆にするとManagerがHostへ到達できず、prepared leaseだけが残る。
-         */
+        // AQE側の未送信窓を先に戻し、prepared leaseを停止後へ残さない。
         BigCraftingHostRegistry.clear();
+    }
+
+    private static void onServerStopped(ServerStoppedEvent event) {
+        /*
+         * Issue #119: ServerStoppingではBlock Entityの最終NBT保存がまだ走り得る。
+         * 全停止完了後だけグローバルRegistry参照を破棄する。
+         */
         ACORegistryAccess.clear();
     }
 

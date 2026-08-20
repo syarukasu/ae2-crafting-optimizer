@@ -25,3 +25,6 @@
 - [Issue #103](ISSUE-103.md): wide計画の非同期compile競合と実行裏付け不足の誤診断
 - [Issue #109](ISSUE-109.md): BigInteger API連携が通常AE2の責務境界を越える
 - [Issue #115](ISSUE-115.md): 標準AE2クラスタでBigInteger物理実行を所有する
+- [Issue #118](ISSUE-118.md): 正常な空Journalを成功量0として自己隔離する
+- [Issue #119](ISSUE-119.md): 停止時のRegistry Provider消失でexact Job保存が失敗する
+- [Issue #120](ISSUE-120.md): Advanced AE連携Mixinが初期化順で自己無効化する

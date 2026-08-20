@@ -312,9 +312,12 @@ public final class ExactNetworkStorageBridge {
                 checkedBatchAmounts(
                         amounts);
         synchronized (lockFor(grid)) {
-            ExactStorageMutationResult recovery = recoverPending(grid);
-            if (!recovery.successful()) {
-                return recovery;
+            Optional<ExactStorageMutationResult> recoveryInterruption =
+                    recoverPendingInterruption(
+                            grid);
+            // Issue #118: 復旧または復旧失敗があれば、同じ呼出しで新規変更を重ねない。
+            if (recoveryInterruption.isPresent()) {
+                return recoveryInterruption.orElseThrow();
             }
             PreparedMutation prepared =
                     prepareBatch(grid, checked, source, direction);
@@ -381,9 +384,12 @@ public final class ExactNetworkStorageBridge {
             IActionSource source,
             Direction direction) {
         synchronized (lockFor(grid)) {
-            ExactStorageMutationResult recovery = recoverPending(grid);
-            if (!recovery.successful()) {
-                return recovery;
+            Optional<ExactStorageMutationResult> recoveryInterruption =
+                    recoverPendingInterruption(
+                            grid);
+            // Issue #118: 「復旧対象なし」だけ新規変更へ進み、復旧実施時は再照合を待つ。
+            if (recoveryInterruption.isPresent()) {
+                return recoveryInterruption.orElseThrow();
             }
             PreparedMutation prepared =
                     prepareBatch(
@@ -621,17 +627,19 @@ public final class ExactNetworkStorageBridge {
      * matching neither before nor after is quarantined; unrelated network totals are
      * never used as proof.
      */
-    private static ExactStorageMutationResult recoverPending(IGrid grid) {
+    private static Optional<ExactStorageMutationResult> recoverPendingInterruption(IGrid grid) {
         ExactStorageMutationJournal journal =
                 ExactStorageMutationJournal.forGrid(grid);
         if (journal == null || !journal.isHealthy()) {
-            return ExactStorageMutationResult.rejected(
-                    "exact storage journal is unavailable or malformed");
+            return Optional.of(
+                    ExactStorageMutationResult.rejected(
+                            "exact storage journal is unavailable or malformed"));
         }
         MEStorage networkInventory = grid.getStorageService().getInventory();
         if (!(networkInventory instanceof NetworkStorageMountsAccess mountsAccess)) {
-            return ExactStorageMutationResult.rejected(
-                    "exact storage mounts are unavailable during recovery");
+            return Optional.of(
+                    ExactStorageMutationResult.rejected(
+                            "exact storage mounts are unavailable during recovery"));
         }
         List<ResolvedMount> mounts = resolveMounts(
                 mountsAccess.aco$getPriorityInventory());
@@ -643,6 +651,7 @@ public final class ExactNetworkStorageBridge {
                 cells.putIfAbsent(storageId, mount.resolved().accessor());
             }
         }
+        boolean recoveredAny = false;
         for (ExactStorageMutationJournal.Entry entry : journal.pending()) {
             boolean belongsToThisGrid = false;
             for (ExactStorageMutationJournal.Step step : entry.steps()) {
@@ -712,6 +721,7 @@ public final class ExactNetworkStorageBridge {
                 }
                 journal.acknowledge(entry.operationId());
                 grid.getStorageService().invalidateCache();
+                recoveredAny = true;
             } catch (RuntimeException | LinkageError failure) {
                 journal.quarantine(
                         entry.operationId(),
@@ -720,11 +730,25 @@ public final class ExactNetworkStorageBridge {
                         "ACO quarantined exact storage operation {} during recovery",
                         entry.operationId(),
                         failure);
-                return ExactStorageMutationResult.uncertain(
-                        "exact storage recovery could not be proven");
+                return Optional.of(
+                        ExactStorageMutationResult.uncertain(
+                                "exact storage recovery could not be proven"));
             }
         }
-        return ExactStorageMutationResult.success(BigInteger.ZERO);
+        /*
+         * 復旧直前に呼出し元が読んだbefore状態は既に古い。ここで新規変更を続けず、
+         * 次tickにafter状態を再取得して親TransactionのReceiptだけを確定させる。
+         */
+        if (recoveredAny) {
+            return Optional.of(
+                    ExactStorageMutationResult.rejected(
+                            "exact storage recovery completed; retry after reconciliation"));
+        }
+        /*
+         * 復旧対象なしは在庫変更結果ではなく「次の変更へ進める」状態。
+         * 成功した実変更量は常に正数というExactStorageMutationResultの契約を維持する。
+         */
+        return Optional.empty();
     }
 
     private static Object lockFor(IGrid grid) {
