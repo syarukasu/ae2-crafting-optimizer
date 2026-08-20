@@ -1,11 +1,15 @@
 # Testing
 
+過去Issueと試験証拠の対応、およびリリース判定は
+[`ISSUE_REGRESSION_TESTING.md`](ISSUE_REGRESSION_TESTING.md)を参照してください。
+
 ## Automated
 
 Run:
 
 ```powershell
 .\gradlew.bat test --no-daemon --rerun-tasks
+.\gradlew.bat verifyIssueRegressionManifest --no-daemon
 .\gradlew.bat clean build --no-daemon
 ```
 

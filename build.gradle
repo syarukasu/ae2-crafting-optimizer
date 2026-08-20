@@ -136,6 +136,50 @@ tasks.register('updateGoldenFixtures', Test) {
     systemProperty 'aco.updateGolden', 'true'
 }
 
+tasks.register('verifyIssueRegressionManifest') {
+    description = 'Validate the machine-readable mapping from historical Issues to regression evidence.'
+    group = 'verification'
+    dependsOn tasks.named('test')
+}
+
+tasks.register('verifyIssueRegressionReleaseReadiness') {
+    description = 'Fail while any Issue still requires GameTest or runtime verification.'
+    group = 'verification'
+    dependsOn tasks.named('verifyIssueRegressionManifest')
+
+    def manifestFile = layout.projectDirectory.file('docs/issues/REGRESSION_MATRIX.tsv')
+    inputs.file(manifestFile)
+
+    doLast {
+        List<String> dataLines = manifestFile.asFile.readLines('UTF-8').findAll { line ->
+            !line.isBlank() && !line.startsWith('#')
+        }
+
+        // ヘッダーを除いた各Issueから、未実施の実機試験だけを抽出します。
+        List<String> blockers = []
+        for (String line : dataLines.drop(1)) {
+            String[] columns = line.split('\t', -1)
+            if (columns.length != 8) {
+                throw new GradleException("Malformed regression matrix row: ${line}")
+            }
+            if (columns[5] != 'PENDING') {
+                continue
+            }
+            blockers.add("#${columns[0]} [${columns[3]}] ${columns[7]}")
+        }
+
+        // 未確認項目が一件でもあれば、再発なしを名乗るリリースを止めます。
+        if (!blockers.isEmpty()) {
+            throw new GradleException(
+                    'Release regression gate is blocked by pending verification:\n- ' + blockers.join('\n- '))
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyIssueRegressionManifest')
+}
+
 processResources {
     inputs.property 'version', project.version
     filesMatching('META-INF/neoforge.mods.toml') {

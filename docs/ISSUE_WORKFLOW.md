@@ -25,9 +25,10 @@ ACOの修正は、問題を理解する前にコードへ触らないことを�
    - やってはいけないこと
    - 修正方針とfallback境界
    - 先に失敗を確認する回帰試験
-4. 不明点を推測で埋めず、JAR、ソース、API、ログを調査します。
-5. `docs/CLASS_RESPONSIBILITIES.md`で所有クラスと依存方向を確認します。
-6. 実装前チェックをすべて満たし、状態を`Ready`へ変更します。
+4. `docs/issues/REGRESSION_MATRIX.tsv`へIssueを登録し、必要な最小試験レベルと証拠を指定します。
+5. 不明点を推測で埋めず、JAR、ソース、API、ログを調査します。
+6. `docs/CLASS_RESPONSIBILITIES.md`で所有クラスと依存方向を確認します。
+7. 実装前チェックをすべて満たし、状態を`Ready`へ変更します。
 
 `Ready`になる前にJava、Mixin、リソース、Config、永続形式を変更してはいけません。
 
@@ -45,8 +46,10 @@ ACOの修正は、問題を理解する前にコードへ触らないことを�
 2. 単体試験、境界試験、故障試験、ビルド結果を記録します。
 3. 未実施の起動、GameTest、実環境試験を明示します。
 4. 回帰修正の場合だけ、`docs/REGRESSION_HISTORY.md`へIssueの索引を追加します。
-5. PR本文でIssue仕様書の読了・更新をチェックします。
-6. CI成功後にマージし、PRとリリース番号をIssue仕様書へ追記します。
+5. `.\gradlew.bat verifyIssueRegressionManifest --no-daemon`で台帳と自動証拠を検証します。
+6. Release PRでは`.\gradlew.bat verifyIssueRegressionReleaseReadiness --no-daemon`を実行します。
+7. PR本文でIssue仕様書の読了・更新と、残る`PENDING`を明記します。
+8. CI成功後にマージし、PRとリリース番号をIssue仕様書へ追記します。
 
 ## 例外
 
