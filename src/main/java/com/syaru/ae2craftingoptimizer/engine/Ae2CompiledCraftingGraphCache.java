@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
@@ -70,6 +71,30 @@ public final class Ae2CompiledCraftingGraphCache {
                         0L,
                         RecipeGenerationTracker.generation()),
                 0);
+    }
+
+    /**
+     * 不完全なSnapshotを同じ注文中に一度だけ破棄し、現在世代から再構築する。
+     * 恒久的にコンパイルできないPatternがあっても、注文ごとの再構築ループは作らない。
+     */
+    public static Snapshot recompile(IGrid grid, Level level, Snapshot stale) {
+        // 同じSnapshotに対する再構築権は一度だけ与える。
+        if (!stale.claimRetryRebuild()) {
+            return stale;
+        }
+        ICraftingService service = grid.getCraftingService();
+        synchronized (CACHE) {
+            Map<ResourceKey<Level>, Snapshot> byDimension = CACHE.get(service);
+            Snapshot current = byDimension == null ? null : byDimension.get(level.dimension());
+            // 別スレッドが新しいSnapshotへ交換済みなら、その結果を破棄しない。
+            if (current == stale && byDimension != null) {
+                byDimension.remove(level.dimension());
+            }
+        }
+        Snapshot rebuilt = getOrCompile(grid, level);
+        // 再構築後も不完全なら、世代変更まで追加の再構築を禁止する。
+        rebuilt.claimRetryRebuild();
+        return rebuilt;
     }
 
     public static void clear() {
@@ -152,10 +177,11 @@ public final class Ae2CompiledCraftingGraphCache {
         private final Set<AEKey> incompletelyCompiledOutputs;
         private final Set<AEKey> craftables;
         private final long recipeGeneration;
-        private final Map<AEKey, Optional<CompiledRootProgram<AEKey>>> rootPrograms =
+        private final Map<AEKey, CompiledRootProgram.Outcome<AEKey>> rootPrograms =
                 new LinkedHashMap<>();
         private final Map<AEKey, Optional<Ae2StrictCraftingTopology>> strictTopologies =
                 new LinkedHashMap<>();
+        private final AtomicBoolean retryRebuildClaimed = new AtomicBoolean();
 
         private Snapshot(
                 ICraftingService service,
@@ -180,6 +206,11 @@ public final class Ae2CompiledCraftingGraphCache {
 
         public CompiledCraftingGraph<AEKey> graph() {
             return graph;
+        }
+
+        /** このSnapshotに対する一度限りの再構築権を取得する。 */
+        private boolean claimRetryRebuild() {
+            return retryRebuildClaimed.compareAndSet(false, true);
         }
 
         public String id(IPatternDetails pattern) {
@@ -223,24 +254,40 @@ public final class Ae2CompiledCraftingGraphCache {
          * 世代変更時はSnapshotごと破棄されるため、古いPattern参照は残らない。
          */
         public Optional<CompiledRootProgram<AEKey>> rootProgram(AEKey root) {
+            return rootProgramOutcome(root).program();
+        }
+
+        /** Root Programと、作れなかった場合の正確な理由を同じ世代でキャッシュする。 */
+        public CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(AEKey root) {
             synchronized (rootPrograms) {
-                Optional<CompiledRootProgram<AEKey>> cached = rootPrograms.get(root);
+                CompiledRootProgram.Outcome<AEKey> cached = rootPrograms.get(root);
                 // 既に成功またはFallbackが確定したルートは、同じ世代中に再探索しない。
                 if (cached != null) {
                     return cached;
                 }
             }
 
-            Optional<CompiledRootProgram<AEKey>> compiled = CompiledRootProgram.tryCompile(
+            CompiledRootProgram.Outcome<AEKey> compiled = CompiledRootProgram.compile(
                     graph,
                     root,
                     service::canEmitFor);
-            if (compiled.isPresent() && touchesIncompletePattern(compiled.get())) {
+            if (compiled.program().isPresent()
+                    && touchesIncompletePattern(compiled.program().get())) {
                 // 未コンパイルPatternを終端素材と誤認したShadow計算も作らず、直ちにAE2へ戻す。
-                compiled = Optional.empty();
+                compiled = compiled.withFailure(RootProgramFailure.INCOMPLETE_PATTERN_SNAPSHOT);
+            } else if (compiled.program().isPresent()
+                    && graph.patternsFor(root).isEmpty()
+                    && registeredPatternsByOutput.getOrDefault(root, 0) == 0
+                    && !service.getCraftingFor(root).isEmpty()) {
+                /*
+                 * AE2にはPatternがあるのにGraphへ入っていない場合、終端Programとして
+                 * 誤採用せず、Snapshotの取り遅れとして一度だけ再構築させる。
+                 */
+                compiled = CompiledRootProgram.Outcome.failed(
+                        RootProgramFailure.MISSING_FROM_SNAPSHOT);
             }
             synchronized (rootPrograms) {
-                Optional<CompiledRootProgram<AEKey>> raced = rootPrograms.get(root);
+                CompiledRootProgram.Outcome<AEKey> raced = rootPrograms.get(root);
                 // 別計算スレッドが先に登録した場合は、その同一世代Programを採用する。
                 if (raced != null) {
                     return raced;

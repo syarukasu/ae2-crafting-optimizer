@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Backported issue #103 graph-snapshot recovery to the maintained 1.5.x line.
+- Rebuilds an incomplete compiled graph at most once while leaving cycles,
+  ambiguous producers, multiple outputs, and size limits on the normal fallback path.
+- Reports `INCOMPLETE_GRAPH_SNAPSHOT` instead of collapsing a healthy root into
+  `NO_COMPILED_PROGRAM`.
+- Stops BigInteger-ledger incompatibility from being reported as `CPU_TOO_SMALL`.
+
 ## [1.5.22] - 2026-08-20
 
 ### Fixed
