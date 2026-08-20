@@ -11,6 +11,7 @@ import appeng.api.stacks.KeyCounter;
 import appeng.crafting.CraftingPlan;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.integration.PlanningExactInventorySnapshot;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDiagnostics;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
@@ -63,6 +64,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 grid,
                 source,
                 networkSnapshot,
+                PlanningExactInventorySnapshot.capture(grid),
                 ProviderPatternGenerationTracker.generation(),
                 RecipeGenerationTracker.generation());
     }
@@ -199,7 +201,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
             }
 
             BigKeyCounterSidecars.Snapshot inventoryMetadata =
-                    BigKeyCounterSidecars.snapshot(capture.inventorySnapshot()).orElse(null);
+                    BigKeyCounterSidecars.snapshot(capture.exactInventorySnapshot()).orElse(null);
             // Adapter失敗を含む不完全Snapshotは、飽和値から不足数を推測せずAE2へ戻す。
             if (inventoryMetadata != null && !inventoryMetadata.complete()) {
                 CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
@@ -215,7 +217,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
             CompiledRootProgram.BigInventorySnapshot<AEKey> exactPlanningInventory =
                     Ae2ReferencedInventory.captureExactNetworkSnapshot(
                             program,
-                            capture.inventorySnapshot(),
+                            capture.exactInventorySnapshot(),
                             output);
             CompiledRootProgram.InventorySnapshot<AEKey> planningInventory = null;
             // 正確なSidecarが無い通常AE2環境だけ、従来のlong Snapshotを使用する。
@@ -977,6 +979,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
             IGrid grid,
             IActionSource source,
             KeyCounter inventorySnapshot,
+            KeyCounter exactInventorySnapshot,
             long patternGeneration,
             long recipeGeneration) {
         public Capture {
@@ -984,6 +987,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
             Objects.requireNonNull(grid, "grid");
             Objects.requireNonNull(source, "source");
             Objects.requireNonNull(inventorySnapshot, "inventorySnapshot");
+            Objects.requireNonNull(exactInventorySnapshot, "exactInventorySnapshot");
             // 負の世代値はSnapshot識別へ使用できないため拒否する。
             if (patternGeneration < 0L || recipeGeneration < 0L) {
                 throw new IllegalArgumentException("generation values must not be negative");
@@ -1007,6 +1011,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     grid,
                     source,
                     inventorySnapshot,
+                    exactInventorySnapshot,
                     ProviderPatternGenerationTracker.generation(),
                     RecipeGenerationTracker.generation());
         }

@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.22] - 2026-08-20
+
+### Fixed
+
+- Removed exact BigInteger inventory interception from normal AE2 network
+  storage, storage-service, and crafting-simulation runtime paths.
+- Limited exact inventory snapshots to authoritative BigInteger planning so
+  ordinary terminal insertion, extraction, serials, buses, and watchers remain
+  owned by AE2.
+- Preserved exact `10^64` test-cell amounts for planning while exposing only
+  the existing `Long.MAX_VALUE` compatibility facade to standard AE2 paths.
+- Limited ExtendedAE Plus cache refreshes to cells whose exact ledger was
+  directly changed by ACO.
+
 ## [1.5.21] - 2026-08-19
 
 ### Fixed

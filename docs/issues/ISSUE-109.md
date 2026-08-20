@@ -23,11 +23,31 @@ BigInteger APIの「利用可能」「consumer登録済み」「AE2標準経路�
 - `enableOptimizer=false`ならBigInteger backendも停止する
 - ACOは外部CPUへexact plan APIを提供するだけで、外部CPUの実行ロジックを所有しない
 
+## 1.5.21後に判明した残存介入
+
+1.5.21では上位の実行介入を外しましたが、下層の
+`NetworkStorage#getAvailableStacks`へ刺さる`NetworkStorageBigIntegerSnapshotMixin`が
+残っていました。このMixinは端末、バス、監視、通常クラフトを含む全在庫列挙を
+独自集計と同一tick cacheへ置換していました。
+
+また、ExtendedAE Plusセルの通常`insert/extract`前にも、ACO直接取引の有無にかかわらず
+内部cache refreshを強制していました。
+
+## 追加修正
+
+- NetworkStorage、StorageService、NetworkCraftingSimulationStateへのexact在庫常時Mixinを登録しない
+- BigInteger正確量はクラフト計算開始時の`PlanningExactInventorySnapshot`だけで取得する
+- 通常AE2の在庫一覧、serial、insert、extract、watcherを変更しない
+- ExtendedAE Plusの通常搬入出へは、ACO直接変更後の整合台帳が存在する時だけ介入する
+- テストセルの`10^64`正本とAE2向け`Long.MAX_VALUE`互換表示は維持する
+
 ## 回帰禁止事項
 
 - consumer登録の有無だけで標準AE2 CPUの提出結果を変更しない
 - BigInteger APIを有効化しただけで通常long計画を置換しない
 - master switchがOFFの時にクラフト演算へ介入しない
+- `NetworkStorage#getAvailableStacks`を正確量取得のために常時Redirectしない
+- Planner用SidecarをStorageServiceの共有Cached Inventoryへ格納しない
 
 ## 確認項目
 

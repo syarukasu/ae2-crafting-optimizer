@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
-/** BigInteger正本を支える必須Mixinが、将来の編集で静かに任意化されることを防ぐ。 */
+/** BigInteger正本を支える必須Mixinと通常AE2境界の分離を固定する。 */
 class CriticalMixinContractSourceTest {
     private static final Path PRODUCTION_ROOT = Path.of("src", "main", "java");
     private static final Path MIXIN_ROOT = PRODUCTION_ROOT.resolve(
@@ -35,13 +35,7 @@ class CriticalMixinContractSourceTest {
                 new Contract("CheckedCraftingArithmeticHookAccess", 1L),
                 "CraftingSimulationStateCheckedMathMixin.java",
                 new Contract("CheckedCraftingArithmeticHookAccess", 4L),
-                "NetworkCraftingSimulationStateBigIntegerSnapshotMixin.java",
-                new Contract("ExactBigIntegerInventoryHookAccess", 1L),
-                "NetworkStorageBigIntegerSnapshotMixin.java",
-                new Contract("ExactBigIntegerInventoryHookAccess", 6L),
                 "KeyCounterBigIntegerSidecarLifecycleMixin.java",
-                new Contract("ExactBigIntegerInventoryHookAccess", 1L),
-                "StorageServiceExactSnapshotInvalidationMixin.java",
                 new Contract("ExactBigIntegerInventoryHookAccess", 1L));
 
         contracts.forEach((fileName, contract) -> {
@@ -57,12 +51,26 @@ class CriticalMixinContractSourceTest {
     }
 
     @Test
+    void exactInventoryCaptureDoesNotHookTheSharedAe2InventoryPath() {
+        String mixinConfig = read(Path.of(
+                "src", "main", "resources", "ae2_crafting_optimizer.mixins.json"));
+        assertFalse(mixinConfig.contains("NetworkStorageBigIntegerSnapshotMixin"));
+        assertFalse(mixinConfig.contains("NetworkCraftingSimulationStateBigIntegerSnapshotMixin"));
+        assertFalse(mixinConfig.contains("StorageServiceExactSnapshotInvalidationMixin"));
+        assertTrue(read(PRODUCTION_ROOT.resolve(Path.of(
+                "com", "syaru", "ae2craftingoptimizer", "integration",
+                "PlanningExactInventorySnapshot.java")))
+                .contains("BigIntegerStorageSnapshotBridge.collect"));
+    }
+
+    @Test
     void compatibilityAuditCoversBothBigIntegerProfilesAndCriticalSurfaces() {
         String source = read(VALIDATOR);
         assertTrue(source.contains("enableBigCraftingProfile()"));
         assertTrue(source.contains("CraftingServiceCalculationHookAccess.class"));
         assertTrue(source.contains("CheckedCraftingArithmeticHookAccess.class"));
         assertTrue(source.contains("ExactBigIntegerInventoryHookAccess.class"));
+        assertTrue(source.contains("NetworkStorageMountsAccess.class"));
     }
 
     @Test
