@@ -19,6 +19,7 @@ import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import org.spongepowered.asm.mixin.Final;
@@ -86,7 +87,9 @@ public abstract class ExecutingCraftingJobTransactionAccessMixin
     }
 
     @Override
-    public void aco$loadExactState(CompoundTag owner) {
+    public void aco$loadExactState(
+            CompoundTag owner,
+            HolderLookup.Provider registries) {
         // exactタグが無い通常JobはSidecarを作らず、AE2本来のlong会計だけを使う。
         if (!owner.contains(ACO_EXACT_JOB_NBT, Tag.TAG_COMPOUND)) {
             aco$exactState = null;
@@ -94,12 +97,15 @@ public abstract class ExecutingCraftingJobTransactionAccessMixin
         }
         aco$exactState = ExactCraftingJobState.load(
                 owner.getCompound(ACO_EXACT_JOB_NBT),
-                ACOConfig.getBigIntegerMaximumBits());
+                ACOConfig.getBigIntegerMaximumBits(),
+                registries);
         aco$applyExactRuntimeCounters();
     }
 
     @Override
-    public void aco$writeExactState(CompoundTag owner) {
+    public void aco$writeExactState(
+            CompoundTag owner,
+            HolderLookup.Provider registries) {
         if (aco$exactState == null) {
             return;
         }
@@ -110,7 +116,9 @@ public abstract class ExecutingCraftingJobTransactionAccessMixin
                 aco$getExactRemainingOutput());
         owner.put(
                 ACO_EXACT_JOB_NBT,
-                aco$exactState.save(ACOConfig.getBigIntegerMaximumBits()));
+                aco$exactState.save(
+                        ACOConfig.getBigIntegerMaximumBits(),
+                        registries));
     }
 
     @Override

@@ -97,7 +97,9 @@ public abstract class AdvancedAeExactCraftingLogicMixin
             return;
         }
         CompoundTag jobTag = owner.getCompound("job");
-        exact.aco$writeExactState(jobTag);
+        exact.aco$writeExactState(
+                jobTag,
+                registries);
         owner.put("job", jobTag);
     }
 
@@ -110,7 +112,9 @@ public abstract class AdvancedAeExactCraftingLogicMixin
             HolderLookup.Provider registries,
             CallbackInfo ci) {
         if (job instanceof AdvancedAeExactCraftingJobAccess exact) {
-            exact.aco$loadExactState(owner.getCompound("job"));
+            exact.aco$loadExactState(
+                    owner.getCompound("job"),
+                    registries);
         }
     }
 

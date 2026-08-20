@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.mixin;
 
 import com.syaru.ae2craftingoptimizer.integration.MixinTransformationReport;
+import java.net.URL;
 import java.util.List;
 import java.util.Set;
 import net.neoforged.fml.ModList;
@@ -14,6 +15,11 @@ public abstract class ModPresenceMixinConfigPlugin implements IMixinConfigPlugin
 
     protected abstract String dependencyId();
 
+    /** Mixin選択時にModListより先に確認できる、任意連携先の実クラス。 */
+    protected String dependencyMarkerClass() {
+        return "";
+    }
+
     @Override
     public void onLoad(String mixinPackage) {
     }
@@ -25,15 +31,17 @@ public abstract class ModPresenceMixinConfigPlugin implements IMixinConfigPlugin
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        boolean loaded;
-        String version;
-        try {
-            var container = ModList.get().getModContainerById(dependencyId());
-            loaded = container.isPresent();
-            version = container.map(value -> value.getModInfo().getVersion().toString()).orElse("absent");
-        } catch (RuntimeException failure) {
-            loaded = false;
-            version = "unknown";
+        String markerClass = dependencyMarkerClass();
+        boolean loaded = markerClass.isBlank()
+                ? isDependencyLoadedByModList()
+                : isClassResourcePresent(
+                        markerClass,
+                        Thread.currentThread().getContextClassLoader(),
+                        getClass().getClassLoader());
+        String version = dependencyVersion();
+        // Mixin初期化中はModListが未完成でも、実クラスが見つかった事実を診断へ残す。
+        if (loaded && "absent".equals(version)) {
+            version = "classpath-present";
         }
         MixinTransformationReport.record(
                 feature(),
@@ -44,6 +52,48 @@ public abstract class ModPresenceMixinConfigPlugin implements IMixinConfigPlugin
                 loaded,
                 true);
         return loaded;
+    }
+
+    private boolean isDependencyLoadedByModList() {
+        try {
+            return ModList.get()
+                    .getModContainerById(
+                            dependencyId())
+                    .isPresent();
+        } catch (RuntimeException failure) {
+            return false;
+        }
+    }
+
+    private String dependencyVersion() {
+        try {
+            return ModList.get()
+                    .getModContainerById(
+                            dependencyId())
+                    .map(value -> value.getModInfo().getVersion().toString())
+                    .orElse("absent");
+        } catch (RuntimeException failure) {
+            return "unknown";
+        }
+    }
+
+    public static boolean isClassResourcePresent(
+            String className,
+            ClassLoader... classLoaders) {
+        String resourceName = className.replace('.', '/') + ".class";
+        // Issue #120: ModList完成前でも、各候補ClassLoaderへ副作用なしで実クラスを照会する。
+        for (ClassLoader classLoader : classLoaders) {
+            // nullのContext ClassLoaderは候補から外し、次の実Loaderを確認する。
+            if (classLoader == null) {
+                continue;
+            }
+            URL resource = classLoader.getResource(resourceName);
+            // 一つでも対象class resourceがあれば、任意連携Mixinを選択する。
+            if (resource != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

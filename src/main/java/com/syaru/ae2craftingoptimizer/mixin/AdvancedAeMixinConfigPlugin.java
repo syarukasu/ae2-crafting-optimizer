@@ -10,4 +10,9 @@ public final class AdvancedAeMixinConfigPlugin extends ModPresenceMixinConfigPlu
     protected String dependencyId() {
         return "advanced_ae";
     }
+
+    @Override
+    protected String dependencyMarkerClass() {
+        return "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster";
+    }
 }

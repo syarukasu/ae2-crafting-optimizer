@@ -70,7 +70,9 @@ public abstract class Ae2ExactCraftingLogicMixin implements ExactCraftingLogicAc
             return;
         }
         CompoundTag jobTag = owner.getCompound("job");
-        exact.aco$writeExactState(jobTag);
+        exact.aco$writeExactState(
+                jobTag,
+                registries);
         owner.put("job", jobTag);
     }
 
@@ -82,7 +84,9 @@ public abstract class Ae2ExactCraftingLogicMixin implements ExactCraftingLogicAc
         if (!(job instanceof ExactCraftingJobAccess exact)) {
             return;
         }
-        exact.aco$loadExactState(owner.getCompound("job"));
+        exact.aco$loadExactState(
+                owner.getCompound("job"),
+                registries);
         // 保存済みexact Jobだけを再登録し、通常Jobのtick経路を増やさない。
         if (exact.aco$isExactJob()) {
             Ae2BigCraftingExecutionManager.register(cluster);

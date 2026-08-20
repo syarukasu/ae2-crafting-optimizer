@@ -21,7 +21,7 @@ public final class ACORegistryAccess {
         HolderLookup.Provider current = provider;
         if (current == null) {
             throw new IllegalStateException(
-                    "ACO registry access is unavailable before the Minecraft server starts");
+                    "ACO registry access is unavailable outside the active server lifecycle");
         }
         return current;
     }

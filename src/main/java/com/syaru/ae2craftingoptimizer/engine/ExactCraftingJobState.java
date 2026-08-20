@@ -6,6 +6,7 @@ import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -103,14 +104,16 @@ public final class ExactCraftingJobState {
 
     public static ExactCraftingJobState load(
             CompoundTag owner,
-            int maximumBits) {
+            int maximumBits,
+            HolderLookup.Provider registries) {
         Objects.requireNonNull(owner, "owner");
+        Objects.requireNonNull(registries, "registries");
         // 未対応schemaを推測変換せず、重複実行を防ぐため復元を拒否する。
         if (owner.getInt("schema") != SCHEMA_VERSION) {
             throw new IllegalArgumentException(
                     "unsupported exact crafting-job schema");
         }
-        AEKey requestedKey = AEKey.fromTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(),
+        AEKey requestedKey = AEKey.fromTagGeneric(registries,
                 owner.getCompound("requestedKey"));
         // 登録解除された出力キーを別アイテムへ置換せず、Job復元を止める。
         if (requestedKey == null) {
@@ -118,9 +121,9 @@ public final class ExactCraftingJobState {
                     "exact crafting job contains an unknown requested key");
         }
         Map<AEItemKey, BigInteger> totals =
-                readPatternCounts(owner, "taskTotals", maximumBits);
+                readPatternCounts(owner, "taskTotals", maximumBits, registries);
         Map<AEItemKey, BigInteger> dispatched =
-                readPatternCounts(owner, "dispatchedTasks", maximumBits);
+                readPatternCounts(owner, "dispatchedTasks", maximumBits, registries);
         CompoundTag physicalExecution = owner.contains(
                         "physicalExecution",
                         Tag.TAG_COMPOUND)
@@ -135,7 +138,8 @@ public final class ExactCraftingJobState {
                 readKeyCounts(
                         owner,
                         "plannedInventory",
-                        maximumBits),
+                        maximumBits,
+                        registries),
                 owner.getLong("patternGeneration"),
                 owner.getLong("recipeGeneration"),
                 owner.getString("planningEpoch"),
@@ -145,16 +149,19 @@ public final class ExactCraftingJobState {
                         readKeyCounts(
                                 owner,
                                 "initialWaiting",
-                                maximumBits),
+                                maximumBits,
+                                registries),
                         dispatched,
                         readKeyCounts(
                                 owner,
                                 "introducedOutputs",
-                                maximumBits),
+                                maximumBits,
+                                registries),
                         readKeyCounts(
                                 owner,
                                 "creditedOutputs",
-                                maximumBits),
+                                maximumBits,
+                                registries),
                         BigIntegerNbtCodec.getNonNegative(
                                 owner,
                                 "requestedAmount",
@@ -168,10 +175,13 @@ public final class ExactCraftingJobState {
                 owner.getBoolean("quarantined"));
     }
 
-    public synchronized CompoundTag save(int maximumBits) {
+    public synchronized CompoundTag save(
+            int maximumBits,
+            HolderLookup.Provider registries) {
+        Objects.requireNonNull(registries, "registries");
         CompoundTag owner = new CompoundTag();
         owner.putInt("schema", SCHEMA_VERSION);
-        owner.put("requestedKey", requestedKey.toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
+        owner.put("requestedKey", requestedKey.toTagGeneric(registries));
         BigIntegerNbtCodec.putNonNegative(
                 owner,
                 "reservedBytes",
@@ -189,26 +199,26 @@ public final class ExactCraftingJobState {
                 maximumBits);
         owner.put(
                 "plannedInventory",
-                writeKeyCounts(plannedInventory, maximumBits));
+                writeKeyCounts(plannedInventory, maximumBits, registries));
         owner.putLong("patternGeneration", patternGeneration);
         owner.putLong("recipeGeneration", recipeGeneration);
         owner.putString("planningEpoch", planningEpoch);
         owner.putString("programFingerprint", programFingerprint);
         owner.put(
                 "taskTotals",
-                writePatternCounts(ledger.taskTotals(), maximumBits));
+                writePatternCounts(ledger.taskTotals(), maximumBits, registries));
         owner.put(
                 "dispatchedTasks",
-                writePatternCounts(ledger.dispatchedTasks(), maximumBits));
+                writePatternCounts(ledger.dispatchedTasks(), maximumBits, registries));
         owner.put(
                 "initialWaiting",
-                writeKeyCounts(ledger.initialWaiting(), maximumBits));
+                writeKeyCounts(ledger.initialWaiting(), maximumBits, registries));
         owner.put(
                 "introducedOutputs",
-                writeKeyCounts(ledger.introducedOutputs(), maximumBits));
+                writeKeyCounts(ledger.introducedOutputs(), maximumBits, registries));
         owner.put(
                 "creditedOutputs",
-                writeKeyCounts(ledger.creditedOutputs(), maximumBits));
+                writeKeyCounts(ledger.creditedOutputs(), maximumBits, registries));
         // 空Compoundは未開始を表す。開始後だけ保存して旧Jobとの区別を明確にする。
         if (!physicalExecution.isEmpty()) {
             owner.put("physicalExecution", physicalExecution.copy());
@@ -374,12 +384,13 @@ public final class ExactCraftingJobState {
 
     private static ListTag writePatternCounts(
             Map<AEItemKey, BigInteger> counts,
-            int maximumBits) {
+            int maximumBits,
+            HolderLookup.Provider registries) {
         checkEntryCount(counts.size());
         ListTag list = new ListTag();
         counts.forEach((key, amount) -> {
             CompoundTag entry = new CompoundTag();
-            entry.put("key", key.toTag(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
+            entry.put("key", key.toTag(registries));
             BigIntegerNbtCodec.putNonNegative(
                     entry,
                     "amount",
@@ -393,13 +404,14 @@ public final class ExactCraftingJobState {
     private static Map<AEItemKey, BigInteger> readPatternCounts(
             CompoundTag owner,
             String name,
-            int maximumBits) {
+            int maximumBits,
+            HolderLookup.Provider registries) {
         ListTag list = requireCompoundList(owner, name);
         Map<AEItemKey, BigInteger> result = new LinkedHashMap<>();
         // NBT件数は固有Pattern数に比例し、注文数量ぶんのentryは作らない。
         for (int index = 0; index < list.size(); index++) {
             CompoundTag entry = list.getCompound(index);
-            AEItemKey key = AEItemKey.fromTag(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(), entry.getCompound("key"));
+            AEItemKey key = AEItemKey.fromTag(registries, entry.getCompound("key"));
             BigInteger amount = BigIntegerNbtCodec.getNonNegative(
                     entry,
                     "amount",
@@ -417,12 +429,13 @@ public final class ExactCraftingJobState {
 
     private static ListTag writeKeyCounts(
             Map<AEKey, BigInteger> counts,
-            int maximumBits) {
+            int maximumBits,
+            HolderLookup.Provider registries) {
         checkEntryCount(counts.size());
         ListTag list = new ListTag();
         counts.forEach((key, amount) -> {
             CompoundTag entry = new CompoundTag();
-            entry.put("key", key.toTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
+            entry.put("key", key.toTagGeneric(registries));
             BigIntegerNbtCodec.putNonNegative(
                     entry,
                     "amount",
@@ -436,13 +449,14 @@ public final class ExactCraftingJobState {
     private static Map<AEKey, BigInteger> readKeyCounts(
             CompoundTag owner,
             String name,
-            int maximumBits) {
+            int maximumBits,
+            HolderLookup.Provider registries) {
         ListTag list = requireCompoundList(owner, name);
         Map<AEKey, BigInteger> result = new LinkedHashMap<>();
         // Item、Fluid、Chemicalを同じAEKey汎用タグから損失なく復元する。
         for (int index = 0; index < list.size(); index++) {
             CompoundTag entry = list.getCompound(index);
-            AEKey key = AEKey.fromTagGeneric(com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require(), entry.getCompound("key"));
+            AEKey key = AEKey.fromTagGeneric(registries, entry.getCompound("key"));
             BigInteger amount = BigIntegerNbtCodec.getNonNegative(
                     entry,
                     "amount",

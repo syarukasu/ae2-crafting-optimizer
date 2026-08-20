@@ -6,6 +6,7 @@ import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState;
 import java.math.BigInteger;
 import java.util.Map;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import org.jetbrains.annotations.Nullable;
 
@@ -13,9 +14,13 @@ import org.jetbrains.annotations.Nullable;
 public interface ExactCraftingJobAccess {
     void aco$installExactState(BigIntegerCraftingPlan plan);
 
-    void aco$loadExactState(CompoundTag owner);
+    void aco$loadExactState(
+            CompoundTag owner,
+            HolderLookup.Provider registries);
 
-    void aco$writeExactState(CompoundTag owner);
+    void aco$writeExactState(
+            CompoundTag owner,
+            HolderLookup.Provider registries);
 
     boolean aco$isExactJob();
 
