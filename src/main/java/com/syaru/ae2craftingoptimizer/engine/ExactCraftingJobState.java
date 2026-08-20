@@ -11,7 +11,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 
 /**
- * Advanced AEの実ExecutingCraftingJobへ付随するBigInteger Sidecar。
+ * AE2系の実ExecutingCraftingJobへ付随するBigInteger Sidecar。
  *
  * <p>CPU容量だけでなく、Pattern task、waitingFor、remainingOutput、物理Receiptを同じJob NBTへ
  * 保存する。別の親Job台帳をクラフト完了の正本にはしない。</p>
@@ -237,7 +237,7 @@ public final class ExactCraftingJobState {
     }
 
     /**
-     * Advanced AE実Jobの現在値と永続Receipt Journalが完全一致するか確認する。
+     * AE2系実Jobの現在値と永続Receipt Journalが完全一致するか確認する。
      *
      * <p>TaskProgressとwaitingForが実行時会計の正本であり、Journal側の値で補正しない。</p>
      */
@@ -256,7 +256,7 @@ public final class ExactCraftingJobState {
                 || !checkedWaiting.equals(ledger.waitingFor())
                 || !checkedRemaining.equals(ledger.remainingOutput())) {
             throw new IllegalStateException(
-                    "Advanced AE exact runtime counters diverged from their receipt journal");
+                    "exact runtime counters diverged from their receipt journal");
         }
     }
 

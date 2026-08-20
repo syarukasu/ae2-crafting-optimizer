@@ -9,6 +9,7 @@ import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
+import com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager;
 import com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageSnapshotCache;
 import com.syaru.ae2craftingoptimizer.integration.OptionalAqeBigCraftingExecution;
 import com.syaru.ae2craftingoptimizer.integration.OptionalNativeBatchIntegrations;
@@ -85,6 +86,7 @@ public final class ACOServerLifecycle {
         long gameTime = event.getServer().overworld().getGameTime();
         RecipeIntentRegistry.cleanupExpired(gameTime);
         BatchTransactionRecovery.tick(event.getServer(), gameTime);
+        Ae2BigCraftingExecutionManager.tick(event.getServer());
         OptionalAqeBigCraftingExecution.tick(event.getServer());
     }
 
@@ -123,6 +125,7 @@ public final class ACOServerLifecycle {
         OptimizationMetrics.reset();
         Ae2CraftingShadowValidator.resetDiagnostics();
         BigCraftingStatusInbox.clear();
+        Ae2BigCraftingExecutionManager.clear();
         OptionalAqeBigCraftingExecution.clear();
         /*
          * AQE側の未送信窓を先に戻してからRegistryを破棄する。
