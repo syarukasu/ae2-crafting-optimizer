@@ -1,0 +1,50 @@
+# repository=https://github.com/syarukasu/ae2-crafting-optimizer
+# synchronized_through_issue=123
+# runtime_status: NOT_REQUIRED, VERIFIED, PENDING
+issue	kind	loaders	required	automated_evidence	runtime_status	runtime_evidence	summary
+1	COMPATIBILITY	NEOFORGE_1_21_1	STATIC	.github/workflows/build.yml	NOT_REQUIRED	-	NeoForge 1.21.1 port
+3	REGRESSION	NEOFORGE_1_21_1	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/CheckedLongMathTest.java;src/test/java/com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlannerTest.java	NOT_REQUIRED	-	Craft count multiplication overflow
+5	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/CraftingPlannerBenchmarkTest.java;src/test/java/com/syaru/ae2craftingoptimizer/optimization/BigIntegerPlanDiagnosticsTest.java	NOT_REQUIRED	-	Slow fallback calculation and missing diagnostics
+7	FEATURE	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/api/contract/IntegrationContractTest.java;src/test/java/com/syaru/ae2craftingoptimizer/api/contract/CanonicalBigIntegerCodecTest.java	NOT_REQUIRED	-	Shared BigInteger API contract
+8	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/craftingtable/ExactMutationReconcilerTest.java	NOT_REQUIRED	-	Exact storage atomicity and recovery
+9	FEATURE	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/ExactVectorGridTickBudgetTest.java;src/test/java/com/syaru/ae2craftingoptimizer/engine/vector/VectorBatchPlannerTest.java	NOT_REQUIRED	-	Incremental exact vector execution
+10	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntimeTest.java;src/test/java/com/syaru/ae2craftingoptimizer/api/contract/RevisionAndSnapshotTest.java	NOT_REQUIRED	-	Host lifecycle and snapshot race
+11	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/CriticalMixinContractSourceTest.java	NOT_REQUIRED	-	Fail-closed accounting mixins
+12	FEATURE	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/CraftingPlannerPropertyTest.java	NOT_REQUIRED	-	Property based regression test foundation
+13	RELEASE	BOTH	STATIC	.github/workflows/build.yml	NOT_REQUIRED	-	Loader branch and artifact separation
+14	ROADMAP	BOTH	STATIC	docs/PROJECT_CHARTER.md	NOT_REQUIRED	-	Large crafting roadmap
+28	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/util/StableFingerprintTest.java;src/test/java/com/syaru/ae2craftingoptimizer/api/ExternalBatchRecoveryFixtureTest.java	NOT_REQUIRED	-	Canonical recovery payload fingerprint
+29	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/ExactPlanPatternRevalidatorTest.java;src/test/java/com/syaru/ae2craftingoptimizer/integration/ProgramFingerprintRevalidationCacheTest.java	NOT_REQUIRED	-	Persisted pattern identity recovery
+30	REGRESSION	BOTH	RUNTIME	src/test/java/com/syaru/ae2craftingoptimizer/integration/CriticalMixinContractSourceTest.java	PENDING	-	AE2 terminal client crash
+32	COMPATIBILITY	FORGE_1_20_1	RUNTIME	.github/workflows/build.yml	PENDING	-	AE2 UELM runtime compatibility
+35	RELEASE	NEOFORGE_1_21_1	STATIC	gradle.properties	NOT_REQUIRED	-	NeoForge release alignment
+37	COMPATIBILITY	FORGE_1_20_1	STATIC	docs/REGRESSION_HISTORY.md	NOT_REQUIRED	-	Advanced AE 1.3.6 range
+39	COMPATIBILITY	BOTH	STATIC	docs/REGRESSION_HISTORY.md	NOT_REQUIRED	-	Advanced AE minor-series policy
+42	FEATURE	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/api/contract/IntegrationContractTest.java	NOT_REQUIRED	-	Public BigInteger amount ledger
+44	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlannerTest.java;src/test/java/com/syaru/ae2craftingoptimizer/engine/WideArithmeticPreflightTest.java	NOT_REQUIRED	-	Fallback before BigInteger promotion
+46	FEATURE	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/api/BigIntegerOwnershipContractTest.java;src/test/java/com/syaru/ae2craftingoptimizer/api/contract/IntegrationContractTest.java	NOT_REQUIRED	-	Complete optional CPU API
+51	REGRESSION	BOTH	RUNTIME	src/test/java/com/syaru/ae2craftingoptimizer/integration/CriticalMixinContractSourceTest.java	PENDING	-	Advanced AE accounting mixin exclusion
+53	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntimeTest.java	NOT_REQUIRED	-	Accounting shutdown ordering
+55	REGRESSION	NEOFORGE_1_21_1	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/optimization/SharedCalculationFutureTest.java	NOT_REQUIRED	-	Shared calculation future cancellation
+58	FEATURE	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/optimization/BatchMinimumExecutionPolicyTest.java	NOT_REQUIRED	-	Native batch minimum execution contract
+61	REGRESSION	BOTH	GAMETEST	src/test/java/com/syaru/ae2craftingoptimizer/engine/PlanningGuardTest.java	VERIFIED	https://github.com/syarukasu/ae2-crafting-optimizer/issues/61	Normal crafting stale snapshot regression
+64	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApiPlanInspectionTest.java;src/test/java/com/syaru/ae2craftingoptimizer/engine/Ae2CraftingPlanSidecarsTest.java	NOT_REQUIRED	-	Wide plan sidecar visibility
+71	RELEASE	BOTH	STATIC	gradle.properties	NOT_REQUIRED	-	ACO 1.5.16 release
+74	REGRESSION	NEOFORGE_1_21_1	GAMETEST	src/test/java/com/syaru/ae2craftingoptimizer/optimization/SharedCalculationFutureTest.java	PENDING	-	AE2 pattern provider round robin GameTest
+75	COMPATIBILITY	FORGE_1_20_1	STATIC	build.gradle	NOT_REQUIRED	-	Neo ECO 20.4 and AAC dependency compatibility
+77	RELEASE	NEOFORGE_1_21_1	STATIC	gradle.properties	NOT_REQUIRED	-	NeoForge 1.5.17 release alignment
+79	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/Ae2BigCraftingPlanFactoryRootWindowTest.java	NOT_REQUIRED	-	Single root exceeds signed long
+84	DOCUMENTATION	BOTH	STATIC	docs/ISSUE_WORKFLOW.md	NOT_REQUIRED	-	Issue-first development workflow
+87	DOCUMENTATION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/ClassResponsibilitiesDocumentationTest.java	NOT_REQUIRED	-	Class responsibility map
+90	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/ExactPlanPatternRevalidatorTest.java;src/test/java/com/syaru/ae2craftingoptimizer/integration/ProgramFingerprintRevalidationCacheTest.java	NOT_REQUIRED	-	Unrelated provider generation invalidation
+93	REGRESSION	BOTH	RUNTIME	src/test/java/com/syaru/ae2craftingoptimizer/engine/BigKeyCounterSidecarsTest.java	PENDING	-	Java 25 native crash during sidecar copy
+98	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/BigCraftingCapacityLedgerTest.java;src/test/java/com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApiPlanInspectionTest.java	NOT_REQUIRED	-	External CPU rejects exact capacity
+101	FEATURE	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/BigIntegerStorageSnapshotBridgeTest.java	NOT_REQUIRED	-	Public exact storage hook
+102	REGRESSION	FORGE_1_20_1	GAMETEST	src/test/java/com/syaru/ae2craftingoptimizer/integration/CriticalMixinContractSourceTest.java;src/test/java/com/syaru/ae2craftingoptimizer/optimization/ProviderPatternGenerationTrackerTest.java	VERIFIED	docs/issues/evidence/ISSUE-102-FORGE-1.20.1.md	Round robin regression and missing API contract
+103	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/CompiledRootProgramFailureReasonTest.java;src/test/java/com/syaru/ae2craftingoptimizer/engine/CompiledRootProgramTest.java	NOT_REQUIRED	-	Compiled graph misdiagnosed as unavailable
+109	REGRESSION	BOTH	RUNTIME	src/test/java/com/syaru/ae2craftingoptimizer/engine/Issue109NormalAe2BoundaryTest.java;src/test/java/com/syaru/ae2craftingoptimizer/integration/Issue109MixinBoundarySourceTest.java	PENDING	-	Normal AE2 inventory and GUI boundary damage
+115	FEATURE	BOTH	GAMETEST	src/test/java/com/syaru/ae2craftingoptimizer/integration/Issue115StandardAe2ExactExecutionSourceTest.java	PENDING	-	Standard AE2 exact physical execution
+118	REGRESSION	NEOFORGE_1_21_1	GAMETEST	src/test/java/com/syaru/ae2craftingoptimizer/integration/Issues118To120RegressionTest.java	PENDING	-	Exact physical execution self quarantine
+119	REGRESSION	NEOFORGE_1_21_1	GAMETEST	src/test/java/com/syaru/ae2craftingoptimizer/integration/Issues118To120RegressionTest.java	PENDING	-	Shutdown exact job NBT loss
+120	REGRESSION	NEOFORGE_1_21_1	RUNTIME	src/test/java/com/syaru/ae2craftingoptimizer/integration/Issues118To120RegressionTest.java	PENDING	-	Advanced AE mixin startup self contradiction
+123	DOCUMENTATION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/IssueRegressionManifestTest.java	NOT_REQUIRED	-	Machine readable regression release gate

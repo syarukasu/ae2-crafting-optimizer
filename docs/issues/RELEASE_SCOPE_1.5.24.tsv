@@ -1,0 +1,9 @@
+# release=1.5.24
+# baseline=1.5.21
+# loader=FORGE_1_20_1
+issue	change	automated_guarantee
+102	外部Pattern Providerと実行スケジューラの所有権を保護	外部Provider通知を間引かず、非所有MixinではAE2またはアドオンの実行を一度だけ呼ぶ
+103	不完全Graph Snapshotの一時失敗を回復	構造的失敗を再試行せず、一時的不完全状態だけを一度再構築する
+109	1.5.21の通常AE2境界を維持	通常在庫、GUI、long計画へBigInteger台帳を注入しない
+115	1.5.23の標準AE2 exact実行を維持	exact planだけが数量非依存の物理実行へ入る
+123	版別リリース判定を全履歴監査から分離	今回の差分を自動試験し、未実施の実機確認は警告として保持する
