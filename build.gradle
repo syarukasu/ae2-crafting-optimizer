@@ -180,6 +180,127 @@ test {
     }
 }
 
+tasks.register('verifyIssueRegressionManifest') {
+    description = 'Validate the machine-readable mapping from historical Issues to regression evidence.'
+    group = 'verification'
+    dependsOn tasks.named('test')
+}
+
+tasks.register('verifyIssueRegressionReleaseReadiness') {
+    description = 'Validate the automated regression scope for the current patch release.'
+    group = 'verification'
+    dependsOn tasks.named('verifyIssueRegressionManifest')
+
+    def manifestFile = layout.projectDirectory.file('docs/issues/REGRESSION_MATRIX.tsv')
+    def releaseScopeFile = layout.projectDirectory.file("docs/issues/RELEASE_SCOPE_${project.version}.tsv")
+    inputs.file(manifestFile)
+    inputs.file(releaseScopeFile)
+
+    doLast {
+        List<String> manifestLines = manifestFile.asFile.readLines('UTF-8').findAll { line ->
+            !line.isBlank() && !line.startsWith('#')
+        }
+        Map<String, String[]> manifestByIssue = [:]
+
+        // リリース対象Issueを正本の回帰台帳へ結び付けるため、Issue番号で索引化します。
+        for (String line : manifestLines.drop(1)) {
+            String[] columns = line.split('\t', -1)
+            if (columns.length != 8) {
+                throw new GradleException("Malformed regression matrix row: ${line}")
+            }
+            manifestByIssue[columns[0]] = columns
+        }
+
+        List<String> scopeLines = releaseScopeFile.asFile.readLines('UTF-8')
+        String expectedVersion = "# release=${project.version}"
+        String baselineLine = scopeLines.find { line -> line.startsWith('# baseline=') }
+        if (!scopeLines.contains(expectedVersion)) {
+            throw new GradleException("Release scope does not match project version ${project.version}")
+        }
+        if (baselineLine == null || baselineLine.substring('# baseline='.length()).isBlank()) {
+            throw new GradleException('Release scope must declare a non-empty baseline version')
+        }
+
+        List<String> scopeData = scopeLines.findAll { line -> !line.isBlank() && !line.startsWith('#') }
+        if (scopeData.isEmpty() || scopeData.first() != 'issue\tchange\tautomated_guarantee') {
+            throw new GradleException('Release scope header is missing or malformed')
+        }
+
+        List<String> pendingRuntime = []
+        Set<String> scopedIssues = [] as Set
+
+        // 今回の差分へ関係するIssueだけを検証し、過去全件監査とは責務を分離します。
+        for (String line : scopeData.drop(1)) {
+            String[] columns = line.split('\t', -1)
+            if (columns.length != 3) {
+                throw new GradleException("Malformed release scope row: ${line}")
+            }
+            if (!scopedIssues.add(columns[0])) {
+                throw new GradleException("Duplicate release scope Issue: #${columns[0]}")
+            }
+            String[] manifest = manifestByIssue[columns[0]]
+            if (manifest == null) {
+                throw new GradleException("Release scope references unknown Issue: #${columns[0]}")
+            }
+            if (columns[1].isBlank() || columns[2].isBlank()) {
+                throw new GradleException("Release scope explanation is empty: #${columns[0]}")
+            }
+            if (manifest[5] == 'PENDING') {
+                pendingRuntime.add("#${columns[0]} [${manifest[3]}] ${manifest[7]}")
+            }
+        }
+
+        if (scopedIssues.isEmpty()) {
+            throw new GradleException('Release scope must contain at least one Issue')
+        }
+
+        // 未実施の実機確認は成功へ変換せず、公開時に明示する警告として残します。
+        if (!pendingRuntime.isEmpty()) {
+            logger.warn('Patch release automated gate passed, but runtime verification remains pending:\n- '
+                    + pendingRuntime.join('\n- '))
+        }
+    }
+}
+
+tasks.register('verifyAllIssueRuntimeReadiness') {
+    description = 'Require every historical GameTest and runtime regression check to be verified.'
+    group = 'verification'
+    dependsOn tasks.named('verifyIssueRegressionManifest')
+
+    def manifestFile = layout.projectDirectory.file('docs/issues/REGRESSION_MATRIX.tsv')
+    inputs.file(manifestFile)
+
+    doLast {
+        List<String> dataLines = manifestFile.asFile.readLines('UTF-8').findAll { line ->
+            !line.isBlank() && !line.startsWith('#')
+        }
+        List<String> blockers = []
+
+        // 全履歴保証では、未実施のGameTestと実機試験を一件も許可しません。
+        for (String line : dataLines.drop(1)) {
+            String[] columns = line.split('\t', -1)
+            if (columns.length != 8) {
+                throw new GradleException("Malformed regression matrix row: ${line}")
+            }
+            if (columns[5] != 'PENDING') {
+                continue
+            }
+            blockers.add("#${columns[0]} [${columns[3]}] ${columns[7]}")
+        }
+
+        // 全履歴を確認済みと名乗る場合だけ、残る未確認項目を厳格に拒否します。
+        if (!blockers.isEmpty()) {
+            throw new GradleException(
+                    'Full historical runtime gate is blocked by pending verification:\n- '
+                            + blockers.join('\n- '))
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyIssueRegressionManifest')
+}
+
 processResources {
     inputs.property 'version', project.version
     filesMatching('META-INF/mods.toml') {

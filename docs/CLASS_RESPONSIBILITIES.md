@@ -337,10 +337,12 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.engine.PlanningGuard` | PlanningGuardが示す入力や互換条件を検証し、証明不能な高速経路を拒否する。 |
 | `com.syaru.ae2craftingoptimizer.engine.PlanningRuntimeEpoch` | 現在のサーバープロセスを識別する一時ID。 |
 | `com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker` | RecipeGenerationTrackerが示す世代、進捗、tick時刻を単調に追跡する。 |
+| `com.syaru.ae2craftingoptimizer.engine.RootProgramFailure` | Root Programの構造的失敗と一時的なSnapshot不完全を型付きで区別する。 |
 | `com.syaru.ae2craftingoptimizer.engine.StalePlanningSnapshotException` | StalePlanningSnapshotExceptionが示す失敗を呼出側へ型付きで通知する。 |
 | `com.syaru.ae2craftingoptimizer.engine.SymbolicCraftingPlanner` | 決定的なPattern DAGを CompiledRootProgram へ変換し、数式一巡で計画する公開Facade。 |
 | `com.syaru.ae2craftingoptimizer.engine.WideArithmeticPreflight` | 通常計画へBigInteger Plannerを重ねる前に、全量クラフト時の安全な上限だけを調べる。 |
 | `com.syaru.ae2craftingoptimizer.engine.WideCraftingPlan` | AE2のsigned long APIだけでは表現できない真値を持つACO内部計画。 |
+| `com.syaru.ae2craftingoptimizer.engine.WidePlanSubmissionGuard` | BigInteger台帳非対応CPUの拒否を容量不足と誤報せず、診断を重複抑制する。 |
 | `com.syaru.ae2craftingoptimizer.engine.WidePlanUnavailableException` | wide計画を正確に作れず、AE2のoverflowするlong計算へ戻してはいけないことを示す例外。 |
 
 ### `com.syaru.ae2craftingoptimizer.engine.craftingtable`

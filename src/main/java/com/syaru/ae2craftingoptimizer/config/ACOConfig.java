@@ -195,6 +195,8 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue NATIVE_BATCH_MAXIMUM_EXECUTIONS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_CRAFTING_BACKEND;
     private static final ForgeConfigSpec.BooleanValue ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS;
+    private static final ForgeConfigSpec.BooleanValue RETRY_INCOMPLETE_CRAFTING_GRAPH_SNAPSHOT;
+    private static final ForgeConfigSpec.BooleanValue LOG_WIDE_PLAN_SUBMISSION_DECLINES;
     private static final ForgeConfigSpec.BooleanValue ENABLE_ATOMIC_BIG_CAPACITY_PLANS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION;
     private static final ForgeConfigSpec.IntValue BIG_INTEGER_MAXIMUM_BITS;
@@ -841,6 +843,16 @@ public final class ACOConfig {
                         "Capture exact per-key BigInteger stock from supported storage add-ons while exposing a saturated long facade to AE2.",
                         "This prevents KeyCounter overflow and allows ACO planning to use ExtendedAE Plus Infinity BigInteger Cell amounts above Long.MAX_VALUE.")
                 .define("enableExactBigIntegerInventorySnapshots", true);
+        RETRY_INCOMPLETE_CRAFTING_GRAPH_SNAPSHOT = builder
+                .comment(
+                        "Rebuild the compiled crafting graph once when a root program is unavailable only because that snapshot was incomplete.",
+                        "The retry is bounded to one rebuild per snapshot; structural failures are never retried.")
+                .define("retryIncompleteCraftingGraphSnapshot", true);
+        LOG_WIDE_PLAN_SUBMISSION_DECLINES = builder
+                .comment(
+                        "Log the exact reason when a wide plan cannot be submitted without misreporting CPU capacity.",
+                        "The fail-closed submission decision is not changed by this diagnostic switch.")
+                .define("logWidePlanSubmissionDeclines", true);
         ENABLE_ATOMIC_BIG_CAPACITY_PLANS = builder
                 .comment(
                         "Safely calculate plans whose individual or aggregate AEKey counts, Pattern counts, or exact CPU-byte cost exceed Long.MAX_VALUE.",
@@ -1719,6 +1731,15 @@ public final class ACOConfig {
     public static boolean enableExactBigIntegerInventorySnapshots() {
         return enableBigIntegerCraftingBackend()
                 && ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS.get();
+    }
+
+    public static boolean retryIncompleteCraftingGraphSnapshot() {
+        return enableCompiledCraftingGraph()
+                && RETRY_INCOMPLETE_CRAFTING_GRAPH_SNAPSHOT.get();
+    }
+
+    public static boolean logWidePlanSubmissionDeclines() {
+        return enableOptimizer() && LOG_WIDE_PLAN_SUBMISSION_DECLINES.get();
     }
 
     public static boolean enableAtomicBigCapacityPlans() {

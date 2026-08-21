@@ -34,6 +34,9 @@ public final class Ae2AuthoritativeCraftingPlanner {
     /** 64ノードごとに世代と割込みを再検証するためのbit mask。 */
     private static final int GENERATION_CHECK_INTERVAL_MASK = 63;
     private static final Set<String> LOGGED_FALLBACKS = ConcurrentHashMap.newKeySet();
+    /** Snapshot診断の重複除去表を固定長に保つ上限。 */
+    private static final int MAXIMUM_LOGGED_SNAPSHOT_FALLBACKS = 4096;
+    private static final Set<String> LOGGED_SNAPSHOT_FALLBACKS = ConcurrentHashMap.newKeySet();
 
     private Ae2AuthoritativeCraftingPlanner() {
     }
@@ -118,16 +121,34 @@ public final class Ae2AuthoritativeCraftingPlanner {
             capture.requireCurrentGenerations();
             Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot =
                     Ae2CompiledCraftingGraphCache.getOrCompile(capture.grid(), capture.level());
-            var optionalProgram = graphSnapshot.rootProgram(output);
-            // 曖昧、循環、複数出力などを含むルートはコンパイルせずAE2へ戻す。
+            CompiledRootProgram.Outcome<AEKey> rootOutcome =
+                    graphSnapshot.rootProgramOutcome(output);
+            /*
+             * 回帰防止: ACO Issue #103。
+             * Snapshot由来の失敗だけを、同じ注文中に一度だけ再構築して再確認する。
+             * 構造的な失敗は再試行せず、容量不足へも読み替えない。
+             */
+            if (shouldRetryRootProgram(
+                    rootOutcome.failure(),
+                    ACOConfig.retryIncompleteCraftingGraphSnapshot())) {
+                graphSnapshot = Ae2CompiledCraftingGraphCache.recompile(
+                        capture.grid(),
+                        capture.level(),
+                        graphSnapshot);
+                rootOutcome = graphSnapshot.rootProgramOutcome(output);
+            }
+            var optionalProgram = rootOutcome.program();
+            // 構造上コンパイル不能なルートは、理由を保持してAE2へ戻す。
             if (optionalProgram.isEmpty()) {
+                BigIntegerPlanDeclineReason reason = classifyRootProgramFailure(rootOutcome.failure());
+                logRootProgramFailureOnce(output, rootOutcome.failure(), capture);
                 return declineOrThrow(
                         capture,
                         output,
                         requestedAmount,
                         wideArithmeticRequired,
-                        BigIntegerPlanDeclineReason.NO_COMPILED_PROGRAM,
-                        "no compiled root program");
+                        reason,
+                        "root program unavailable: " + rootOutcome.failure());
             }
             CompiledRootProgram<AEKey> program = optionalProgram.get();
             Ae2StrictCraftingTopology topology = graphSnapshot
@@ -631,6 +652,55 @@ public final class Ae2AuthoritativeCraftingPlanner {
             throw new WidePlanUnavailableException(output, detail);
         }
         return null;
+    }
+
+    /** Snapshot由来の一時失敗だけを再構築対象にする。 */
+    static boolean shouldRetryRootProgram(
+            RootProgramFailure failure,
+            boolean retryEnabled) {
+        return retryEnabled && failure.snapshotShaped();
+    }
+
+    /** Root Programの失敗理由を公開統計の安定したコードへ変換する。 */
+    static BigIntegerPlanDeclineReason classifyRootProgramFailure(RootProgramFailure failure) {
+        return switch (failure) {
+            case CYCLE -> BigIntegerPlanDeclineReason.CYCLE;
+            case MULTIPLE_PRODUCERS -> BigIntegerPlanDeclineReason.AMBIGUOUS_PRODUCER;
+            case MULTIPLE_OUTPUTS -> BigIntegerPlanDeclineReason.UNSUPPORTED_PATTERN;
+            case PROGRAM_TOO_LARGE -> BigIntegerPlanDeclineReason.PROGRAM_TOO_LARGE;
+            case INCOMPLETE_PATTERN_SNAPSHOT, MISSING_FROM_SNAPSHOT ->
+                    BigIntegerPlanDeclineReason.INCOMPLETE_GRAPH_SNAPSHOT;
+            case NONE -> BigIntegerPlanDeclineReason.NO_COMPILED_PROGRAM;
+        };
+    }
+
+    /** 不完全Snapshotが再構築後も残った場合だけ、世代ごとに一度警告する。 */
+    private static void logRootProgramFailureOnce(
+            AEKey output,
+            RootProgramFailure failure,
+            Capture capture) {
+        // 構造的な辞退は通常の統計へ残し、警告ログの対象にはしない。
+        if (!failure.snapshotShaped() || !ACOConfig.logWidePlanSubmissionDeclines()) {
+            return;
+        }
+        String key = output.getId()
+                + ":" + failure
+                + ":" + capture.patternGeneration()
+                + ":" + capture.recipeGeneration();
+        // 世代が進み続けても常駐量が増え続けないよう、固定上限で表を再利用する。
+        if (LOGGED_SNAPSHOT_FALLBACKS.size() >= MAXIMUM_LOGGED_SNAPSHOT_FALLBACKS) {
+            LOGGED_SNAPSHOT_FALLBACKS.clear();
+        }
+        if (!LOGGED_SNAPSHOT_FALLBACKS.add(key)) {
+            return;
+        }
+        AE2CraftingOptimizer.LOGGER.warn(
+                "ACO could not compile {} because the crafting graph snapshot remained incomplete"
+                        + " after one bounded rebuild (reason={}, patternGeneration={}, recipeGeneration={}).",
+                output.getId(),
+                failure,
+                capture.patternGeneration(),
+                capture.recipeGeneration());
     }
 
     private static void recordDecline(

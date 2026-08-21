@@ -124,6 +124,11 @@ class Ae2CraftingPlanSidecarsTest {
 
     private record FakeWidePlan(String id) implements WideCraftingPlan {
         @Override
+        public java.math.BigInteger exactBytes() {
+            return java.math.BigInteger.valueOf(Long.MAX_VALUE).add(java.math.BigInteger.ONE);
+        }
+
+        @Override
         public GenericStack finalOutput() {
             return FINAL_OUTPUT;
         }
