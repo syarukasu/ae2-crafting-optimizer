@@ -167,7 +167,10 @@ public final class Ae2BigCraftingExecutionManager {
             try {
                 restoreOrStart(context, grid, graphSnapshot);
             } catch (PhysicalCraftingTreeTransaction.PatternUnavailableException deferred) {
-                reportStall("waiting for an unloaded pattern provider: " + deferred.getMessage());
+                reportStall(
+                        context,
+                        "waiting for an unloaded pattern provider: " + deferred.getMessage(),
+                        0);
                 return true;
             } catch (RuntimeException | LinkageError failure) {
                 if (!state.hasPhysicalExecution()) {
@@ -183,9 +186,12 @@ public final class Ae2BigCraftingExecutionManager {
             }
             // WorkerやConfig待ちではまだ物理所有権がないため、同じJobをそのまま維持する。
             if (transaction == null) {
-                reportStall(startDeferralReason.isBlank()
-                        ? "physical execution has not started"
-                        : "physical execution has not started: " + startDeferralReason);
+                reportStall(
+                        context,
+                        startDeferralReason.isBlank()
+                                ? "physical execution has not started"
+                                : "physical execution has not started: " + startDeferralReason,
+                        0);
                 return true;
             }
             if (state.cancellationRequested()) {
@@ -195,6 +201,10 @@ public final class Ae2BigCraftingExecutionManager {
                     grid,
                     Math.max(1, transaction.plan().craftingSteps().size()));
             if (operationBudget == 0) {
+                reportStall(
+                        context,
+                        "waiting for the exact physical execution tick budget",
+                        operationBudget);
                 return true;
             }
             long startedNanos = System.nanoTime();
@@ -215,14 +225,14 @@ public final class Ae2BigCraftingExecutionManager {
             }
             ExactVectorDiagnostics.activeTick(System.nanoTime() - startedNanos);
             boolean changed = transaction.transactionRevision() != revisionBefore;
-            if (!changed && outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
+            if (outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
                 ExactVectorDiagnostics.dirtyCallAvoided();
                 if (transaction.tickDiagnostics().activeStepsProcessed() == 0L) {
                     ExactVectorDiagnostics.zeroAllocationWait();
                 }
             }
-            if (!changed && outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
-                reportStall("owned transaction is waiting: " + outcome.detail());
+            if (outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
+                reportStall(context, outcome.detail(), operationBudget);
             } else {
                 clearStall();
             }
@@ -513,7 +523,10 @@ public final class Ae2BigCraftingExecutionManager {
          * Issue #125: 進行ゼロの待機理由を表へ出す。理由が変わった時に一度、
          * 同じ理由が続く間は600 tickごとに一度だけWARNする。
          */
-        private void reportStall(String reason) {
+        private void reportStall(
+                Context context,
+                String reason,
+                int operationBudget) {
             if (!ACOConfig.logExactExecutionStalls()) {
                 return;
             }
@@ -524,9 +537,14 @@ public final class Ae2BigCraftingExecutionManager {
             stallTicksSinceLog++;
             if (changedReason || stallTicksSinceLog >= 600) {
                 AE2CraftingOptimizer.LOGGER.warn(
-                        "Standard AE2 exact job on CPU {} is making no progress: {}",
+                        "Standard AE2 exact job is making no progress: jobId={}, cpu={}, transactionId={}, state={}, reason={}, operationBudget={}, consumedOperations={}",
+                        context.jobId(),
                         stableKey(),
-                        checked);
+                        transaction == null ? "not-started" : transaction.transactionId(),
+                        transaction == null ? "NOT_STARTED" : transaction.state(),
+                        checked,
+                        operationBudget,
+                        transaction == null ? 0L : transaction.lastConsumedOperations());
                 stallReason = checked;
                 stallTicksSinceLog = 0;
             }
@@ -541,6 +559,8 @@ public final class Ae2BigCraftingExecutionManager {
             transaction = null;
             transactionJobId = null;
             lastExactJob = null;
+            clearStall();
+            startDeferralReason = "";
         }
     }
 
