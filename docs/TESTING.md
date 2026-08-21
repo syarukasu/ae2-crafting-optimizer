@@ -128,6 +128,21 @@ Test:
 Every case must leave boundary storage unchanged and use AE2's normal route or
 report unsupported.
 
+For the exact-storage case specifically (issue #125), submit a wide plan on a
+grid whose audited exact cells cannot release every boundary input or cannot
+accept the final output:
+
+1. with an external BigInteger plan consumer registered, the submission must
+   pass through unowned so the consumer executes it (1.5.22 behavior), and the
+   log must say so;
+2. without a consumer, the submission must be declined with
+   `STORAGE_ROUTE_UNAVAILABLE` and a player-actionable warning instead of
+   accepting a job that can never finish;
+3. with `exactVectorCrafting.verifyStorageRouteBeforeOwnership = false`, the
+   previous accept-then-wait behavior returns, and
+   `exactVectorCrafting.logExecutionStalls` reports the waiting reason once per
+   reason change and once per 600 ticks.
+
 ### No Fallback After Ownership
 
 After boundary input reservation:

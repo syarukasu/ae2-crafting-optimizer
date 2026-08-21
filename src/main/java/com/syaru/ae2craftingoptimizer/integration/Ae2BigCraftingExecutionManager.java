@@ -121,6 +121,11 @@ public final class Ae2BigCraftingExecutionManager {
         private PhysicalCraftingTreeTransaction transaction;
         private UUID transactionJobId;
         private ExactCraftingJobAccess lastExactJob;
+        /** Issue #125: 進行ゼロのtickで観測した待機理由。進行があれば毎回消す。 */
+        private String stallReason = "";
+        private int stallTicksSinceLog;
+        /** restoreOrStartが開始を見送った直近の具体的な理由。 */
+        private String startDeferralReason = "";
 
         private Controller(CraftingCPUCluster cluster) {
             this.cluster = cluster;
@@ -162,6 +167,7 @@ public final class Ae2BigCraftingExecutionManager {
             try {
                 restoreOrStart(context, grid, graphSnapshot);
             } catch (PhysicalCraftingTreeTransaction.PatternUnavailableException deferred) {
+                reportStall("waiting for an unloaded pattern provider: " + deferred.getMessage());
                 return true;
             } catch (RuntimeException | LinkageError failure) {
                 if (!state.hasPhysicalExecution()) {
@@ -177,6 +183,9 @@ public final class Ae2BigCraftingExecutionManager {
             }
             // WorkerやConfig待ちではまだ物理所有権がないため、同じJobをそのまま維持する。
             if (transaction == null) {
+                reportStall(startDeferralReason.isBlank()
+                        ? "physical execution has not started"
+                        : "physical execution has not started: " + startDeferralReason);
                 return true;
             }
             if (state.cancellationRequested()) {
@@ -211,6 +220,11 @@ public final class Ae2BigCraftingExecutionManager {
                 if (transaction.tickDiagnostics().activeStepsProcessed() == 0L) {
                     ExactVectorDiagnostics.zeroAllocationWait();
                 }
+            }
+            if (!changed && outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
+                reportStall("owned transaction is waiting: " + outcome.detail());
+            } else {
+                clearStall();
             }
             if (changed || outcome.kind() != PhysicalCraftingTreeTransaction.Kind.WAITING) {
                 reconcile(context, graphSnapshot);
@@ -274,8 +288,10 @@ public final class Ae2BigCraftingExecutionManager {
             if (transaction != null) {
                 return;
             }
+            startDeferralReason = "";
             /* Issue #115: 新規開始が無効でも、開始済みTransactionの復元・取消は上で継続する。 */
             if (!ACOConfig.enableExactBigIntegerPhysicalExecution()) {
+                startDeferralReason = "exact physical execution is disabled by config";
                 return;
             }
             // 入力所有権取得前の世代不一致だけは、同じAE2 Jobを通常取消経路で閉じられる。
@@ -285,11 +301,14 @@ public final class Ae2BigCraftingExecutionManager {
             }
             PreparedVectorBatch plan = prepare(context.jobId(), context.state(), graphSnapshot);
             if (!supportsPhysicalPlan(grid, graphSnapshot, plan)) {
+                startDeferralReason =
+                        "some pattern lacks a deterministic formula or a durable batch target";
                 return;
             }
             ExactVectorGridTickBudget startBudget = ExactVectorGridTickBudget.forGrid(grid);
             if (!startBudget.tryStart()) {
                 ExactVectorDiagnostics.startBudgetDeferred();
+                startDeferralReason = "per-grid start budget is exhausted";
                 return;
             }
             PhysicalCraftingTreeTransaction created = PhysicalCraftingTreeTransaction.create(
@@ -488,6 +507,34 @@ public final class Ae2BigCraftingExecutionManager {
                         checked,
                         failure);
             }
+        }
+
+        /**
+         * Issue #125: 進行ゼロの待機理由を表へ出す。理由が変わった時に一度、
+         * 同じ理由が続く間は600 tickごとに一度だけWARNする。
+         */
+        private void reportStall(String reason) {
+            if (!ACOConfig.logExactExecutionStalls()) {
+                return;
+            }
+            String checked = reason == null || reason.isBlank()
+                    ? "unknown waiting reason"
+                    : reason;
+            boolean changedReason = !checked.equals(stallReason);
+            stallTicksSinceLog++;
+            if (changedReason || stallTicksSinceLog >= 600) {
+                AE2CraftingOptimizer.LOGGER.warn(
+                        "Standard AE2 exact job on CPU {} is making no progress: {}",
+                        stableKey(),
+                        checked);
+                stallReason = checked;
+                stallTicksSinceLog = 0;
+            }
+        }
+
+        private void clearStall() {
+            stallReason = "";
+            stallTicksSinceLog = 0;
         }
 
         private void close() {

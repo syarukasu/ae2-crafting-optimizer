@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Issue #125: exact jobs no longer stall forever without a word when the
+  audited exact-storage boundary route cannot satisfy the plan. Submission now
+  proves the route (inputs releasable, final output acceptable) before taking
+  exclusive ownership on both standard AE2 and Advanced AE clusters. Plans
+  without a viable route pass through to a registered external BigInteger plan
+  consumer (restoring the 1.5.22 behavior for add-on executors), or are
+  declined with the new `STORAGE_ROUTE_UNAVAILABLE` reason and a
+  player-actionable warning. Controlled by
+  `exactVectorCrafting.verifyStorageRouteBeforeOwnership` (default on).
+
+### Added
+
+- `exactVectorCrafting.logExecutionStalls` (default on): when an owned exact
+  job makes no progress, the waiting reason is logged once per reason change
+  and once per 600 ticks, so silent stalls become diagnosable in the field.
+
 ## [1.5.24] - 2026-08-21
 
 ### Fixed

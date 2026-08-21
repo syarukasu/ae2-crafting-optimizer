@@ -212,6 +212,8 @@ public final class ACOConfig {
     private static final ModConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_ACTIVE_PER_GRID;
     private static final ModConfigSpec.IntValue EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS;
     private static final ModConfigSpec.BooleanValue LOG_EXACT_VECTOR_DIAGNOSTICS;
+    private static final ModConfigSpec.BooleanValue EXACT_VECTOR_VERIFY_STORAGE_ROUTE;
+    private static final ModConfigSpec.BooleanValue LOG_EXACT_EXECUTION_STALLS;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -928,6 +930,18 @@ public final class ACOConfig {
         LOG_EXACT_VECTOR_DIAGNOSTICS = builder
                 .comment("Log bounded physical crafting-tree acceptance, recovery, and quarantine diagnostics.")
                 .define("logVectorDiagnostics", false);
+        EXACT_VECTOR_VERIFY_STORAGE_ROUTE = builder
+                .comment(
+                        "Prove the audited exact-storage boundary route before taking exclusive job ownership.",
+                        "Plans whose inputs cannot be released or whose final output cannot be accepted",
+                        "fall back to a registered external BigInteger plan consumer, or are declined",
+                        "with a clear reason instead of stalling forever.")
+                .define("verifyStorageRouteBeforeOwnership", true);
+        LOG_EXACT_EXECUTION_STALLS = builder
+                .comment(
+                        "Log the waiting reason when an owned exact job makes no progress.",
+                        "One line when the reason changes, then one line per 600 ticks per CPU.")
+                .define("logExecutionStalls", true);
         builder.pop();
 
         builder.push("diagnostics");
@@ -1826,6 +1840,14 @@ public final class ACOConfig {
     public static boolean logExactVectorDiagnostics() {
         return enableExactVectorCrafting()
                 && LOG_EXACT_VECTOR_DIAGNOSTICS.get();
+    }
+
+    public static boolean verifyExactStorageRouteBeforeOwnership() {
+        return EXACT_VECTOR_VERIFY_STORAGE_ROUTE.get();
+    }
+
+    public static boolean logExactExecutionStalls() {
+        return LOG_EXACT_EXECUTION_STALLS.get();
     }
 
 }
