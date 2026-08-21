@@ -28,3 +28,4 @@
 - [Issue #118](ISSUE-118.md): 正常な空Journalを成功量0として自己隔離する
 - [Issue #119](ISSUE-119.md): 停止時のRegistry Provider消失でexact Job保存が失敗する
 - [Issue #120](ISSUE-120.md): Advanced AE連携Mixinが初期化順で自己無効化する
+- [Issue #123](ISSUE-123.md): 過去Issueと回帰試験をリリース判定へ接続する

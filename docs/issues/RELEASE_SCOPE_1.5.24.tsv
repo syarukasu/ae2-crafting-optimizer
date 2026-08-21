@@ -1,0 +1,11 @@
+# release=1.5.24
+# baseline=1.5.21
+# loader=NEOFORGE_1_21_1
+issue	change	automated_guarantee
+102	外部Pattern Providerと実行スケジューラの所有権を保護	外部Provider通知を間引かず、非所有MixinではAE2またはアドオンの実行を一度だけ呼ぶ
+109	1.5.21の通常AE2境界を維持	通常在庫、GUI、long計画へBigInteger台帳を注入しない
+115	1.5.23の標準AE2 exact実行を維持	exact planだけが数量非依存の物理実行へ入る
+118	1.5.23再公開時の自己隔離修正を維持	空の復旧Journalを破損扱いしない
+119	1.5.23再公開時のNBT保存修正を維持	停止時もAE2提供Registry Providerでexact Jobを保存する
+120	1.5.23再公開時のAdvanced AE境界修正を維持	ModList準備前に任意連携Mixinを誤無効化しない
+123	版別リリース判定を全履歴監査から分離	今回の差分を自動試験し、未実施の実機確認は警告として保持する

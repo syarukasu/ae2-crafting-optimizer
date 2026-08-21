@@ -76,7 +76,6 @@ class CriticalMixinContractSourceTest {
     @Test
     void verifiedAe2CoreOptimizationsDoNotSilentlyDisableTheirInjectionPoints() {
         Map<String, Long> requiredInjectionLines = Map.of(
-                "CraftingCpuLogicExecutionBudgetMixin.java", 2L,
                 "CraftingCpuLogicTransactionalBatchV2Mixin.java", 1L,
                 "CraftingTreeCalculationMemoMixin.java", 4L,
                 "CraftingTreeCandidatePruningMixin.java", 1L,
@@ -93,6 +92,21 @@ class CriticalMixinContractSourceTest {
                     source.contains("require = 0"),
                     fileName + " must not silently disable an AE2 core hook");
         });
+    }
+
+    @Test
+    void executionBudgetYieldsToHigherPriorityCraftingOwnersWithoutSilentlyDisappearing() {
+        String source = read(MIXIN_ROOT.resolve("CraftingCpuLogicExecutionBudgetMixin.java"));
+
+        // issue #102/#123: 専門アドオンの実行所有権をACOが奪わない優先度を固定する。
+        assertTrue(source.contains("priority = 900"));
+        // 競合時だけRedirect 0件を許可し、Mixin debug環境では期待件数1を監査する。
+        assertEquals(1L, source.lines().filter(line -> line.contains("require = 0")).count());
+        assertEquals(1L, source.lines().filter(line -> line.contains("expect = 1")).count());
+        // 競合しないexecuteCrafting計測境界は引き続き必須とする。
+        assertEquals(1L, source.lines().filter(line -> line.contains("require = 1")).count());
+        assertTrue(source.contains("if (!aco$ownsExecutionBudgetHook)"));
+        assertTrue(source.contains("return logic.executeCrafting(maxOperations"));
     }
 
     @Test
