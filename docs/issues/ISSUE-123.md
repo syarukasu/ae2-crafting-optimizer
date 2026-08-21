@@ -58,8 +58,9 @@ Issue仕様書と試験ファイルは個別に存在するが、全Issueを横�
 2. 種類、必要検証、証拠、ランタイム状態を固定列挙値で表す。
 3. Gradleへ構造検証taskとrelease readiness taskを追加する。
 4. 通常`check`はManifest構造を検証する。
-5. release readinessは未確認回帰をIssue番号付きで拒否する。
-6. 運用手順と現在の未確認一覧を文書化する。
+5. パッチ版release readinessは、基準版と今回の変更範囲をIssue番号で検証する。
+6. 全履歴の厳格監査は、未確認回帰をIssue番号付きで拒否する別タスクとして残す。
+7. 運用手順と現在の未確認一覧を文書化する。
 
 ## 実装前チェック
 
@@ -85,17 +86,20 @@ Issue仕様書と試験ファイルは個別に存在するが、全Issueを横�
 - `IssueRegressionManifestTest`で列定義、全Issue登録、重複、昇順、列挙値、証拠パス、
   試験レベルと実機状態の整合性を検証する。
 - `verifyIssueRegressionManifest`を通常`check`へ接続した。
-- `verifyIssueRegressionReleaseReadiness`を追加し、GameTestまたは実機確認が残るIssueを
-  番号付きで拒否する。
+- `verifyIssueRegressionReleaseReadiness`を追加し、基準版と今回の変更Issueを固定した
+  版別スコープが自動試験を通過したか検証する。
+- `verifyAllIssueRuntimeReadiness`を追加し、GameTestまたは実機確認が残るIssueを
+  番号付きで拒否する全履歴監査を分離した。
+- 1.5.24では1.5.21を最低動作基準とし、1.5.22、1.5.23、Issue #102、#123を
+  `RELEASE_SCOPE_1.5.24.tsv`へ登録した。
 - `ISSUE_REGRESSION_TESTING.md`へ試験レベル、コマンド、現在の未確認項目を記録した。
 
 ## 検証結果
 
 - `gradlew verifyIssueRegressionManifest --no-daemon`: 成功
 - `gradlew clean build --no-daemon`: 成功
-- `gradlew verifyIssueRegressionReleaseReadiness --no-daemon`: 想定どおり失敗
-- release gateが未確認11件（#30、#32、#51、#74、#93、#102、#109、#115、#118、
-  #119、#120）を列挙することを確認した。
+- `gradlew verifyIssueRegressionReleaseReadiness --no-daemon`: 1.5.24の自動回帰範囲で検証予定
+- `gradlew verifyAllIssueRuntimeReadiness --no-daemon`: 未確認項目を列挙して失敗することを確認予定
 - 起動試験、GameTest、実環境試験: 本変更では未実施
 
 ## 完了

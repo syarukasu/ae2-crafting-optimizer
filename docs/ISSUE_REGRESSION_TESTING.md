@@ -23,14 +23,23 @@ ACOでは、GitHub Issueを単なる作業履歴ではなく、再発を防ぐ�
 .\gradlew.bat verifyIssueRegressionManifest --no-daemon
 ```
 
-「過去Issueの必要試験をすべて確認済み」として公開可能か判定します。
+現在のパッチ版が宣言した基準版と変更範囲について、自動回帰試験を通過したか判定します。
 
 ```powershell
 .\gradlew.bat verifyIssueRegressionReleaseReadiness --no-daemon
 ```
 
-`runtime_status=PENDING`が一件でもあれば、Issue番号と必要レベルを表示して失敗します。
-この失敗を無視して「再発なし」「完全検証済み」と表現してはいけません。
+`docs/issues/RELEASE_SCOPE_<version>.tsv`に対象Issueがなければ失敗します。対象Issueに
+`runtime_status=PENDING`が残る場合は警告を表示し、未実施を検証済みとは扱いません。
+
+過去IssueのGameTest・実機確認を全件保証する場合だけ、次の厳格監査を使います。
+
+```powershell
+.\gradlew.bat verifyAllIssueRuntimeReadiness --no-daemon
+```
+
+このタスクは`runtime_status=PENDING`が一件でもあれば失敗します。パッチ版の自動回帰
+ゲート成功を「過去Issueの全症状を実機確認済み」と表現してはいけません。
 
 ## 現在の未確認項目
 
@@ -57,5 +66,5 @@ ACOでは、GitHub Issueを単なる作業履歴ではなく、再発を防ぐ�
 5. 確認後だけ`VERIFIED`へ変更し、ログ、Issueコメント、試験結果のURLまたはファイルを登録します。
 6. `synchronized_through_issue`を台帳に含めた最大Issue番号へ更新します。
 
-Release PRは`verifyIssueRegressionReleaseReadiness`の結果を本文へ記載します。起動試験を
-行わない作業では、ゲートが残した`PENDING`をそのまま未実施として報告します。
+Release PRは`verifyIssueRegressionReleaseReadiness`の結果と基準版を本文へ記載します。
+実機確認を行わない作業では、厳格監査が残した`PENDING`をそのまま未実施として報告します。

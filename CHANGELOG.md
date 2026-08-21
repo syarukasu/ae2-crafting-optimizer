@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.24] - 2026-08-21
+
+### Fixed
+
+- Preserved the 1.5.21 boundary that keeps normal AE2 inventory, GUI, and
+  checked-long crafting under AE2 ownership.
+- Preserved the 1.5.22 authoritative exact-inventory snapshot isolation and
+  the 1.5.23 standard AE2 exact-execution fixes.
+- Stopped ACO from coalescing third-party Pattern Provider refreshes.
+- Stopped ACO from applying a second crafting execution budget when another
+  add-on owns the same execution redirect.
+
+### Verification
+
+- Added a patch-release scope that uses 1.5.21 as the minimum behavior
+  baseline and covers the 1.5.22, 1.5.23, and current ownership changes.
+- Kept the strict all-history runtime audit as a separate task so pending
+  GameTest and runtime evidence is never presented as verified.
+
 ## [1.5.22] - 2026-08-20
 
 ### Fixed

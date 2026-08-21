@@ -47,9 +47,10 @@ ACOの修正は、問題を理解する前にコードへ触らないことを�
 3. 未実施の起動、GameTest、実環境試験を明示します。
 4. 回帰修正の場合だけ、`docs/REGRESSION_HISTORY.md`へIssueの索引を追加します。
 5. `.\gradlew.bat verifyIssueRegressionManifest --no-daemon`で台帳と自動証拠を検証します。
-6. Release PRでは`.\gradlew.bat verifyIssueRegressionReleaseReadiness --no-daemon`を実行します。
-7. PR本文でIssue仕様書の読了・更新と、残る`PENDING`を明記します。
-8. CI成功後にマージし、PRとリリース番号をIssue仕様書へ追記します。
+6. Release PRでは`RELEASE_SCOPE_<version>.tsv`を作成し、基準版と今回の変更Issueを固定します。
+7. `.\gradlew.bat verifyIssueRegressionReleaseReadiness --no-daemon`を実行します。
+8. PR本文でIssue仕様書の読了・更新と、厳格監査に残る`PENDING`を明記します。
+9. CI成功後にマージし、PRとリリース番号をIssue仕様書へ追記します。
 
 ## 例外
 
