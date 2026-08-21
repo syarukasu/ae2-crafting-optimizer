@@ -2,6 +2,7 @@ package com.syaru.ae2craftingoptimizer.mixin;
 
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.crafting.CalculationStrategy;
+import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
@@ -36,6 +37,12 @@ public abstract class CraftingProviderRefreshCoalescingMixin {
         }
 
         if (!ACOConfig.coalesceCraftingProviderRefreshes()) {
+            return;
+        }
+
+        ICraftingProvider provider = node.getService(ICraftingProvider.class);
+        // issue #123: 外部Providerの遅延更新をACOが先に確定しないよう、通知を即時通過させる。
+        if (!ProviderPatternGenerationTracker.isRefreshCoalescingSafe(provider)) {
             return;
         }
 
