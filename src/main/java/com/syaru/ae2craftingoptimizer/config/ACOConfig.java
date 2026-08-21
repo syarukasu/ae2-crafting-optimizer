@@ -860,7 +860,7 @@ public final class ACOConfig {
                 .define("enableAtomicBigCapacityPlans", true);
         ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION = builder
                 .comment(
-                        "Execute explicitly submitted BigInteger root jobs as bounded standard AE2 child jobs on an AQE Quantum Computer.",
+                        "Execute explicitly submitted BigInteger jobs through an integrated exact CPU path.",
                         "False until phase-9 live testing. Capacity display and ordinary long jobs continue to work while this is false.")
                 .define("enableBigIntegerGameplayExecution", true);
         BIG_INTEGER_MAXIMUM_BITS = builder
@@ -903,7 +903,8 @@ public final class ACOConfig {
                 .define("enabled", true);
         ENABLE_AQE_BIG_INTEGER_VECTOR_PARENTS = builder
                 .comment(
-                        "Try one Exact Vector parent transaction before creating checked-long child windows.",
+                        "Try one Exact Vector physical transaction before creating checked-long child windows.",
+                        "The saved key name is retained for compatibility, and now also gates standard AE2 exact CPU adapters.",
                         "After input ownership transfer, failure is recovered or quarantined and never falls back.")
                 .define("enableAqeBigIntegerParents", true);
         EXACT_VECTOR_MAXIMUM_PATTERN_NODES = builder
@@ -1790,6 +1791,11 @@ public final class ACOConfig {
     }
 
     public static boolean enableAqeBigIntegerVectorParents() {
+        return enableExactBigIntegerPhysicalExecution();
+    }
+
+    /** AQEと標準AE2クラスタで共有する、exact BigInteger物理実行の安全条件。 */
+    public static boolean enableExactBigIntegerPhysicalExecution() {
         return enableExactVectorCrafting()
                 && enableBigIntegerGameplayExecution()
                 && ENABLE_AQE_BIG_INTEGER_VECTOR_PARENTS.get();

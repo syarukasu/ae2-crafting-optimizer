@@ -25,6 +25,8 @@
     "CraftingCalculationDiagnosticsMixin",
     "CraftingCalculationCheckedMathMixin",
     "CraftingCalculationMemoLifecycleMixin",
+    "Ae2BigCapacityPlanSubmissionMixin",
+    "Ae2ExactCraftingLogicMixin",
     "CraftAmountMenuLongAmountMixin",
     "CraftConfirmMenuLongAmountMixin",
     "CraftingPlanSummaryWidePlanMixin",
