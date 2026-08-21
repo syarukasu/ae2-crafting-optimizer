@@ -215,6 +215,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_ACTIVE_PER_GRID;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS;
     private static final ForgeConfigSpec.BooleanValue LOG_EXACT_VECTOR_DIAGNOSTICS;
+    private static final ForgeConfigSpec.BooleanValue LOG_EXACT_EXECUTION_STALLS;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -939,8 +940,14 @@ public final class ACOConfig {
                         "Timing begins at the first Exact Vector operation, not at server tick START.")
                 .defineInRange("gridTimeBudgetMillis", 2, 1, 45);
         LOG_EXACT_VECTOR_DIAGNOSTICS = builder
-                .comment("Log bounded physical crafting-tree acceptance, recovery, and quarantine diagnostics.")
+                .comment(
+                        "Log bounded physical crafting-tree acceptance, recovery, and quarantine diagnostics.")
                 .define("logVectorDiagnostics", false);
+        LOG_EXACT_EXECUTION_STALLS = builder
+                .comment(
+                        "Log the waiting reason when an owned exact job makes no progress.",
+                        "One line when the reason changes, then one line per 600 ticks per CPU.")
+                .define("logExecutionStalls", true);
         builder.pop();
 
         builder.push("diagnostics");
@@ -1850,6 +1857,10 @@ public final class ACOConfig {
     public static boolean logExactVectorDiagnostics() {
         return enableExactVectorCrafting()
                 && LOG_EXACT_VECTOR_DIAGNOSTICS.get();
+    }
+
+    public static boolean logExactExecutionStalls() {
+        return LOG_EXACT_EXECUTION_STALLS.get();
     }
 
 }

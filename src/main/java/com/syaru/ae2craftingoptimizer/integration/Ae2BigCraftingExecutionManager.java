@@ -121,6 +121,12 @@ public final class Ae2BigCraftingExecutionManager {
         private PhysicalCraftingTreeTransaction transaction;
         private UUID transactionJobId;
         private ExactCraftingJobAccess lastExactJob;
+        /** 直前にログへ出した待機理由のジョブ。理由が変わるまで同じ行を繰り返さない。 */
+        private UUID lastReportedWaitingJobId;
+        /** 直前にログへ出した待機理由。状態変化の境界だけを診断ログへ出す。 */
+        private String lastReportedWaitingReason;
+        /** 同じ待機理由を再通知するまでのサーバーtick数。1 tick = 50 ms。 */
+        private int waitingTicksSinceLog;
 
         private Controller(CraftingCPUCluster cluster) {
             this.cluster = cluster;
@@ -186,6 +192,10 @@ public final class Ae2BigCraftingExecutionManager {
                     grid,
                     Math.max(1, transaction.plan().craftingSteps().size()));
             if (operationBudget == 0) {
+                reportWaitingReason(
+                        context,
+                        "waiting for the exact physical execution tick budget",
+                        operationBudget);
                 return true;
             }
             long startedNanos = System.nanoTime();
@@ -204,6 +214,10 @@ public final class Ae2BigCraftingExecutionManager {
                         transaction.lastConsumedOperations());
             }
             ExactVectorDiagnostics.activeTick(System.nanoTime() - startedNanos);
+            reportWaitingOutcome(
+                    context,
+                    outcome,
+                    operationBudget);
             /*
              * Forge 1.20.1のTransactionにはrevision診断がないため、実行tickごとに
              * Receipt会計と復旧NBTを同期する。Issue #115のexact Jobだけがこの経路へ入る。
@@ -229,6 +243,62 @@ public final class Ae2BigCraftingExecutionManager {
                 quarantine(outcome.detail(), null);
             }
             return true;
+        }
+
+        /**
+         * 標準AE2 CPUの物理Transactionが待機した理由を、理由の変化ごとに一度だけ記録する。
+         * 同一理由を毎tick出さないため、サーバーログを待機状態の証拠として使える。
+         */
+        private void reportWaitingOutcome(
+                Context context,
+                PhysicalCraftingTreeTransaction.TickOutcome outcome,
+                int operationBudget) {
+            if (outcome.kind() != PhysicalCraftingTreeTransaction.Kind.WAITING) {
+                clearWaitingReport();
+                return;
+            }
+            reportWaitingReason(context, outcome.detail(), operationBudget);
+        }
+
+        /**
+         * Issue #125: 標準AE2 CPUが進めない区間の理由を、状態変化ごとに診断ログへ出す。
+         * 同じ理由が続く場合は600 tickごとに一度だけ再通知し、ログスパムを避ける。
+         */
+        private void reportWaitingReason(
+                Context context,
+                String rawReason,
+                int operationBudget) {
+            if (!ACOConfig.logExactExecutionStalls()) {
+                return;
+            }
+            UUID jobId = context.jobId();
+            String reason = rawReason == null || rawReason.isBlank()
+                    ? "waiting reason was not provided"
+                    : rawReason;
+            boolean changedReason = !jobId.equals(lastReportedWaitingJobId)
+                    || !reason.equals(lastReportedWaitingReason);
+            waitingTicksSinceLog++;
+            // 同じジョブ・同じ理由の連続tickは抑制し、状態変化または600 tickごとに記録する。
+            if (!changedReason && waitingTicksSinceLog < 600) {
+                return;
+            }
+            lastReportedWaitingJobId = jobId;
+            lastReportedWaitingReason = reason;
+            waitingTicksSinceLog = 0;
+            AE2CraftingOptimizer.LOGGER.info(
+                    "ACO standard AE2 exact job waiting: jobId={}, transactionId={}, state={}, reason={}, operationBudget={}, consumedOperations={}",
+                    jobId,
+                    transaction.transactionId(),
+                    transaction.state(),
+                    reason,
+                    operationBudget,
+                    transaction.lastConsumedOperations());
+        }
+
+        private void clearWaitingReport() {
+            lastReportedWaitingJobId = null;
+            lastReportedWaitingReason = null;
+            waitingTicksSinceLog = 0;
         }
 
         private Context context() {
