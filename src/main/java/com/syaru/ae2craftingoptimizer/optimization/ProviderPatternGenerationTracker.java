@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** Tracks exact provider content generations so identical refresh notifications do not rebuild AE2 indexes. */
 public final class ProviderPatternGenerationTracker {
+    /** ACOが同一tick通知を安全に畳み込める、AE2本体所有クラスのパッケージ接頭辞。 */
+    private static final String AE2_IMPLEMENTATION_PREFIX = "appeng.";
     private static final Map<IGridNode, Snapshot> SNAPSHOTS = Collections.synchronizedMap(new WeakHashMap<>());
     private static final AtomicLong GENERATION = new AtomicLong(1L);
 
@@ -31,7 +33,8 @@ public final class ProviderPatternGenerationTracker {
             return true;
         }
         ICraftingProvider provider = node.getService(ICraftingProvider.class);
-        if (AppliedECompatibility.isDynamicProvider(provider)) {
+        // issue #123: 外部Providerは内部更新時機をACOが証明できないため、通知を常に保存する。
+        if (!isRefreshCoalescingSafe(provider) || AppliedECompatibility.isDynamicProvider(provider)) {
             // AppliedE本家はこの比較で全既知アイテムのEMCを再取得する。
             // 同一tick通知は呼出側のSetでまとめ、最終通知は無条件でAE2へ渡す。
             synchronized (SNAPSHOTS) {
@@ -60,10 +63,22 @@ public final class ProviderPatternGenerationTracker {
         synchronized (SNAPSHOTS) {
             SNAPSHOTS.put(
                     node,
-                    AppliedECompatibility.isDynamicProvider(provider)
+                    !isRefreshCoalescingSafe(provider) || AppliedECompatibility.isDynamicProvider(provider)
                             ? Snapshot.DYNAMIC
                             : snapshot(provider));
         }
+    }
+
+    /** AE2本体が所有するProviderだけを、内容Snapshotによる通知間引き対象にする。 */
+    public static boolean isRefreshCoalescingSafe(ICraftingProvider provider) {
+        if (provider == null) {
+            return false;
+        }
+        return isRefreshCoalescingSafe(provider.getClass().getName());
+    }
+
+    static boolean isRefreshCoalescingSafe(String implementationName) {
+        return implementationName != null && implementationName.startsWith(AE2_IMPLEMENTATION_PREFIX);
     }
 
     public static void forget(IGridNode node) {
