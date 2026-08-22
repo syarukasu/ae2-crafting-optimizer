@@ -2,7 +2,6 @@ package com.syaru.ae2craftingoptimizer.integration;
 
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IGrid;
-import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
@@ -14,8 +13,6 @@ import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingLogicAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.ExactPatternFormula;
-import com.syaru.ae2craftingoptimizer.api.batch.v2.ProviderOwnedPatternBatchTarget;
-import com.syaru.ae2craftingoptimizer.api.craftingtable.CraftingTableBatchTarget;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorDiagnostics;
 import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatch;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
@@ -27,19 +24,21 @@ import com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState;
 import com.syaru.ae2craftingoptimizer.engine.PlanningRuntimeEpoch;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.engine.craftingtable.PhysicalCraftingTreeTransaction;
+import com.syaru.ae2craftingoptimizer.engine.craftingtable.CraftingTableBatchTargetResolver;
 import com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator;
+import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
+import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDiagnostics;
 import com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanner;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
-import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
  * Issue #115: 標準AE2 CraftingCPUCluster上のexact Jobを物理Receipt経路で進める。
@@ -168,6 +167,10 @@ public final class Ae2BigCraftingExecutionManager {
             try {
                 restoreOrStart(context, grid, graphSnapshot);
             } catch (PhysicalCraftingTreeTransaction.PatternUnavailableException deferred) {
+                reportWaitingReason(
+                        context,
+                        "waiting for an unloaded pattern provider: " + deferred.getMessage(),
+                        0);
                 return true;
             } catch (RuntimeException | LinkageError failure) {
                 if (!state.hasPhysicalExecution()) {
@@ -183,6 +186,10 @@ public final class Ae2BigCraftingExecutionManager {
             }
             // WorkerやConfig待ちではまだ物理所有権がないため、同じJobをそのまま維持する。
             if (transaction == null) {
+                reportWaitingReason(
+                        context,
+                        "physical execution has not started",
+                        0);
                 return true;
             }
             if (state.cancellationRequested()) {
@@ -285,14 +292,25 @@ public final class Ae2BigCraftingExecutionManager {
             lastReportedWaitingJobId = jobId;
             lastReportedWaitingReason = reason;
             waitingTicksSinceLog = 0;
+            PhysicalCraftingTreeTransaction.ExecutionDiagnostics diagnostics = transaction == null
+                    ? null
+                    : transaction.executionDiagnostics();
+            BigInteger exactRemaining = context.exactJob().aco$getExactRemainingOutput();
             AE2CraftingOptimizer.LOGGER.info(
-                    "ACO standard AE2 exact job waiting: jobId={}, transactionId={}, state={}, reason={}, operationBudget={}, consumedOperations={}",
+                    "ACO standard AE2 exact job waiting: jobId={}, cpu={}, transactionId={}, state={}, stepId={}, patternId={}, receiptState={}, reason={}, operationBudget={}, consumedOperations={}, remainingOperations={}, remainingPhysicalSteps={}, finalOutputRemaining={}",
                     jobId,
-                    transaction.transactionId(),
-                    transaction.state(),
+                    stableKey(),
+                    transaction == null ? "not-started" : transaction.transactionId(),
+                    transaction == null ? "NOT_STARTED" : transaction.state(),
+                    diagnostics == null ? "not-started" : diagnostics.activeStep(),
+                    diagnostics == null ? "not-started" : diagnostics.patternId(),
+                    diagnostics == null ? "NONE" : diagnostics.receiptState(),
                     reason,
                     operationBudget,
-                    transaction.lastConsumedOperations());
+                    transaction == null ? 0 : transaction.lastConsumedOperations(),
+                    diagnostics == null ? "unknown" : diagnostics.remainingOperations(),
+                    diagnostics == null ? "unknown" : diagnostics.remainingPhysicalSteps(),
+                    exactRemaining);
         }
 
         private void clearWaitingReport() {
@@ -340,6 +358,11 @@ public final class Ae2BigCraftingExecutionManager {
             }
             /* Issue #115: 新規開始が無効でも、開始済みTransactionの復元・取消は上で継続する。 */
             if (!ACOConfig.enableExactBigIntegerPhysicalExecution()) {
+                reportWaitingReason(
+                        context,
+                        "exact physical execution is disabled by config",
+                        0);
+                finish(context, false);
                 return;
             }
             // 入力所有権取得前の世代不一致だけは、同じAE2 Jobを通常取消経路で閉じられる。
@@ -348,7 +371,25 @@ public final class Ae2BigCraftingExecutionManager {
                 return;
             }
             PreparedVectorBatch plan = prepare(context.jobId(), context.state(), graphSnapshot);
-            if (!supportsPhysicalPlan(grid, graphSnapshot, plan)) {
+            PhysicalPlanSupport support = physicalPlanSupport(grid, graphSnapshot, plan);
+            if (!support.ready()) {
+                reportWaitingReason(context, support.reason(), 0);
+                if (support.retryable()) {
+                    return;
+                }
+                BigIntegerPlanDiagnostics.record(
+                        BigIntegerPlanDeclineReason.SUBMISSION_BACKING_MISSING,
+                        context.state().requestedKey().getId().toString(),
+                        context.state().requestedAmount(),
+                        context.state().patternGeneration(),
+                        context.state().recipeGeneration(),
+                        support.reason());
+                AE2CraftingOptimizer.LOGGER.warn(
+                        "Declined standard AE2 exact job before physical ownership: jobId={}, cpu={}, reason={}",
+                        context.jobId(),
+                        stableKey(),
+                        support.reason());
+                finish(context, false);
                 return;
             }
             ExactVectorGridTickBudget startBudget = ExactVectorGridTickBudget.forGrid(grid);
@@ -414,12 +455,13 @@ public final class Ae2BigCraftingExecutionManager {
             return plan;
         }
 
-        private boolean supportsPhysicalPlan(
+        private PhysicalPlanSupport physicalPlanSupport(
                 IGrid grid,
                 Ae2CompiledCraftingGraphCache.Snapshot snapshot,
                 PreparedVectorBatch plan) {
             if (!(grid.getCraftingService() instanceof CraftingService service)) {
-                return false;
+                return PhysicalPlanSupport.unsupported(
+                        "AE2 CraftingService is unavailable for exact physical execution");
             }
             // 全固有Patternについて、決定的作業台式と永続物理Targetを開始前に証明する。
             for (var step : plan.craftingSteps()) {
@@ -430,27 +472,22 @@ public final class Ae2BigCraftingExecutionManager {
                                         cluster.getLevel(),
                                         step.selectedInputs())
                                 .isEmpty()) {
-                    return false;
+                    return PhysicalPlanSupport.unsupported(
+                            "pattern has no deterministic crafting-table formula: "
+                                    + step.patternId());
                 }
-                boolean found = false;
-                // このPatternを所有するProvider候補だけを一巡する。
-                for (ICraftingProvider provider : PatternProviderRoutingCache.candidates(
+                CraftingTableBatchTargetResolver.Resolution resolution =
+                        CraftingTableBatchTargetResolver.resolve(
                         service,
-                        pattern)) {
-                    if (!(provider instanceof ProviderOwnedPatternBatchTarget owned)) {
-                        continue;
-                    }
-                    BlockEntity target = owned.aco$getProviderOwnedBatchTarget();
-                    if (target instanceof CraftingTableBatchTarget) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    return false;
+                        pattern,
+                        cluster.getLevel());
+                if (!resolution.ready()) {
+                    return resolution.sawUnloadedTarget()
+                            ? PhysicalPlanSupport.retryable(resolution.waitReason())
+                            : PhysicalPlanSupport.unsupported(resolution.waitReason());
                 }
             }
-            return true;
+            return PhysicalPlanSupport.available();
         }
 
         private void validate(
@@ -558,6 +595,27 @@ public final class Ae2BigCraftingExecutionManager {
             transaction = null;
             transactionJobId = null;
             lastExactJob = null;
+        }
+
+        private record PhysicalPlanSupport(
+                boolean ready,
+                boolean retryable,
+                String reason) {
+            private PhysicalPlanSupport {
+                Objects.requireNonNull(reason, "reason");
+            }
+
+            private static PhysicalPlanSupport available() {
+                return new PhysicalPlanSupport(true, false, "");
+            }
+
+            private static PhysicalPlanSupport retryable(String reason) {
+                return new PhysicalPlanSupport(false, true, reason);
+            }
+
+            private static PhysicalPlanSupport unsupported(String reason) {
+                return new PhysicalPlanSupport(false, false, reason);
+            }
         }
     }
 

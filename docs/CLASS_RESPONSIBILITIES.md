@@ -352,6 +352,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactCountMap` | 正のBigInteger数量Mapの検証、順序付き複製、包含判定、exact加算を行う副作用なし共通部品。 |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactCraftingEscrow` | 一注文が所有する境界素材、中間素材、最終成果物をBigIntegerのまま原子的に増減する。 |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactMutationReconciler` | 保存済みbefore/afterと現在値を照合し、まだ適用していないキーだけを返す。 |
+| `com.syaru.ae2craftingoptimizer.engine.craftingtable.CraftingTableBatchTargetResolver` | AE2のPattern Provider候補から、ACO汎用Batch Targetを解決し、未ロードと未登録を区別する。 |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.PhysicalCraftingTreeTransaction` | 作業台ツリーの所有権移転後state machine。予約、Worker Receipt、取消、返却、隔離、NBT復元を統括する。 |
 
 ### `com.syaru.ae2craftingoptimizer.engine.vector`
