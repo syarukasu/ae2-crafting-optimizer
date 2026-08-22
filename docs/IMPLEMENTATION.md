@@ -184,6 +184,22 @@ persisted Neo ECO state; ordinary progress polling is direct lookup.
 
 ## Exact Storage Mutation
 
+### Issue #125 standard AE2 boundary
+
+ACO does not claim a plan merely because a BigInteger sidecar exists. A plan
+whose exact bytes, pattern counts, inventory counters, and output counters all
+fit in signed `long` is returned to AE2's original submission and execution
+path. A genuinely wide plan is claimed only when a generic
+`CraftingTableBatchTarget` can be resolved for every deterministic workbench
+step. If no such target exists, the job is closed before input ownership is
+taken and `SUBMISSION_BACKING_MISSING` is recorded; an unloaded target is
+retryable and is logged as such.
+
+The standard exact manager records the job, CPU, transaction, step, pattern,
+receipt, wait reason, budget, consumed operations, exact remaining operations,
+remaining physical steps, and exact final output remaining. The same wait
+reason is emitted on change and at most once per 600 ticks.
+
 `ExactNetworkStorageBridge` accesses only audited storage mounts whose complete
 quantity is available as `BigInteger`.
 
