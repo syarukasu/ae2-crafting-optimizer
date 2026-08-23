@@ -66,4 +66,13 @@ class Issue129ArchitectureSourceTest {
         assertTrue(method.contains("OptimizationFeature.EXPORT_CRAFT_REQUEST_BACKOFF"));
         assertFalse(method.contains("enableGridTickBudget()"));
     }
+
+    @Test
+    void exportCandidateCacheFallsBackForUnknownConfigInventoryImplementations() throws IOException {
+        String mixin = Files.readString(
+                Path.of("src/main/java/com/syaru/ae2craftingoptimizer/mixin/ExportBusCandidateCacheMixin.java"),
+                StandardCharsets.UTF_8);
+        assertTrue(mixin.contains("instanceof ConfigInventoryGenerationAccess"));
+        assertTrue(mixin.contains("return config.getKey(slot);"));
+    }
 }

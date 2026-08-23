@@ -21,5 +21,8 @@ class AsyncTerminalIsolationSourceTest {
         assertFalse(view.contains("projection.entry.getStoredAmount()"));
         assertFalse(mixin.contains("@Redirect"));
         assertTrue(mixin.contains("aco$viewGeneration != generation"));
+        assertTrue(mixin.contains(".whenComplete("));
+        assertTrue(mixin.contains("aco$forceSynchronousUpdate"));
+        assertTrue(mixin.contains("((Repo) (Object) this).updateView()"));
     }
 }
