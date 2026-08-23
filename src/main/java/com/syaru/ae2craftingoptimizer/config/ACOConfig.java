@@ -227,6 +227,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS;
     private static final ForgeConfigSpec.BooleanValue LOG_EXACT_VECTOR_DIAGNOSTICS;
     private static final ForgeConfigSpec.BooleanValue LOG_EXACT_EXECUTION_STALLS;
+    private static final ForgeConfigSpec.BooleanValue EXACT_VECTOR_VERIFY_STORAGE_ROUTE;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -986,6 +987,13 @@ public final class ACOConfig {
                         "Log the waiting reason when an owned exact job makes no progress.",
                         "One line when the reason changes, then one line per 600 ticks per CPU.")
                 .define("logExecutionStalls", true);
+        EXACT_VECTOR_VERIFY_STORAGE_ROUTE = builder
+                .comment(
+                        "Prove the audited exact-storage boundary route before taking exclusive job ownership.",
+                        "Plans whose inputs cannot be released or whose final output cannot be accepted",
+                        "fall back to a registered external BigInteger plan consumer, or are declined",
+                        "with a clear reason instead of stalling forever.")
+                .define("verifyStorageRouteBeforeOwnership", true);
         builder.pop();
 
         builder.push("diagnostics");
@@ -2041,6 +2049,10 @@ public final class ACOConfig {
 
     public static boolean logExactExecutionStalls() {
         return LOG_EXACT_EXECUTION_STALLS.get();
+    }
+
+    public static boolean verifyExactStorageRouteBeforeOwnership() {
+        return EXACT_VECTOR_VERIFY_STORAGE_ROUTE.get();
     }
 
 }
