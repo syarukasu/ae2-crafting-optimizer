@@ -1,5 +1,8 @@
 package com.syaru.ae2craftingoptimizer.mixin;
 
+import org.spongepowered.asm.mixin.injection.Redirect;
+import com.syaru.ae2craftingoptimizer.integration.ExactSubmissionScope;
+import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.config.Actionable;
 import appeng.api.networking.energy.IEnergyService;
 import appeng.api.stacks.AEKey;
@@ -107,5 +110,29 @@ public abstract class Ae2ExactCraftingLogicMixin implements ExactCraftingLogicAc
         cluster.updateOutput(null);
         Ae2BigCraftingExecutionManager.unregister(cluster);
         ci.cancel();
+    }
+
+    /**
+     * ACOが承認済みのwide提出だけ、CPUのlong容量ゲートを通す。
+     *
+     * <p>{@code trySubmitJob}は先頭で{@code getAvailableStorage() < plan.bytes()}を見る。
+     * wide計画のlong Facadeは常に{@code Long.MAX_VALUE}なので、残容量がlong上限
+     * ぴったりでない限り<b>必ず不成立</b>になり、理由の出ないCPU_TOO_SMALLで返る。
+     * 正確な容量判定は提出前にBigInteger台帳へ対して済ませてあるので、ここでは測り直さない。
+     * ACOの提出でない計画には一切触れない。</p>
+     */
+    @Redirect(
+            method = "trySubmitJob",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lappeng/api/networking/crafting/ICraftingPlan;bytes()J",
+                    ordinal = 0),
+            require = 1)
+    private long aco$skipLongCapacityGateForApprovedPlans(ICraftingPlan plan) {
+        // ACO承認済みの一回分Facadeだけ0バイト扱いにする。
+        if (ExactSubmissionScope.owns(plan)) {
+            return 0L;
+        }
+        return plan.bytes();
     }
 }
