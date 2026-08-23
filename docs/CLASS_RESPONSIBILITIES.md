@@ -385,6 +385,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager` | 標準AE2クラスタが受理したexact Jobだけを既存PhysicalCraftingTreeTransactionへ接続するIssue #115の実行境界。 |
 | `com.syaru.ae2craftingoptimizer.integration.BigIntegerStorageSnapshotBridge` | Plannerが一つのmountを読む時だけ、AE2用long FacadeとBigInteger正本を分離する。通常NetworkStorageへは介入しない。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactBigIntegerCellConsistency` | ACOが直接更新したExtendedAE Plus在庫Mapと、同MODの保存用総量を結ぶ弱Sidecar。 |
+| `com.syaru.ae2craftingoptimizer.integration.ExactBoundaryRoutePreflight` | exact Jobの所有権を取る前に境界ME操作の成立を証明し、不成立時の委譲か拒否を決める (Issue #125)。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactSubmissionScope` | ACOが正確な容量台帳で承認済みの提出を同じスレッドの下流へ伝え、CPUのlong容量ゲートに測り直させない。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageBridge` | ME storageへのexact snapshot、reserve、insert、rollbackをAE2権限境界内で行う。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageSnapshotCache` | 旧共有Snapshot実装。Issue #109再発防止のためMixin未登録で、通常AE2からは使用しない。 |
