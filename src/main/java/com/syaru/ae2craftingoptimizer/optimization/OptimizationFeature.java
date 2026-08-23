@@ -115,7 +115,6 @@ public enum OptimizationFeature {
             case CRAFTABLE_SET_CACHE,
                     TWO_STAGE_MISSING_PREVIEW,
                     TERMINAL_UPDATE_COALESCING,
-                    TERMINAL_ASYNC_SEARCH,
                     TERMINAL_RANGE_SYNC,
                     GRID_TICK_BUDGET,
                     NETWORK_UPDATE_COALESCING,

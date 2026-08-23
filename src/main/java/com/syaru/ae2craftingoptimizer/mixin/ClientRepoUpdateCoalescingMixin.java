@@ -13,7 +13,6 @@ import appeng.client.gui.me.search.RepoSearch;
 import appeng.util.prioritylist.IPartitionList;
 import com.google.common.collect.BiMap;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.client.Minecraft;
@@ -23,7 +22,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = Repo.class, remap = false)
@@ -127,34 +125,4 @@ public abstract class ClientRepoUpdateCoalescingMixin {
         return true;
     }
 
-    @Redirect(
-            method = "updateView",
-            at = @At(value = "INVOKE", target = "Ljava/util/ArrayList;sort(Ljava/util/Comparator;)V"),
-            require = 0)
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private void aco$sortTerminalView(ArrayList list, Comparator comparator) {
-        if (list != view
-                || !ACOConfig.asyncTerminalSearchSort()
-                || sortSrc.getSortBy() != SortOrder.AMOUNT
-                || list.size() < ACOConfig.getAsyncTerminalMinimumEntries()) {
-            list.sort(comparator);
-            return;
-        }
-
-        long generation = aco$viewGeneration;
-        ArrayList<GridInventoryEntry> snapshot = new ArrayList<>(view);
-        CompletableFuture.runAsync(() -> {
-            snapshot.sort(comparator);
-            Minecraft.getInstance().execute(() -> {
-                if (aco$viewGeneration != generation) {
-                    return;
-                }
-                view.clear();
-                view.addAll(snapshot);
-                if (updateViewListener != null) {
-                    updateViewListener.run();
-                }
-            });
-        });
-    }
 }

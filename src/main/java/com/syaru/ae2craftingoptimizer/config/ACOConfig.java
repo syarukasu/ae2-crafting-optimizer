@@ -520,8 +520,8 @@ public final class ACOConfig {
                 .comment("Allow at most one immediate ME terminal filter/sort rebuild per client tick. Experimental and disabled by default to keep clickable virtual slots synchronized with the current repository generation.")
                 .define("coalesceClientTerminalViewUpdates", false);
         ASYNC_TERMINAL_SEARCH_SORT = builder
-                .comment("Project terminal names, IDs, tags, tooltips, and sort keys on the client thread, then offload only immutable search matching and sorting. Stale generations are discarded. Disabled by default.")
-                .define("asyncTerminalSearchSort", false);
+                .comment("Project terminal names, IDs, tags, tooltips, sort keys, and amounts on the client thread, then offload only immutable search matching and sorting. Stale generations are discarded.")
+                .define("asyncTerminalSearchSort", true);
         ASYNC_TERMINAL_MINIMUM_ENTRIES = builder
                 .comment("Minimum terminal entry count before the safe asynchronous amount-sort path is used.")
                 .defineInRange("asyncTerminalMinimumEntries", 2048, 128, 1_000_000);
