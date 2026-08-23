@@ -18,6 +18,7 @@
 | [#119](https://github.com/syarukasu/ae2-crafting-optimizer/issues/119) | 停止時にRegistry Providerを先に破棄しexact JobとBlock EntityのNBT保存が失敗する | 1.5.23初回Draft | 1.5.23再公開 | [ISSUE-119.md](issues/ISSUE-119.md) |
 | [#120](https://github.com/syarukasu/ae2-crafting-optimizer/issues/120) | Mixin初期化中のModList判定でAdvanced AE変換を自己無効化する | 1.5.23初回Draft | 1.5.23再公開 | [ISSUE-120.md](issues/ISSUE-120.md) |
 | [#140](https://github.com/syarukasu/ae2-crafting-optimizer/issues/140) | Mekanism入力探索がDedicated Serverでclient-only音声型を毎tick解決する | 1.5.25 | 1.5.26 | [ISSUE-140.md](issues/ISSUE-140.md) |
+| [#148](https://github.com/syarukasu/ae2-crafting-optimizer/issues/148) | 同一キーのmounted storage合計がlong境界を超えると端末表示が消える | 1.5.27以前 | 未リリース | [ISSUE-148.md](issues/ISSUE-148.md) |
 
 ## 運用
 

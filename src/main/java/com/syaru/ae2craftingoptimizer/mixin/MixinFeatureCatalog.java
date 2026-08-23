@@ -26,6 +26,7 @@ public final class MixinFeatureCatalog {
             entry("GenericStackInvGenerationMixin", OptimizationFeature.PROVIDER_GENERATION_TRACKING),
             entry("KeyCounterBigIntegerSidecarLifecycleMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("ListCraftingInventoryExactCountsMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
+            entry("MEStorageMenuDisplaySaturationMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("NetworkCraftingSimulationStateAccessor", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("NetworkStorageMountsAccessor", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("PatternProviderLogicNativeBatchReceiptMixin", OptimizationFeature.NATIVE_MACHINE_BATCH),

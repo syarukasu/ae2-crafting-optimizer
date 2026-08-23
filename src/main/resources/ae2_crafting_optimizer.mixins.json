@@ -24,6 +24,7 @@
     "GenericStackInvGenerationMixin",
     "KeyCounterBigIntegerSidecarLifecycleMixin",
     "ListCraftingInventoryExactCountsMixin",
+    "MEStorageMenuDisplaySaturationMixin",
     "NetworkCraftingSimulationStateAccessor",
     "NetworkStorageMountsAccessor",
     "PatternProviderLogicNativeBatchReceiptMixin",
