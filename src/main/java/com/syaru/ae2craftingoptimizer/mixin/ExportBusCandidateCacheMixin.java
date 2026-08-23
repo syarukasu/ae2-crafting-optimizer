@@ -28,7 +28,11 @@ public abstract class ExportBusCandidateCacheMixin {
         if (!ACOConfig.cacheExportBusCandidateKeys()) {
             return config.getKey(slot);
         }
-        long generation = ((ConfigInventoryGenerationAccess) config).aco$getGeneration();
+        // AE2派生実装が世代Accessorを持たない場合は、cacheせず正本を直接読む。
+        if (!(config instanceof ConfigInventoryGenerationAccess generationAccess)) {
+            return config.getKey(slot);
+        }
+        long generation = generationAccess.aco$getGeneration();
         return aco$candidateCache.get(generation, config.size(), slot, config::getKey);
     }
 }

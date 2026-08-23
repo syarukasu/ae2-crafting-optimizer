@@ -19,22 +19,26 @@ import org.junit.jupiter.api.Test;
 
 class MixinFeatureCatalogTest {
     private static final Pattern QUOTED_MIXIN = Pattern.compile("\\\"([A-Za-z0-9_]+)\\\"");
+    private static final Set<Path> MIXIN_CONFIGS = Set.of(
+            Path.of("src/main/resources/ae2_crafting_optimizer.mixins.json"),
+            Path.of("src/main/resources/aco.performance.mixins.json"));
 
     @Test
     void everyConfiguredMixinHasAnExplicitFeatureContract() throws IOException {
-        String json = Files.readString(
-                Path.of("src/main/resources/ae2_crafting_optimizer.mixins.json"),
-                StandardCharsets.UTF_8);
         Set<String> configured = new HashSet<>();
-        Matcher matcher = QUOTED_MIXIN.matcher(json);
-        // JSON内の値から、実在するMixin型名だけを抽出する。
-        while (matcher.find()) {
-            String candidate = matcher.group(1);
-            // 設定keyやJava versionはMixin型ではないため除外する。
-            if (!candidate.endsWith("Mixin") && !candidate.endsWith("Accessor")) {
-                continue;
+        // coreとperformanceの両設定を一つの責務台帳へ照合する。
+        for (Path config : MIXIN_CONFIGS) {
+            String json = Files.readString(config, StandardCharsets.UTF_8);
+            Matcher matcher = QUOTED_MIXIN.matcher(json);
+            // JSON内の値から、実在するMixin型名だけを抽出する。
+            while (matcher.find()) {
+                String candidate = matcher.group(1);
+                // 設定keyやJava versionはMixin型ではないため除外する。
+                if (!candidate.endsWith("Mixin") && !candidate.endsWith("Accessor")) {
+                    continue;
+                }
+                configured.add(candidate);
             }
-            configured.add(candidate);
         }
         assertEquals(configured, MixinFeatureCatalog.snapshot().keySet());
     }

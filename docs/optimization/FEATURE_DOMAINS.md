@@ -36,6 +36,7 @@ Issue #129以降、最適化は次の八領域へ分けます。個別機能は`
 - `ACOConfig`: 設定schema。個別getterから共通gateを呼ぶ
 - `ACOServerLifecycle`: server世代ごとの診断初期化とcache破棄
 - `ACOStartupReport`: 起動時にdomain状態を列挙
+- `MixinFeatureCatalog`: core/performance/clientの全Mixinを機能責務へ結び、未登録Mixinをfail-closedにする
 
 ## 禁止境界
 

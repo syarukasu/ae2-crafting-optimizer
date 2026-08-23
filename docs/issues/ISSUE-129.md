@@ -124,6 +124,11 @@ storage、pattern、topology、resource reload、server lifecycleを共通世代
 - server start/stopでgate診断を初期化し、`/aco stats`用summaryへ拒否理由を追加
 - 1.2.2で削除した可変Storage I/O・GUI・Grid Tick経路を`COMPATIBILITY_NOOP`へ固定
 - Export Busの安全な失敗クラフト要求backoffを、削除済みGrid Tick masterから分離
+- Import Busは直前成功slotを検査順のhintとしてだけ再利用し、抽出・挿入・rollbackはAE2へ維持
+- Export Busは設定世代ごとの候補keyだけをcacheし、未知のConfigInventory実装ではAE2の直接読取へfallback
+- IO Portは六つの入力slotの開始位置だけをround-robin化し、セル移動と会計はAE2へ維持
+- 端末の非同期検索は不変Projectionだけをworkerへ渡し、世代不一致を破棄し、失敗時はAE2同期更新へfallback
+- Forge/NeoForgeのcore・performance・client Mixinを同じ中央台帳へ統合
 - 旧危険Mixinの再登録、No-op機能へのMixin割当、失効契約漏れを検出するJUnitを追加
 - [実装状態表](../optimization/IMPLEMENTATION_STATUS.md)と[domain仕様](../optimization/FEATURE_DOMAINS.md)を追加
 

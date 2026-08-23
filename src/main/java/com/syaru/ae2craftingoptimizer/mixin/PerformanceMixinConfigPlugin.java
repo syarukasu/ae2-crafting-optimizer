@@ -19,6 +19,23 @@ public final class PerformanceMixinConfigPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        int separator = mixinClassName.lastIndexOf('.');
+        String simpleName = separator >= 0
+                ? mixinClassName.substring(separator + 1)
+                : mixinClassName;
+        // Issue #129: 責務台帳にないperformance MixinはAE2へ適用しない。
+        if (!MixinFeatureCatalog.contains(simpleName)) {
+            MixinTransformationReport.record(
+                    "performance",
+                    "ae2",
+                    "unregistered",
+                    targetClassName,
+                    mixinClassName,
+                    false,
+                    true);
+            return false;
+        }
+
         MixinTransformationReport.record(
                 "performance",
                 "ae2",
@@ -26,7 +43,7 @@ public final class PerformanceMixinConfigPlugin implements IMixinConfigPlugin {
                 targetClassName,
                 mixinClassName,
                 true,
-                false);
+                true);
         return true;
     }
 
