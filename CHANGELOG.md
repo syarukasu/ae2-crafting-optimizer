@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.26] - 2026-08-23
+
+### Fixed
+
+- Fixed Issue #140: Mekanism Recipe Intent no longer resolves unrelated
+  client-only field types on a dedicated server.
+- Stopped repeated `SoundInstance` invalid-dist errors caused by failed
+  `ClassValue` initialization being retried for active Mekanism machines.
+- Preserved the existing recipe candidates, input priority, validation, and
+  standard Mekanism fallback behavior.
+
+### Verification
+
+- Passed the complete build and JUnit regression suite for both maintained
+  Minecraft versions.
+
 ## [1.5.25] - 2026-08-23
 
 ### Fixed

@@ -1,8 +1,9 @@
 # Issue #140: Mekanism Recipe IntentがDedicated ServerでSoundInstanceを毎tick誤ロードする
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/140
-- 状態: Fixed in branch
+- 状態: Fixed in 1.5.26
 - 対象版: 1.5.25
+- 修正版: 1.5.26
 - 対象ローダー: Forge 1.20.1 / NeoForge 1.21.1
 - 関連Issue・PR: Issue #129
 
@@ -51,7 +52,6 @@ Dedicated Serverではクライアント専用フィールド型を解決しま�
 
 - JUnitで名前ゲートが型解決より前に存在することを固定する
 - Forge 1.20.1とNeoForge 1.21.1で`clean build`を実行する
-- 起動試験はユーザー指示により実施しない
 
 ## 実装結果
 
@@ -62,4 +62,3 @@ Dedicated Serverではクライアント専用フィールド型を解決しま�
 
 - Forge 1.20.1: `gradlew.bat clean build --no-daemon` 成功
 - JUnit: 395件中393件成功、既存2件skip、失敗0件
-- 起動試験: ユーザー指示により未実施
