@@ -189,6 +189,28 @@ class BigCraftingHostRuntimeTest {
     }
 
     @Test
+    void capacityPromotionWorksBeforeTheAddonRegistersItsFacadeReservation() {
+        /*
+         * 互換予約はCPUを所有するアドオンが自分の再集計契機で入れるため、
+         * 提出直後にはまだ存在しないことがある。以前はこれを取り違えとみなして
+         * 拒否しており、AQEのBigInteger量子コアが常にCPU_TOO_SMALLになっていた。
+         */
+        BigInteger exact = BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO);
+        BigInteger capacity = exact.add(BigInteger.valueOf(1_000L));
+        UUID cpuId = UUID.randomUUID();
+        BigCraftingHostRuntime<String> host = host(capacity);
+
+        assertTrue(host.promoteExternalReservation(cpuId, exact));
+        assertEquals(Map.of(cpuId, exact), host.externalReservations());
+        assertEquals(exact, host.reserved());
+
+        // アドオンが後からLong.MAX_VALUEで再集計しても、真値が優先される。
+        host.replaceExternalReservations(Map.of(cpuId, BigInteger.valueOf(Long.MAX_VALUE)));
+        assertEquals(Map.of(cpuId, exact), host.externalReservations());
+        assertEquals(exact, host.reserved());
+    }
+
+    @Test
     void failedCapacityPromotionLeavesFacadeReservationUntouched() {
         BigInteger facade = BigInteger.valueOf(Long.MAX_VALUE);
         BigInteger capacity = facade.add(BigInteger.TEN);
