@@ -23,7 +23,9 @@ import com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator;
 import com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDiagnostics;
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.MathContext;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -106,6 +108,10 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
                 return;
             }
             if (host.available().compareTo(bigIntegerPlan.exactBytes()) < 0) {
+                aco$reportTooSmall(
+                        "BigInteger",
+                        host.available(),
+                        bigIntegerPlan.exactBytes());
                 cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
                 return;
             }
@@ -166,6 +172,10 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
                         && !parentOwnedAllowance.equals(bigPlan.exactBytes()))
                 || (!parentOwnedWindow
                         && host.available().compareTo(bigPlan.exactBytes()) < 0)) {
+            aco$reportTooSmall(
+                    parentOwnedWindow ? "Big-capacity child window" : "Big-capacity",
+                    host == null ? null : host.available(),
+                    bigPlan.exactBytes());
             cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
             return;
         }
@@ -175,6 +185,37 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
                 Set.copyOf(activeCpus.keySet()),
                 parentOwnedWindow,
                 null));
+    }
+
+    /**
+     * Advanced AE自身のlong容量チェックを、ACOが所有するwide計画に対してだけ無効化する。
+     *
+     * <p>{@code AdvCraftingCPUCluster#submitJob}は本体の先頭で
+     * {@code getAvailableStorage() < plan.bytes()}を見る。wide計画のlong Facadeは
+     * {@code Long.MAX_VALUE}固定なので、<b>クラスタの残容量がlong上限ぴったりでない限り
+     * 必ず不成立</b>になり、CPU_TOO_SMALLが<b>理由も出さずに</b>返る。
+     * AE2本体のクラスタには同じ検査が無いため、この症状は
+     * <b>Advanced AE系のCPU (AQEのBigInteger量子コアを含む) でだけ</b>表に出る。</p>
+     *
+     * <p>wide計画の容量判定はHEADで正確なBigInteger台帳に対して既に済ませてあり、
+     * 不足なら所有権を取る前に拒否している。ここで測り直す意味は無いので、
+     * <b>ACOのSidecarを持つ計画だけ</b>0バイトとして通す。通常計画のlong Facadeには
+     * 一切触れない。</p>
+     */
+    @Redirect(
+            method = "submitJob",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lappeng/api/networking/crafting/ICraftingPlan;bytes()J",
+                    ordinal = 0),
+            require = 1)
+    private long aco$skipLongCapacityGateForWidePlans(ICraftingPlan plan) {
+        // ACOが正本を持つ計画だけ、long上限のFacadeで測り直させない。
+        if (Ae2CraftingPlanSidecars.bigInteger(plan).isPresent()
+                || Ae2CraftingPlanSidecars.bigCapacity(plan).isPresent()) {
+            return 0L;
+        }
+        return plan.bytes();
     }
 
     /**
@@ -387,6 +428,46 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
                 new KeyCounter(),
                 new KeyCounter(),
                 Map.copyOf(oneExecution));
+    }
+
+    /**
+     * 容量不足でCPU_TOO_SMALLを返す理由を残す。
+     *
+     * <p>AE2の画面には「選択したCPUのストレージが足りません」としか出せず、
+     * <b>Hostが登録されていない</b>のか<b>本当に容量が足りない</b>のかを
+     * 利用者が区別できない。前者はアドオン側のHost登録漏れや構造再形成の取りこぼしで、
+     * 後者は注文が大きすぎるだけなので、対処が正反対になる。</p>
+     */
+    @Unique
+    private static void aco$reportTooSmall(
+            String planKind,
+            BigInteger available,
+            BigInteger required) {
+        // Hostが無い場合は容量比較すら行われていないため、そう明記する。
+        if (available == null) {
+            AE2CraftingOptimizer.LOGGER.warn(
+                    "Refusing a wide Advanced AE {} plan: no BigInteger crafting host is registered"
+                            + " for this cluster (needs {} bytes)",
+                    planKind,
+                    aco$describeAmount(required));
+            return;
+        }
+        AE2CraftingOptimizer.LOGGER.warn(
+                "Refusing a wide Advanced AE {} plan: the cluster host offers {} bytes"
+                        + " but the plan needs {} bytes",
+                planKind,
+                aco$describeAmount(available),
+                aco$describeAmount(required));
+    }
+
+    /** 正確値は10進で数千桁になりうるので、桁感だけを残す。 */
+    @Unique
+    private static String aco$describeAmount(BigInteger amount) {
+        // long内なら丸めずそのまま読める。
+        if (amount.abs().bitLength() < Long.SIZE) {
+            return amount.toString();
+        }
+        return new BigDecimal(amount).round(new MathContext(4)).toEngineeringString();
     }
 
     /** 世代再検証の拒否理由を、設定可能なBigInteger診断へ集約する。 */
