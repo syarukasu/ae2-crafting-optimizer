@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.api.big;
 
+import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingJob;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingKeyCodec;
@@ -140,11 +141,21 @@ public final class BigCraftingHostRuntime<K> implements AutoCloseable {
         BigInteger previous = externalReservations.get(jobId);
         // AdvancedAEが先に作成した互換予約が存在しないJobは、別Jobとの取り違えを防ぐため拒否する。
         if (previous == null || externalExecutions.containsKey(jobId)) {
-            return false;
+            return declinePromotion(
+                    jobId,
+                    previous == null
+                            ? "the host holds no compatibility reservation for this CPU"
+                            : "the host already runs an exact execution for this CPU");
         }
         // BigInteger昇格対象は、AE2へ見せたLong.MAX_VALUEより真の容量が大きいJobだけに限定する。
         if (!previous.equals(LONG_MAX) || checked.compareTo(LONG_MAX) <= 0) {
-            return false;
+            return declinePromotion(
+                    jobId,
+                    !previous.equals(LONG_MAX)
+                            ? "the compatibility reservation is " + previous
+                                    + " instead of Long.MAX_VALUE"
+                            : "the exact plan needs only " + checked
+                                    + " bytes, which fits the long ledger");
         }
 
         BigInteger reservedWithoutPrevious = reserved().subtract(previous);
@@ -156,7 +167,13 @@ public final class BigCraftingHostRuntime<K> implements AutoCloseable {
         // 真の容量または保存用カウント予算を超える場合は、既存予約を一切変更せず失敗する。
         if (availableForReplacement.compareTo(checked) < 0
                 || projectedCountBytes > maximumRuntimeCountBytes) {
-            return false;
+            return declinePromotion(
+                    jobId,
+                    availableForReplacement.compareTo(checked) < 0
+                            ? "the host offers " + availableForReplacement
+                                    + " bytes but the plan needs " + checked
+                            : "the persisted-count budget would reach " + projectedCountBytes
+                                    + " of " + maximumRuntimeCountBytes + " bytes");
         }
 
         externalReservations.put(jobId, checked);
@@ -168,6 +185,21 @@ public final class BigCraftingHostRuntime<K> implements AutoCloseable {
         externalCountBytes = projectedCountBytes;
         rebalanceBigRuntimeCapacity();
         return true;
+    }
+
+    /**
+     * 昇格を断った理由を残す。
+     *
+     * <p>呼出側はここがfalseを返すとCPUごと取消してCPU_TOO_SMALLを返すが、
+     * 画面にも従来のlogにも「容量不足」としか出ないため、
+     * <b>互換予約が無いのか・真に容量が足りないのか</b>を利用者が区別できない。</p>
+     */
+    private boolean declinePromotion(UUID jobId, String reason) {
+        AE2CraftingOptimizer.LOGGER.warn(
+                "Declined the exact BigInteger capacity promotion for CPU {}: {}",
+                jobId,
+                reason);
+        return false;
     }
 
     /**
