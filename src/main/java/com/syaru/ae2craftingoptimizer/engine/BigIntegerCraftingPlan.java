@@ -114,6 +114,18 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
         return preparedRoot.reservedBytes();
     }
 
+    /**
+     * AE2標準のlong計算へ委譲できるかを、投影済み表示値ではなく正本で判定する。
+     *
+     * <p>ACOがwide専用実行を取得するのは、個別の数量またはCPU容量がsigned longを
+     * 超える場合だけである。ここがtrueの計画をACOが横取りすると、標準AE2が安全に
+     * 実行できる通常注文まで物理Target待ちのまま停止する。</p>
+     */
+    public boolean fitsStandardLongExecution() {
+        return exactBytes().compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0
+                && !containsWideCounter(exactPlan, exactPatternTimes);
+    }
+
     public BigCraftingPlan<AEKey> exactPlan() {
         return exactPlan;
     }

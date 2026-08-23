@@ -348,10 +348,21 @@ public final class OptimizationMetrics {
                         + " busy-count hit(s), " + ASSEMBLER_MATRIX_STATUS_UPDATES_COALESCED.sum()
                          + " status update(s) coalesced"));
         lines.addAll(BigIntegerPlanDiagnostics.summaryLines());
+        // domain gateの拒否理由を固定個数で表示し、無効化が効いているか観測可能にする。
+        for (var entry : OptimizationFeatureGate.denialSnapshot().entrySet()) {
+            OptimizationFeatureGate.DenialSnapshot denial = entry.getValue();
+            lines.add("Feature gate " + entry.getKey()
+                    + ": denied feature(s) by master/domain/feature/unavailable "
+                    + denial.masterDisabled() + "/"
+                    + denial.domainDisabled() + "/"
+                    + denial.featureDisabled() + "/"
+                    + denial.implementationUnavailable());
+        }
         return List.copyOf(lines);
     }
 
     public static void reset() {
+        OptimizationFeatureGate.resetDiagnostics();
         SHARED_BUDGET_LIMITS.reset();
         SHARED_DEFERRED_OPERATIONS.reset();
         GT_CANDIDATE_CACHE_HITS.reset();

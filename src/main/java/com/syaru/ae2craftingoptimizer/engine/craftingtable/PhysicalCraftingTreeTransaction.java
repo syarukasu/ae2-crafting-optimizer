@@ -2,13 +2,11 @@ package com.syaru.ae2craftingoptimizer.engine.craftingtable;
 
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IGrid;
-import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.api.batch.ExactPatternFormula;
-import com.syaru.ae2craftingoptimizer.api.batch.v2.ProviderOwnedPatternBatchTarget;
 import com.syaru.ae2craftingoptimizer.api.craftingtable.CraftingTableBatchMode;
 import com.syaru.ae2craftingoptimizer.api.craftingtable.CraftingTableBatchRequest;
 import com.syaru.ae2craftingoptimizer.api.craftingtable.CraftingTableBatchSnapshot;
@@ -20,7 +18,6 @@ import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorStorageService;
 import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatch;
 import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatchCodec;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
-import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
 import com.syaru.ae2craftingoptimizer.util.StableFingerprint;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -38,9 +35,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
- * BigInteger親注文を、依存順に実行されるNeoECO作業台仕事として所有する正本状態。
+ * BigInteger親注文を、依存順に実行される汎用作業台Batch仕事として所有する正本状態。
  *
- * <p>InsaneAEの「一回だけ実assembleして係数を掛ける」方式と、NeoECOの
+ * <p>InsaneAEの「一回だけ実assembleして係数を掛ける」方式と、外部Targetの
  * Pattern Bus・Worker・Thread・電力・物理進捗を組み合わせる。各段の実出力は
  * 永続Escrowへ入った後でのみ次段の入力として使えるため、最終成果物を直接変換しない。</p>
  *
@@ -515,6 +512,38 @@ public final class PhysicalCraftingTreeTransaction {
         return state;
     }
 
+    /** Issue #125: 待機ログへ渡す現在Stepと正確な残り物理操作を一度に返す。 */
+    public ExecutionDiagnostics executionDiagnostics() {
+        int activeStep = -1;
+        String receiptState = "NONE";
+        BigInteger remainingOperations = BigInteger.ZERO;
+        // 注文数ではなく、まだ物理Receiptが終端へ到達していない固有Stepだけを集計する。
+        for (int index = 0; index < steps.size(); index++) {
+            StepReceipt receipt = steps.get(index);
+            if (receipt.state() == StepState.OUTPUT_OBSERVED
+                    || receipt.state() == StepState.OUTPUT_CREDITED
+                    || receipt.state() == StepState.ACKNOWLEDGED
+                    || receipt.state() == StepState.CANCELLED) {
+                continue;
+            }
+            if (activeStep < 0) {
+                activeStep = index;
+                receiptState = receipt.state().name();
+            }
+            remainingOperations = remainingOperations.add(
+                    plan.craftingSteps().get(index).executions());
+        }
+        String patternId = activeStep < 0
+                ? "NONE"
+                : plan.craftingSteps().get(activeStep).patternId();
+        return new ExecutionDiagnostics(
+                activeStep,
+                patternId,
+                receiptState,
+                remainingOperations,
+                activeStep < 0 ? 0 : steps.size() - activeStep);
+    }
+
     public int lastConsumedOperations() {
         return lastConsumedOperations;
     }
@@ -598,7 +627,7 @@ public final class PhysicalCraftingTreeTransaction {
                 finalOutputReturned);
     }
 
-    /** GUIへ渡す進捗は、実NeoECO Threadと完了済み物理段から求める。 */
+    /** GUIへ渡す進捗は、実BatchTargetの進捗と完了済み物理段から求める。 */
     public int progressNumerator() {
         int total =
                 progressDenominator();
@@ -817,7 +846,7 @@ public final class PhysicalCraftingTreeTransaction {
                 ? TickOutcome.changed()
                 : TickOutcome.waiting(
                         detail.isBlank()
-                                ? "waiting for recipe dependencies or NeoECO workers"
+                                ? "waiting for recipe dependencies or crafting-table workers"
                                 : detail);
     }
 
@@ -851,6 +880,7 @@ public final class PhysicalCraftingTreeTransaction {
             SelectedTarget selected =
                     selectTarget(
                             grid,
+                            level,
                             resolved.pattern(),
                             receipt.routeCursor(),
                             receipt.transactionId(),
@@ -858,7 +888,7 @@ public final class PhysicalCraftingTreeTransaction {
             // 現在利用できる実設備がない場合も、予約入力をEscrow外で保持して待つ。
             if (selected == null) {
                 detail =
-                        "waiting for a NeoECO crafting-table Pattern Bus";
+                        "waiting for a crafting-table batch target";
                 return StepAdvance.waiting();
             }
             receipt.selectTarget(
@@ -929,7 +959,7 @@ public final class PhysicalCraftingTreeTransaction {
              */
             receipt.retryAnotherTarget();
             detail =
-                    "all NeoECO crafting-table workers are busy";
+                    "crafting-table batch workers are busy";
             return StepAdvance.updated();
         }
 
@@ -947,12 +977,12 @@ public final class PhysicalCraftingTreeTransaction {
                         receipt.transactionId(),
                         receipt.payloadDigest())) {
                     detail =
-                            "waiting for NeoECO Thread snapshot";
+                            "waiting for a crafting-table batch snapshot";
                     return StepAdvance.waiting();
                 }
                 receipt.retryAnotherTarget();
                 detail =
-                        "NeoECO Thread was released before output";
+                        "crafting-table batch target was released before output";
                 return StepAdvance.updated();
             }
             CraftingTableBatchSnapshot physicalState =
@@ -977,7 +1007,7 @@ public final class PhysicalCraftingTreeTransaction {
                             .equals(
                                     resolved.expectedOutputs())) {
                         yield StepAdvance.quarantined(
-                                "NeoECO physical output differs from the compiled formula");
+                                "crafting-table physical output differs from the compiled formula");
                     }
                     receipt.observeOutput(
                             physicalState.exactOutputs(),
@@ -1003,7 +1033,7 @@ public final class PhysicalCraftingTreeTransaction {
                             .equals(
                                     resolved.expectedOutputs())) {
                         yield StepAdvance.quarantined(
-                                "NeoECO terminal receipt differs from the compiled formula");
+                                "crafting-table terminal receipt differs from the compiled formula");
                     }
                     receipt.observeOutput(
                             physicalState.exactOutputs(),
@@ -1079,7 +1109,7 @@ public final class PhysicalCraftingTreeTransaction {
                             .equals(
                                     resolved.expectedOutputs())) {
                 return StepAdvance.quarantined(
-                        "NeoECO terminal receipt changed after output accounting");
+                        "crafting-table terminal receipt changed after output accounting");
             }
             boolean forgotten =
                     target.aco$forgetCraftingTableBatch(
@@ -1098,7 +1128,7 @@ public final class PhysicalCraftingTreeTransaction {
                 return StepAdvance.updated();
             }
             detail =
-                    "waiting for NeoECO output acknowledgement";
+                    "waiting for crafting-table output acknowledgement";
             return StepAdvance.waiting();
         }
 
@@ -1210,7 +1240,7 @@ public final class PhysicalCraftingTreeTransaction {
             if (!level.isLoaded(
                     targetPosition)) {
                 detail =
-                        "cancellation waits for the NeoECO target to load";
+                        "cancellation waits for the crafting-table target to load";
                 continue;
             }
             BlockEntity targetEntity =
@@ -1288,7 +1318,7 @@ public final class PhysicalCraftingTreeTransaction {
                                 receipt.transactionId(),
                                 receipt.payloadDigest())) {
                     detail =
-                            "cancellation waits for the NeoECO Thread snapshot";
+                            "cancellation waits for the crafting-table batch snapshot";
                     continue;
                 }
                 // 所有を失った未完成仕事は、予約入力だけを正確に戻す。
@@ -1840,7 +1870,7 @@ public final class PhysicalCraftingTreeTransaction {
             case TARGET_SELECTED, ACCEPTED -> {
                 receipt.retryAnotherTarget();
                 detail =
-                        "physical target was removed; retrying on another NeoECO worker";
+                        "physical target was removed; retrying on another crafting-table worker";
                 yield StepAdvance.updated();
             }
             case OUTPUT_OBSERVED -> {
@@ -1945,6 +1975,7 @@ public final class PhysicalCraftingTreeTransaction {
 
     private static SelectedTarget selectTarget(
             IGrid grid,
+            Level level,
             IPatternDetails pattern,
             int routeCursor,
             UUID transactionId,
@@ -1954,36 +1985,16 @@ public final class PhysicalCraftingTreeTransaction {
                 instanceof CraftingService service)) {
             return null;
         }
-        Map<Long, BlockEntity> targets =
-                new LinkedHashMap<>();
-        // 同じPattern Busが重複Providerとして見えても位置ごとに一件へ畳み込む。
-        for (ICraftingProvider provider :
-                PatternProviderRoutingCache.candidates(
+        CraftingTableBatchTargetResolver.Resolution resolution =
+                CraftingTableBatchTargetResolver.resolve(
                         service,
-                        pattern)) {
-            // Pattern所有Providerではない候補を、物理Targetとして推測しない。
-            if (!(provider
-                    instanceof ProviderOwnedPatternBatchTarget owned)) {
-                continue;
-            }
-            BlockEntity target =
-                    owned.aco$getProviderOwnedBatchTarget();
-            // 永続化できるBlock EntityのTarget契約だけを候補にする。
-            if (target
-                    instanceof CraftingTableBatchTarget) {
-                targets.putIfAbsent(
-                        target.getBlockPos()
-                                .asLong(),
-                        target);
-            }
-        }
+                        pattern,
+                        level);
+        List<BlockEntity> ordered = resolution.targets();
         // 対応設備がない場合は、呼出側で入力予約を維持して待つ。
-        if (targets.isEmpty()) {
+        if (ordered.isEmpty()) {
             return null;
         }
-        List<BlockEntity> ordered =
-                List.copyOf(
-                        targets.values());
         /*
          * 親保存前にTargetだけが受理済みとなった停止復旧では、
          * 既存所有者を通常のラウンドロビン候補より優先する。
@@ -3070,7 +3081,7 @@ public final class PhysicalCraftingTreeTransaction {
                     || state == StepState.ACKNOWLEDGED) {
                 return PROGRESS_UNITS_PER_STEP;
             }
-            // 受理済みThreadだけNeoECO実進捗を割合換算する。
+            // 受理済みBatchだけ外部Targetの実進捗を割合換算する。
             if (state == StepState.ACCEPTED
                     && maximumProgress > 0) {
                 return Math.min(
@@ -3436,6 +3447,23 @@ public final class PhysicalCraftingTreeTransaction {
                     Objects.requireNonNull(
                             detail,
                             "detail"));
+        }
+    }
+
+    /** 物理実行の待機箇所を、表示用longへ丸めず診断する不変値。 */
+    public record ExecutionDiagnostics(
+            int activeStep,
+            String patternId,
+            String receiptState,
+            BigInteger remainingOperations,
+            int remainingPhysicalSteps) {
+        public ExecutionDiagnostics {
+            Objects.requireNonNull(patternId, "patternId");
+            Objects.requireNonNull(receiptState, "receiptState");
+            Objects.requireNonNull(remainingOperations, "remainingOperations");
+            if (remainingOperations.signum() < 0 || remainingPhysicalSteps < 0) {
+                throw new IllegalArgumentException("execution diagnostics must be non-negative");
+            }
         }
     }
 

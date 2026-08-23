@@ -48,4 +48,6 @@ issue	kind	loaders	required	automated_evidence	runtime_status	runtime_evidence	s
 119	REGRESSION	NEOFORGE_1_21_1	GAMETEST	src/test/java/com/syaru/ae2craftingoptimizer/integration/Issues118To120RegressionTest.java	PENDING	-	Shutdown exact job NBT loss
 120	REGRESSION	NEOFORGE_1_21_1	RUNTIME	src/test/java/com/syaru/ae2craftingoptimizer/integration/Issues118To120RegressionTest.java	PENDING	-	Advanced AE mixin startup self contradiction
 123	DOCUMENTATION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/IssueRegressionManifestTest.java	NOT_REQUIRED	-	Machine readable regression release gate
+125	REGRESSION	BOTH	GAMETEST	src/test/java/com/syaru/ae2craftingoptimizer/issue125/Issue125RegressionSourceTest.java	PENDING	-	Exact physical crafting accepted but remains at zero output
+129	ARCHITECTURE	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/optimization/OptimizationFeatureGateTest.java;src/test/java/com/syaru/ae2craftingoptimizer/integration/Issue129ArchitectureSourceTest.java	NOT_REQUIRED	-	GTNH inspired optimization domains and fail closed ownership gates
 140	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/mekanism/MekanismRecipeIntentDedicatedServerSafetyTest.java	NOT_REQUIRED	-	Dedicated Server client-only SoundInstance reflection spam

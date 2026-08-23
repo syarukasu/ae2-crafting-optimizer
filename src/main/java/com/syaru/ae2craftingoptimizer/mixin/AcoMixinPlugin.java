@@ -18,6 +18,10 @@ public final class AcoMixinPlugin implements IMixinConfigPlugin {
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         String simpleName = simpleMixinName(mixinClassName);
+        // Issue #129: 責務台帳にないMixinは通常AE2へ刺さる根拠がないため適用しない。
+        if (!MixinFeatureCatalog.contains(simpleName)) {
+            return false;
+        }
         // Neo ECO 20.3/20.4は実行メソッドの記述子が異なるため、一致する片方だけを読み込む。
         if (isNeoEcoExecutionBudgetMixin(simpleName)) {
             return shouldApplyNeoEcoExecutionMixin(simpleName, loadedNeoEcoExecutionProfile());

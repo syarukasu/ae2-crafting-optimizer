@@ -59,8 +59,8 @@ public abstract class Ae2BigCapacityPlanSubmissionMixin {
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
         ACO_SUBMISSION.remove();
         BigIntegerCraftingPlan exact = Ae2CraftingPlanSidecars.bigInteger(plan).orElse(null);
-        // 通常long計画と合計容量だけwideな計画は、AE2本来の提出経路へ完全に委譲する。
-        if (exact == null) {
+        // 通常long計画は、ACOが物理Targetを要求せずAE2本来の提出経路へ完全に委譲する。
+        if (exact == null || exact.fitsStandardLongExecution()) {
             return;
         }
         // 自動要求のExact最終出力転送は未対応なので、手動注文だけを対象にする。

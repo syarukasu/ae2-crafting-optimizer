@@ -13,7 +13,6 @@ import appeng.client.gui.me.search.RepoSearch;
 import appeng.util.prioritylist.IPartitionList;
 import com.google.common.collect.BiMap;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.client.Minecraft;
@@ -23,7 +22,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = Repo.class, remap = false)
@@ -63,17 +61,29 @@ public abstract class ClientRepoUpdateCoalescingMixin {
     @Unique
     private CompletableFuture<?> aco$asyncViewTask;
 
+    @Unique
+    private boolean aco$forceSynchronousUpdate;
+
     @Inject(method = "updateView", at = @At("HEAD"), cancellable = true)
     private void aco$coalesceTerminalViewUpdates(CallbackInfo ci) {
+        // 非同期処理が失敗した直後の一回だけは、AE2本来の同期更新へ戻す。
+        if (aco$forceSynchronousUpdate) {
+            aco$forceSynchronousUpdate = false;
+            return;
+        }
+
         aco$viewGeneration = aco$viewGeneration == Long.MAX_VALUE ? 1L : aco$viewGeneration + 1L;
+        // 古い世代の結果が新しい検索条件を上書きしないように破棄する。
         if (aco$asyncViewTask != null) {
             aco$asyncViewTask.cancel(true);
             aco$asyncViewTask = null;
         }
+        // 短時間の連続更新は既存Schedulerへ委譲する。
         if (ClientRepoUpdateScheduler.shouldDefer((Repo) (Object) this)) {
             ci.cancel();
             return;
         }
+        // 安全条件を満たした検索だけを非同期経路へ送る。
         if (aco$scheduleAsyncSearchAndSort()) {
             ci.cancel();
         }
@@ -81,6 +91,7 @@ public abstract class ClientRepoUpdateCoalescingMixin {
 
     @Unique
     private boolean aco$scheduleAsyncSearchAndSort() {
+        // AE2固有状態をworkerへ持ち出す条件では同期経路へ戻す。
         if (!ACOConfig.asyncTerminalSearchSort()
                 || paused
                 || partitionList != null
@@ -92,13 +103,17 @@ public abstract class ClientRepoUpdateCoalescingMixin {
         var viewMode = sortSrc.getSortDisplay();
         var typeFilter = sortSrc.getTypeFilter().getFilter();
         List<GridInventoryEntry> candidates = new ArrayList<>(entries.size());
+        // AE2が画面へ出せる候補だけをクライアントスレッド上で固定する。
         for (GridInventoryEntry entry : entries.values()) {
+            // クラフト可能項目だけを表示する設定を維持する。
             if (viewMode == ViewItems.CRAFTABLE && !entry.isCraftable()) {
                 continue;
             }
+            // 在庫項目だけを表示する設定を維持する。
             if (viewMode == ViewItems.STORED && entry.getStoredAmount() == 0) {
                 continue;
             }
+            // AE2のキー種別フィルターに一致しない候補は除外する。
             if (!typeFilter.matches(entry.getWhat())) {
                 continue;
             }
@@ -112,49 +127,29 @@ public abstract class ClientRepoUpdateCoalescingMixin {
         long generation = aco$viewGeneration;
         aco$asyncViewTask = CompletableFuture
                 .supplyAsync(() -> AsyncTerminalView.filterAndSort(projections, query, order, direction))
-                .thenAccept(result -> Minecraft.getInstance().execute(() -> {
+                .whenComplete((result, failure) -> Minecraft.getInstance().execute(() -> {
+                    // 完了前に検索条件が変わった結果は、成功・失敗とも採用しない。
                     if (aco$viewGeneration != generation) {
                         return;
                     }
+
+                    aco$asyncViewTask = null;
+                    // 独自処理の失敗時は表示を止めず、AE2本来の更新を一度だけ実行する。
+                    if (failure != null) {
+                        aco$forceSynchronousUpdate = true;
+                        ((Repo) (Object) this).updateView();
+                        return;
+                    }
+
                     view.clear();
                     view.addAll(result);
                     pinnedRow.clear();
+                    // AE2がlistenerを登録している場合だけ画面更新を通知する。
                     if (updateViewListener != null) {
                         updateViewListener.run();
                     }
-                    aco$asyncViewTask = null;
                 }));
         return true;
     }
 
-    @Redirect(
-            method = "updateView",
-            at = @At(value = "INVOKE", target = "Ljava/util/ArrayList;sort(Ljava/util/Comparator;)V"),
-            require = 0)
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private void aco$sortTerminalView(ArrayList list, Comparator comparator) {
-        if (list != view
-                || !ACOConfig.asyncTerminalSearchSort()
-                || sortSrc.getSortBy() != SortOrder.AMOUNT
-                || list.size() < ACOConfig.getAsyncTerminalMinimumEntries()) {
-            list.sort(comparator);
-            return;
-        }
-
-        long generation = aco$viewGeneration;
-        ArrayList<GridInventoryEntry> snapshot = new ArrayList<>(view);
-        CompletableFuture.runAsync(() -> {
-            snapshot.sort(comparator);
-            Minecraft.getInstance().execute(() -> {
-                if (aco$viewGeneration != generation) {
-                    return;
-                }
-                view.clear();
-                view.addAll(snapshot);
-                if (updateViewListener != null) {
-                    updateViewListener.run();
-                }
-            });
-        });
-    }
 }
