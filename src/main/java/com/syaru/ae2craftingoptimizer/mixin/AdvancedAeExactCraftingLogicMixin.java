@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.mixin;
 
+import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import com.syaru.ae2craftingoptimizer.integration.ExactSubmissionScope;
 import appeng.api.networking.crafting.ICraftingPlan;
@@ -173,6 +174,20 @@ public abstract class AdvancedAeExactCraftingLogicMixin
         if (ExactSubmissionScope.owns(plan)) {
             return 0L;
         }
-        return plan.bytes();
+        long required = plan.bytes();
+        long available = cpu.getAvailableStorage();
+        /*
+         * このゲートは理由を一切出さずCPU_TOO_SMALLを返す。wide計画のlong Facadeは
+         * Long.MAX_VALUE固定なので、利用者からは「大きいCPUなのに容量不足と言われる」
+         * としか見えない。どのCPUがどれだけ足りないと言っているのかを残す。
+         */
+        if (available < required) {
+            AE2CraftingOptimizer.LOGGER.warn(
+                    "Advanced AE CPU capacity gate refused a job: available={} required={} cpu={}",
+                    available,
+                    required,
+                    cpu);
+        }
+        return required;
     }
 }
