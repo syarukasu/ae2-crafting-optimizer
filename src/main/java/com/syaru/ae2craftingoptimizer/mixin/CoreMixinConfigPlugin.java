@@ -19,6 +19,22 @@ public final class CoreMixinConfigPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        int separator = mixinClassName.lastIndexOf('.');
+        String simpleName = separator >= 0
+                ? mixinClassName.substring(separator + 1)
+                : mixinClassName;
+        // Issue #129: 責務台帳にないcore Mixinは通常AE2へ適用しない。
+        if (!MixinFeatureCatalog.contains(simpleName)) {
+            MixinTransformationReport.record(
+                    "core",
+                    "ae2",
+                    "unregistered",
+                    targetClassName,
+                    mixinClassName,
+                    false,
+                    true);
+            return false;
+        }
         MixinTransformationReport.record(
                 "core",
                 "ae2",

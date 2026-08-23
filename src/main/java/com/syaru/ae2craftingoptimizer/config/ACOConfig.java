@@ -1,6 +1,9 @@
 package com.syaru.ae2craftingoptimizer.config;
 
 import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationDomain;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeature;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureGate;
 import java.util.List;
 import java.util.Locale;
 import net.neoforged.neoforge.common.ModConfigSpec;
@@ -21,6 +24,14 @@ public final class ACOConfig {
     private static final int MAXIMUM_AUTHORITATIVE_SHADOW_MATCHES = 1_048_576;
     private static final ModConfigSpec SPEC;
     private static final ModConfigSpec.BooleanValue ENABLE_OPTIMIZER;
+    private static final ModConfigSpec.BooleanValue ENABLE_NETWORK_TOPOLOGY_DOMAIN;
+    private static final ModConfigSpec.BooleanValue ENABLE_STORAGE_IO_DOMAIN;
+    private static final ModConfigSpec.BooleanValue ENABLE_PATTERN_PROVIDER_DOMAIN;
+    private static final ModConfigSpec.BooleanValue ENABLE_CLIENT_SYNC_DOMAIN;
+    private static final ModConfigSpec.BooleanValue ENABLE_CRAFTING_PLANNING_DOMAIN;
+    private static final ModConfigSpec.BooleanValue ENABLE_CRAFTING_EXECUTION_DOMAIN;
+    private static final ModConfigSpec.BooleanValue ENABLE_BIG_INTEGER_DOMAIN;
+    private static final ModConfigSpec.BooleanValue ENABLE_OPTIONAL_INTEGRATION_DOMAIN;
     private static final ModConfigSpec.BooleanValue TWO_STAGE_MISSING_PREVIEW;
     private static final ModConfigSpec.BooleanValue CANCEL_CALCULATION_AFTER_PRELIMINARY_MISSING_PREVIEW;
     private static final ModConfigSpec.BooleanValue SKIP_CALCULATION_ON_CACHED_MISSING_PREVIEW;
@@ -222,6 +233,33 @@ public final class ACOConfig {
         ENABLE_OPTIMIZER = builder
                 .comment("Master switch for all AE2 Crafting Optimizer mixin behavior.")
                 .define("enableOptimizer", true);
+        builder.pop();
+
+        builder.push("optimizationDomains");
+        ENABLE_NETWORK_TOPOLOGY_DOMAIN = builder
+                .comment("Master switch for topology generations, P2P deduplication, and grid tick budgeting. Individual feature switches still apply.")
+                .define("networkTopology", true);
+        ENABLE_STORAGE_IO_DOMAIN = builder
+                .comment("Master switch for Import/Export Bus, IO Port, capability, and transfer caches. Individual feature switches still apply.")
+                .define("storageIo", true);
+        ENABLE_PATTERN_PROVIDER_DOMAIN = builder
+                .comment("Master switch for Pattern Provider generations, indexes, refresh coalescing, and routing caches. Individual feature switches still apply.")
+                .define("patternProvider", true);
+        ENABLE_CLIENT_SYNC_DOMAIN = builder
+                .comment("Master switch for terminal, watcher, search, and client synchronization optimizations. Unsafe individual features remain disabled by default.")
+                .define("clientSync", true);
+        ENABLE_CRAFTING_PLANNING_DOMAIN = builder
+                .comment("Master switch for calculation memoization, compiled graphs, checked arithmetic, and plan caches. Individual feature switches still apply.")
+                .define("craftingPlanning", true);
+        ENABLE_CRAFTING_EXECUTION_DOMAIN = builder
+                .comment("Master switch for execution budgets, fair scheduling, and transactional dispatch. Individual feature switches still apply.")
+                .define("craftingExecution", true);
+        ENABLE_BIG_INTEGER_DOMAIN = builder
+                .comment("Master switch for exact-count planning and ACO-owned BigInteger execution. Disabling it does not change ordinary AE2 inventory or GUI behavior.")
+                .define("bigInteger", true);
+        ENABLE_OPTIONAL_INTEGRATION_DOMAIN = builder
+                .comment("Master switch for optional add-on adapters. ACO public API remains loadable, but adapters perform no mutation when disabled.")
+                .define("optionalIntegration", true);
         builder.pop();
 
         builder.push("craftingCalculation");
@@ -443,14 +481,14 @@ public final class ACOConfig {
 
         builder.push("uelOptimizations");
         CACHE_ADJACENT_CAPABILITY_LOOKUPS = builder
-                .comment("Reuse a non-null adjacent Forge capability for the remainder of the current server tick. The block entity identity is checked on every lookup, and missing capabilities are never cached.")
-                .define("cacheAdjacentCapabilityLookups", true);
+                .comment("Compatibility key. The cross-tick BlockApiCache replacement was removed in 1.2.2; NeoForge and AE2 retain capability ownership.")
+                .define("cacheAdjacentCapabilityLookups", false);
         CACHE_ADJACENT_CAPABILITIES_ACROSS_TICKS = builder
                 .comment("Keep a successful adjacent capability across ticks until Forge invalidates its LazyOptional. The block entity identity is still checked on every access. Disabled by default for unusual capability providers that do not invalidate correctly.")
                 .define("cacheAdjacentCapabilitiesAcrossTicks", false);
         CACHE_NEGATIVE_BUS_TRANSFER_SIMULATIONS = builder
-                .comment("Remember exact failed import/export insertion simulations for one server tick. Successful simulations and real transfers are always executed normally.")
-                .define("cacheNegativeBusTransferSimulations", true);
+                .comment("Compatibility key. Transfer simulation results are not cached because adjacent storage can change between simulation and modulation.")
+                .define("cacheNegativeBusTransferSimulations", false);
         PRUNE_INVALID_CRAFTING_CANDIDATES = builder
                 .comment("Remove only null, duplicate-by-identity, or structurally invalid pattern candidates before AE2 builds crafting branches. Inventory availability is never used to reject a valid pattern.")
                 .define("pruneInvalidCraftingCandidates", true);
@@ -464,23 +502,23 @@ public final class ACOConfig {
                 .comment("Fingerprint Pattern Provider content and rebuild AE2's provider indexes only when patterns, outputs, inputs, emitables, or priority actually change. Cleared on datapack reload.")
                 .define("trackProviderPatternGenerations", true);
         INCREMENTAL_IO_PORT_PROCESSING = builder
-                .comment("Process AE2 IO Port cell slots from a persistent round-robin cursor instead of restarting at slot zero. Every selected cell transfer still uses AE2's original atomic transfer routine.")
+                .comment("Inspect IO Port input cells through a fair round-robin window. AE2 still owns every cell transfer and slot move.")
                 .define("incrementalIoPortProcessing", true);
         IO_PORT_CELL_SLOTS_PER_TICK = builder
                 .comment("Maximum IO Port input-cell slots inspected per grid tick when incremental processing is enabled.")
                 .defineInRange("ioPortCellSlotsPerTick", 2, 1, 6);
         CACHE_IMPORT_BUS_LAST_SUCCESSFUL_SLOT = builder
-                .comment("Compatibility key. The custom Import Bus transfer Mixin is unregistered; AE2 always owns extraction and insertion.")
-                .define("cacheImportBusLastSuccessfulSlot", false);
+                .comment("Inspect the last successful Import Bus source slot first. AE2 still owns extraction, insertion, rollback, and operation accounting.")
+                .define("cacheImportBusLastSuccessfulSlot", true);
         CACHE_EXPORT_BUS_CANDIDATE_KEYS = builder
-                .comment("Reuse Export Bus configured candidate keys until the bus configuration is changed. Fuzzy lookup and actual extraction/insertion remain validated by AE2.")
+                .comment("Cache immutable Export Bus filter keys only until the config inventory generation changes. AE2 still performs every extraction and insertion check.")
                 .define("cacheExportBusCandidateKeys", true);
         COALESCE_CLIENT_TERMINAL_VIEW_UPDATES = builder
                 .comment("Allow at most one immediate ME terminal filter/sort rebuild per client tick. Experimental and disabled by default to keep clickable virtual slots synchronized with the current repository generation.")
                 .define("coalesceClientTerminalViewUpdates", false);
         ASYNC_TERMINAL_SEARCH_SORT = builder
-                .comment("Project terminal names, IDs, tags, tooltips, and sort keys on the client thread, then offload only immutable search matching and sorting. Stale generations are discarded. Disabled by default.")
-                .define("asyncTerminalSearchSort", false);
+                .comment("Project terminal names, IDs, tags, tooltips, sort keys, and amounts on the client thread, then offload only immutable search matching and sorting. Stale generations are discarded.")
+                .define("asyncTerminalSearchSort", true);
         ASYNC_TERMINAL_MINIMUM_ENTRIES = builder
                 .comment("Minimum terminal entry count before the safe asynchronous amount-sort path is used.")
                 .defineInRange("asyncTerminalMinimumEntries", 2048, 128, 1_000_000);
@@ -980,8 +1018,30 @@ public final class ACOConfig {
         return ENABLE_OPTIMIZER.get();
     }
 
+    /**
+     * 共通gateだけが使用するdomainの生設定値。
+     *
+     * <p>master switchはここで重ねず、{@link OptimizationFeatureGate}が
+     * master、domain、個別設定の順序を一元管理する。
+     */
+    public static boolean rawDomainEnabled(OptimizationDomain domain) {
+        return switch (domain) {
+            case NETWORK_TOPOLOGY -> ENABLE_NETWORK_TOPOLOGY_DOMAIN.get();
+            case STORAGE_IO -> ENABLE_STORAGE_IO_DOMAIN.get();
+            case PATTERN_PROVIDER -> ENABLE_PATTERN_PROVIDER_DOMAIN.get();
+            case CLIENT_SYNC -> ENABLE_CLIENT_SYNC_DOMAIN.get();
+            case CRAFTING_PLANNING -> ENABLE_CRAFTING_PLANNING_DOMAIN.get();
+            case CRAFTING_EXECUTION -> ENABLE_CRAFTING_EXECUTION_DOMAIN.get();
+            case BIG_INTEGER -> ENABLE_BIG_INTEGER_DOMAIN.get();
+            case OPTIONAL_INTEGRATION -> ENABLE_OPTIONAL_INTEGRATION_DOMAIN.get();
+        };
+    }
+
     public static boolean twoStageMissingPreview() {
-        return enableOptimizer() && TWO_STAGE_MISSING_PREVIEW.get() && getPreviewMaximumEntries() > 0;
+        return OptimizationFeatureGate.allows(
+                        OptimizationFeature.TWO_STAGE_MISSING_PREVIEW,
+                        TWO_STAGE_MISSING_PREVIEW.get())
+                && getPreviewMaximumEntries() > 0;
     }
 
     public static boolean cancelCalculationAfterPreliminaryMissingPreview() {
@@ -1049,7 +1109,9 @@ public final class ACOConfig {
     }
 
     public static boolean deduplicateActiveCraftingCalculations() {
-        return enableOptimizer() && DEDUPLICATE_ACTIVE_CRAFTING_CALCULATIONS.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.ACTIVE_CALCULATION_DEDUPLICATION,
+                DEDUPLICATE_ACTIVE_CRAFTING_CALCULATIONS.get());
     }
 
     public static int getActiveCalculationDeduplicationWindowTicks() {
@@ -1061,7 +1123,10 @@ public final class ACOConfig {
     }
 
     public static boolean cacheCompletedCraftingPlans() {
-        return enableOptimizer() && CACHE_COMPLETED_CRAFTING_PLANS.get() && getCompletedCraftingPlanCacheSize() > 0;
+        return OptimizationFeatureGate.allows(
+                        OptimizationFeature.COMPLETED_PLAN_CACHE,
+                        CACHE_COMPLETED_CRAFTING_PLANS.get())
+                && getCompletedCraftingPlanCacheSize() > 0;
     }
 
     public static boolean cacheSuccessfulCompletedCraftingPlans() {
@@ -1077,7 +1142,9 @@ public final class ACOConfig {
     }
 
     public static boolean fastFailMissingCrafts() {
-        return enableOptimizer() && FAST_FAIL_MISSING_CRAFTS.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.DETERMINISTIC_MISSING_FAST_FAIL,
+                FAST_FAIL_MISSING_CRAFTS.get());
     }
 
     public static long getMinimumRequestedAmountForFastFail() {
@@ -1097,7 +1164,10 @@ public final class ACOConfig {
     }
 
     public static boolean cachePatternLookups() {
-        return enableOptimizer() && CACHE_PATTERN_LOOKUPS.get() && getPatternLookupCacheSize() > 0;
+        return OptimizationFeatureGate.allows(
+                        OptimizationFeature.PATTERN_LOOKUP_CACHE,
+                        CACHE_PATTERN_LOOKUPS.get())
+                && getPatternLookupCacheSize() > 0;
     }
 
     public static int getPatternLookupCacheSize() {
@@ -1105,7 +1175,10 @@ public final class ACOConfig {
     }
 
     public static boolean cacheCraftableSets() {
-        return enableOptimizer() && CACHE_CRAFTABLE_SETS.get() && getCraftableSetCacheSize() > 0;
+        return OptimizationFeatureGate.allows(
+                        OptimizationFeature.CRAFTABLE_SET_CACHE,
+                        CACHE_CRAFTABLE_SETS.get())
+                && getCraftableSetCacheSize() > 0;
     }
 
     public static int getCraftableSetCacheSize() {
@@ -1117,7 +1190,9 @@ public final class ACOConfig {
     }
 
     public static boolean throttleCraftingExecution() {
-        return enableOptimizer() && THROTTLE_CRAFTING_EXECUTION.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.CRAFTING_EXECUTION_BUDGET,
+                THROTTLE_CRAFTING_EXECUTION.get());
     }
 
     public static int getMaxEffectiveCoprocessorsPerCpu() {
@@ -1158,7 +1233,9 @@ public final class ACOConfig {
     }
 
     public static boolean enableAppliedECompatibility() {
-        return enableOptimizer() && ENABLE_APPLIED_E_COMPATIBILITY.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.APPLIED_E_COMPATIBILITY,
+                ENABLE_APPLIED_E_COMPATIBILITY.get());
     }
 
     public static boolean forceAe2PlannerForAppliedEPatterns() {
@@ -1170,7 +1247,9 @@ public final class ACOConfig {
     }
 
     public static boolean enableGridTickBudget() {
-        return enableOptimizer() && ENABLE_GRID_TICK_BUDGET.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.GRID_TICK_BUDGET,
+                ENABLE_GRID_TICK_BUDGET.get());
     }
 
     public static boolean deferHeavyGridTickables() {
@@ -1214,7 +1293,10 @@ public final class ACOConfig {
     }
 
     public static boolean limitIoBusOperationsPerTick() {
-        return enableGridTickBudget() && LIMIT_IO_BUS_OPERATIONS_PER_TICK.get();
+        return enableGridTickBudget()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.IO_BUS_OPERATION_LIMIT,
+                        LIMIT_IO_BUS_OPERATIONS_PER_TICK.get());
     }
 
     public static int getMaxIoBusOperationsPerTick() {
@@ -1222,7 +1304,9 @@ public final class ACOConfig {
     }
 
     public static boolean throttleExportBusCraftRequests() {
-        return enableGridTickBudget() && THROTTLE_EXPORT_BUS_CRAFT_REQUESTS.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.EXPORT_CRAFT_REQUEST_BACKOFF,
+                THROTTLE_EXPORT_BUS_CRAFT_REQUESTS.get());
     }
 
     public static int getExportBusCraftFailureCooldownTicks() {
@@ -1238,7 +1322,9 @@ public final class ACOConfig {
     }
 
     public static boolean cacheAdjacentCapabilityLookups() {
-        return enableOptimizer() && CACHE_ADJACENT_CAPABILITY_LOOKUPS.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.ADJACENT_CAPABILITY_CACHE,
+                CACHE_ADJACENT_CAPABILITY_LOOKUPS.get());
     }
 
     public static boolean cacheAdjacentCapabilitiesAcrossTicks() {
@@ -1246,27 +1332,39 @@ public final class ACOConfig {
     }
 
     public static boolean cacheNegativeBusTransferSimulations() {
-        return enableOptimizer() && CACHE_NEGATIVE_BUS_TRANSFER_SIMULATIONS.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.NEGATIVE_TRANSFER_CACHE,
+                CACHE_NEGATIVE_BUS_TRANSFER_SIMULATIONS.get());
     }
 
     public static boolean pruneInvalidCraftingCandidates() {
-        return enableOptimizer() && PRUNE_INVALID_CRAFTING_CANDIDATES.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.CANDIDATE_PRUNING,
+                PRUNE_INVALID_CRAFTING_CANDIDATES.get());
     }
 
     public static boolean memoizeCraftingCalculationQueries() {
-        return enableOptimizer() && MEMOIZE_CRAFTING_CALCULATION_QUERIES.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.CRAFTING_QUERY_MEMOIZATION,
+                MEMOIZE_CRAFTING_CALCULATION_QUERIES.get());
     }
 
     public static boolean coalesceCraftingProviderRefreshes() {
-        return enableOptimizer() && COALESCE_CRAFTING_PROVIDER_REFRESHES.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.PROVIDER_REFRESH_COALESCING,
+                COALESCE_CRAFTING_PROVIDER_REFRESHES.get());
     }
 
     public static boolean trackProviderPatternGenerations() {
-        return enableOptimizer() && TRACK_PROVIDER_PATTERN_GENERATIONS.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.PROVIDER_GENERATION_TRACKING,
+                TRACK_PROVIDER_PATTERN_GENERATIONS.get());
     }
 
     public static boolean incrementalIoPortProcessing() {
-        return enableOptimizer() && INCREMENTAL_IO_PORT_PROCESSING.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.INCREMENTAL_IO_PORT,
+                INCREMENTAL_IO_PORT_PROCESSING.get());
     }
 
     public static int getIoPortCellSlotsPerTick() {
@@ -1274,19 +1372,27 @@ public final class ACOConfig {
     }
 
     public static boolean cacheImportBusLastSuccessfulSlot() {
-        return enableOptimizer() && CACHE_IMPORT_BUS_LAST_SUCCESSFUL_SLOT.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.IMPORT_LAST_SLOT_CACHE,
+                CACHE_IMPORT_BUS_LAST_SUCCESSFUL_SLOT.get());
     }
 
     public static boolean cacheExportBusCandidateKeys() {
-        return enableOptimizer() && CACHE_EXPORT_BUS_CANDIDATE_KEYS.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.EXPORT_CANDIDATE_CACHE,
+                CACHE_EXPORT_BUS_CANDIDATE_KEYS.get());
     }
 
     public static boolean coalesceClientTerminalViewUpdates() {
-        return enableOptimizer() && COALESCE_CLIENT_TERMINAL_VIEW_UPDATES.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.TERMINAL_UPDATE_COALESCING,
+                COALESCE_CLIENT_TERMINAL_VIEW_UPDATES.get());
     }
 
     public static boolean asyncTerminalSearchSort() {
-        return enableOptimizer() && ASYNC_TERMINAL_SEARCH_SORT.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.TERMINAL_ASYNC_SEARCH,
+                ASYNC_TERMINAL_SEARCH_SORT.get());
     }
 
     public static int getAsyncTerminalMinimumEntries() {
@@ -1294,11 +1400,15 @@ public final class ACOConfig {
     }
 
     public static boolean fixStuckAe2ScrollbarRepeat() {
-        return enableOptimizer() && FIX_STUCK_AE2_SCROLLBAR_REPEAT.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.SCROLLBAR_RELEASE_SAFETY,
+                FIX_STUCK_AE2_SCROLLBAR_REPEAT.get());
     }
 
     public static boolean cacheCircuitCutterRecipes() {
-        return enableOptimizer() && CACHE_CIRCUIT_CUTTER_RECIPES.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.CIRCUIT_CUTTER_RECIPE_CACHE,
+                CACHE_CIRCUIT_CUTTER_RECIPES.get());
     }
 
     public static boolean cacheCircuitCutterNegativeResults() {
@@ -1310,7 +1420,9 @@ public final class ACOConfig {
     }
 
     public static boolean enableAddonMachineOptimizations() {
-        return enableOptimizer() && ENABLE_ADDON_MACHINE_OPTIMIZATIONS.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.ADDON_MACHINE_CACHE,
+                ENABLE_ADDON_MACHINE_OPTIMIZATIONS.get());
     }
 
     public static boolean cacheReactionChamberRecipe() {
@@ -1346,7 +1458,9 @@ public final class ACOConfig {
     }
 
     public static boolean throttleStorageWatcherUpdates() {
-        return enableOptimizer() && THROTTLE_STORAGE_WATCHER_UPDATES.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.STORAGE_WATCHER_THROTTLE,
+                THROTTLE_STORAGE_WATCHER_UPDATES.get());
     }
 
     public static int getStorageWatcherUpdateIntervalTicks() {
@@ -1354,7 +1468,9 @@ public final class ACOConfig {
     }
 
     public static boolean throttleTerminalInventorySnapshots() {
-        return enableOptimizer() && THROTTLE_TERMINAL_INVENTORY_SNAPSHOTS.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.TERMINAL_UPDATE_COALESCING,
+                THROTTLE_TERMINAL_INVENTORY_SNAPSHOTS.get());
     }
 
     public static int getTerminalInventorySnapshotIntervalTicks() {
@@ -1362,7 +1478,9 @@ public final class ACOConfig {
     }
 
     public static boolean cacheTerminalCraftables() {
-        return enableOptimizer() && CACHE_TERMINAL_CRAFTABLES.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.TERMINAL_UPDATE_COALESCING,
+                CACHE_TERMINAL_CRAFTABLES.get());
     }
 
     public static int getTerminalCraftableCacheTicks() {
@@ -1370,15 +1488,21 @@ public final class ACOConfig {
     }
 
     public static boolean flushImmediatelyOnScreenOpen() {
-        return enableOptimizer() && FLUSH_IMMEDIATELY_ON_SCREEN_OPEN.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.TERMINAL_UPDATE_COALESCING,
+                FLUSH_IMMEDIATELY_ON_SCREEN_OPEN.get());
     }
 
     public static boolean flushImmediatelyOnCellChange() {
-        return enableOptimizer() && FLUSH_IMMEDIATELY_ON_CELL_CHANGE.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.TERMINAL_UPDATE_COALESCING,
+                FLUSH_IMMEDIATELY_ON_CELL_CHANGE.get());
     }
 
     public static boolean flushImmediatelyOnNetworkTopologyChange() {
-        return enableOptimizer() && FLUSH_IMMEDIATELY_ON_NETWORK_TOPOLOGY_CHANGE.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.TERMINAL_UPDATE_COALESCING,
+                FLUSH_IMMEDIATELY_ON_NETWORK_TOPOLOGY_CHANGE.get());
     }
 
     public static int getMaximumBufferedChanges() {
@@ -1390,7 +1514,10 @@ public final class ACOConfig {
     }
 
     public static boolean deepPatternSelectionByAvailability() {
-        return enableDeepAe2RewriteFlags() && DEEP_PATTERN_SELECTION_BY_AVAILABILITY.get();
+        return enableDeepAe2RewriteFlags()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.PATTERN_SELECTION_BY_AVAILABILITY,
+                        DEEP_PATTERN_SELECTION_BY_AVAILABILITY.get());
     }
 
     public static int getDeepPatternSelectionMaximumCandidates() {
@@ -1398,7 +1525,10 @@ public final class ACOConfig {
     }
 
     public static boolean deepNetworkForceUpdateCoalescing() {
-        return enableDeepAe2RewriteFlags() && DEEP_NETWORK_FORCE_UPDATE_COALESCING.get();
+        return enableDeepAe2RewriteFlags()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.NETWORK_UPDATE_COALESCING,
+                        DEEP_NETWORK_FORCE_UPDATE_COALESCING.get());
     }
 
     public static int getDeepNetworkUpdateIntervalTicks() {
@@ -1406,7 +1536,10 @@ public final class ACOConfig {
     }
 
     public static boolean deepVisibleTerminalRangeSync() {
-        return enableDeepAe2RewriteFlags() && DEEP_VISIBLE_TERMINAL_RANGE_SYNC.get();
+        return enableDeepAe2RewriteFlags()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.TERMINAL_RANGE_SYNC,
+                        DEEP_VISIBLE_TERMINAL_RANGE_SYNC.get());
     }
 
     public static int getDeepTerminalRangeEntriesPerTick() {
@@ -1414,7 +1547,10 @@ public final class ACOConfig {
     }
 
     public static boolean deepP2PTopologyChangeOnlyRecheck() {
-        return enableDeepAe2RewriteFlags() && DEEP_P2P_TOPOLOGY_CHANGE_ONLY_RECHECK.get();
+        return enableDeepAe2RewriteFlags()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.P2P_TOPOLOGY_DEDUPLICATION,
+                        DEEP_P2P_TOPOLOGY_CHANGE_ONLY_RECHECK.get());
     }
 
     public static int getDeepP2PDuplicateWindowTicks() {
@@ -1422,7 +1558,10 @@ public final class ACOConfig {
     }
 
     public static boolean deepBusSearchRewrite() {
-        return enableDeepAe2RewriteFlags() && DEEP_BUS_SEARCH_REWRITE.get();
+        return enableDeepAe2RewriteFlags()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.BUS_SEARCH_CACHE,
+                        DEEP_BUS_SEARCH_REWRITE.get());
     }
 
     public static int getDeepBusFuzzyCacheTicks() {
@@ -1434,7 +1573,10 @@ public final class ACOConfig {
     }
 
     public static boolean deepFluidPatternRework() {
-        return enableDeepAe2RewriteFlags() && DEEP_FLUID_PATTERN_REWORK.get();
+        return enableDeepAe2RewriteFlags()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.FLUID_PATTERN_FAST_PATH,
+                        DEEP_FLUID_PATTERN_REWORK.get());
     }
 
     public static boolean logDeepAe2RewriteFlags() {
@@ -1442,7 +1584,9 @@ public final class ACOConfig {
     }
 
     public static boolean enableRecipeIntentBridge() {
-        return enableOptimizer() && ENABLE_RECIPE_INTENT_BRIDGE.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.RECIPE_INTENT_BRIDGE,
+                ENABLE_RECIPE_INTENT_BRIDGE.get());
     }
 
     public static boolean capturePatternProviderRecipeIntents() {
@@ -1483,7 +1627,9 @@ public final class ACOConfig {
     }
 
     public static boolean enableTransactionalPatternBatching() {
-        return enableOptimizer() && ENABLE_TRANSACTIONAL_PATTERN_BATCHING.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.TRANSACTIONAL_BATCHING,
+                ENABLE_TRANSACTIONAL_PATTERN_BATCHING.get());
     }
 
     public static int getMaxTransactionalPatternBatchExecutions() {
@@ -1499,7 +1645,9 @@ public final class ACOConfig {
     }
 
     public static boolean enableInstantPatternDispatch() {
-        return enableOptimizer() && ENABLE_INSTANT_PATTERN_DISPATCH.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.INSTANT_PATTERN_DISPATCH,
+                ENABLE_INSTANT_PATTERN_DISPATCH.get());
     }
 
     public static int getInstantPatternDispatchTimeBudgetMillis() {
@@ -1608,19 +1756,24 @@ public final class ACOConfig {
     }
 
     public static boolean enableExperimentalCraftingEngine() {
-        return enableOptimizer() && ENABLE_EXPERIMENTAL_CRAFTING_ENGINE.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.COMPILED_CRAFTING_GRAPH,
+                ENABLE_EXPERIMENTAL_CRAFTING_ENGINE.get());
     }
 
     public static boolean enableAqeBigCraftingProfile() {
-        return enableOptimizer()
-                && ENABLE_AQE_BIG_CRAFTING_PROFILE.get()
+        return OptimizationFeatureGate.allows(
+                        OptimizationFeature.ADVANCED_AE_BIG_PROFILE,
+                        ENABLE_AQE_BIG_CRAFTING_PROFILE.get())
                 && ModList.get().isLoaded("advanced_ae")
                 && ModList.get().isLoaded("advanced_quantum_engineering");
     }
 
     /** 外部CPUアドオン向けの厳密BigInteger計算プロファイルを設定で切り替える。 */
     public static boolean enableExternalBigCraftingProfile() {
-        return enableOptimizer() && ENABLE_EXTERNAL_BIG_CRAFTING_PROFILE.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.EXTERNAL_BIG_PROFILE,
+                ENABLE_EXTERNAL_BIG_CRAFTING_PROFILE.get());
     }
 
     /** AQEまたは公開APIへ登録された外部CPUがBigInteger計算の連携先として存在するかを返す。 */
@@ -1629,7 +1782,9 @@ public final class ACOConfig {
     }
 
     public static boolean enableLongRootCraftAmounts() {
-        return enableOptimizer() && ENABLE_LONG_ROOT_CRAFT_AMOUNTS.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.LONG_ROOT_AMOUNTS,
+                ENABLE_LONG_ROOT_CRAFT_AMOUNTS.get());
     }
 
     public static boolean enableCraftingEngineShadowMode() {
@@ -1655,12 +1810,17 @@ public final class ACOConfig {
     }
 
     public static boolean enableCompiledCraftingGraph() {
-        return ENABLE_COMPILED_CRAFTING_GRAPH.get()
+        return OptimizationFeatureGate.allows(
+                        OptimizationFeature.COMPILED_CRAFTING_GRAPH,
+                        ENABLE_COMPILED_CRAFTING_GRAPH.get())
                 && (enableExperimentalCraftingEngine() || enableBigCraftingProfile());
     }
 
     public static boolean enableAuthoritativeCompiledPlanner() {
-        return enableCompiledCraftingGraph() && ENABLE_AUTHORITATIVE_COMPILED_PLANNER.get();
+        return enableCompiledCraftingGraph()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.AUTHORITATIVE_COMPILED_PLANNER,
+                        ENABLE_AUTHORITATIVE_COMPILED_PLANNER.get());
     }
 
     public static boolean enableProofQualifiedLongPlans() {
@@ -1668,26 +1828,38 @@ public final class ACOConfig {
     }
 
     public static boolean enableCheckedAe2CraftingArithmetic() {
-        return ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC.get()
+        return OptimizationFeatureGate.allows(
+                        OptimizationFeature.CHECKED_CRAFTING_ARITHMETIC,
+                        ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC.get())
                 && (enableExperimentalCraftingEngine() || enableBigCraftingProfile());
     }
 
     public static boolean enableTransactionalBatchingV2() {
-        return enableOptimizer()
-                && ENABLE_TRANSACTIONAL_BATCHING_V2.get()
+        return OptimizationFeatureGate.allows(
+                        OptimizationFeature.TRANSACTIONAL_BATCHING,
+                        ENABLE_TRANSACTIONAL_BATCHING_V2.get())
                 && PERSIST_BATCH_TRANSACTION_JOURNAL.get();
     }
 
     public static boolean enableGtceuNativeBatching() {
-        return enableTransactionalBatchingV2() && ENABLE_GTCEU_NATIVE_BATCHING.get();
+        return enableTransactionalBatchingV2()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.NATIVE_MACHINE_BATCH,
+                        ENABLE_GTCEU_NATIVE_BATCHING.get());
     }
 
     public static boolean enableMekanismNativeBatching() {
-        return enableTransactionalBatchingV2() && ENABLE_MEKANISM_NATIVE_BATCHING.get();
+        return enableTransactionalBatchingV2()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.NATIVE_MACHINE_BATCH,
+                        ENABLE_MEKANISM_NATIVE_BATCHING.get());
     }
 
     public static boolean enableFairCraftingJobScheduler() {
-        return enableExperimentalCraftingEngine() && ENABLE_FAIR_CRAFTING_JOB_SCHEDULER.get();
+        return enableExperimentalCraftingEngine()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.FAIR_JOB_SCHEDULER,
+                        ENABLE_FAIR_CRAFTING_JOB_SCHEDULER.get());
     }
 
     public static int getFairSchedulerOperationsPerTick() {
@@ -1724,24 +1896,32 @@ public final class ACOConfig {
          * master switchを切った環境では、公開APIの実体を含むランタイム介入を残さない。
          * 詳細仕様: docs/issues/ISSUE-109.md
          */
-        return enableOptimizer() && ENABLE_BIG_INTEGER_CRAFTING_BACKEND.get();
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.BIG_INTEGER_BACKEND,
+                ENABLE_BIG_INTEGER_CRAFTING_BACKEND.get());
     }
 
     public static boolean enableExactBigIntegerInventorySnapshots() {
         return enableBigIntegerCraftingBackend()
-                && ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS.get();
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.EXACT_INVENTORY_SNAPSHOT,
+                        ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS.get());
     }
 
     public static boolean enableAtomicBigCapacityPlans() {
         return enableCompiledCraftingGraph()
                 && enableBigIntegerCraftingBackend()
-                && ENABLE_ATOMIC_BIG_CAPACITY_PLANS.get();
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.ATOMIC_BIG_CAPACITY_PLANS,
+                        ENABLE_ATOMIC_BIG_CAPACITY_PLANS.get());
     }
 
     public static boolean enableBigIntegerGameplayExecution() {
         return enableCompiledCraftingGraph()
                 && enableBigIntegerCraftingBackend()
-                && ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION.get();
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.BIG_INTEGER_GAMEPLAY_EXECUTION,
+                        ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION.get());
     }
 
     public static int getBigIntegerMaximumBits() {
@@ -1775,9 +1955,10 @@ public final class ACOConfig {
     }
 
     public static boolean enableExactVectorCrafting() {
-        return enableOptimizer()
-                && enableCompiledCraftingGraph()
-                && ENABLE_EXACT_VECTOR_CRAFTING.get();
+        return enableCompiledCraftingGraph()
+                && OptimizationFeatureGate.allows(
+                        OptimizationFeature.EXACT_VECTOR_CRAFTING,
+                        ENABLE_EXACT_VECTOR_CRAFTING.get());
     }
 
     public static boolean enableAqeBigIntegerVectorParents() {

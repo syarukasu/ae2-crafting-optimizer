@@ -26,14 +26,18 @@ public final class AsyncTerminalView {
         Set<String> tagTerms = prefixedTerms(query, '$');
         boolean needsTooltip = !prefixedTerms(query, '#').isEmpty();
         List<Projection> result = new ArrayList<>(entries.size());
+        // AEKeyと可変Entryはclient threadで読み、workerへ不変値だけを渡す。
         for (GridInventoryEntry entry : entries) {
             AEKey key = Objects.requireNonNull(entry.getWhat());
             String name = normalize(key.getDisplayName().getString());
             String modId = normalize(key.getModId());
-            String mod = modId + "\n" + normalize(Platform.getModName(key.getModId()));
+            String modName = normalize(Platform.getModName(key.getModId()));
             String id = normalize(key.getId().toString());
             String tooltip = needsTooltip ? tooltip(key) : "";
+            double normalizedAmount = (double) entry.getStoredAmount()
+                    / (double) entry.getWhat().getAmountPerUnit();
             Set<String> matchingTagTerms = new HashSet<>();
+            // Queryに含まれるtag語だけをclient threadで解決し、workerでRegistryへ触れない。
             for (String term : tagTerms) {
                 boolean matches = key.getType().getTagNames().anyMatch(tag -> {
                     var location = tag.location();
@@ -42,61 +46,71 @@ public final class AsyncTerminalView {
                             : location.getNamespace().contains(term) || location.getPath().contains(term);
                     return idMatches && key.isTagged(tag);
                 });
+                // 一致したQuery語だけをworkerへ渡す集合に保存する。
                 if (matches) {
                     matchingTagTerms.add(term);
                 }
             }
-            result.add(new Projection(entry, name, mod, id, tooltip, Set.copyOf(matchingTagTerms)));
+            result.add(new Projection(
+                    entry,
+                    name,
+                    modId,
+                    modName,
+                    id,
+                    tooltip,
+                    Set.copyOf(matchingTagTerms),
+                    normalizedAmount));
         }
         return result;
     }
 
     public static List<GridInventoryEntry> filterAndSort(
             List<Projection> projections, String query, SortOrder order, SortDir direction) {
+        return filterAndSortProjections(projections, query, order, direction).stream()
+                .map(Projection::entry)
+                .toList();
+    }
+
+    static List<Projection> filterAndSortProjections(
+            List<Projection> projections, String query, SortOrder order, SortDir direction) {
         List<Projection> visible = new ArrayList<>();
+        // AE2と同じAND/OR検索条件を、不変Projectionだけで評価する。
         for (Projection projection : projections) {
+            // Query全体に一致する候補だけを表示対象へ残す。
             if (matches(projection, query)) {
                 visible.add(projection);
             }
         }
 
         Comparator<Projection> comparator = switch (order) {
-            case AMOUNT -> Comparator.comparingDouble(projection ->
-                    (double) projection.entry.getStoredAmount()
-                            / (double) projection.entry.getWhat().getAmountPerUnit());
-            case MOD -> Comparator.comparing(Projection::mod, String::compareToIgnoreCase)
-                    .thenComparing(Projection::name, String::compareToIgnoreCase);
-            case NAME -> Comparator.comparing(Projection::name, String::compareToIgnoreCase);
+            case AMOUNT -> Comparator.comparingDouble(Projection::normalizedAmount);
+            case MOD -> Comparator.comparing(Projection::modName, String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(Projection::name, String.CASE_INSENSITIVE_ORDER);
+            case NAME -> Comparator.comparing(Projection::name, String.CASE_INSENSITIVE_ORDER);
         };
+        // AE2は降順時にComparator全体を反転するため、同じ順序で反転する。
         if (direction != SortDir.ASCENDING) {
             comparator = comparator.reversed();
         }
         visible.sort(comparator);
-        return visible.stream().map(Projection::entry).toList();
+        return List.copyOf(visible);
     }
 
     private static boolean matches(Projection projection, String query) {
+        // `|`で区切られた候補のどれか一つが成立すれば表示する。
         for (String orPart : query.split("\\|", -1)) {
             boolean all = true;
+            // 同じ候補内の空白区切り語はすべて一致する必要がある。
             for (String raw : orPart.toLowerCase(Locale.ROOT).trim().split("\\s+")) {
                 String term = raw;
-                boolean termMatches;
-                if (term.startsWith("@")) {
-                    termMatches = projection.mod.contains(term.substring(1));
-                } else if (term.startsWith("#")) {
-                    termMatches = projection.tooltip.contains(normalizeTooltip(term.substring(1)));
-                } else if (term.startsWith("$")) {
-                    termMatches = projection.matchingTagTerms.contains(term.substring(1));
-                } else if (term.startsWith("*")) {
-                    termMatches = projection.id.contains(term.substring(1));
-                } else {
-                    termMatches = projection.name.contains(term);
+                // 一語でも不一致なら、このAND候補の残りを評価しない。
+                if (matchesTerm(projection, term)) {
+                    continue;
                 }
-                if (!termMatches) {
-                    all = false;
-                    break;
-                }
+                all = false;
+                break;
             }
+            // 現在のOR候補がすべて一致した時点で表示を確定する。
             if (all) {
                 return true;
             }
@@ -104,10 +118,34 @@ public final class AsyncTerminalView {
         return false;
     }
 
+    private static boolean matchesTerm(Projection projection, String term) {
+        // `@`はmod IDと表示名のどちらにも一致させる。
+        if (term.startsWith("@")) {
+            String modTerm = term.substring(1);
+            return projection.modId.contains(modTerm) || projection.modName.contains(modTerm);
+        }
+        // `#`は空白を除いたtooltip文字列を検索する。
+        if (term.startsWith("#")) {
+            return projection.tooltip.contains(normalizeTooltip(term.substring(1)));
+        }
+        // `$`はclient threadで解決済みのtag語だけを検索する。
+        if (term.startsWith("$")) {
+            return projection.matchingTagTerms.contains(term.substring(1));
+        }
+        // `*`はnamespaceを含むRegistry IDを検索する。
+        if (term.startsWith("*")) {
+            return projection.id.contains(term.substring(1));
+        }
+        return projection.name.contains(term);
+    }
+
     private static Set<String> prefixedTerms(String query, char prefix) {
         Set<String> terms = new HashSet<>();
+        // OR候補をまたいで必要なtag/tooltip語を一度だけ収集する。
         for (String orPart : query.toLowerCase(Locale.ROOT).split("\\|", -1)) {
+            // 各候補の空白区切り語から、指定prefixだけを抽出する。
             for (String term : orPart.trim().split("\\s+")) {
+                // prefixだけの空語を除き、実際の検索語だけを保存する。
                 if (term.length() > 1 && term.charAt(0) == prefix) {
                     terms.add(term.substring(1));
                 }
@@ -119,6 +157,7 @@ public final class AsyncTerminalView {
     private static String tooltip(AEKey key) {
         var lines = AEKeyRendering.getTooltip(key);
         var result = new StringBuilder();
+        // AE2のtooltip検索と同じ表示行を、client thread上で文字列化する。
         for (int i = 0; i < lines.size(); i++) {
             var line = lines.get(i);
             if (i > 0 && i == lines.size() - 1 && !AEConfig.instance().isSearchModNameInTooltips()) {
@@ -159,9 +198,11 @@ public final class AsyncTerminalView {
     public record Projection(
             GridInventoryEntry entry,
             String name,
-            String mod,
+            String modId,
+            String modName,
             String id,
             String tooltip,
-            Set<String> matchingTagTerms) {
+            Set<String> matchingTagTerms,
+            double normalizedAmount) {
     }
 }

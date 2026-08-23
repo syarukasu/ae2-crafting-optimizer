@@ -2,7 +2,6 @@ package com.syaru.ae2craftingoptimizer.integration;
 
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IGrid;
-import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
@@ -14,8 +13,6 @@ import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingLogicAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.ExactPatternFormula;
-import com.syaru.ae2craftingoptimizer.api.batch.v2.ProviderOwnedPatternBatchTarget;
-import com.syaru.ae2craftingoptimizer.api.craftingtable.CraftingTableBatchTarget;
 import com.syaru.ae2craftingoptimizer.api.vector.ExactVectorDiagnostics;
 import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatch;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
@@ -27,19 +24,21 @@ import com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState;
 import com.syaru.ae2craftingoptimizer.engine.PlanningRuntimeEpoch;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.engine.craftingtable.PhysicalCraftingTreeTransaction;
+import com.syaru.ae2craftingoptimizer.engine.craftingtable.CraftingTableBatchTargetResolver;
 import com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator;
+import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
+import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDiagnostics;
 import com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanner;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
-import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
  * Issue #115: 標準AE2 CraftingCPUCluster上のexact Jobを物理Receipt経路で進める。
@@ -124,6 +123,8 @@ public final class Ae2BigCraftingExecutionManager {
         /** Issue #125: 進行ゼロのtickで観測した待機理由。進行があれば毎回消す。 */
         private String stallReason = "";
         private int stallTicksSinceLog;
+        /** 同じ理由でも別Jobへ切り替わった時は、そのJobの初回診断を必ず出す。 */
+        private UUID stallJobId;
         /** restoreOrStartが開始を見送った直近の具体的な理由。 */
         private String startDeferralReason = "";
 
@@ -167,7 +168,10 @@ public final class Ae2BigCraftingExecutionManager {
             try {
                 restoreOrStart(context, grid, graphSnapshot);
             } catch (PhysicalCraftingTreeTransaction.PatternUnavailableException deferred) {
-                reportStall("waiting for an unloaded pattern provider: " + deferred.getMessage());
+                reportStall(
+                        context,
+                        "waiting for an unloaded pattern provider: " + deferred.getMessage(),
+                        0);
                 return true;
             } catch (RuntimeException | LinkageError failure) {
                 if (!state.hasPhysicalExecution()) {
@@ -183,9 +187,12 @@ public final class Ae2BigCraftingExecutionManager {
             }
             // WorkerやConfig待ちではまだ物理所有権がないため、同じJobをそのまま維持する。
             if (transaction == null) {
-                reportStall(startDeferralReason.isBlank()
-                        ? "physical execution has not started"
-                        : "physical execution has not started: " + startDeferralReason);
+                reportStall(
+                        context,
+                        startDeferralReason.isBlank()
+                                ? "physical execution has not started"
+                                : "physical execution has not started: " + startDeferralReason,
+                        0);
                 return true;
             }
             if (state.cancellationRequested()) {
@@ -195,6 +202,10 @@ public final class Ae2BigCraftingExecutionManager {
                     grid,
                     Math.max(1, transaction.plan().craftingSteps().size()));
             if (operationBudget == 0) {
+                reportStall(
+                        context,
+                        "waiting for the exact physical execution tick budget",
+                        operationBudget);
                 return true;
             }
             long startedNanos = System.nanoTime();
@@ -215,14 +226,14 @@ public final class Ae2BigCraftingExecutionManager {
             }
             ExactVectorDiagnostics.activeTick(System.nanoTime() - startedNanos);
             boolean changed = transaction.transactionRevision() != revisionBefore;
-            if (!changed && outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
+            if (outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
                 ExactVectorDiagnostics.dirtyCallAvoided();
                 if (transaction.tickDiagnostics().activeStepsProcessed() == 0L) {
                     ExactVectorDiagnostics.zeroAllocationWait();
                 }
             }
-            if (!changed && outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
-                reportStall("owned transaction is waiting: " + outcome.detail());
+            if (outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
+                reportStall(context, outcome.detail(), operationBudget);
             } else {
                 clearStall();
             }
@@ -292,6 +303,8 @@ public final class Ae2BigCraftingExecutionManager {
             /* Issue #115: 新規開始が無効でも、開始済みTransactionの復元・取消は上で継続する。 */
             if (!ACOConfig.enableExactBigIntegerPhysicalExecution()) {
                 startDeferralReason = "exact physical execution is disabled by config";
+                reportStall(context, startDeferralReason, 0);
+                finish(context, false);
                 return;
             }
             // 入力所有権取得前の世代不一致だけは、同じAE2 Jobを通常取消経路で閉じられる。
@@ -300,9 +313,25 @@ public final class Ae2BigCraftingExecutionManager {
                 return;
             }
             PreparedVectorBatch plan = prepare(context.jobId(), context.state(), graphSnapshot);
-            if (!supportsPhysicalPlan(grid, graphSnapshot, plan)) {
-                startDeferralReason =
-                        "some pattern lacks a deterministic formula or a durable batch target";
+            PhysicalPlanSupport support = physicalPlanSupport(grid, graphSnapshot, plan);
+            if (!support.ready()) {
+                startDeferralReason = support.reason();
+                reportStall(context, support.reason(), 0);
+                if (!support.retryable()) {
+                    BigIntegerPlanDiagnostics.record(
+                            BigIntegerPlanDeclineReason.SUBMISSION_BACKING_MISSING,
+                            context.state().requestedKey().getId().toString(),
+                            context.state().requestedAmount(),
+                            context.state().patternGeneration(),
+                            context.state().recipeGeneration(),
+                            support.reason());
+                    AE2CraftingOptimizer.LOGGER.warn(
+                            "Declined standard AE2 exact job before physical ownership: jobId={}, cpu={}, reason={}",
+                            context.jobId(),
+                            stableKey(),
+                            support.reason());
+                    finish(context, false);
+                }
                 return;
             }
             ExactVectorGridTickBudget startBudget = ExactVectorGridTickBudget.forGrid(grid);
@@ -369,43 +398,39 @@ public final class Ae2BigCraftingExecutionManager {
             return plan;
         }
 
-        private boolean supportsPhysicalPlan(
+        private PhysicalPlanSupport physicalPlanSupport(
                 IGrid grid,
                 Ae2CompiledCraftingGraphCache.Snapshot snapshot,
                 PreparedVectorBatch plan) {
             if (!(grid.getCraftingService() instanceof CraftingService service)) {
-                return false;
+                return PhysicalPlanSupport.unsupported(
+                        "AE2 CraftingService is unavailable for exact physical execution");
             }
             // 全固有Patternについて、決定的作業台式と永続物理Targetを開始前に証明する。
             for (var step : plan.craftingSteps()) {
                 IPatternDetails pattern = snapshot.pattern(step.patternId());
                 if (pattern == null
                         || ExactPatternFormula.tryCreate(
-                                        pattern,
-                                        cluster.getLevel(),
-                                        step.selectedInputs())
-                                .isEmpty()) {
-                    return false;
+                                pattern,
+                                cluster.getLevel(),
+                                step.selectedInputs())
+                        .isEmpty()) {
+                    return PhysicalPlanSupport.unsupported(
+                            "pattern has no deterministic crafting-table formula: "
+                                    + step.patternId());
                 }
-                boolean found = false;
-                // このPatternを所有するProvider候補だけを一巡する。
-                for (ICraftingProvider provider : PatternProviderRoutingCache.candidates(
+                CraftingTableBatchTargetResolver.Resolution resolution =
+                        CraftingTableBatchTargetResolver.resolve(
                         service,
-                        pattern)) {
-                    if (!(provider instanceof ProviderOwnedPatternBatchTarget owned)) {
-                        continue;
-                    }
-                    BlockEntity target = owned.aco$getProviderOwnedBatchTarget();
-                    if (target instanceof CraftingTableBatchTarget) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    return false;
+                        pattern,
+                        cluster.getLevel());
+                if (!resolution.ready()) {
+                    return resolution.sawUnloadedTarget()
+                            ? PhysicalPlanSupport.retryable(resolution.waitReason())
+                            : PhysicalPlanSupport.unsupported(resolution.waitReason());
                 }
             }
-            return true;
+            return PhysicalPlanSupport.available();
         }
 
         private void validate(
@@ -513,27 +538,48 @@ public final class Ae2BigCraftingExecutionManager {
          * Issue #125: 進行ゼロの待機理由を表へ出す。理由が変わった時に一度、
          * 同じ理由が続く間は600 tickごとに一度だけWARNする。
          */
-        private void reportStall(String reason) {
+        private void reportStall(
+                Context context,
+                String reason,
+                int operationBudget) {
             if (!ACOConfig.logExactExecutionStalls()) {
                 return;
             }
             String checked = reason == null || reason.isBlank()
                     ? "unknown waiting reason"
                     : reason;
-            boolean changedReason = !checked.equals(stallReason);
+            boolean changedReason = !context.jobId().equals(stallJobId)
+                    || !checked.equals(stallReason);
             stallTicksSinceLog++;
-            if (changedReason || stallTicksSinceLog >= 600) {
+             if (changedReason || stallTicksSinceLog >= 600) {
+                PhysicalCraftingTreeTransaction.ExecutionDiagnostics diagnostics = transaction == null
+                        ? null
+                        : transaction.executionDiagnostics();
+                BigInteger exactRemaining = context.exactJob().aco$getExactRemainingOutput();
                 AE2CraftingOptimizer.LOGGER.warn(
-                        "Standard AE2 exact job on CPU {} is making no progress: {}",
+                        "Standard AE2 exact job is making no progress: jobId={}, cpu={}, transactionId={}, state={}, stepId={}, patternId={}, receiptState={}, reason={}, operationBudget={}, consumedOperations={}, remainingOperations={}, remainingPhysicalSteps={}, finalOutputRemaining={}",
+                        context.jobId(),
                         stableKey(),
-                        checked);
+                        transaction == null ? "not-started" : transaction.transactionId(),
+                        transaction == null ? "NOT_STARTED" : transaction.state(),
+                        diagnostics == null ? "not-started" : diagnostics.activeStep(),
+                        diagnostics == null ? "not-started" : diagnostics.patternId(),
+                        diagnostics == null ? "NONE" : diagnostics.receiptState(),
+                        checked,
+                        operationBudget,
+                        transaction == null ? 0 : transaction.lastConsumedOperations(),
+                        diagnostics == null ? "unknown" : diagnostics.remainingOperations(),
+                        diagnostics == null ? "unknown" : diagnostics.remainingPhysicalSteps(),
+                        exactRemaining);
                 stallReason = checked;
+                stallJobId = context.jobId();
                 stallTicksSinceLog = 0;
             }
         }
 
         private void clearStall() {
             stallReason = "";
+            stallJobId = null;
             stallTicksSinceLog = 0;
         }
 
@@ -541,6 +587,29 @@ public final class Ae2BigCraftingExecutionManager {
             transaction = null;
             transactionJobId = null;
             lastExactJob = null;
+            clearStall();
+            startDeferralReason = "";
+        }
+
+        private record PhysicalPlanSupport(
+                boolean ready,
+                boolean retryable,
+                String reason) {
+            private PhysicalPlanSupport {
+                Objects.requireNonNull(reason, "reason");
+            }
+
+            private static PhysicalPlanSupport available() {
+                return new PhysicalPlanSupport(true, false, "");
+            }
+
+            private static PhysicalPlanSupport retryable(String reason) {
+                return new PhysicalPlanSupport(false, true, reason);
+            }
+
+            private static PhysicalPlanSupport unsupported(String reason) {
+                return new PhysicalPlanSupport(false, false, reason);
+            }
         }
     }
 

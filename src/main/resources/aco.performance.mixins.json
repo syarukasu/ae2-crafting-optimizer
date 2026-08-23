@@ -14,12 +14,16 @@
     "CraftingServicePatternLookupCacheMixin",
     "CraftingTreeCandidatePruningMixin",
     "CraftingTreeCalculationMemoMixin",
+    "ExportBusCandidateCacheMixin",
+    "IOPortSlotWindowMixin",
     "MultiCraftingTrackerCraftRequestThrottleMixin",
     "PatternProviderLogicIntentCaptureMixin",
-    "P2PServiceTopologyDeduplicationMixin"
+    "P2PServiceTopologyDeduplicationMixin",
+    "StorageImportScanOrderMixin"
   ],
   "client": [
-    "Ae2ScrollbarReleaseSafetyMixin"
+    "Ae2ScrollbarReleaseSafetyMixin",
+    "ClientRepoUpdateCoalescingMixin"
   ],
   "injectors": {
     "defaultRequire": 0
