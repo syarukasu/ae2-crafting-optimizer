@@ -558,6 +558,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.optimization.NativeBatchTargetGuard` | NativeBatchTargetGuardが示す入力や互換条件を検証し、証明不能な高速経路を拒否する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationDomain` | 最適化をnetwork、storage IO、provider、client sync、planning、execution、BigInteger、任意連携へ分割する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationFeature` | 各最適化の安定ID、実装状態、domain、risk、状態所有者、失効条件、fallback境界、関連回帰Issueを宣言する正本。 |
+| `com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureRegistry` | 全OptimizationFeatureの不変一覧、安定ID検索、domain別索引を一元管理する中央レジストリ。 |
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureGate` | master、domain、個別設定、実装状態を順に評価し、無効または互換No-opの機能がAE2状態へ触れる前に停止する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.PreferredSlotScanOrder` | 前回成功スロットを先頭へ移しつつ全候補を一度ずつ返す全単射の走査順を計算する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.RoundRobinSlotWindow` | 固定スロット群を欠落なく巡回する窓のindexと次cursorを計算する。 |

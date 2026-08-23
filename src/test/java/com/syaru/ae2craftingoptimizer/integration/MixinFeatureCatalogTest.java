@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.syaru.ae2craftingoptimizer.mixin.MixinFeatureCatalog;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeature;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureRegistry;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationImplementationStatus;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +46,7 @@ class MixinFeatureCatalogTest {
 
     @Test
     void catalogNeverUsesAnUnregisteredFeature() {
-        Set<OptimizationFeature> declared = Set.of(OptimizationFeature.values());
+        Set<OptimizationFeature> declared = Set.copyOf(OptimizationFeatureRegistry.all());
         assertFalse(MixinFeatureCatalog.snapshot().isEmpty());
         // 全Mixinの契約が列挙済みfeatureを参照することを検査する。
         for (OptimizationFeature feature : MixinFeatureCatalog.snapshot().values()) {

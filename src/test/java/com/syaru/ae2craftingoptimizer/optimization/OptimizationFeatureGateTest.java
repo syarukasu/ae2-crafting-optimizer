@@ -55,18 +55,29 @@ class OptimizationFeatureGateTest {
     @Test
     void everyDomainHasAtLeastOneDeclaredFeature() {
         EnumSet<OptimizationDomain> covered = EnumSet.noneOf(OptimizationDomain.class);
-        // domain漏れを検出するため、宣言済み機能を全件走査する。
-        for (OptimizationFeature feature : OptimizationFeature.values()) {
-            covered.add(feature.domain());
+        // domain漏れを検出するため、中央レジストリのdomain一覧を検査する。
+        for (OptimizationDomain domain : OptimizationDomain.values()) {
+            if (!OptimizationFeatureRegistry.forDomain(domain).isEmpty()) {
+                covered.add(domain);
+            }
         }
         assertEquals(EnumSet.allOf(OptimizationDomain.class), covered);
+    }
+
+    @Test
+    void registryResolvesEveryFeatureByStableId() {
+        assertEquals(OptimizationFeature.values().length, OptimizationFeatureRegistry.all().size());
+        // Mixin、設定、診断が同じ機能を引けるよう、全IDの往復を検査する。
+        for (OptimizationFeature feature : OptimizationFeatureRegistry.all()) {
+            assertEquals(feature, OptimizationFeatureRegistry.findById(feature.id()).orElseThrow());
+        }
     }
 
     @Test
     void featureIdsAreUniqueAndMachineReadable() {
         Set<String> ids = new HashSet<>();
         // 診断・文書・設定を同じIDで結ぶため、全機能IDを検査する。
-        for (OptimizationFeature feature : OptimizationFeature.values()) {
+        for (OptimizationFeature feature : OptimizationFeatureRegistry.all()) {
             assertTrue(feature.id().matches("[a-z0-9-]+"), feature.name());
             assertTrue(ids.add(feature.id()), feature.id());
         }

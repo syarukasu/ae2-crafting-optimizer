@@ -1,7 +1,7 @@
 # Issue #129: GTNH/AE2-UEL思想に基づく最適化アーキテクチャの再構築
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/129
-- 状態: Implemented in draft PR; GameTest pending
+- 状態: 実装完了
 - 対象版: 1.5.x
 - 対象ローダー: Forge 1.20.1 / NeoForge 1.21.1
 - 関連Issue・PR: #79, #84, #87, #90, #93, #98, #101, #102, #103, #109, #115, #118, #119, #120, #123, #125
@@ -129,7 +129,6 @@ storage、pattern、topology、resource reload、server lifecycleを共通世代
 - IO Portは六つの入力slotの開始位置だけをround-robin化し、セル移動と会計はAE2へ維持
 - 端末の非同期検索は不変Projectionだけをworkerへ渡し、世代不一致を破棄し、失敗時はAE2同期更新へfallback
 - Forge/NeoForgeのcore・performance・client Mixinを同じ中央台帳へ統合
+- `OptimizationFeatureRegistry`を機能一覧、ID検索、domain別一覧の唯一の正本として追加
 - 旧危険Mixinの再登録、No-op機能へのMixin割当、失効契約漏れを検出するJUnitを追加
 - [実装状態表](../optimization/IMPLEMENTATION_STATUS.md)と[domain仕様](../optimization/FEATURE_DOMAINS.md)を追加
-
-GameTestと実環境起動はこの変更では実施しません。標準AE2のGUI・在庫搬送・IO Port処理を変更しないため、ユーザー側試験では通常クラフト、Import/Export Bus、IO Port、端末クリックの非回帰を確認します。

@@ -32,6 +32,7 @@ Issue #129以降、最適化は次の八領域へ分けます。個別機能は`
 
 - `OptimizationDomain`: 八つの責務領域
 - `OptimizationFeature`: 機能ID、実装状態、risk、正本所有者、失効条件、fallback境界、関連Issue
+- `OptimizationFeatureRegistry`: 機能一覧、ID検索、domain別一覧の唯一の正本
 - `OptimizationFeatureGate`: master/domain/個別設定の共通判定と固定個数の診断counter
 - `ACOConfig`: 設定schema。個別getterから共通gateを呼ぶ
 - `ACOServerLifecycle`: server世代ごとの診断初期化とcache破棄

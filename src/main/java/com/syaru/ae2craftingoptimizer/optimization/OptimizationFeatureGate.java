@@ -20,7 +20,7 @@ public final class OptimizationFeatureGate {
 
     static {
         // 固定long bitsetの範囲を超えた場合は、黙って診断を欠落させず開発時に停止する。
-        if (OptimizationFeature.values().length > Long.SIZE) {
+        if (OptimizationFeatureRegistry.all().size() > Long.SIZE) {
             throw new IllegalStateException("OptimizationFeature exceeds the 64-bit diagnostics mask");
         }
     }
@@ -83,11 +83,7 @@ public final class OptimizationFeatureGate {
             long featureDenied = 0L;
             long unavailable = 0L;
             // 同じdomainへ属する拒否済みfeature bitだけを集計する。
-            for (OptimizationFeature feature : OptimizationFeature.values()) {
-                // 他domainのbitはこの行へ含めない。
-                if (feature.domain() != domain) {
-                    continue;
-                }
+            for (OptimizationFeature feature : OptimizationFeatureRegistry.forDomain(domain)) {
                 long bit = bit(feature);
                 masterDenied += (masterMask & bit) == 0L ? 0L : 1L;
                 domainDenied += (domainMask & bit) == 0L ? 0L : 1L;
