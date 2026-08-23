@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.25] - 2026-08-23
+
 ### Fixed
 
 - Issue #125: exact jobs no longer stall forever without a word when the
