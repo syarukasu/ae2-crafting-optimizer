@@ -50,9 +50,11 @@
     "ExtendedAeAssemblerMatrixCrafterCacheMixin",
     "ExtendedAeCircuitCutterRecipeCacheMixin",
     "ExtendedAePlusAssemblerMatrixBusyCaptureMixin",
+    "ExportBusCandidateCacheMixin",
     "ExecutingCraftingJobTransactionAccessMixin",
     "GenericStackInvGenerationMixin",
     "GTCEuRecipeLogicIntentFastPathMixin",
+    "IOPortSlotWindowMixin",
     "KeyCounterBigIntegerSidecarLifecycleMixin",
     "ListCraftingInventoryExactCountsMixin",
     "MekanismRecipeIntentFastPathMixin",
@@ -69,7 +71,8 @@
     "ExtendedAePlusBigIntegerCellConsistencyMixin",
     "ExtendedAePlusInfinityDataStorageConsistencyMixin",
     "MekanismCachedRecipeAccessor",
-    "P2PServiceTopologyDeduplicationMixin"
+    "P2PServiceTopologyDeduplicationMixin",
+    "StorageImportScanOrderMixin"
   ],
   "client": [
     "Ae2ScrollbarReleaseSafetyMixin",

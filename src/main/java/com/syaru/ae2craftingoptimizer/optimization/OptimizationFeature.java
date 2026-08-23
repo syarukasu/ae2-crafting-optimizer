@@ -121,10 +121,7 @@ public enum OptimizationFeature {
                     NETWORK_UPDATE_COALESCING,
                     ADJACENT_CAPABILITY_CACHE,
                     NEGATIVE_TRANSFER_CACHE,
-                    INCREMENTAL_IO_PORT,
                     IO_BUS_OPERATION_LIMIT,
-                    IMPORT_LAST_SLOT_CACHE,
-                    EXPORT_CANDIDATE_CACHE,
                     BUS_SEARCH_CACHE,
                     STORAGE_WATCHER_THROTTLE ->
                     OptimizationImplementationStatus.COMPATIBILITY_NOOP;
