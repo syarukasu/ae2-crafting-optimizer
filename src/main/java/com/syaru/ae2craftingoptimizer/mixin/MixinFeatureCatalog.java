@@ -81,6 +81,7 @@ public final class MixinFeatureCatalog {
             entry("P2PServiceTopologyDeduplicationMixin", OptimizationFeature.P2P_TOPOLOGY_DEDUPLICATION),
             entry("StorageImportScanOrderMixin", OptimizationFeature.IMPORT_LAST_SLOT_CACHE),
             entry("Ae2ScrollbarReleaseSafetyMixin", OptimizationFeature.SCROLLBAR_RELEASE_SAFETY),
+            entry("ClientRepoUpdateCoalescingMixin", OptimizationFeature.TERMINAL_ASYNC_SEARCH),
             entry("CraftAmountScreenLongAmountMixin", OptimizationFeature.LONG_ROOT_AMOUNTS),
             entry("CraftConfirmScreenBigIntegerMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
             entry("CraftConfirmTableRendererBigIntegerMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
