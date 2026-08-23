@@ -380,7 +380,8 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionManager` | Advanced AE CPU HostとACO exact計画を接続し、予約、実行、取消、復元を調停する外部境界。 |
 | `com.syaru.ae2craftingoptimizer.integration.BigIntegerStorageSnapshotBridge` | NetworkStorageが各mountを集計する境界で、AE2用long FacadeとBigInteger正本を分離する。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactBigIntegerCellConsistency` | ACOが直接更新したExtendedAE Plus在庫Mapと、同MODの保存用総量を結ぶ弱Sidecar。 |
-| `com.syaru.ae2craftingoptimizer.integration.ExactBoundaryRoutePreflight` | Issue #125: exact Jobの排他所有権を取る前に、境界ME操作が成立するかを証明する。 |
+| `com.syaru.ae2craftingoptimizer.integration.ExactSubmissionScope` | ACOが正確な容量台帳で承認済みの提出を同じスレッドの下流へ伝え、CPUのlong容量ゲートに測り直させない。 |
+| `com.syaru.ae2craftingoptimizer.integration.ExactBoundaryRoutePreflight` | exact Jobの所有権を取る前に境界ME操作の成立を証明し、不成立時の委譲か拒否を決める (Issue #125)。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageBridge` | ME storageへのexact snapshot、reserve、insert、rollbackをAE2権限境界内で行う。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageSnapshotCache` | 同一server tick内で完成済みのNetworkStorage在庫集計を再利用する。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactStorageMutationJournal` | ExactStorageMutationJournalが示す所有量、Receipt、収支をexact値で記録・検証する。 |

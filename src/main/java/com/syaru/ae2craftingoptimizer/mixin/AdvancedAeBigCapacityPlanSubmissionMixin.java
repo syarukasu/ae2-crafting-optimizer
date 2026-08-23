@@ -21,6 +21,7 @@ import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator;
 import com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext;
 import com.syaru.ae2craftingoptimizer.integration.ExactBoundaryRoutePreflight;
+import com.syaru.ae2craftingoptimizer.integration.ExactSubmissionScope;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDiagnostics;
 import java.math.BigDecimal;
@@ -261,12 +262,11 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
                     source,
                     requester);
         }
+        ICraftingPlan facade = aco$singleExecutionFacade(attempt.bigIntegerPlan());
         try {
-            return logic.trySubmitJob(
-                    grid,
-                    aco$singleExecutionFacade(attempt.bigIntegerPlan()),
-                    source,
-                    requester);
+            // 容量はBigInteger台帳で承認済み。下流のlongゲートへ測り直させない。
+            ExactSubmissionScope.enter(facade);
+            return logic.trySubmitJob(grid, facade, source, requester);
         } catch (RuntimeException | LinkageError failure) {
             /*
              * Advanced AEが実CPU生成途中で失敗した場合は、この提出だけが追加したCPUを閉じる。
@@ -281,6 +281,8 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
             ACO_SUBMISSION.remove();
             attempt.bigIntegerPlan().releaseSubmissionClaim();
             throw failure;
+        } finally {
+            ExactSubmissionScope.exit();
         }
     }
 
