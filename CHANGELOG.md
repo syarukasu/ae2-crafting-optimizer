@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.27] - 2026-08-23
+
+### Changed
+
+- Completed the Issue #129 optimization architecture for Forge 1.20.1 and NeoForge 1.21.1.
+- Replaced the 64-feature diagnostic ceiling with a dynamically sized lock-free bit set.
+- Classified eleven unsafe legacy switches as retired compatibility keys and recorded their safe replacements.
+- Added build-time checks that every active feature is connected to the central Config gate or Mixin catalog.
+- Kept deprecated broad storage, GUI, packet, and Grid Tick rewrites disabled.
+
+### Compatibility
+
+- Clarified the conditional AE2-UELM long-amount Mixin boundary without changing upstream AE2 behavior.
+
 ## [1.5.26] - 2026-08-23
 
 ### Fixed
