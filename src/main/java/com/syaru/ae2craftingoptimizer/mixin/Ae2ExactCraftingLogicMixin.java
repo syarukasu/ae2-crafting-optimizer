@@ -1,5 +1,8 @@
 package com.syaru.ae2craftingoptimizer.mixin;
 
+import org.spongepowered.asm.mixin.injection.Redirect;
+import com.syaru.ae2craftingoptimizer.integration.ExactSubmissionScope;
+import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.config.Actionable;
 import appeng.api.networking.energy.IEnergyService;
 import appeng.api.stacks.AEKey;
@@ -7,6 +10,7 @@ import appeng.crafting.execution.CraftingCpuLogic;
 import appeng.crafting.execution.ExecutingCraftingJob;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.service.CraftingService;
+import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingLogicAccess;
 import com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager;
@@ -114,5 +118,43 @@ public abstract class Ae2ExactCraftingLogicMixin implements ExactCraftingLogicAc
         cluster.updateOutput(null);
         Ae2BigCraftingExecutionManager.unregister(cluster);
         ci.cancel();
+    }
+
+    /**
+     * ACOが承認済みのwide提出だけ、CPUのlong容量ゲートを通す。
+     *
+     * <p>{@code trySubmitJob}は先頭で{@code getAvailableStorage() < plan.bytes()}を見る。
+     * wide計画のlong Facadeは常に{@code Long.MAX_VALUE}なので、残容量がlong上限
+     * ぴったりでない限り<b>必ず不成立</b>になり、理由の出ないCPU_TOO_SMALLで返る。
+     * 正確な容量判定は提出前にBigInteger台帳へ対して済ませてあるので、ここでは測り直さない。
+     * ACOの提出でない計画には一切触れない。</p>
+     */
+    @Redirect(
+            method = "trySubmitJob",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lappeng/api/networking/crafting/ICraftingPlan;bytes()J",
+                    ordinal = 0),
+            require = 1)
+    private long aco$skipLongCapacityGateForApprovedPlans(ICraftingPlan plan) {
+        // ACO承認済みの一回分Facadeだけ0バイト扱いにする。
+        if (ExactSubmissionScope.owns(plan)) {
+            return 0L;
+        }
+        long required = plan.bytes();
+        long available = cluster.getAvailableStorage();
+        /*
+         * このゲートは理由を一切出さずCPU_TOO_SMALLを返す。wide計画のlong Facadeは
+         * Long.MAX_VALUE固定なので、利用者からは「大きいCPUなのに容量不足と言われる」
+         * としか見えない。どのCPUがどれだけ足りないと言っているのかを残す。
+         */
+        if (available < required) {
+            AE2CraftingOptimizer.LOGGER.warn(
+                    "AE2 CPU capacity gate refused a job: available={} required={} cluster={}",
+                    available,
+                    required,
+                    cluster);
+        }
+        return required;
     }
 }

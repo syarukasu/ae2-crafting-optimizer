@@ -14,6 +14,7 @@ import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.integration.ExactSubmissionScope;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator;
@@ -141,16 +142,17 @@ public abstract class Ae2BigCapacityPlanSubmissionMixin {
                 || attempt.originalPlan() != plan) {
             return logic.trySubmitJob(grid, plan, source, requester);
         }
+        ICraftingPlan facade = aco$singleExecutionFacade(attempt.exactPlan());
         try {
-            return logic.trySubmitJob(
-                    grid,
-                    aco$singleExecutionFacade(attempt.exactPlan()),
-                    source,
-                    requester);
+            // 容量はBigInteger台帳で承認済み。下流のlongゲートへ測り直させない。
+            ExactSubmissionScope.enter(facade);
+            return logic.trySubmitJob(grid, facade, source, requester);
         } catch (RuntimeException | LinkageError failure) {
             ACO_SUBMISSION.remove();
             attempt.exactPlan().releaseSubmissionClaim();
             throw failure;
+        } finally {
+            ExactSubmissionScope.exit();
         }
     }
 
