@@ -9,6 +9,11 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import com.syaru.ae2craftingoptimizer.integration.Ae2UelmCompatibility;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationDomain;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeature;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationImplementationStatus;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import net.minecraftforge.fml.ModList;
 
 /** 起動時に有効機能と安全上限を一度だけ報告する。 */
@@ -23,6 +28,21 @@ final class ACOStartupReport {
         AE2CraftingOptimizer.LOGGER.info(
                 "ACO active: {}",
                 ACOConfig.enableOptimizer());
+        // domain単位の無効化状態を一行で確認できるよう、固定順のenumを走査する。
+        for (OptimizationDomain domain : OptimizationDomain.values()) {
+            AE2CraftingOptimizer.LOGGER.info(
+                    "ACO optimization domain {}: {}",
+                    domain,
+                    ACOConfig.rawDomainEnabled(domain));
+        }
+        String compatibilityNoops = Arrays.stream(OptimizationFeature.values())
+                .filter(feature -> feature.implementationStatus()
+                        == OptimizationImplementationStatus.COMPATIBILITY_NOOP)
+                .map(OptimizationFeature::id)
+                .collect(Collectors.joining(", "));
+        AE2CraftingOptimizer.LOGGER.info(
+                "ACO compatibility-only features (never activated by legacy config): {}",
+                compatibilityNoops);
         AE2CraftingOptimizer.LOGGER.info(
                 "ACO two-stage missing preview: {}, cache: {} entries / {}s TTL",
                 ACOConfig.twoStageMissingPreview(),

@@ -37,7 +37,7 @@ ACO 1.2.0 rebuilds processing-pattern batching around an explicit accepted-execu
 - Optionally uses that intent to try a small, validated recipe candidate set in GTCEu Modern and Mekanism before their normal recipe search.
 - Supports item, fluid, and chemical-aware recipe-intent lookup where the target integration exposes those inputs.
 - Applies per-CPU adaptive execution budgets and a shared per-ME-grid execution budget so several giant CPUs cannot independently consume the full tick target.
-- Optimizes selected Import Bus, Export Bus, IO Port, Assembly Matrix, Circuit Cutter, Reaction Chamber, and AE2 Overclock hot paths with bounded caches or incremental work.
+- Optimizes failed Export Bus crafting-request repetition, Assembly Matrix, Circuit Cutter, Reaction Chamber, and AE2 Overclock lookup hot paths. Import/Export transfer, IO Port transfer, capability, and terminal mutation remain owned by AE2.
 - Includes diagnostics for slow crafting calculations and recipe-intent inspection commands.
 
 ### What ACO Does Not Change
@@ -121,7 +121,7 @@ ACO 1.2.0では、処理パターンのバッチ機構を「実際に受理さ�
 - GTCEu ModernとMekanismでは、その目的から少数の候補を先に試し、各MOD本来の検証を通過したレシピだけを使用します。
 - 対象連携が入力を公開している場合、アイテム・液体・化学物質を含むレシピ目的検索に対応します。
 - CPU単位の適応実行予算とMEグリッド共有予算を併用し、複数の巨大CPUがそれぞれtick予算を使い切ることを防ぎます。
-- Import Bus、Export Bus、IO Port、組立マトリックス、回路スライサー、反応室、AE2 Overclockの一部ホットパスを、上限付きキャッシュや増分処理で軽減します。
+- Export Busの失敗クラフト要求の反復と、組立マトリックス、回路スライサー、反応室、AE2 Overclockの検索ホットパスを軽減します。Import/Export搬送、IO Port搬送、Capability、端末の可変状態はAE2本体が所有します。
 - 遅いクラフト計算の診断ログと、記録されたレシピ目的を確認するコマンドを追加します。
 
 ### ACOが変更しないもの

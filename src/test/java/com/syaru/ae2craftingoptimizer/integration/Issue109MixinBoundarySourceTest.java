@@ -44,8 +44,9 @@ class Issue109MixinBoundarySourceTest {
     void masterSwitchOwnsTheBigIntegerBackend() {
         String source = read(MAIN.resolve(Path.of(
                 "java", "com", "syaru", "ae2craftingoptimizer", "config", "ACOConfig.java")));
-        assertTrue(source.contains(
-                "return enableOptimizer() && ENABLE_BIG_INTEGER_CRAFTING_BACKEND.get();"));
+        assertTrue(source.contains("OptimizationFeature.BIG_INTEGER_BACKEND"));
+        assertTrue(source.contains("ENABLE_BIG_INTEGER_CRAFTING_BACKEND.get()"));
+        assertTrue(source.contains("return ENABLE_OPTIMIZER.get();"));
     }
 
     private static String read(Path path) {
