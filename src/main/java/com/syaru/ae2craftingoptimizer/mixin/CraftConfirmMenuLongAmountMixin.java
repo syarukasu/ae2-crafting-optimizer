@@ -21,6 +21,7 @@ import java.util.Objects;
 import java.util.concurrent.Future;
 import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Dynamic;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -31,21 +32,27 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * CraftConfirmMenuにlongルート量のSidecarを追加し、
  * AE2本来のbeginCraftingCalculation(..., long, ...)へ無損失で渡す。
  */
+@SuppressWarnings("target")
 @Mixin(value = CraftConfirmMenu.class, remap = false)
 public abstract class CraftConfirmMenuLongAmountMixin
         implements LongCraftConfirmMenuBridge {
+    @Dynamic("AE2-UELM owns this long amount surface and the bootstrap plugin excludes this Mixin")
     @Shadow
     private AEKey whatToCraft;
 
+    @Dynamic("AE2-UELM owns this long amount surface and the bootstrap plugin excludes this Mixin")
     @Shadow
     private int amount;
 
+    @Dynamic("AE2-UELM owns this long amount surface and the bootstrap plugin excludes this Mixin")
     @Shadow
     private Future<ICraftingPlan> job;
 
+    @Dynamic("AE2-UELM owns this long amount surface and the bootstrap plugin excludes this Mixin")
     @Shadow
     private ICraftingPlan result;
 
+    @Dynamic("AE2-UELM owns this long amount surface and the bootstrap plugin excludes this Mixin")
     @Shadow
     public abstract void clearError();
 

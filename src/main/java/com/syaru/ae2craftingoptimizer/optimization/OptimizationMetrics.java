@@ -352,11 +352,11 @@ public final class OptimizationMetrics {
         for (var entry : OptimizationFeatureGate.denialSnapshot().entrySet()) {
             OptimizationFeatureGate.DenialSnapshot denial = entry.getValue();
             lines.add("Feature gate " + entry.getKey()
-                    + ": denied feature(s) by master/domain/feature/unavailable "
+                    + ": denied feature(s) by master/domain/feature/retired "
                     + denial.masterDisabled() + "/"
                     + denial.domainDisabled() + "/"
                     + denial.featureDisabled() + "/"
-                    + denial.implementationUnavailable());
+                    + denial.retiredCompatibilityKey());
         }
         return List.copyOf(lines);
     }

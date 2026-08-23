@@ -1,17 +1,21 @@
 # Issue #129 実装状態
 
-この表は「設定キーが存在する」と「実行経路が存在する」を分離します。`ACTIVE`だけが稼働対象です。`COMPATIBILITY_NOOP`は既存TOMLとの互換性のため値を読みますが、共通gateが必ず拒否します。
+この表は「設定キーが存在する」と「実行経路が存在する」を分離します。`ACTIVE`だけが稼働対象です。`RETIRED_COMPATIBILITY_KEY`は既存TOMLとの互換性のため値を読みますが、危険な旧実装は廃止済みであり、共通gateが必ず拒否します。これらは未完成機能の待機列ではありません。
 
-| 領域 | ACTIVE | COMPATIBILITY_NOOP | 理由と境界 |
+| 領域 | ACTIVE | RETIRED_COMPATIBILITY_KEY | 理由と境界 |
 |---|---|---|---|
 | Network topology | P2P同一通知の短時間重複排除 | Grid Tick全面延期、Storage更新coalesce | 接続・切断・周波数・電力変化はAE2へ即時通知する。進捗を持つTickableを遅延しない |
-| Storage I/O | Import Busの直前成功slotを先頭検査するscan-order hint、Export Busの設定世代付き候補cacheと失敗要求backoff、IO Portのround-robin slot window | Capability、transfer simulation、bus operation cap | 候補順と設定keyだけをcacheする。抽出・挿入・simulation・rollback・セル移動はAE2本体を正本とし、hint不成立時は同じ呼出し内でAE2通常経路へ戻る |
+| Storage I/O | Import Busの直前成功slotを先頭検査するscan-order hint、Export Busの設定世代付き候補cacheと失敗要求backoff、IO Portのround-robin slot window | Capability cache、negative transfer cache、bus operation cap、bus search cache | 候補順と設定keyだけをcacheする。抽出・挿入・simulation・rollback・セル移動はAE2本体を正本とし、hint不成立時は同じ呼出し内でAE2通常経路へ戻る |
 | Pattern provider | Pattern索引、内容世代、同一tick refresh coalesce | terminal用craftable-set cache | 読み取り前にpending refreshをflushし、Provider内容またはresource reloadで失効する |
-| Client sync | 不変Projectionだけをworkerへ渡す端末検索・sort、失敗時のAE2同期更新fallback、scrollbar release安全化 | 端末update coalescing、表示range、Storage Watcher throttle | server inventory・packet・virtual slotを変更しない。可変AEKey/Entryはclient threadで読み、古い世代の結果は破棄する |
+| Client sync | 不変Projectionだけをworkerへ渡す端末検索・sort、失敗時のAE2同期更新fallback、scrollbar release安全化 | two-stage missing preview、端末update coalescing、表示range、Storage Watcher throttle | server inventory・packet・virtual slotを変更しない。可変AEKey/Entryはclient threadで読み、古い世代の結果は破棄する |
 | Crafting planning | 計算内memo、候補剪定、compiled graph、checked arithmetic、overflow昇格 | なし | mutable在庫量をcacheせず、辞退はownership取得前だけ行う |
-| Crafting execution | CPU/grid予算、receipt付きtransaction、fair scheduler | 旧V1 aggregate実行 | ownership取得後はcommit、rollback、quarantineのいずれかで閉じる |
+| Crafting execution | CPU/grid予算、receipt付きtransaction、fair scheduler | なし | ownership取得後はcommit、rollback、quarantineのいずれかで閉じる |
 | BigInteger | exact snapshot、wide plan、long window、exact vector会計 | なし | BigInteger正本をlongへ切り捨てず、表示値を会計へ使用しない |
-| Optional integration | GTCEu/Mekanism intent、Advanced AE/ExtendedAE/NeoECO Adapter | Create予約キー | 外部MODのrecipe validity、機械進捗、構造、GUIを所有しない |
+| Optional integration | GTCEu/Mekanism intent、Advanced AE/ExtendedAE/NeoECO Adapter | なし | 外部MODのrecipe validity、機械進捗、構造、GUIを所有しない |
+
+## 廃止キーと安全な代替
+
+廃止理由と安全な代替は`OptimizationFeature.retirementReason()`および`safeReplacements()`を正本とし、JUnitで全件を検証します。広範囲なTick延期、可変在庫cache、packet範囲制限は再実装せず、P2P通知重複排除、実行予算、走査順hint、候補key cache、不変Projection検索へ分割しました。two-stage missing previewは最終結果前の表示がプレイヤー判断を変えるため、代替なしで廃止しています。
 
 ## Storage I/Oを再実装する条件
 
