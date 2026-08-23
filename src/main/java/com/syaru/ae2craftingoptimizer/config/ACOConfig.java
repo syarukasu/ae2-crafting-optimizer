@@ -502,17 +502,17 @@ public final class ACOConfig {
                 .comment("Fingerprint Pattern Provider content and rebuild AE2's provider indexes only when patterns, outputs, inputs, emitables, or priority actually change. Cleared on datapack reload.")
                 .define("trackProviderPatternGenerations", true);
         INCREMENTAL_IO_PORT_PROCESSING = builder
-                .comment("Compatibility key. The IO Port tick replacement was removed in 1.2.2; AE2 owns cell transfer and slot movement.")
-                .define("incrementalIoPortProcessing", false);
+                .comment("Inspect IO Port input cells through a fair round-robin window. AE2 still owns every cell transfer and slot move.")
+                .define("incrementalIoPortProcessing", true);
         IO_PORT_CELL_SLOTS_PER_TICK = builder
                 .comment("Maximum IO Port input-cell slots inspected per grid tick when incremental processing is enabled.")
                 .defineInRange("ioPortCellSlotsPerTick", 2, 1, 6);
         CACHE_IMPORT_BUS_LAST_SUCCESSFUL_SLOT = builder
-                .comment("Compatibility key. The custom Import Bus transfer Mixin is unregistered; AE2 always owns extraction and insertion.")
-                .define("cacheImportBusLastSuccessfulSlot", false);
+                .comment("Inspect the last successful Import Bus source slot first. AE2 still owns extraction, insertion, rollback, and operation accounting.")
+                .define("cacheImportBusLastSuccessfulSlot", true);
         CACHE_EXPORT_BUS_CANDIDATE_KEYS = builder
-                .comment("Compatibility key. The Export Bus doBusWork redirect is unregistered; AE2 reads its current filter on every operation.")
-                .define("cacheExportBusCandidateKeys", false);
+                .comment("Cache immutable Export Bus filter keys only until the config inventory generation changes. AE2 still performs every extraction and insertion check.")
+                .define("cacheExportBusCandidateKeys", true);
         COALESCE_CLIENT_TERMINAL_VIEW_UPDATES = builder
                 .comment("Allow at most one immediate ME terminal filter/sort rebuild per client tick. Experimental and disabled by default to keep clickable virtual slots synchronized with the current repository generation.")
                 .define("coalesceClientTerminalViewUpdates", false);

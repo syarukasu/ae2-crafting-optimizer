@@ -481,10 +481,12 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.mixin.ExtendedAeCircuitCutterRecipeCacheMixin` | ExtendedAeCircuitCutterRecipeCacheMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.ExtendedAeMixinConfigPlugin` | ExtendedAeMixinConfigPluginが担当するMixin群の適用可否を、対象MODと対応版から決定する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusAssemblerMatrixBusyCaptureMixin` | ExtendedAePlusAssemblerMatrixBusyCaptureMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.ExportBusCandidateCacheMixin` | Export Busの設定keyだけを設定世代内で再利用し、搬出処理には介入しない。 |
 | `com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellConsistencyMixin` | ExtendedAePlusBigIntegerCellConsistencyMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventoryAccessor` | ExtendedAePlusBigIntegerCellInventoryAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusInfinityDataStorageConsistencyMixin` | ExtendedAePlusInfinityDataStorageConsistencyMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.GenericStackInvGenerationMixin` | GenericStackInvGenerationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.IOPortSlotWindowMixin` | AE2のIO Port搬送を置換せず、入力セルの走査窓と再確認modulationだけを公平に制御する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.GtceuMixinConfigPlugin` | GtceuMixinConfigPluginが担当するMixin群の適用可否を、対象MODと対応版から決定する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.GTCEuRecipeLogicIntentFastPathMixin` | GTCEuRecipeLogicIntentFastPathMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.IncrementalUpdateHelperDeepRangeMixin` | IncrementalUpdateHelperDeepRangeMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
@@ -505,6 +507,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageMountsAccessor` | NetworkStorageMountsAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NumberEntryWidgetAccessor` | NumberEntryWidgetAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.P2PServiceTopologyDeduplicationMixin` | P2PServiceTopologyDeduplicationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.StorageImportScanOrderMixin` | Import Busの前回成功スロットを先に読むが、抽出・挿入・返却・操作数会計はAE2へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.PatternProviderLogicIntentCaptureMixin` | PatternProviderLogicIntentCaptureMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.PatternProviderLogicNativeBatchReceiptMixin` | PatternProviderLogicNativeBatchReceiptMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.PerformanceMixinConfigPlugin` | PerformanceMixinConfigPluginが担当するMixin群の適用可否を、対象MODと対応版から決定する。 |
@@ -534,6 +537,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.optimization.BusTransferSimulationCache` | BusTransferSimulationCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.CircuitCutterRecipeCache` | CircuitCutterRecipeCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.ConfigInventoryGenerationAccess` | BusやProviderの設定Inventoryに変更世代を付与する最小Access契約。 |
+| `com.syaru.ae2craftingoptimizer.optimization.GenerationSlotCache` | nullを含む設定slot値を世代とサイズが一致する間だけ保持する固定長cache。 |
 | `com.syaru.ae2craftingoptimizer.optimization.CraftableSetCache` | CraftableSetCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDeduplicator` | 同一世代・同一注文の計算Futureを共有し、待機者と取消所有権を分離する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDiagnostics` | CraftingCalculationDiagnosticsが示す診断理由と観測値を集約する。ゲーム結果は変更しない。 |
@@ -554,6 +558,8 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationDomain` | 最適化をnetwork、storage IO、provider、client sync、planning、execution、BigInteger、任意連携へ分割する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationFeature` | 各最適化の安定ID、実装状態、domain、risk、状態所有者、失効条件、fallback境界、関連回帰Issueを宣言する正本。 |
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureGate` | master、domain、個別設定、実装状態を順に評価し、無効または互換No-opの機能がAE2状態へ触れる前に停止する。 |
+| `com.syaru.ae2craftingoptimizer.optimization.PreferredSlotScanOrder` | 前回成功スロットを先頭へ移しつつ全候補を一度ずつ返す全単射の走査順を計算する。 |
+| `com.syaru.ae2craftingoptimizer.optimization.RoundRobinSlotWindow` | 固定スロット群を欠落なく巡回する窓のindexと次cursorを計算する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationImplementationStatus` | 実行経路が有効な機能と、既存TOML互換のためキーだけ残すNo-opを区別する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationInvalidation` | cacheとtransactionを破棄するstorage、provider、topology、reload、lifecycle等の正本イベントを列挙する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics` | OptimizationMetricsが示す診断理由と観測値を集約する。ゲーム結果は変更しない。 |
