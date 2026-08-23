@@ -17,7 +17,7 @@
 | [#118](https://github.com/syarukasu/ae2-crafting-optimizer/issues/118) | 正常な空Journalを成功量0として扱いexact物理実行が自己隔離する | 1.5.23初回Draft | 1.5.23再公開 | [ISSUE-118.md](issues/ISSUE-118.md) |
 | [#119](https://github.com/syarukasu/ae2-crafting-optimizer/issues/119) | 停止時にRegistry Providerを先に破棄しexact JobとBlock EntityのNBT保存が失敗する | 1.5.23初回Draft | 1.5.23再公開 | [ISSUE-119.md](issues/ISSUE-119.md) |
 | [#120](https://github.com/syarukasu/ae2-crafting-optimizer/issues/120) | Mixin初期化中のModList判定でAdvanced AE変換を自己無効化する | 1.5.23初回Draft | 1.5.23再公開 | [ISSUE-120.md](issues/ISSUE-120.md) |
-| [#140](https://github.com/syarukasu/ae2-crafting-optimizer/issues/140) | Mekanism入力探索がDedicated Serverでclient-only音声型を毎tick解決する | 1.5.25 | 未リリース | [ISSUE-140.md](issues/ISSUE-140.md) |
+| [#140](https://github.com/syarukasu/ae2-crafting-optimizer/issues/140) | Mekanism入力探索がDedicated Serverでclient-only音声型を毎tick解決する | 1.5.25 | 1.5.26 | [ISSUE-140.md](issues/ISSUE-140.md) |
 
 ## 運用
 
