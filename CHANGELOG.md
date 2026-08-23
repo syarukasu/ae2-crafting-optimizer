@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.25] - 2026-08-23
+
+### Fixed
+
+- Allowed an ACO-approved wide plan to pass the standard `long` CPU-capacity
+  gate without weakening the capacity checks for ordinary AE2 plans.
+- Promoted exact BigInteger capacity reservations before an optional add-on
+  registers its facade, preventing valid wide submissions from being reported
+  as `CPU_TOO_SMALL` during integration startup.
+- Proved that exact inputs can be released and the final exact output can be
+  accepted before ACO takes execution ownership. Unsupported routes remain
+  available to registered external BigInteger plan consumers.
+
+### Diagnostics
+
+- Added explicit diagnostics for capacity promotion declines and for the CPU
+  that rejects a plan at the standard `long` capacity gate.
+
+### Verification
+
+- Passed the complete Forge test suite and clean build against upstream AE2
+  15.4.10 and AE2 UELM 15.5.0 profiles.
+
 ## [1.5.24] - 2026-08-21
 
 ### Fixed
