@@ -306,6 +306,10 @@ public final class MekanismRecipeIntentFastPath {
                 if (lowerName.contains("output") || lowerName.contains("energy")) {
                     continue;
                 }
+                // Issue #140: Dedicated Serverで無関係なclient-onlyフィールド型を解決しないため、名前を先に絞ります。
+                if (!lowerName.contains("inputhandler")) {
+                    continue;
+                }
                 boolean array = field.getType().isArray();
                 if (array ? !lowerName.contains("inputhandlers") : !lowerName.contains("inputhandler")) {
                     continue;
