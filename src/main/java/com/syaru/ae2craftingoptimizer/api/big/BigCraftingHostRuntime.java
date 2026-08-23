@@ -139,28 +139,47 @@ public final class BigCraftingHostRuntime<K> implements AutoCloseable {
         Objects.requireNonNull(jobId, "jobId");
         BigInteger checked = checkedPositive(exactAmount, "promoted external reservation", maximumBits);
         BigInteger previous = externalReservations.get(jobId);
-        // AdvancedAEが先に作成した互換予約が存在しないJobは、別Jobとの取り違えを防ぐため拒否する。
-        if (previous == null || externalExecutions.containsKey(jobId)) {
+        // 既にexact実行が走っているJobは、別Jobとの取り違えを防ぐため昇格しない。
+        if (externalExecutions.containsKey(jobId)) {
             return declinePromotion(
                     jobId,
-                    previous == null
-                            ? "the host holds no compatibility reservation for this CPU"
-                            : "the host already runs an exact execution for this CPU");
+                    "the host already runs an exact execution for this CPU");
         }
-        // BigInteger昇格対象は、AE2へ見せたLong.MAX_VALUEより真の容量が大きいJobだけに限定する。
-        if (!previous.equals(LONG_MAX) || checked.compareTo(LONG_MAX) <= 0) {
+        /*
+         * 互換予約がまだ無い場合もここで作る。
+         *
+         * <p>互換予約はCPUを所有するアドオン (AQE等) が自分の再集計契機で
+         * 入れるため、<b>提出の直後にはまだ存在しないことがある</b>。
+         * 以前はそれを取り違えとみなして拒否しており、結果として
+         * 「大きいCPUなのに CPU_TOO_SMALL」になっていた。
+         * 取り違えの防止には「exact実行が走っていないこと」で足りる。
+         * アドオンが後からLong.MAX_VALUEで再集計しても、
+         * replaceExternalReservationsが真値を優先するので上書きされない。</p>
+         */
+        // 互換予約があるなら、AE2へ見せたLong.MAX_VALUEからの昇格だけを認める。
+        if (previous != null && !previous.equals(LONG_MAX)) {
             return declinePromotion(
                     jobId,
-                    !previous.equals(LONG_MAX)
-                            ? "the compatibility reservation is " + previous
-                                    + " instead of Long.MAX_VALUE"
-                            : "the exact plan needs only " + checked
-                                    + " bytes, which fits the long ledger");
+                    "the compatibility reservation is " + previous
+                            + " instead of Long.MAX_VALUE");
+        }
+        // longで足りる計画はBigInteger台帳へ載せない。
+        if (checked.compareTo(LONG_MAX) <= 0) {
+            return declinePromotion(
+                    jobId,
+                    "the exact plan needs only " + checked
+                            + " bytes, which fits the long ledger");
+        }
+        // 新規に作る場合だけ、予約表の件数上限を確認する。
+        if (previous == null && externalReservations.size() >= MAX_EXTERNAL_RESERVATIONS) {
+            return declinePromotion(jobId, "the external reservation table is full");
         }
 
-        BigInteger reservedWithoutPrevious = reserved().subtract(previous);
+        BigInteger reservedWithoutPrevious = previous == null
+                ? reserved()
+                : reserved().subtract(previous);
         BigInteger availableForReplacement = physicalCapacity.subtract(reservedWithoutPrevious);
-        long previousBytes = BigCountMath.encodedBytes(previous);
+        long previousBytes = previous == null ? 0L : BigCountMath.encodedBytes(previous);
         long replacementBytes = BigCountMath.encodedBytes(checked);
         long projectedCountBytes = Math.addExact(
                 Math.subtractExact(externalCountBytes, previousBytes), replacementBytes);
@@ -178,7 +197,7 @@ public final class BigCraftingHostRuntime<K> implements AutoCloseable {
 
         externalReservations.put(jobId, checked);
         externalReserved = BigCountMath.add(
-                externalReserved.subtract(previous),
+                previous == null ? externalReserved : externalReserved.subtract(previous),
                 checked,
                 "host/externalReserved",
                 maximumBits);
