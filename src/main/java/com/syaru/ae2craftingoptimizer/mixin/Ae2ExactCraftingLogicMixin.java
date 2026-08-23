@@ -10,6 +10,7 @@ import appeng.crafting.execution.CraftingCpuLogic;
 import appeng.crafting.execution.ExecutingCraftingJob;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.me.service.CraftingService;
+import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingLogicAccess;
 import com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager;
@@ -140,6 +141,20 @@ public abstract class Ae2ExactCraftingLogicMixin implements ExactCraftingLogicAc
         if (ExactSubmissionScope.owns(plan)) {
             return 0L;
         }
-        return plan.bytes();
+        long required = plan.bytes();
+        long available = cluster.getAvailableStorage();
+        /*
+         * このゲートは理由を一切出さずCPU_TOO_SMALLを返す。wide計画のlong Facadeは
+         * Long.MAX_VALUE固定なので、利用者からは「大きいCPUなのに容量不足と言われる」
+         * としか見えない。どのCPUがどれだけ足りないと言っているのかを残す。
+         */
+        if (available < required) {
+            AE2CraftingOptimizer.LOGGER.warn(
+                    "AE2 CPU capacity gate refused a job: available={} required={} cluster={}",
+                    available,
+                    required,
+                    cluster);
+        }
+        return required;
     }
 }
