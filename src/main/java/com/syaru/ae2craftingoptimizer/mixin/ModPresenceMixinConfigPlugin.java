@@ -31,14 +31,26 @@ public abstract class ModPresenceMixinConfigPlugin implements IMixinConfigPlugin
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        String markerClass = dependencyMarkerClass();
-        boolean loaded = markerClass.isBlank()
-                ? isDependencyLoadedByModList()
-                : isClassResourcePresent(
-                        markerClass,
-                        Thread.currentThread().getContextClassLoader(),
-                        getClass().getClassLoader());
+        ClassLoader contextLoader = Thread.currentThread().getContextClassLoader();
+        ClassLoader ownLoader = getClass().getClassLoader();
+        boolean loaded = isDependencyLoadedByModList();
         String version = dependencyVersion();
+
+        String markerClass = dependencyMarkerClass();
+        // ModListが未完成な段階では、連携先の実クラスで在否を判定する。
+        if (!loaded && !markerClass.isBlank()) {
+            loaded = isClassResourcePresent(markerClass, contextLoader, ownLoader);
+        }
+        /*
+         * Issue #120の続き: markerClassを持たない連携は、ModListが未完成なまま
+         * shouldApplyMixinへ来ると一律applied=falseになり、連携Mixinが黙って
+         * 全て外れる。この@Pseudo Mixin自身の対象クラスが実在するかどうかは
+         * ModListに依存せず確認でき、対象が無ければ適用しても何も起きないため、
+         * 最後の判定材料として使う。
+         */
+        if (!loaded) {
+            loaded = isClassResourcePresent(targetClassName, contextLoader, ownLoader);
+        }
         // Mixin初期化中はModListが未完成でも、実クラスが見つかった事実を診断へ残す。
         if (loaded && "absent".equals(version)) {
             version = "classpath-present";
@@ -60,7 +72,7 @@ public abstract class ModPresenceMixinConfigPlugin implements IMixinConfigPlugin
                     .getModContainerById(
                             dependencyId())
                     .isPresent();
-        } catch (RuntimeException failure) {
+        } catch (RuntimeException | LinkageError failure) {
             return false;
         }
     }
@@ -72,7 +84,7 @@ public abstract class ModPresenceMixinConfigPlugin implements IMixinConfigPlugin
                             dependencyId())
                     .map(value -> value.getModInfo().getVersion().toString())
                     .orElse("absent");
-        } catch (RuntimeException failure) {
+        } catch (RuntimeException | LinkageError failure) {
             return "unknown";
         }
     }

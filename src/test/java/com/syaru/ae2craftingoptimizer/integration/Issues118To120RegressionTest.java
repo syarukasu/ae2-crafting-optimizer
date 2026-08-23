@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.syaru.ae2craftingoptimizer.api.vector.ExactStorageMutationResult;
+import com.syaru.ae2craftingoptimizer.mixin.ExtendedAeMixinConfigPlugin;
 import com.syaru.ae2craftingoptimizer.mixin.ModPresenceMixinConfigPlugin;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -71,6 +72,24 @@ class Issues118To120RegressionTest {
         assertFalse(ModPresenceMixinConfigPlugin.isClassResourcePresent(
                 "missing.aco.DependencyMarker",
                 loader));
+    }
+
+    @Test
+    void optionalIntegrationAppliesWhenOnlyItsTargetClassIsOnTheClasspath() {
+        /*
+         * ModListが未完成なままshouldApplyMixinへ来る環境では、markerClassを
+         * 持たない連携が全てapplied=falseになっていた。ExtendedAE連携が外れると
+         * ExtendedAE PlusのBigIntegerセルにAccessorが付かず、ACOはfail-closedで
+         * 「BigInteger inventory sidecar is incomplete」として全ての広域計画を降りる。
+         */
+        ExtendedAeMixinConfigPlugin plugin = new ExtendedAeMixinConfigPlugin();
+        assertTrue(plugin.shouldApplyMixin(
+                "com.syaru.ae2craftingoptimizer.integration.Issues118To120RegressionTest",
+                "com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventoryAccessor"));
+        // 連携先が未導入なら、対象クラスが無いので従来どおり選択しない。
+        assertFalse(plugin.shouldApplyMixin(
+                "com.extendedae_plus.api.storage.InfinityBigIntegerCellInventory",
+                "com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventoryAccessor"));
     }
 
     @Test
