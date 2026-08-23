@@ -24,6 +24,7 @@ import com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget;
 import com.syaru.ae2craftingoptimizer.optimization.MethodHandleInvocationCache;
 import com.syaru.ae2craftingoptimizer.optimization.NativeBatchTargetGuard;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
+import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureGate;
 import com.syaru.ae2craftingoptimizer.optimization.P2PNotificationDeduplicator;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
@@ -70,6 +71,7 @@ public final class ACOServerLifecycle {
     }
 
     private static void onServerStarted(ServerStartedEvent event) {
+        OptimizationFeatureGate.resetDiagnostics();
         OptionalNativeBatchIntegrations.registerEnabledVerifiedAdapters();
         ExperimentalCompatibilityValidator.validateEnabledFeatures();
         ServerTickClock.reset();
@@ -126,6 +128,7 @@ public final class ACOServerLifecycle {
         BusTransferSimulationCache.clear();
         P2PNotificationDeduplicator.clear();
         OptimizationMetrics.reset();
+        OptimizationFeatureGate.resetDiagnostics();
         Ae2CraftingShadowValidator.resetDiagnostics();
         BigCraftingStatusInbox.clear();
         Ae2BigCraftingExecutionManager.clear();
