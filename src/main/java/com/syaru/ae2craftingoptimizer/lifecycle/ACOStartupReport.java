@@ -36,14 +36,14 @@ final class ACOStartupReport {
                     domain,
                     ACOConfig.rawDomainEnabled(domain));
         }
-        String compatibilityNoops = Arrays.stream(OptimizationFeature.values())
+        String retiredCompatibilityKeys = Arrays.stream(OptimizationFeature.values())
                 .filter(feature -> feature.implementationStatus()
-                        == OptimizationImplementationStatus.COMPATIBILITY_NOOP)
+                        == OptimizationImplementationStatus.RETIRED_COMPATIBILITY_KEY)
                 .map(OptimizationFeature::id)
                 .collect(Collectors.joining(", "));
         AE2CraftingOptimizer.LOGGER.info(
-                "ACO compatibility-only features (never activated by legacy config): {}",
-                compatibilityNoops);
+                "ACO retired compatibility keys (never activated by legacy config): {}",
+                retiredCompatibilityKeys);
         AE2CraftingOptimizer.LOGGER.info(
                 "ACO two-stage missing preview: {}, cache: {} entries / {}s TTL",
                 ACOConfig.twoStageMissingPreview(),

@@ -123,8 +123,47 @@ public enum OptimizationFeature {
                     IO_BUS_OPERATION_LIMIT,
                     BUS_SEARCH_CACHE,
                     STORAGE_WATCHER_THROTTLE ->
-                    OptimizationImplementationStatus.COMPATIBILITY_NOOP;
+                    OptimizationImplementationStatus.RETIRED_COMPATIBILITY_KEY;
             default -> OptimizationImplementationStatus.ACTIVE;
+        };
+    }
+
+    /**
+     * 廃止した広範囲hookの代わりに稼働する、意味論を変えない限定最適化。
+     *
+     * <p>完全な同義置換ではなく、旧hookが狙っていた負荷源を安全な所有権境界で処理する。
+     */
+    public Set<OptimizationFeature> safeReplacements() {
+        return switch (this) {
+            case CRAFTABLE_SET_CACHE -> Set.of(PATTERN_LOOKUP_CACHE, PROVIDER_GENERATION_TRACKING);
+            case TERMINAL_UPDATE_COALESCING, TERMINAL_RANGE_SYNC, STORAGE_WATCHER_THROTTLE ->
+                    Set.of(TERMINAL_ASYNC_SEARCH);
+            case GRID_TICK_BUDGET -> Set.of(CRAFTING_EXECUTION_BUDGET, P2P_TOPOLOGY_DEDUPLICATION);
+            case NETWORK_UPDATE_COALESCING -> Set.of(P2P_TOPOLOGY_DEDUPLICATION);
+            case ADJACENT_CAPABILITY_CACHE -> Set.of(IMPORT_LAST_SLOT_CACHE, EXPORT_CANDIDATE_CACHE);
+            case NEGATIVE_TRANSFER_CACHE -> Set.of(EXPORT_CANDIDATE_CACHE, EXPORT_CRAFT_REQUEST_BACKOFF);
+            case IO_BUS_OPERATION_LIMIT -> Set.of(INCREMENTAL_IO_PORT, EXPORT_CRAFT_REQUEST_BACKOFF);
+            case BUS_SEARCH_CACHE -> Set.of(IMPORT_LAST_SLOT_CACHE, EXPORT_CANDIDATE_CACHE);
+            case TWO_STAGE_MISSING_PREVIEW -> Set.of();
+            default -> Set.of();
+        };
+    }
+
+    /** 廃止済み互換キーを誤って未実装機能として復活させないための根拠。 */
+    public String retirementReason() {
+        return switch (this) {
+            case CRAFTABLE_SET_CACHE -> "mutable craftable set snapshots can become stale during provider updates";
+            case TWO_STAGE_MISSING_PREVIEW -> "preliminary missing results can change player decisions before AE2 finishes";
+            case TERMINAL_UPDATE_COALESCING -> "coalescing mutable terminal updates can hide accepted insertions or removals";
+            case TERMINAL_RANGE_SYNC -> "range-limited packets can desynchronize AE2 virtual slots";
+            case GRID_TICK_BUDGET -> "delaying arbitrary tickables changes machine and network execution order";
+            case NETWORK_UPDATE_COALESCING -> "coalescing topology notifications can delay disconnect and security state";
+            case ADJACENT_CAPABILITY_CACHE -> "capabilities can invalidate between simulation and modulation";
+            case NEGATIVE_TRANSFER_CACHE -> "a previous transfer failure is not proof that the current transfer fails";
+            case IO_BUS_OPERATION_LIMIT -> "a global operation cap changes configured bus throughput";
+            case BUS_SEARCH_CACHE -> "cached mutable inventories can miss external slot changes";
+            case STORAGE_WATCHER_THROTTLE -> "throttled watcher state can make terminal inventory differ from the server";
+            default -> "";
         };
     }
 
