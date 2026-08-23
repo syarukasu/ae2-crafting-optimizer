@@ -14,6 +14,7 @@
 | [#103](https://github.com/syarukasu/ae2-crafting-optimizer/issues/103) | wide計画の実行裏付け不足がCPU容量不足と誤報される | 1.5.19 | 1.5.20 | [ISSUE-103.md](issues/ISSUE-103.md) |
 | [#109](https://github.com/syarukasu/ae2-crafting-optimizer/issues/109) | BigInteger API連携が通常AE2の責務境界を越える | 1.5.20 | 1.5.21 | [ISSUE-109.md](issues/ISSUE-109.md) |
 | [#140](https://github.com/syarukasu/ae2-crafting-optimizer/issues/140) | Mekanism入力探索がDedicated Serverでclient-only音声型を毎tick解決する | 1.5.25 | 1.5.26 | [ISSUE-140.md](issues/ISSUE-140.md) |
+| [#151](https://github.com/syarukasu/ae2-crafting-optimizer/issues/151) | 版統合時にPR #127のBigInteger物理実行基準が失われる | 1.5.25-1.5.27 | 統合PR | [ISSUE-151.md](issues/ISSUE-151.md) |
 | 外部コンシューマ回帰 | 実経路でsidecarが消える、またはQuantum Bulkが`maxPatterns=1`へ誤って制限される | 1.5.18系 | 作業中 | [ISSUE-BIGINT-EXTERNAL-CONSUMER.md](ISSUE-BIGINT-EXTERNAL-CONSUMER.md) |
 
 ## 運用
