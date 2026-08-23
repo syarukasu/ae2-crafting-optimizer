@@ -33,6 +33,8 @@ public final class AsyncTerminalView {
             String mod = modId + "\n" + normalize(Platform.getModName(key.getModId()));
             String id = normalize(key.getId().toString());
             String tooltip = needsTooltip ? tooltip(key) : "";
+            double normalizedAmount = (double) entry.getStoredAmount()
+                    / (double) entry.getWhat().getAmountPerUnit();
             Set<String> matchingTagTerms = new HashSet<>();
             for (String term : tagTerms) {
                 boolean matches = key.getType().getTagNames().anyMatch(tag -> {
@@ -46,7 +48,14 @@ public final class AsyncTerminalView {
                     matchingTagTerms.add(term);
                 }
             }
-            result.add(new Projection(entry, name, mod, id, tooltip, Set.copyOf(matchingTagTerms)));
+            result.add(new Projection(
+                    entry,
+                    name,
+                    mod,
+                    id,
+                    tooltip,
+                    Set.copyOf(matchingTagTerms),
+                    normalizedAmount));
         }
         return result;
     }
@@ -61,9 +70,7 @@ public final class AsyncTerminalView {
         }
 
         Comparator<Projection> comparator = switch (order) {
-            case AMOUNT -> Comparator.comparingDouble(projection ->
-                    (double) projection.entry.getStoredAmount()
-                            / (double) projection.entry.getWhat().getAmountPerUnit());
+            case AMOUNT -> Comparator.comparingDouble(Projection::normalizedAmount);
             case MOD -> Comparator.comparing(Projection::mod, String::compareToIgnoreCase)
                     .thenComparing(Projection::name, String::compareToIgnoreCase);
             case NAME -> Comparator.comparing(Projection::name, String::compareToIgnoreCase);
@@ -162,6 +169,7 @@ public final class AsyncTerminalView {
             String mod,
             String id,
             String tooltip,
-            Set<String> matchingTagTerms) {
+            Set<String> matchingTagTerms,
+            double normalizedAmount) {
     }
 }
