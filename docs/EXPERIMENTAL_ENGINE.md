@@ -271,6 +271,11 @@ return to AE2 before source ownership changes.
 It does not automatically patch standard AE2 or Advanced AE CPUs.
 
 - API version: `3`.
+- Amount-ledger API version: `2`. AE2 add-ons use
+  `createAeKeyAmountLedger()` and `loadAeKeyAmountLedger()` without resolving
+  ACO's internal codec types.
+- Capacity-limit API version: `1`. `maximumSupportedAmount()` returns the
+  exact configured BigInteger bound after applying ACO's hard safety limit.
 - One shared host reconciles external signed-long job reservations and native
   BigInteger jobs against the same physical capacity.
 - Runtime NBT schema: `2`, including a persistent runtime UUID.

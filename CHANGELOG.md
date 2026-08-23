@@ -21,6 +21,11 @@ All notable changes to this project are documented here.
 - `exactVectorCrafting.logExecutionStalls` (default on): when an owned exact
   job makes no progress, the waiting reason is logged once per reason change
   and once per 600 ticks, so silent stalls become diagnosable in the field.
+- Added a versioned public capacity-limit query for BigInteger CPU add-ons
+  (`CAPACITY_LIMIT_API_VERSION` / `maximumSupportedAmount()`), already present
+  on the 1.20.1 line.
+- Added AEKey amount-ledger factories so optional integrations do not need to
+  resolve ACO's internal codec type (`AMOUNT_LEDGER_API_VERSION` 2).
 
 ## [1.5.24] - 2026-08-21
 
