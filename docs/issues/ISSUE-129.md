@@ -122,7 +122,7 @@ storage、pattern、topology、resource reload、server lifecycleを共通世代
 - 全登録Mixinを`MixinFeatureCatalog`へ対応付け、未登録Mixinをfail-closed化
 - 各機能へrisk、正本所有者、fallback境界、関連Issue、実装状態、失効イベントを宣言
 - server start/stopでgate診断を初期化し、`/aco stats`用summaryへ拒否理由を追加
-- 1.2.2で削除した可変Storage I/O・GUI・Grid Tick経路を`COMPATIBILITY_NOOP`へ固定
+- 1.2.2で削除した可変Storage I/O・GUI・Grid Tick経路を`RETIRED_COMPATIBILITY_KEY`へ固定
 - Export Busの安全な失敗クラフト要求backoffを、削除済みGrid Tick masterから分離
 - Import Busは直前成功slotを検査順のhintとしてだけ再利用し、抽出・挿入・rollbackはAE2へ維持
 - Export Busは設定世代ごとの候補keyだけをcacheし、未知のConfigInventory実装ではAE2の直接読取へfallback

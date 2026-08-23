@@ -55,7 +55,7 @@ class MixinFeatureCatalogTest {
     }
 
     @Test
-    void compatibilityNoopCanNeverHaveAConfiguredMixin() {
+    void retiredCompatibilityKeyCanNeverHaveAConfiguredMixin() {
         // 互換キーだけの機能へMixinを戻す場合は、先に台帳と回帰試験をACTIVEへ更新させる。
         for (var entry : MixinFeatureCatalog.snapshot().entrySet()) {
             assertEquals(

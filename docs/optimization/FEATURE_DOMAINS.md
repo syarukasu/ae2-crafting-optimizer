@@ -1,6 +1,6 @@
 # ACO最適化ドメイン
 
-Issue #129以降、最適化は次の八領域へ分けます。個別機能は`OptimizationFeature`へ登録し、`OptimizationFeatureGate`を通過した場合だけ動作します。設定キーだけ残る機能は`OptimizationImplementationStatus.COMPATIBILITY_NOOP`とし、値が`true`でも実行しません。現在の稼働状況は[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)を正本とします。
+Issue #129以降、最適化は次の八領域へ分けます。個別機能は`OptimizationFeature`へ登録し、`OptimizationFeatureGate`を通過した場合だけ動作します。設定キーだけ残る廃止済み機能は`OptimizationImplementationStatus.RETIRED_COMPATIBILITY_KEY`とし、値が`true`でも実行しません。現在の稼働状況は[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)を正本とします。
 
 | Domain | 目的 | 正本 | 無効時 |
 |---|---|---|---|
