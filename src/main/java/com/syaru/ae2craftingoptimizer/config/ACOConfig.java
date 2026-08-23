@@ -215,6 +215,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_MAXIMUM_ACTIVE_PER_GRID;
     private static final ForgeConfigSpec.IntValue EXACT_VECTOR_GRID_TIME_BUDGET_MILLIS;
     private static final ForgeConfigSpec.BooleanValue LOG_EXACT_VECTOR_DIAGNOSTICS;
+    private static final ForgeConfigSpec.BooleanValue EXACT_VECTOR_VERIFY_STORAGE_ROUTE;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -941,6 +942,13 @@ public final class ACOConfig {
         LOG_EXACT_VECTOR_DIAGNOSTICS = builder
                 .comment("Log bounded physical crafting-tree acceptance, recovery, and quarantine diagnostics.")
                 .define("logVectorDiagnostics", false);
+        EXACT_VECTOR_VERIFY_STORAGE_ROUTE = builder
+                .comment(
+                        "Prove the audited exact-storage boundary route before taking exclusive job ownership.",
+                        "Plans whose inputs cannot be released or whose final output cannot be accepted",
+                        "fall back to a registered external BigInteger plan consumer, or are declined",
+                        "with a clear reason instead of stalling forever.")
+                .define("verifyStorageRouteBeforeOwnership", true);
         builder.pop();
 
         builder.push("diagnostics");
@@ -1850,6 +1858,10 @@ public final class ACOConfig {
     public static boolean logExactVectorDiagnostics() {
         return enableExactVectorCrafting()
                 && LOG_EXACT_VECTOR_DIAGNOSTICS.get();
+    }
+
+    public static boolean verifyExactStorageRouteBeforeOwnership() {
+        return EXACT_VECTOR_VERIFY_STORAGE_ROUTE.get();
     }
 
 }

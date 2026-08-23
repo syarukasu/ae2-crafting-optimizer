@@ -18,6 +18,7 @@ import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator;
 import com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager;
+import com.syaru.ae2craftingoptimizer.integration.ExactBoundaryRoutePreflight;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDiagnostics;
 import java.util.LinkedHashMap;
@@ -78,6 +79,36 @@ public abstract class Ae2BigCapacityPlanSubmissionMixin {
                     exact.patternGeneration(),
                     exact.recipeGeneration(),
                     validation.detail());
+            cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
+            return;
+        }
+        /*
+         * Issue #125: 排他所有権を取る前に、物理実行の境界route (入力の一括確保と
+         * 最終出力の納品先) が現在のGridで成立するかを証明する。成立しない計画を
+         * 所有すると理由も出さずに永久待機するため、外部コンシューマへ委譲するか、
+         * 明確な理由付きで拒否する。enabled設定のコメントが約束する
+         * 「fall back before input ownership is transferred」のストレージ境界版。
+         */
+        ExactBoundaryRoutePreflight.Result route = ExactBoundaryRoutePreflight
+                .checkBeforeOwnership(grid, exact, source);
+        if (!route.viable()) {
+            BigIntegerPlanDiagnostics.record(
+                    BigIntegerPlanDeclineReason.STORAGE_ROUTE_UNAVAILABLE,
+                    exact.finalOutput().what().getId().toString(),
+                    exact.exactPlan().requestedAmount(),
+                    exact.patternGeneration(),
+                    exact.recipeGeneration(),
+                    route.detail());
+            // 1.5.22相当の互換経路が登録済みなら、exact昇格せず素通しして委譲する。
+            if (route.outcome() == ExactBoundaryRoutePreflight.Outcome.DELEGATE) {
+                AE2CraftingOptimizer.LOGGER.info(
+                        "Delegating a wide AE2 job to the external BigInteger plan consumer: {}",
+                        route.detail());
+                return;
+            }
+            AE2CraftingOptimizer.LOGGER.warn(
+                    "Declined a wide AE2 job before taking exclusive ownership: {}",
+                    route.detail());
             cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
             return;
         }

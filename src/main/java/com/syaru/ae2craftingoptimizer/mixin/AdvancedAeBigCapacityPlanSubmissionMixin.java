@@ -21,6 +21,7 @@ import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.WidePlanSubmissionGuard;
 import com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator;
 import com.syaru.ae2craftingoptimizer.integration.AqeBigCraftingExecutionContext;
+import com.syaru.ae2craftingoptimizer.integration.ExactBoundaryRoutePreflight;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDiagnostics;
 import java.math.BigInteger;
@@ -107,6 +108,36 @@ public abstract class AdvancedAeBigCapacityPlanSubmissionMixin
             }
             if (host.available().compareTo(bigIntegerPlan.exactBytes()) < 0) {
                 cir.setReturnValue(CraftingSubmitResult.CPU_TOO_SMALL);
+                return;
+            }
+            /*
+             * Issue #125: 排他所有権を取る前に、物理実行の境界route (入力の一括確保と
+             * 最終出力の納品先) が現在のGridで成立するかを証明する。成立しない計画を
+             * 所有すると理由も出さずに永久待機するため、外部コンシューマへ委譲するか、
+             * 明確な理由付きで拒否する。enabled設定のコメントが約束する
+             * 「fall back before input ownership is transferred」のストレージ境界版。
+             */
+            ExactBoundaryRoutePreflight.Result route = ExactBoundaryRoutePreflight
+                    .checkBeforeOwnership(grid, bigIntegerPlan, source);
+            if (!route.viable()) {
+                BigIntegerPlanDiagnostics.record(
+                        BigIntegerPlanDeclineReason.STORAGE_ROUTE_UNAVAILABLE,
+                        bigIntegerPlan.finalOutput().what().getId().toString(),
+                        bigIntegerPlan.exactPlan().requestedAmount(),
+                        bigIntegerPlan.patternGeneration(),
+                        bigIntegerPlan.recipeGeneration(),
+                        route.detail());
+                // 1.5.22相当の互換経路が登録済みなら、exact昇格せず素通しして委譲する。
+                if (route.outcome() == ExactBoundaryRoutePreflight.Outcome.DELEGATE) {
+                    AE2CraftingOptimizer.LOGGER.info(
+                            "Delegating a wide Advanced AE job to the external BigInteger plan consumer: {}",
+                            route.detail());
+                    return;
+                }
+                AE2CraftingOptimizer.LOGGER.warn(
+                        "Declined a wide Advanced AE job before taking exclusive ownership: {}",
+                        route.detail());
+                cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
                 return;
             }
             // 同じ確認画面の二重送信は、実CPU生成前に一件へ絞る。
