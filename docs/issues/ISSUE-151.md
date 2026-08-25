@@ -54,4 +54,3 @@ PR #127と1.5.25以降の変更は、同じ基点から別々に実装された�
 ## GitHub
 
 - Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/151
-

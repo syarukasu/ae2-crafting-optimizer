@@ -65,6 +65,7 @@ public final class MixinFeatureCatalog {
             entry("KeyCounterBigIntegerSidecarLifecycleMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("ListCraftingInventoryExactCountsMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("MekanismRecipeIntentFastPathMixin", OptimizationFeature.RECIPE_INTENT_BRIDGE),
+            entry("MEStorageMenuDisplaySaturationMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("MultiCraftingTrackerCraftRequestThrottleMixin", OptimizationFeature.EXPORT_CRAFT_REQUEST_BACKOFF),
             entry("NeoEco20_3CraftingCpuExecutionBudgetMixin", OptimizationFeature.CRAFTING_EXECUTION_BUDGET),
             entry("NeoEco20_4CraftingCpuExecutionBudgetMixin", OptimizationFeature.CRAFTING_EXECUTION_BUDGET),

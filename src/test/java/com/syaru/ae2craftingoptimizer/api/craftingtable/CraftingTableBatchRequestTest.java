@@ -82,18 +82,30 @@ final class CraftingTableBatchRequestTest {
                         aggregateSlots,
                         output,
                         BigInteger.valueOf(
-                                Long.MAX_VALUE));
+                                Long.MAX_VALUE),
+                        CraftingTableBatchMode.BIG_INTEGER_JOB);
 
+        BigInteger exactTotal =
+                BigInteger.valueOf(
+                                Long.MAX_VALUE)
+                        .multiply(
+                                BigInteger.valueOf(
+                                        CRAFTING_GRID_SLOTS));
         assertTrue(
                 request.countsFitSignedLong());
-        assertTrue(
+        assertEquals(
+                CRAFTING_GRID_SLOTS,
+                request.aggregateSlotInputs()
+                        .size());
+        assertEquals(
+                exactTotal,
                 request.aggregateInputTotals()
-                                .get(
-                                        input)
-                                .compareTo(
-                                        BigInteger.valueOf(
-                                                Long.MAX_VALUE))
-                        > 0);
+                        .get(
+                                input));
+        assertEquals(
+                BigInteger.valueOf(
+                        Long.MAX_VALUE),
+                request.executions());
     }
 
     @Test

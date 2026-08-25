@@ -58,6 +58,7 @@
     "KeyCounterBigIntegerSidecarLifecycleMixin",
     "ListCraftingInventoryExactCountsMixin",
     "MekanismRecipeIntentFastPathMixin",
+    "MEStorageMenuDisplaySaturationMixin",
     "MultiCraftingTrackerCraftRequestThrottleMixin",
     "NeoEco20_3CraftingCpuExecutionBudgetMixin",
     "NeoEco20_4CraftingCpuExecutionBudgetMixin",

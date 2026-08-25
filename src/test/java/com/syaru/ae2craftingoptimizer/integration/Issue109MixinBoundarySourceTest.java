@@ -18,6 +18,15 @@ class Issue109MixinBoundarySourceTest {
         String mixins = read(MAIN.resolve(Path.of(
                 "resources", "ae2_crafting_optimizer.mixins.json")));
         assertFalse(mixins.contains("MEStorageMenuGridSnapshotReuseMixin"));
+        assertFalse(mixins.contains("NetworkStorageBigIntegerSnapshotMixin"));
+
+        String displayMixin = read(MAIN.resolve(Path.of(
+                "java", "com", "syaru", "ae2craftingoptimizer", "mixin",
+                "MEStorageMenuDisplaySaturationMixin.java")));
+        assertTrue(displayMixin.contains("method = \"m_38946_\""));
+        assertFalse(displayMixin.contains("handleInteraction"));
+        assertFalse(displayMixin.contains("method = \"insert\""));
+        assertFalse(displayMixin.contains("method = \"extract\""));
     }
 
     @Test
