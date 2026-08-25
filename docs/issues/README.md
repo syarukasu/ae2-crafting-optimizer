@@ -31,3 +31,4 @@
 - [Issue #123](ISSUE-123.md): 過去Issueと回帰試験をリリース判定へ接続する
 - [Issue #129](ISSUE-129.md): GTNH/AE2-UEL思想に基づく最適化アーキテクチャの再構築
 - [Issue #148](ISSUE-148.md): Long.MAX_VALUE超過在庫が端末から消える
+- [Issue #151](ISSUE-151.md): PR #127を安定基準に1.5.25-1.5.27を再統合する
