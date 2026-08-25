@@ -47,7 +47,7 @@ public enum OptimizationFeature {
     BIG_INTEGER_BACKEND("big-integer-backend", OptimizationDomain.BIG_INTEGER, OptimizationRisk.HIGH, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_OWNERSHIP, Set.of(79, 87, 90, 93, 98, 101, 103, 109)),
     LONG_ROOT_AMOUNTS("long-root-amounts", OptimizationDomain.BIG_INTEGER, OptimizationRisk.HIGH, StateOwnership.AE2, FallbackBoundary.BEFORE_OWNERSHIP, Set.of(79, 98, 109)),
     ATOMIC_BIG_CAPACITY_PLANS("atomic-big-capacity-plans", OptimizationDomain.BIG_INTEGER, OptimizationRisk.HIGH, StateOwnership.ACO_TRANSACTION, FallbackBoundary.NEVER_AFTER_OWNERSHIP, Set.of(98, 115, 118, 125)),
-    EXACT_INVENTORY_SNAPSHOT("exact-inventory-snapshot", OptimizationDomain.BIG_INTEGER, OptimizationRisk.HIGH, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_OWNERSHIP, Set.of(87, 93, 101, 109)),
+    EXACT_INVENTORY_SNAPSHOT("exact-inventory-snapshot", OptimizationDomain.BIG_INTEGER, OptimizationRisk.HIGH, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_OWNERSHIP, Set.of(87, 93, 101, 109, 148, 153)),
     BIG_INTEGER_GAMEPLAY_EXECUTION("big-integer-gameplay-execution", OptimizationDomain.BIG_INTEGER, OptimizationRisk.HIGH, StateOwnership.ACO_TRANSACTION, FallbackBoundary.NEVER_AFTER_OWNERSHIP, Set.of(98, 101, 109, 115, 118, 119, 125)),
     EXACT_VECTOR_CRAFTING("exact-vector-crafting", OptimizationDomain.BIG_INTEGER, OptimizationRisk.HIGH, StateOwnership.ACO_TRANSACTION, FallbackBoundary.NEVER_AFTER_OWNERSHIP, Set.of(115, 118, 119, 125)),
     RECIPE_INTENT_BRIDGE("recipe-intent-bridge", OptimizationDomain.OPTIONAL_INTEGRATION, OptimizationRisk.MEDIUM, StateOwnership.EXTERNAL_ADDON, FallbackBoundary.BEFORE_MUTATION, Set.of(74)),
