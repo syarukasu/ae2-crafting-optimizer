@@ -7,6 +7,7 @@ import java.util.Optional;
 /** NeoForge core MixinとIssue #129の機能契約を結ぶ明示台帳。 */
 public final class MixinFeatureCatalog {
     private static final Map<String, OptimizationFeature> FEATURES = Map.ofEntries(
+            entry("AbstractMonitorPartDisplaySaturationMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("Ae2BigCapacityPlanSubmissionMixin", OptimizationFeature.ATOMIC_BIG_CAPACITY_PLANS),
             entry("Ae2ExactCraftingLogicMixin", OptimizationFeature.EXACT_VECTOR_CRAFTING),
             entry("CraftAmountMenuLongAmountMixin", OptimizationFeature.LONG_ROOT_AMOUNTS),

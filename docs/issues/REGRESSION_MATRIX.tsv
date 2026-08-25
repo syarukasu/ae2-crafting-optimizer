@@ -1,5 +1,5 @@
 # repository=https://github.com/syarukasu/ae2-crafting-optimizer
-# synchronized_through_issue=148
+# synchronized_through_issue=153
 # runtime_status: NOT_REQUIRED, VERIFIED, PENDING
 issue	kind	loaders	required	automated_evidence	runtime_status	runtime_evidence	summary
 1	COMPATIBILITY	NEOFORGE_1_21_1	STATIC	.github/workflows/build.yml	NOT_REQUIRED	-	NeoForge 1.21.1 port
@@ -53,3 +53,4 @@ issue	kind	loaders	required	automated_evidence	runtime_status	runtime_evidence	s
 140	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/mekanism/MekanismRecipeIntentDedicatedServerSafetyTest.java	NOT_REQUIRED	-	Dedicated Server client-only SoundInstance reflection spam
 145	ARCHITECTURE	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/optimization/OptimizationFeatureGateTest.java;src/test/java/com/syaru/ae2craftingoptimizer/integration/Issue129ArchitectureSourceTest.java	NOT_REQUIRED	-	Issue 129 completion hardening and 1.5.27 release
 148	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/TerminalDisplaySnapshotProjectionTest.java;src/test/java/com/syaru/ae2craftingoptimizer/integration/Issue109MixinBoundarySourceTest.java	NOT_REQUIRED	-	Terminal display saturation without storage or interaction ownership
+153	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/TerminalDisplaySnapshotProjectionTest.java;src/test/java/com/syaru/ae2craftingoptimizer/integration/Issue109MixinBoundarySourceTest.java	NOT_REQUIRED	-	Storage monitor display saturation without cached inventory ownership
