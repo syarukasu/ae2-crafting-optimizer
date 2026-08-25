@@ -5,6 +5,7 @@
   "package": "com.syaru.ae2craftingoptimizer.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
+    "AbstractMonitorPartDisplaySaturationMixin",
     "AdvancedAeCraftingCpuLogicExecutionBudgetMixin",
     "AdvancedAeExactCraftingLogicMixin",
     "AdvancedAeCraftingCpuLogicBatchSourceReceiptMixin",
