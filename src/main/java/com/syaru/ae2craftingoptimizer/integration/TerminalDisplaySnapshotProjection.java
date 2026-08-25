@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.integration;
 
+import appeng.api.networking.storage.IStorageService;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
 import com.syaru.ae2craftingoptimizer.access.NetworkStorageMountsAccess;
@@ -24,6 +25,31 @@ public final class TerminalDisplaySnapshotProjection {
         return availableStacks(
                 menuStorage,
                 ACOConfig.enableExactBigIntegerInventorySnapshots());
+    }
+
+    /** ストレージモニターへ送る表示値だけを安全なSnapshotへ投影する。 */
+    public static KeyCounter monitorStacks(IStorageService storageService) {
+        Objects.requireNonNull(storageService, "storageService");
+        KeyCounter cachedInventory = storageService.getCachedInventory();
+        // 機能OFF時はNetworkStorageへ触れず、AE2が保持する同じCounterを返す。
+        if (!ACOConfig.enableExactBigIntegerInventorySnapshots()) {
+            return cachedInventory;
+        }
+        return monitorStacks(storageService.getInventory(), cachedInventory, true);
+    }
+
+    /** Forge Configを起動しない単体試験から、モニター表示境界を検証する内部入口。 */
+    static KeyCounter monitorStacks(
+            MEStorage networkStorage,
+            KeyCounter cachedInventory,
+            boolean enabled) {
+        Objects.requireNonNull(networkStorage, "networkStorage");
+        Objects.requireNonNull(cachedInventory, "cachedInventory");
+        // exact mountを列挙できないStorageは推測で補正せず、AE2のcached値へ戻す。
+        if (!enabled || !(networkStorage instanceof NetworkStorageMountsAccess)) {
+            return cachedInventory;
+        }
+        return availableStacks(networkStorage, true);
     }
 
     /** NeoForge Configを起動しない単体試験から、有効状態だけを明示する内部入口。 */

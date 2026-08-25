@@ -3,7 +3,7 @@
 ## 問題
 
 Applied Fluxなど、同じAEKeyを複数のmounted storageが公開する環境で、合計在庫が
-`Long.MAX_VALUE`を超えるとME端末とストレージモニターの表示が消える、または負数化する。
+`Long.MAX_VALUE`を超えるとME端末の表示が消える、または負数化する。
 
 ## 原因
 
@@ -20,6 +20,8 @@ AE2 19.2.xの`NetworkStorage#getAvailableStacks`は、各mountの値を`KeyCount
 - BigInteger正本はSidecarへ保持し、longへ切り捨てない。
 - Grid本体以外のPortable CellやAddon固有端末はAE2本来の経路へ委譲する。
 - Storageの`insert`、`extract`、watcher、serial、クラフト計算は変更しない。
+
+ストレージモニターは別のcached inventory経路を使用するため、Issue #153で独立して修正する。
 
 ## Issue #109との境界
 
