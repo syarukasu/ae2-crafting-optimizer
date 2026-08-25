@@ -27,6 +27,17 @@ class Issue109MixinBoundarySourceTest {
         assertFalse(displayMixin.contains("handleInteraction"));
         assertFalse(displayMixin.contains("method = \"insert\""));
         assertFalse(displayMixin.contains("method = \"extract\""));
+
+        String monitorMixin = read(MAIN.resolve(Path.of(
+                "java", "com", "syaru", "ae2craftingoptimizer", "mixin",
+                "AbstractMonitorPartDisplaySaturationMixin.java")));
+        assertTrue(monitorMixin.contains("method = \"updateReportingValue\""));
+        assertTrue(monitorMixin.contains("IStorageService;getCachedInventory()"));
+        assertFalse(monitorMixin.contains("writeToNBT"));
+        assertFalse(monitorMixin.contains("readFromNBT"));
+        assertFalse(monitorMixin.contains("onPartActivate"));
+        assertFalse(monitorMixin.contains("method = \"insert\""));
+        assertFalse(monitorMixin.contains("method = \"extract\""));
     }
 
     @Test

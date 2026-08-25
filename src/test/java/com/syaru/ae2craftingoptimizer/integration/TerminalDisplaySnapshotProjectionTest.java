@@ -51,6 +51,66 @@ class TerminalDisplaySnapshotProjectionTest {
         assertSame(original, projected);
     }
 
+    @Test
+    void saturatesStorageMonitorAmountFromMountedStorages() {
+        TestNetworkStorage network = new TestNetworkStorage(List.of(
+                new FixedStorage(Long.MAX_VALUE),
+                new FixedStorage(Long.MAX_VALUE)));
+        KeyCounter overflowedCachedInventory = new KeyCounter();
+        overflowedCachedInventory.set(ENERGY, -2L);
+
+        KeyCounter projected = TerminalDisplaySnapshotProjection.monitorStacks(
+                network,
+                overflowedCachedInventory,
+                true);
+
+        assertEquals(Long.MAX_VALUE, projected.get(ENERGY));
+    }
+
+    @Test
+    void keepsOrdinaryStorageMonitorAmountExact() {
+        TestNetworkStorage network = new TestNetworkStorage(List.of(
+                new FixedStorage(2_000L),
+                new FixedStorage(3_000L)));
+        KeyCounter cachedInventory = new KeyCounter();
+        cachedInventory.set(ENERGY, 5_000L);
+
+        KeyCounter projected = TerminalDisplaySnapshotProjection.monitorStacks(
+                network,
+                cachedInventory,
+                true);
+
+        assertEquals(5_000L, projected.get(ENERGY));
+    }
+
+    @Test
+    void disabledStorageMonitorProjectionReturnsOriginalCachedInventory() {
+        KeyCounter cachedInventory = new KeyCounter();
+        cachedInventory.set(ENERGY, -2L);
+        TestNetworkStorage network = new TestNetworkStorage(List.of(new FixedStorage(Long.MAX_VALUE)));
+
+        KeyCounter projected = TerminalDisplaySnapshotProjection.monitorStacks(
+                network,
+                cachedInventory,
+                false);
+
+        assertSame(cachedInventory, projected);
+    }
+
+    @Test
+    void unsupportedStorageMonitorProjectionReturnsOriginalCachedInventory() {
+        KeyCounter cachedInventory = new KeyCounter();
+        cachedInventory.set(ENERGY, 42L);
+        MEStorage unsupportedStorage = new SnapshotStorage(cachedInventory);
+
+        KeyCounter projected = TerminalDisplaySnapshotProjection.monitorStacks(
+                unsupportedStorage,
+                cachedInventory,
+                true);
+
+        assertSame(cachedInventory, projected);
+    }
+
     private record FixedStorage(long amount) implements MEStorage {
         @Override
         public long insert(

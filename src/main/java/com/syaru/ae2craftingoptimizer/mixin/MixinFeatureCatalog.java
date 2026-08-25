@@ -12,6 +12,7 @@ import java.util.Optional;
  */
 public final class MixinFeatureCatalog {
     private static final Map<String, OptimizationFeature> FEATURES = Map.ofEntries(
+            entry("AbstractMonitorPartDisplaySaturationMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("AdvancedAeCraftingCpuLogicExecutionBudgetMixin", OptimizationFeature.CRAFTING_EXECUTION_BUDGET),
             entry("AdvancedAeExactCraftingLogicMixin", OptimizationFeature.EXACT_VECTOR_CRAFTING),
             entry("AdvancedAeCraftingCpuLogicBatchSourceReceiptMixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
