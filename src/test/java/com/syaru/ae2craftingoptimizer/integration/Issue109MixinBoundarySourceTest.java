@@ -27,9 +27,21 @@ class Issue109MixinBoundarySourceTest {
 
     @Test
     void meTerminalInventoryEnumerationIsNotRedirected() {
-        String mixins = read(MAIN.resolve(Path.of(
+        String performanceMixins = read(MAIN.resolve(Path.of(
                 "resources", "aco.performance.mixins.json")));
-        assertFalse(mixins.contains("MEStorageMenuGridSnapshotReuseMixin"));
+        assertFalse(performanceMixins.contains("MEStorageMenuGridSnapshotReuseMixin"));
+
+        String commonMixins = read(MAIN.resolve(Path.of(
+                "resources", "ae2_crafting_optimizer.mixins.json")));
+        assertFalse(commonMixins.contains("NetworkStorageBigIntegerSnapshotMixin"));
+
+        String displayMixin = read(MAIN.resolve(Path.of(
+                "java", "com", "syaru", "ae2craftingoptimizer", "mixin",
+                "MEStorageMenuDisplaySaturationMixin.java")));
+        assertTrue(displayMixin.contains("method = \"broadcastChanges\""));
+        assertFalse(displayMixin.contains("handleInteraction"));
+        assertFalse(displayMixin.contains("method = \"insert\""));
+        assertFalse(displayMixin.contains("method = \"extract\""));
     }
 
     @Test
