@@ -166,6 +166,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 Ae2CompiledCraftingGraphCache.currentSnapshot(
                                 grid,
                                 level,
+                                output,
                                 patternGeneration,
                                 recipeGeneration)
                         .orElse(null);
@@ -196,13 +197,30 @@ public final class Ae2AuthoritativeCraftingPlanner {
             AEKey output,
             long requestedAmount,
             CalculationStrategy strategy) {
+        return tryPlan(
+                capture,
+                output,
+                requestedAmount,
+                strategy,
+                PlanningGuard.none());
+    }
+
+    @Nullable
+    public static ICraftingPlan tryPlan(
+            @Nullable Capture capture,
+            AEKey output,
+            long requestedAmount,
+            CalculationStrategy strategy,
+            PlanningGuard workBudget) {
+        Objects.requireNonNull(workBudget, "workBudget");
         return tryPlanAttempt(
                 capture,
                 output,
                 requestedAmount,
                 strategy,
                 true,
-                false);
+                false,
+                workBudget);
     }
 
     @Nullable
@@ -212,7 +230,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
             long requestedAmount,
             CalculationStrategy strategy,
             boolean staleSnapshotRetryAvailable,
-            boolean priorAttemptRequiredWideArithmetic) {
+            boolean priorAttemptRequiredWideArithmetic,
+            PlanningGuard workBudget) {
         // 無効設定、参照欠落、不正注文はACO計画を作らず呼出側へ戻す。
         if (!planningEnabled()
                 || capture == null
@@ -259,8 +278,12 @@ public final class Ae2AuthoritativeCraftingPlanner {
         try {
             capture.requireCurrentGenerations();
             Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot =
-                    Ae2CompiledCraftingGraphCache.getOrCompile(capture.grid(), capture.level());
-            var optionalProgram = graphSnapshot.rootProgram(output);
+                    Ae2CompiledCraftingGraphCache.getOrCompileRoot(
+                            capture.grid(),
+                            capture.level(),
+                            output,
+                            workBudget);
+            var optionalProgram = graphSnapshot.rootProgram(output, workBudget);
             // 曖昧、循環、複数出力などを含むルートはコンパイルせずAE2へ戻す。
             if (optionalProgram.isEmpty()) {
                 CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
@@ -275,7 +298,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
             }
             CompiledRootProgram<AEKey> program = optionalProgram.get();
             Ae2StrictCraftingTopology topology = graphSnapshot
-                    .strictTopology(capture.level(), capture.grid(), program)
+                    .strictTopology(capture.level(), capture.grid(), program, workBudget)
                     .orElse(null);
             // 実AE2 Pattern API上の完全一致を証明できない場合はAE2へ戻す。
             if (topology == null || !topology.acceptsInventory(capture.inventorySnapshot())) {
@@ -372,6 +395,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
             }
             Capture guardCapture = capture;
             PlanningGuard guard = expanded -> {
+                // 配列Planner本体もAE2の時間枠へ参加し、巨大DAGを一tickで独占しない。
+                workBudget.checkpoint(expanded);
                 // 64ノードごとに世代変更とスレッド割込みを確認し、古い結果を早めに破棄する。
                 if ((expanded & GENERATION_CHECK_INTERVAL_MASK) == 0) {
                     guardCapture.requireCurrentGenerations();
@@ -623,7 +648,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         requestedAmount,
                         strategy,
                         false,
-                        false);
+                        false,
+                        workBudget);
             }
             CraftingFallbackDiagnostics.record(
                     output,
@@ -1051,18 +1077,24 @@ public final class Ae2AuthoritativeCraftingPlanner {
         /*
          * 回帰防止: ACO Issue #109
          * BigInteger CPU連携はwide計画を作るための能力であり、通常long計画を置換する許可ではない。
-         * 通常AE2の結果を差し替えるのは、実験エンジンを明示的に有効化した場合だけに限定する。
+         * 通常計画は、BigInteger profileと独立した厳密Planner、または明示的な実験設定だけで置換する。
          */
         return normalLongReplacementEnabled(
+                ACOConfig.enableStrictDeterministicLongPlanner(),
                 ACOConfig.enableExperimentalCraftingEngine(),
                 ACOConfig.enableAuthoritativeCompiledPlanner(),
                 ACOConfig.enableProofQualifiedLongPlans());
     }
 
     static boolean normalLongReplacementEnabled(
+            boolean strictDeterministicPlannerEnabled,
             boolean experimentalEngineEnabled,
             boolean authoritativePlannerEnabled,
             boolean proofQualifiedLongPlansEnabled) {
+        // 独立した厳密Plannerは、外部BigInteger consumerの有無に依存せず通常計画だけを担当する。
+        if (strictDeterministicPlannerEnabled) {
+            return true;
+        }
         // 実験エンジンOFFなら、下位の置換設定が残っていても通常long計画へ介入しない。
         if (!experimentalEngineEnabled) {
             return false;

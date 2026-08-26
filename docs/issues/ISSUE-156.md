@@ -1,135 +1,155 @@
-# Issue #156: 通常クラフト発注時の不要なexact計算
+# Issue #156: 通常クラフト計算の高速化
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/156
 - 状態: In review
 - 対象版: Forge 1.20.1 / NeoForge 1.21.1
-- 関連Issue: #109, #125, #151, #153
+- 関連Issue: #79, #90, #103, #109, #125, #151, #153
 
-## 症状
+## 要求
 
-通常のint/long範囲の注文でも、発注直後の応答が非常に遅くなる。
-ACOが通常AE2計画を置換しない既定構成でも再現する。
+ACO導入時の余計な負荷を除くだけでなく、AE2の通常クラフト計算そのものを高速化する。
+ただし、AE2が返すクラフト可否、使用在庫、不足数、Pattern実行回数、容量を変更しない。
 
-## 確定したRoot Cause
+## 先行修正の範囲
 
-次の四つが重なっていた。
+PR #157/#158は次のACO固有オーバーヘッドを除去した。
 
-1. `enableAtomicBigCapacityPlans`が有効な場合、通常long置換が無効でも
-   `Ae2AuthoritativeCraftingPlanner.capture`が全注文で起動する。
-2. Captureは毎回`PlanningExactInventorySnapshot.capture(grid)`を実行し、
-   全mounted storageからexact在庫を収集する。
-3. 非同期Plannerは毎回、空在庫のBigInteger計画を最後まで展開してwide判定を行う。
-4. `CraftingCalculation`生成側で上記Captureを行うため、全mount走査は
-   AE2の`CRAFTING_POOL`へsubmitされる前の呼出スレッドで実行される。
+- 通常long注文での同期exact全mount走査
+- 採用先のないBigInteger preflight
+- 採用先のないShadow準備
 
-加えてShadow Modeは、通常long置換もwide資格要求も無効な場合まで
-Compiled Root Programと参照在庫を準備していた。このShadow結果には採用先がなく、
-既定構成では純粋な追加負荷だった。
+これはACO非導入時との差を縮める修正であり、AE2計算自体の高速化ではなかった。
+Issue #156の目的を満たすため、本変更で別の高速計算経路を追加する。
 
-## 前の未検証修正で不十分だった点
+## AE2 15.4.10で確認した計算経路
 
-前差分は保守的なwide閾値を追加したが、次の理由で採用しなかった。
+AE2の単一Producer経路は`CraftingTreeNode`と`CraftingTreeProcess`を注文ごとに構築する。
+Pattern回数は既に除算と乗算でまとめられており、注文個数そのものを一個ずつ反復してはいない。
 
-- CraftingCalculation生成側でGraph、Root Program、Topology、閾値を新規構築していた。
-- 閾値生成はRootごとに最大63回DAGを走査し、cold pathをメインスレッドへ移していた。
-- 同一slotの代替候補をすべて合計した上界を、実際のwide判定として扱っていた。
-- 旧Capture経路を無条件wideとして扱い、従来の意味を変えていた。
-- 世代更新後も旧閾値判定を再利用でき、stale proofを新世代へ移せた。
+負荷源は主に次の処理である。
 
-## 最終修正
+- 注文ごとの再帰Tree構築
+- 同じ共有中間素材が別経路に現れた場合の再訪
+- `canEmitFor`、`getCraftingFor`、fuzzy候補、返却物、`IInput.isValid`の反復
+- 不足計算時の通常計画とsimulation計画の再走査
+- 同一Rootを再注文した場合の構造解析のやり直し
 
-### Capture境界
+したがって、注文量だけを短絡する処理ではなく、到達した固有レシピ数に比例する
+世代付きProgramを再利用することが修正境界になる。
 
-`Ae2CompiledCraftingGraphCache.currentSnapshot`は、現在世代の既存Snapshotだけを返す。
-Graph、Root Program、Topologyを新規構築しない。
+## 実装
 
-Captureは次の三状態を持つ。
+### Root到達範囲のコンパイル
 
-- `UNASSESSED`: cold cacheまたは未証明。exact在庫は持たず、非同期側で構造を判定する。
-- `PROVEN_LONG_SAFE`: 同一世代のcached safety certificateが成立し、exact在庫を持たない。
-- `EXACT_AVAILABLE`: wideが正確に確定した後、server executor上で取得したexact在庫を持つ。
+`Ae2CompiledCraftingGraphCache`は注文Rootから到達するキーだけをBFSで収集する。
+ネットワーク上の無関係なPatternは走査しない。Snapshotは次のキーで保持する。
 
-`CraftingCalculation`生成時は既存cacheを参照するだけで、Graph、Root Program、Topology、
-exact在庫のいずれも新規構築しない。cold通常注文は非同期側で一度だけ安全証明を作り、
-wideでなければexact在庫を走査せずAE2標準計画へ戻る。
+- `ICraftingService`の同一性
+- Dimension
+- Root `AEKey`
+- Provider Pattern世代
+- recipe世代
 
-wideが確定した注文だけ、AE2計算Futureのworkerからserver executorへexact取得を委譲する。
-計画後の一致再検証に使うexact在庫もserver executorで再取得し、計算workerから
-mounted storageを直接走査しない。往復後にはPattern/recipe世代も再確認する。
-AE2本体は`CraftingCalculation`を生成した後に専用計算executorへsubmitしており、
-ACO、AQE、InsaneAEの確認済み利用箇所はFutureをtick間でpollするため、server threadを
-同期`get()`で塞ぐ経路にはならない。
+同一世代・同一Rootの二回目以降は、コンパイル済みSnapshotと配列Programを再利用する。
+Root cacheはDimensionごとに4,096件、到達Patternは一Rootあたり1,048,576件を上限とする。
 
-### wide判定
+### 採用できる経路
 
-`LongSafetyCertificate`はwideを確定しない。
-現在注文を一巡して代替候補をすべて含む保守的上界がlongに収まる場合だけ、安全と証明する。
-証明済みの最大注文量以下は同じ世代中O(1)で再利用する。
+既定の`enableStrictDeterministicLongPlanner=true`では、次をすべて証明した経路だけを置換する。
 
-安全を証明できない注文は、従来の`program.planBig`による正確なpreflightへ進む。
-このため保守的上界のfalse positiveは性能だけに影響し、結果や診断をwideへ変えない。
+- 各出力のAE2登録Producerが一つ
+- 各入力slotの候補が一つ
+- 出力が一種類で正数
+- 入力係数と出力係数が正数かつlong演算可能
+- 返却物、触媒返却、副産物がない
+- 循環がない
+- AE2本体所有の静的Patternである
+- Emitter状態がコンパイル時と計画完了時で一致する
+- live `IPatternDetails`とCompiled表現が完全一致する
+- Provider Pattern世代、recipe世代、参照在庫が計画完了時まで一致する
 
-### 世代変更
+複数Producer、タグ候補、動的Provider、外部Pattern実装、返却物、副産物、循環などは、
+在庫を変更する前にACO計画を辞退し、AE2標準Plannerへ渡す。
 
-`UNASSESSED`または`EXACT_AVAILABLE`だけ、一度だけ最新Pattern/recipe世代へ再評価できる。
-`PROVEN_LONG_SAFE`は旧証明を新世代へ移さず、ACO結果を採用せずAE2へ戻る。
-Graph、Topology、証明器は世代付きSnapshotに所属し、新世代へコピーしない。
+### 数式Planner
 
-### Shadow Mode
+証明済みProgramは親から子へのトポロジカル順で一巡する。
 
-Shadow計算は次のどちらかに該当する場合だけ有効になる。
+```text
+demand[root] = requested
 
-- 実験的な通常long置換が有効
-- wide計画へShadow資格を要求する設定が有効
+for each reachable key once:
+  used = min(demand, inventory)
+  deficit = demand - used
+  executions = ceilDiv(deficit, outputPerPattern)
+  demand[input] += executions * inputPerPattern
+```
 
-採用先が無い既定構成では通常注文へShadow計算を重ねない。
+共有中間素材の需要は、そのノードを処理する前に全親から集約される。
+通常量は`long`配列を使い、検査済み演算がoverflowした注文だけ既存BigInteger経路へ昇格する。
+
+### AE2時間分割
+
+Root探索、Pattern変換、Fingerprint、SCC解析、配列Program生成、live証明、計画本体は、
+すべて`CraftingCalculation.handlePausing()`へチェックポイントを返す。
+ACOのcold compileがserver tickを独占せず、AE2自身の計算時間枠とキャンセル契約を維持する。
+
+### AE2標準経路のメモ化
+
+高速経路を使えない注文でも、一つの`CraftingCalculation`内に限り次を再利用する。
+
+- `canEmitFor`
+- `getCraftingFor`
+- fuzzy craftable候補
+- 返却物
+- AE2本体Patternの`IInput.isValid`
+
+Provider Pattern世代またはrecipe世代が変わった時点でMemoは利用しない。
+ThreadLocalはAE2が`finally`から呼ぶ`finish()`で破棄し、例外終了時も残さない。
+
+### 完成済み計画Cacheの失効
+
+同一要求Cacheのキーへ在庫世代、Provider Pattern世代、recipe世代を含める。
+ME在庫の成立した`insert/extract`とAE2が検出した外部mount更新は世代だけを進める。
+搬入出、Watcher通知、共有在庫一覧はRedirectしない。
 
 ## 維持する不変条件
 
 - BigInteger正本をlongへ切り捨てない。
-- 保守的上界だけでwide計画と診断しない。
-- cold pathのGraph/Topology構築をCraftingCalculation生成側へ移さない。
-- Provider/recipe世代が変わった安全証明を再利用しない。
-- 通常long置換が無効なwarm注文はAE2標準計画へ戻す。
-- AE2の在庫、CPU job、GUI、搬入出、クラフト可否をACO側で変更しない。
-- AQE、InsaneAE、AAC、NeoECOの実行ロジックへ介入しない。
+- 複数候補の選択順をACOで近似しない。
+- 不足一覧、使用在庫、Pattern回数を推測しない。
+- cold compileをmain threadへ移さない。
+- stale Snapshotを新世代へ再利用しない。
+- 外部BigInteger consumerの登録だけで通常Plannerを有効化しない。
+- CPU、実行処理、在庫、GUI、搬入出の所有権を取得しない。
 
 ## 回帰試験
 
-- 通常多段レシピのlong safety certificate
-- long注文ではdeferred exact取得を開始しないCapture policy
-- Long.MAX_VALUE境界
-- 合流DAG
-- 非先頭の代替候補を含む保守的上界
-- 保守的上界がwideでも、正確な実選択がlongならwideへ変えない
-- 固定seedで200個の多段DAGを生成し、安全証明のfalse negativeが無いこと
-- exactを持たない証明を新世代へ再利用しないこと
-- Shadow計算の採用先が無い場合に無効となること
-- Issue回帰マニフェストの同期
+- 固定seedの非循環グラフでlong Planner、BigInteger Planner、配列Programの結果一致
+- 共有中間素材の需要集約
+- 全終端不足の収集
+- 1個注文と`Long.MAX_VALUE`注文の訪問ノード数一致
+- 1,000段・16,000桁注文が固有ノード数に比例すること
+- cold Graph/Programコンパイルが時間予算へチェックポイントを返すこと
+- BigInteger連携だけでは通常計画を置換しないIssue #109境界
+- 新規Mixinが必須注入数を持ち、搬入出をRedirectしないこと
+- 全クラス責務台帳とIssue回帰マニフェストの同期
 
-## 性能への影響
+## 性能特性
 
-- cold long root: exact captureを行わず、現在注文の安全証明を非同期側で一巡する。
-- cold wide root: 正確なwide判定後にだけ、server threadで計画前後のexact在庫を取得する。
-- warm long-safe root: O(1)のcache参照だけを行い、全mount exact走査とBigInteger preflightを省略する。
-- 世代変更: Snapshotごと証明を破棄し、次のcold rootで再構築する。
-- 通常AE2結果を守るため、wall-clock時間による打ち切りや無条件retryは追加しない。
+- cold単一路線: Root到達範囲を線形コンパイルし、AE2の時間枠で分割する。
+- warm単一路線: 構造解析を再利用し、参照キーと固有ノードを一巡する。
+- 共有DAG: 同じ中間素材を一度だけ処理する。
+- 曖昧なレシピ: 入口で早期辞退し、ACO側の深い探索を重ねない。
+- Patternまたはrecipe変更後: 旧Snapshotを使わず、次の注文で対象Rootだけ再構築する。
+
+改善幅はクラフトツリー形状とcacheの暖機状態に依存する。単純な短い直列レシピでは差が小さく、
+共有中間素材が多い巨大DAGと同一Rootの反復注文ほど効果が大きい。
 
 ## 検証
 
-- Forge 1.20.1: 全JUnit成功
-- NeoForge 1.21.1: 全JUnit成功
-- 対象境界テスト: 両版成功
-- `git diff --check`: 両版成功
-- 専用GameTestタスク: 両版のGradleプロジェクトに未定義
-- Minecraft起動試験: 対象外
-
-## 残存リスク
-
-今回の修正は通常注文に対するCapture時のexact全走査、毎回のBigInteger preflight、
-unused Shadow計算を対象とする。wide注文では正確性のためserver thread上の全mount走査を
-一度行うため、その費用自体は残る。
-
-Authoritative plan採用前のlive inventory/topology再検証には既存のGrid参照が残る。
-また、Futureをserver thread上で同期的に待つ外部アドオンはAE2の非同期契約にも反するため、
-今回確認した利用箇所以外がその呼出し方をする場合は別途adapterが必要になる。
+- Forge 1.20.1: JUnit 456件成功、失敗0件、エラー0件、skip 2件
+- NeoForge 1.21.1: JUnit 472件成功、失敗0件、エラー0件
+- `clean build`: 両版で成功
+- `git diff --check`: 両版で実施
+- Minecraft起動試験: 指示により実施しない

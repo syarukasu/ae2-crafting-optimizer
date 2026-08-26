@@ -51,6 +51,7 @@ public final class ACOConfig {
     private static final ModConfigSpec.BooleanValue CACHE_SUCCESSFUL_COMPLETED_CRAFTING_PLANS;
     private static final ModConfigSpec.IntValue COMPLETED_CRAFTING_PLAN_CACHE_SIZE;
     private static final ModConfigSpec.IntValue COMPLETED_CRAFTING_PLAN_CACHE_TTL_TICKS;
+    private static final ModConfigSpec.BooleanValue ENABLE_STRICT_DETERMINISTIC_LONG_PLANNER;
     private static final ModConfigSpec.BooleanValue FAST_FAIL_MISSING_CRAFTS;
     private static final ModConfigSpec.LongValue MINIMUM_REQUESTED_AMOUNT_FOR_FAST_FAIL;
     private static final ModConfigSpec.IntValue DETERMINISTIC_PREFLIGHT_MAX_DEPTH;
@@ -324,6 +325,11 @@ public final class ACOConfig {
         COMPLETED_CRAFTING_PLAN_CACHE_TTL_TICKS = builder
                 .comment("Time-to-live for completed crafting plan cache entries, in server ticks. Storage or crafting topology invalidation clears this earlier.")
                 .defineInRange("completedCraftingPlanCacheTtlTicks", 40, 1, 20 * 60);
+        ENABLE_STRICT_DETERMINISTIC_LONG_PLANNER = builder
+                .comment(
+                        "Use ACO's graph-bounded planner for ordinary long requests only when the reachable recipe tree is fully deterministic and the live AE2 Pattern API proves an identical result.",
+                        "Multiple producers, cycles, dynamic providers, container returns, secondary outputs, fuzzy ambiguity, stale generations, and unsupported add-on patterns remain on AE2's original planner.")
+                .define("enableStrictDeterministicLongPlanner", true);
         FAST_FAIL_MISSING_CRAFTS = builder
                 .comment(
                         "Experimental opt-in: for REPORT_MISSING_ITEMS requests, return an immediate missing-only plan when a strict deterministic preflight proves the craft is impossible.",
@@ -1142,6 +1148,12 @@ public final class ACOConfig {
         return Math.min(20 * 60, Math.max(1, COMPLETED_CRAFTING_PLAN_CACHE_TTL_TICKS.get()));
     }
 
+    public static boolean enableStrictDeterministicLongPlanner() {
+        return OptimizationFeatureGate.allows(
+                OptimizationFeature.AUTHORITATIVE_COMPILED_PLANNER,
+                ENABLE_STRICT_DETERMINISTIC_LONG_PLANNER.get());
+    }
+
     public static boolean fastFailMissingCrafts() {
         return OptimizationFeatureGate.allows(
                 OptimizationFeature.DETERMINISTIC_MISSING_FAST_FAIL,
@@ -1792,9 +1804,7 @@ public final class ACOConfig {
         return shouldEnableCraftingEngineShadowMode(
                 enableCompiledCraftingGraph(),
                 ENABLE_CRAFTING_ENGINE_SHADOW_MODE.get(),
-                enableExperimentalCraftingEngine()
-                        && (enableAuthoritativeCompiledPlanner()
-                                || enableProofQualifiedLongPlans()),
+                enableExperimentalCraftingEngine() && enableAuthoritativeCompiledPlanner(),
                 requireAqeBigPlanShadowQualification());
     }
 
@@ -1831,7 +1841,9 @@ public final class ACOConfig {
         return OptimizationFeatureGate.allows(
                         OptimizationFeature.COMPILED_CRAFTING_GRAPH,
                         ENABLE_COMPILED_CRAFTING_GRAPH.get())
-                && (enableExperimentalCraftingEngine() || enableBigCraftingProfile());
+                && (enableStrictDeterministicLongPlanner()
+                        || enableExperimentalCraftingEngine()
+                        || enableBigCraftingProfile());
     }
 
     public static boolean enableAuthoritativeCompiledPlanner() {

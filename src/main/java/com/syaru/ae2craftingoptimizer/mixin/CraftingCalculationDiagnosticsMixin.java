@@ -13,6 +13,8 @@ import com.syaru.ae2craftingoptimizer.optimization.CraftingFallbackDiagnostics;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
 import com.syaru.ae2craftingoptimizer.engine.Ae2AuthoritativeCraftingPlanner;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
+import com.syaru.ae2craftingoptimizer.engine.PlanningCancelledException;
+import com.syaru.ae2craftingoptimizer.engine.PlanningGuard;
 import appeng.crafting.inv.NetworkCraftingSimulationState;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Final;
@@ -26,6 +28,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = CraftingCalculation.class, remap = false)
 public abstract class CraftingCalculationDiagnosticsMixin {
+    @Shadow
+    abstract void handlePausing() throws InterruptedException;
+
     @Shadow
     @Final
     private AEKey output;
@@ -97,12 +102,27 @@ public abstract class CraftingCalculationDiagnosticsMixin {
     @Inject(method = "computePlan", at = @At("HEAD"), cancellable = true)
     private void aco$tryAuthoritativePlan(CallbackInfoReturnable<ICraftingPlan> cir) {
         ICraftingPlan accelerated = Ae2AuthoritativeCraftingPlanner.tryPlan(
-                aco$authoritativeCapture, output, requestedAmount, strategy);
-        // Shadow認定済みProgramが結果を返した場合だけAE2計画本体を置き換える。
+                aco$authoritativeCapture,
+                output,
+                requestedAmount,
+                strategy,
+                this::aco$honorAe2PlanningBudget);
+        // 同一結果を厳密証明できたProgramが結果を返した場合だけAE2計画本体を置き換える。
         if (accelerated != null) {
             aco$usedAuthoritativePlan = true;
             aco$authoritativePlan = accelerated;
             cir.setReturnValue(accelerated);
+        }
+    }
+
+    @Unique
+    private void aco$honorAe2PlanningBudget(int completedWorkUnits) {
+        try {
+            // ACOの探索もAE2自身の計算時間枠へ参加させ、server tickの待機契約を維持する。
+            handlePausing();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new PlanningCancelledException(completedWorkUnits);
         }
     }
 

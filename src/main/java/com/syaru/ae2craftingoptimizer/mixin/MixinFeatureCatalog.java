@@ -15,6 +15,7 @@ public final class MixinFeatureCatalog {
             entry("CraftingBlockEntityTransactionAccessMixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
             entry("CraftingCalculationCheckedMathMixin", OptimizationFeature.CHECKED_CRAFTING_ARITHMETIC),
             entry("CraftingCalculationDiagnosticsMixin", OptimizationFeature.CRAFTING_QUERY_MEMOIZATION),
+            entry("CraftingCpuHelperCalculationMemoMixin", OptimizationFeature.CRAFTING_QUERY_MEMOIZATION),
             entry("CraftingCpuClusterTransactionAccessMixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
             entry("CraftingCpuLogicBatchSourceReceiptMixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
             entry("CraftingCpuLogicTransactionalBatchV2Mixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
@@ -29,6 +30,7 @@ public final class MixinFeatureCatalog {
             entry("ListCraftingInventoryExactCountsMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("MEStorageMenuDisplaySaturationMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("NetworkCraftingSimulationStateAccessor", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
+            entry("NetworkStorageCraftingPlanGenerationMixin", OptimizationFeature.COMPLETED_PLAN_CACHE),
             entry("NetworkStorageMountsAccessor", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("PatternProviderLogicNativeBatchReceiptMixin", OptimizationFeature.NATIVE_MACHINE_BATCH),
             entry("TaskProgressTransactionAccessMixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
@@ -50,6 +52,7 @@ public final class MixinFeatureCatalog {
             entry("MultiCraftingTrackerCraftRequestThrottleMixin", OptimizationFeature.EXPORT_CRAFT_REQUEST_BACKOFF),
             entry("PatternProviderLogicIntentCaptureMixin", OptimizationFeature.RECIPE_INTENT_BRIDGE),
             entry("P2PServiceTopologyDeduplicationMixin", OptimizationFeature.P2P_TOPOLOGY_DEDUPLICATION),
+            entry("StorageServiceCraftingPlanGenerationMixin", OptimizationFeature.COMPLETED_PLAN_CACHE),
             entry("StorageImportScanOrderMixin", OptimizationFeature.IMPORT_LAST_SLOT_CACHE),
             entry("Ae2ScrollbarReleaseSafetyMixin", OptimizationFeature.SCROLLBAR_RELEASE_SAFETY),
             entry("ClientRepoUpdateCoalescingMixin", OptimizationFeature.TERMINAL_ASYNC_SEARCH));

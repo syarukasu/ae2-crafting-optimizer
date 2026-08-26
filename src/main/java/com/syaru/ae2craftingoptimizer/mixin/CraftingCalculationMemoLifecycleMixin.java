@@ -6,6 +6,7 @@ import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationMemo;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = CraftingCalculation.class, remap = false)
@@ -15,8 +16,9 @@ public abstract class CraftingCalculationMemoLifecycleMixin {
         CraftingCalculationMemo.begin(this);
     }
 
-    @Inject(method = "run", at = @At("RETURN"))
-    private void aco$endCalculationMemo(CallbackInfoReturnable<ICraftingPlan> cir) {
+    @Inject(method = "finish", at = @At("HEAD"), require = 1)
+    private void aco$endCalculationMemo(CallbackInfo ci) {
+        // AE2はfinishをfinallyから呼ぶため、例外終了でもThreadLocalを確実に破棄できる。
         CraftingCalculationMemo.end(this);
     }
 }

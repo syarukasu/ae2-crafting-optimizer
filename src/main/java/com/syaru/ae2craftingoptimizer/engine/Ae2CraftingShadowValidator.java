@@ -49,7 +49,7 @@ public final class Ae2CraftingShadowValidator {
         }
         try {
             Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot =
-                    Ae2CompiledCraftingGraphCache.getOrCompile(grid, level);
+                    Ae2CompiledCraftingGraphCache.getOrCompileRoot(grid, level, output);
             var optionalProgram = graphSnapshot.rootProgram(output);
             // 数式化できない経路はShadow比較対象にもせず、AE2だけを実行する。
             if (optionalProgram.isEmpty()) {
