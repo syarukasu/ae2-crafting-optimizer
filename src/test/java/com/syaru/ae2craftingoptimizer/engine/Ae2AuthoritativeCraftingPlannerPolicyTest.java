@@ -100,6 +100,27 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
     }
 
     @Test
+    void doesNotRebindALongSafetyCertificateToANewGeneration() {
+        assertEquals(
+                Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.FALLBACK_TO_AE2,
+                Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
+                        true,
+                        false,
+                        false,
+                        false));
+    }
+
+    @Test
+    void capturesExactInventoryOnlyAfterWideArithmeticIsConfirmed() {
+        var unassessed = Ae2AuthoritativeCraftingPlanner.ArithmeticCaptureMode.UNASSESSED;
+        var exact = Ae2AuthoritativeCraftingPlanner.ArithmeticCaptureMode.EXACT_AVAILABLE;
+
+        assertFalse(unassessed.requiresDeferredExactInventory(false));
+        assertTrue(unassessed.requiresDeferredExactInventory(true));
+        assertFalse(exact.requiresDeferredExactInventory(true));
+    }
+
+    @Test
     void fallsBackToAe2AfterARepeatedOrdinaryStaleSnapshot() {
         assertEquals(
                 Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.FALLBACK_TO_AE2,

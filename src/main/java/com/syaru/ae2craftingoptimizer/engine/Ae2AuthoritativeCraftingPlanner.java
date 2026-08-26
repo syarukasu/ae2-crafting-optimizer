@@ -21,8 +21,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
@@ -55,14 +58,124 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 || networkSnapshot == null) {
             return null;
         }
+        /*
+         * 出力キーを受け取らない互換入口でも、CraftingCalculation生成側から
+         * 全mountを走査しない。wide判定とexact取得はtryPlan側で行う。
+         */
         return new Capture(
                 level,
                 grid,
                 source,
                 networkSnapshot,
-                PlanningExactInventorySnapshot.capture(grid),
+                null,
+                ArithmeticCaptureMode.UNASSESSED,
                 ProviderPatternGenerationTracker.generation(),
                 RecipeGenerationTracker.generation());
+    }
+
+    /**
+     * CraftingCalculationの生成時にだけ使うCapture。
+     * 生成側ではexact在庫を走査せず、warm cacheの証明だけを参照する。
+     * cold pathは非同期Plannerで構造を判定し、wide確定時だけexact在庫を取得する。
+     */
+    @Nullable
+    public static Capture capture(
+            Level level,
+            IGrid grid,
+            IActionSource source,
+            KeyCounter networkSnapshot,
+            @Nullable AEKey output,
+            long requestedAmount) {
+        // 高速経路OFF、必要参照欠落、不正注文はAE2標準計算だけを使う。
+        if (!planningEnabled()
+                || level == null
+                || grid == null
+                || source == null
+                || networkSnapshot == null
+                || output == null
+                || requestedAmount <= 0L) {
+            return null;
+        }
+
+        long patternGeneration = ProviderPatternGenerationTracker.generation();
+        long recipeGeneration = RecipeGenerationTracker.generation();
+        try {
+            boolean longSafe = hasCachedLongSafetyCertificate(
+                    level,
+                    grid,
+                    output,
+                    requestedAmount,
+                    patternGeneration,
+                    recipeGeneration);
+            // 証明の取得中に世代が変わった場合は、その証明を新世代へ持ち越さない。
+            if (longSafe
+                    && patternGeneration == ProviderPatternGenerationTracker.generation()
+                    && recipeGeneration == RecipeGenerationTracker.generation()) {
+                return new Capture(
+                        level,
+                        grid,
+                        source,
+                        networkSnapshot,
+                        null,
+                        ArithmeticCaptureMode.PROVEN_LONG_SAFE,
+                        patternGeneration,
+                        recipeGeneration);
+            }
+        } catch (RuntimeException failure) {
+            BigIntegerPlanDiagnostics.record(
+                    BigIntegerPlanDeclineReason.INTERNAL_FAILURE,
+                    output.getId().toString(),
+                    BigInteger.valueOf(requestedAmount),
+                    patternGeneration,
+                    recipeGeneration,
+                    "cached long-safety lookup failed: " + failure.getClass().getName());
+        }
+        // cold pathと証明不能な注文は在庫を読まず、非同期側の構造判定へ渡す。
+        return new Capture(
+                level,
+                grid,
+                source,
+                networkSnapshot,
+                null,
+                ArithmeticCaptureMode.UNASSESSED,
+                ProviderPatternGenerationTracker.generation(),
+                RecipeGenerationTracker.generation());
+    }
+
+    private static boolean hasCachedLongSafetyCertificate(
+            Level level,
+            IGrid grid,
+            AEKey output,
+            long requestedAmount,
+            long patternGeneration,
+            long recipeGeneration) {
+        Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot =
+                Ae2CompiledCraftingGraphCache.currentSnapshot(
+                                grid,
+                                level,
+                                patternGeneration,
+                                recipeGeneration)
+                        .orElse(null);
+        // cold cacheではメインスレッドからグラフを構築せず、非同期側の構造判定へ渡す。
+        if (graphSnapshot == null) {
+            return false;
+        }
+        CompiledRootProgram.Outcome<AEKey> outcome =
+                graphSnapshot.cachedRootProgramOutcome(output).orElse(null);
+        // Root Program未構築または構造的Fallback済みなら、安全証明を新規計算しない。
+        if (outcome == null || outcome.program().isEmpty()) {
+            return false;
+        }
+        Ae2StrictCraftingTopology topology =
+                graphSnapshot.cachedStrictTopology(output).orElse(null);
+        // Topology未検証時も、Pattern API走査をCraftingCalculation生成側で開始しない。
+        if (topology == null) {
+            return false;
+        }
+        return topology.cachedLongSafetyCertificate(
+                        BigInteger.valueOf(requestedAmount),
+                        ACOConfig.getBigIntegerMaximumBits())
+                .orElse(false);
     }
 
     @Nullable
@@ -116,6 +229,13 @@ public final class Ae2AuthoritativeCraftingPlanner {
             throw new PlanningCancelledException(0);
         }
 
+        boolean longSafetyCertified =
+                capture.arithmeticCaptureMode() == ArithmeticCaptureMode.PROVEN_LONG_SAFE;
+        // 通常long計画を置換しない既定構成では、warm cacheの安全証明だけで直ちにAE2へ戻す。
+        if (longSafetyCertified && !normalLongReplacementEnabled()) {
+            return null;
+        }
+
         boolean wideArithmeticRequired = priorAttemptRequiredWideArithmetic;
         try {
             capture.requireCurrentGenerations();
@@ -164,11 +284,14 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         BigIntegerPlanDeclineReason.UNSUPPORTED_TOPOLOGY,
                         "strict topology was not proven");
             }
-            wideArithmeticRequired = wideArithmeticRequired
-                    || topology.mightRequireWideArithmetic(
-                            output,
-                            BigInteger.valueOf(requestedAmount),
-                            ACOConfig.getBigIntegerMaximumBits());
+            // cold pathまたは保守的上界で未確定の注文だけ、正確なBigInteger preflightを行う。
+            if (!longSafetyCertified) {
+                wideArithmeticRequired = wideArithmeticRequired
+                        || topology.mightRequireWideArithmetic(
+                                output,
+                                BigInteger.valueOf(requestedAmount),
+                                ACOConfig.getBigIntegerMaximumBits());
+            }
             boolean shadowQualified = CompiledRootQualificationRegistry.isQualified(
                     program,
                     ACOConfig.getAuthoritativeMinimumShadowMatches());
@@ -194,13 +317,25 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 return null;
             }
 
+            // 正確にwideと判明した注文だけ、サーバースレッドでexact在庫を固定する。
+            if (capture.arithmeticCaptureMode()
+                    .requiresDeferredExactInventory(wideArithmeticRequired)) {
+                capture = capture.withExactInventorySnapshot(
+                        captureExactInventorySnapshot(capture));
+            }
+
             BigKeyCounterSidecars.Snapshot inventoryMetadata =
-                    BigKeyCounterSidecars.snapshot(capture.exactInventorySnapshot()).orElse(null);
+                    capture.exactInventorySnapshot() == null
+                            ? null
+                            : BigKeyCounterSidecars.snapshot(
+                                    capture.exactInventorySnapshot()).orElse(null);
             CompiledRootProgram.BigInventorySnapshot<AEKey> exactPlanningInventory =
-                    Ae2ReferencedInventory.captureExactNetworkSnapshot(
-                            program,
-                            capture.exactInventorySnapshot(),
-                            output);
+                    capture.exactInventorySnapshot() == null
+                            ? null
+                            : Ae2ReferencedInventory.captureExactNetworkSnapshot(
+                                    program,
+                                    capture.exactInventorySnapshot(),
+                                    output);
             CompiledRootProgram.InventorySnapshot<AEKey> planningInventory = null;
             // 参照キーを個別に証明できない場合だけ、通常AE2のlong Snapshotへ戻す。
             if (exactPlanningInventory == null) {
@@ -219,10 +354,11 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         capture.inventorySnapshot(),
                         output);
             }
+            Capture guardCapture = capture;
             PlanningGuard guard = expanded -> {
                 // 64ノードごとに世代変更とスレッド割込みを確認し、古い結果を早めに破棄する。
                 if ((expanded & GENERATION_CHECK_INTERVAL_MASK) == 0) {
-                    capture.requireCurrentGenerations();
+                    guardCapture.requireCurrentGenerations();
                     // 計算キャンセル後は残りノードを処理しない。
                     if (Thread.currentThread().isInterrupted()) {
                         throw new PlanningCancelledException(expanded);
@@ -245,6 +381,16 @@ public final class Ae2AuthoritativeCraftingPlanner {
                             BigInteger.valueOf(requestedAmount),
                             planningInventory,
                             guard);
+            // 実際にlong計算からBigへ昇格した場合、exact在庫なしの結果は正本にならない。
+            if (promoted.usesBigInteger() && exactPlanningInventory == null) {
+                return declineOrThrow(
+                        capture,
+                        output,
+                        requestedAmount,
+                        true,
+                        BigIntegerPlanDeclineReason.INCOMPLETE_INVENTORY,
+                        "long plan promoted without an exact inventory snapshot");
+            }
             // Root Program経路以外の結果はAuthoritativeとして採用しない。
             if (!promoted.provenEquivalent()) {
                 return declineOrThrow(
@@ -365,6 +511,13 @@ public final class Ae2AuthoritativeCraftingPlanner {
             }
 
             capture.requireCurrentGenerations();
+            KeyCounter currentExactInventory = null;
+            // wide計画の再検証も全mountへ触れるため、計算workerから直接走査しない。
+            if (exactPlanningInventory != null) {
+                currentExactInventory = captureExactInventorySnapshot(capture);
+                // server executorとの往復中にPattern世代が変わった結果は採用しない。
+                capture.requireCurrentGenerations();
+            }
             // 計算で参照したキーだけでも在庫が変わっていれば、古い結果を返さない。
             boolean inventoryStillMatches = exactPlanningInventory != null
                     ? Ae2ReferencedInventory.matchesLive(
@@ -372,7 +525,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                             exactPlanningInventory,
                             capture.grid(),
                             capture.source(),
-                            output)
+                            output,
+                            currentExactInventory)
                     : Ae2ReferencedInventory.matchesLive(
                             program,
                             planningInventory,
@@ -411,7 +565,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
             StaleSnapshotAction action = staleSnapshotAction(
                     staleSnapshotRetryAvailable,
                     Thread.currentThread().isInterrupted(),
-                    wideArithmeticRequired);
+                    wideArithmeticRequired,
+                    capture.canRefreshGenerations());
             // AE2が計算をキャンセル済みなら、新しいSnapshotでも計算を再開しない。
             if (action == StaleSnapshotAction.CANCEL) {
                 recordDecline(
@@ -430,7 +585,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         requestedAmount,
                         strategy,
                         false,
-                        wideArithmeticRequired);
+                        false);
             }
             recordDecline(
                     capture,
@@ -861,12 +1016,24 @@ public final class Ae2AuthoritativeCraftingPlanner {
             boolean retryAvailable,
             boolean interrupted,
             boolean wideArithmeticRequired) {
+        return staleSnapshotAction(
+                retryAvailable,
+                interrupted,
+                wideArithmeticRequired,
+                true);
+    }
+
+    static StaleSnapshotAction staleSnapshotAction(
+            boolean retryAvailable,
+            boolean interrupted,
+            boolean wideArithmeticRequired,
+            boolean generationRefreshAllowed) {
         // AE2のキャンセル要求は再試行や標準計算より優先する。
         if (interrupted) {
             return StaleSnapshotAction.CANCEL;
         }
-        // 一回目の競合は最新世代で取り直し、開始直後の通知競合を吸収する。
-        if (retryAvailable) {
+        // exact在庫を保持する一回目の競合だけ、最新Pattern世代へ結び直して再計算する。
+        if (retryAvailable && generationRefreshAllowed) {
             return StaleSnapshotAction.RETRY;
         }
         // wideと判明済みの計画をoverflowするAE2標準long計算へ落とさない。
@@ -957,6 +1124,39 @@ public final class Ae2AuthoritativeCraftingPlanner {
         }
     }
 
+    private static KeyCounter captureExactInventorySnapshot(Capture capture) {
+        MinecraftServer server = capture.level().getServer();
+        // サーバーを持たないLevelではexact正本を安全なスレッドへ委譲できないため失敗させる。
+        if (server == null) {
+            throw new IllegalStateException("exact inventory capture requires a server level");
+        }
+        // 既にサーバースレッド上ならFutureを作らず、その場で一度だけ取得する。
+        if (server.isSameThread()) {
+            return PlanningExactInventorySnapshot.capture(capture.grid());
+        }
+        CompletableFuture<KeyCounter> pending = CompletableFuture.supplyAsync(
+                () -> PlanningExactInventorySnapshot.capture(capture.grid()),
+                server);
+        try {
+            return pending.get();
+        } catch (InterruptedException interrupted) {
+            pending.cancel(false);
+            Thread.currentThread().interrupt();
+            throw new PlanningCancelledException(0);
+        } catch (ExecutionException failedCapture) {
+            Throwable cause = failedCapture.getCause();
+            // RuntimeExceptionは元の型と診断を維持し、別理由へ読み替えない。
+            if (cause instanceof RuntimeException runtimeFailure) {
+                throw runtimeFailure;
+            }
+            // VM Errorもラップして継続せず、元の致命的状態をそのまま伝播する。
+            if (cause instanceof Error fatalFailure) {
+                throw fatalFailure;
+            }
+            throw new IllegalStateException("exact inventory capture failed", cause);
+        }
+    }
+
     private static KeyCounter keyCounter(Map<AEKey, Long> counts) {
         KeyCounter result = new KeyCounter();
         counts.forEach((key, amount) -> {
@@ -969,20 +1169,74 @@ public final class Ae2AuthoritativeCraftingPlanner {
         return result;
     }
 
+    public enum ArithmeticCaptureMode {
+        EXACT_AVAILABLE,
+        UNASSESSED,
+        PROVEN_LONG_SAFE;
+
+        boolean requiresDeferredExactInventory(boolean wideArithmeticRequired) {
+            // long範囲の注文では、未評価でも全mountのexact在庫走査を開始しない。
+            if (!wideArithmeticRequired) {
+                return false;
+            }
+            // exact正本を既に持つCaptureだけは、同じ在庫を二重取得しない。
+            return this != EXACT_AVAILABLE;
+        }
+    }
+
     public record Capture(
             Level level,
             IGrid grid,
             IActionSource source,
             KeyCounter inventorySnapshot,
-            KeyCounter exactInventorySnapshot,
+            @Nullable KeyCounter exactInventorySnapshot,
+            ArithmeticCaptureMode arithmeticCaptureMode,
             long patternGeneration,
             long recipeGeneration) {
+        /** 1.5.29以前の公開コンストラクタを、正確判定が必要なCaptureとして維持する。 */
+        public Capture(
+                Level level,
+                IGrid grid,
+                IActionSource source,
+                KeyCounter inventorySnapshot,
+                KeyCounter exactInventorySnapshot,
+                long patternGeneration,
+                long recipeGeneration) {
+            this(
+                    level,
+                    grid,
+                    source,
+                    inventorySnapshot,
+                    exactInventorySnapshot,
+                    ArithmeticCaptureMode.EXACT_AVAILABLE,
+                    patternGeneration,
+                    recipeGeneration);
+        }
+
         public Capture {
             Objects.requireNonNull(level, "level");
             Objects.requireNonNull(grid, "grid");
             Objects.requireNonNull(source, "source");
             Objects.requireNonNull(inventorySnapshot, "inventorySnapshot");
-            Objects.requireNonNull(exactInventorySnapshot, "exactInventorySnapshot");
+            Objects.requireNonNull(arithmeticCaptureMode, "arithmeticCaptureMode");
+            // EXACT_AVAILABLEは、後続の正確なwide計画に使うexact在庫を必須とする。
+            if (arithmeticCaptureMode == ArithmeticCaptureMode.EXACT_AVAILABLE
+                    && exactInventorySnapshot == null) {
+                throw new IllegalArgumentException(
+                        "exact capture requires an exact inventory snapshot");
+            }
+            // long安全証明済みCaptureへexact正本を二重保持せず、状態の意味を一意にする。
+            if (arithmeticCaptureMode == ArithmeticCaptureMode.PROVEN_LONG_SAFE
+                    && exactInventorySnapshot != null) {
+                throw new IllegalArgumentException(
+                        "proven long-safe capture must not retain an exact inventory snapshot");
+            }
+            // 未評価Captureはexact取得前の状態なので、二重管理を許可しない。
+            if (arithmeticCaptureMode == ArithmeticCaptureMode.UNASSESSED
+                    && exactInventorySnapshot != null) {
+                throw new IllegalArgumentException(
+                        "unassessed capture must not retain an exact inventory snapshot");
+            }
             // 負の世代値はSnapshot識別へ使用できないため拒否する。
             if (patternGeneration < 0L || recipeGeneration < 0L) {
                 throw new IllegalArgumentException("generation values must not be negative");
@@ -1001,14 +1255,36 @@ public final class Ae2AuthoritativeCraftingPlanner {
         }
 
         private Capture refreshGenerations() {
+            // exact正本を持たない安全証明は、新しいPattern世代へ再利用しない。
+            if (!canRefreshGenerations()) {
+                throw new IllegalStateException(
+                        "long-safety certificate cannot be rebound to a new generation");
+            }
             return new Capture(
                     level,
                     grid,
                     source,
                     inventorySnapshot,
                     exactInventorySnapshot,
+                    arithmeticCaptureMode,
                     ProviderPatternGenerationTracker.generation(),
                     RecipeGenerationTracker.generation());
+        }
+
+        private Capture withExactInventorySnapshot(KeyCounter exactSnapshot) {
+            return new Capture(
+                    level,
+                    grid,
+                    source,
+                    inventorySnapshot,
+                    Objects.requireNonNull(exactSnapshot, "exactSnapshot"),
+                    ArithmeticCaptureMode.EXACT_AVAILABLE,
+                    patternGeneration,
+                    recipeGeneration);
+        }
+
+        private boolean canRefreshGenerations() {
+            return arithmeticCaptureMode != ArithmeticCaptureMode.PROVEN_LONG_SAFE;
         }
     }
 

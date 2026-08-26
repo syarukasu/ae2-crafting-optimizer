@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
@@ -24,6 +25,7 @@ import org.jetbrains.annotations.Nullable;
 final class Ae2StrictCraftingTopology {
     private final CompiledRootProgram<AEKey> program;
     private final List<InputProof> inputProofs;
+    private volatile WideArithmeticPreflight.LongSafetyCertificate<AEKey> longSafetyCertificate;
 
     private Ae2StrictCraftingTopology(
             CompiledRootProgram<AEKey> program,
@@ -281,12 +283,57 @@ final class Ae2StrictCraftingTopology {
             AEKey root,
             BigInteger requestedAmount,
             int maximumBits) {
-        return WideArithmeticPreflight.requiresWideArithmetic(
+        WideArithmeticPreflight.LongSafetyCertificate<AEKey> certificate =
+                longSafetyCertificate(maximumBits);
+        // 上界でlong安全を証明できた注文は、正確なBigInteger計画を重ねずに終了する。
+        if (certificate.certify(requestedAmount)) {
+            return false;
+        }
+        // 保守的上界だけでwideを確定せず、従来の正確なBigInteger計画で最終判定する。
+        boolean exactWide = WideArithmeticPreflight.requiresWideArithmetic(
                 root,
                 requestedAmount,
                 program,
                 key -> key.getType().getAmountPerByte(),
                 maximumBits);
+        // 正確にlong内と確定した最大量も記録し、代替候補を持つ同一Rootの再計算を省く。
+        if (!exactWide) {
+            certificate.recordExactSafe(requestedAmount);
+        }
+        return exactWide;
+    }
+
+    Optional<Boolean> cachedLongSafetyCertificate(
+            BigInteger requestedAmount,
+            int maximumBits) {
+        WideArithmeticPreflight.LongSafetyCertificate<AEKey> cached = longSafetyCertificate;
+        // cold pathでは証明器を新規作成せず、非同期Planner側へ仕事を残す。
+        if (cached == null || cached.maximumBits() != maximumBits) {
+            return Optional.empty();
+        }
+        // 未証明の大きい注文はfalseと固定せず、exact captureを選ばせるためemptyを返す。
+        return cached.certifiesCached(requestedAmount)
+                ? Optional.of(true)
+                : Optional.empty();
+    }
+
+    private WideArithmeticPreflight.LongSafetyCertificate<AEKey> longSafetyCertificate(int maximumBits) {
+        WideArithmeticPreflight.LongSafetyCertificate<AEKey> cached = longSafetyCertificate;
+        // Config bit幅が変わった場合だけ、同じ世代の安全証明を作り直す。
+        if (cached == null || cached.maximumBits() != maximumBits) {
+            synchronized (this) {
+                cached = longSafetyCertificate;
+                // 同じTopologyを共有する非同期計算が証明器を重複作成しないよう一度だけ確定する。
+                if (cached == null || cached.maximumBits() != maximumBits) {
+                    cached = WideArithmeticPreflight.longSafetyCertificate(
+                            program,
+                            key -> key.getType().getAmountPerByte(),
+                            maximumBits);
+                    longSafetyCertificate = cached;
+                }
+            }
+        }
+        return cached;
     }
 
     private record InputProof(

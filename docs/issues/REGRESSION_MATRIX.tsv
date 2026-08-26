@@ -1,5 +1,5 @@
 # repository=https://github.com/syarukasu/ae2-crafting-optimizer
-# synchronized_through_issue=153
+# synchronized_through_issue=156
 # runtime_status: NOT_REQUIRED, VERIFIED, PENDING
 issue	kind	loaders	required	automated_evidence	runtime_status	runtime_evidence	summary
 1	COMPATIBILITY	NEOFORGE_1_21_1	STATIC	.github/workflows/build.yml	NOT_REQUIRED	-	NeoForge 1.21.1 port
@@ -55,3 +55,4 @@ issue	kind	loaders	required	automated_evidence	runtime_status	runtime_evidence	s
 148	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/TerminalDisplaySnapshotProjectionTest.java;src/test/java/com/syaru/ae2craftingoptimizer/integration/Issue109MixinBoundarySourceTest.java	NOT_REQUIRED	-	Terminal display saturation without storage or interaction ownership
 151	REGRESSION	FORGE_1_20_1	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/issue125/Pr127StableBaselineSourceTest.java;src/test/java/com/syaru/ae2craftingoptimizer/issue125/Issue125RegressionSourceTest.java	NOT_REQUIRED	-	PR 127 exact physical execution baseline preserved while integrating 1.5.25 through 1.5.27
 153	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/TerminalDisplaySnapshotProjectionTest.java;src/test/java/com/syaru/ae2craftingoptimizer/integration/Issue109MixinBoundarySourceTest.java	NOT_REQUIRED	-	Storage monitor display saturation without cached inventory ownership
+156	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/WideArithmeticPreflightTest.java;src/test/java/com/syaru/ae2craftingoptimizer/engine/Ae2AuthoritativeCraftingPlannerPolicyTest.java;src/test/java/com/syaru/ae2craftingoptimizer/config/ACOConfigShadowModePolicyTest.java	NOT_REQUIRED	-	Avoid repeated exact inventory scans and unused shadow planning for ordinary long orders
