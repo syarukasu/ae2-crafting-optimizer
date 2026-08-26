@@ -148,8 +148,8 @@ ME在庫の成立した`insert/extract`とAE2が検出した外部mount更新は
 
 ## 検証
 
-- Forge 1.20.1: JUnit全件成功
-- NeoForge 1.21.1: JUnit全件成功予定
-- `clean build`: 両版で実施
+- Forge 1.20.1: JUnit 456件成功、失敗0件、エラー0件、skip 2件
+- NeoForge 1.21.1: JUnit 472件成功、失敗0件、エラー0件
+- `clean build`: 両版で成功
 - `git diff --check`: 両版で実施
 - Minecraft起動試験: 指示により実施しない
