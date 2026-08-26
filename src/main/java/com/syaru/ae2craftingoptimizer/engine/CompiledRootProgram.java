@@ -107,9 +107,18 @@ public final class CompiledRootProgram<K> {
             CompiledCraftingGraph<K> graph,
             K root,
             Predicate<? super K> canEmit) {
+        return compile(graph, root, canEmit, PlanningGuard.none());
+    }
+
+    public static <K> Outcome<K> compile(
+            CompiledCraftingGraph<K> graph,
+            K root,
+            Predicate<? super K> canEmit,
+            PlanningGuard workBudget) {
         Objects.requireNonNull(graph, "graph");
         Objects.requireNonNull(root, "root");
         Objects.requireNonNull(canEmit, "canEmit");
+        Objects.requireNonNull(workBudget, "workBudget");
 
         Map<K, CompiledPattern<K>> selected = new LinkedHashMap<>();
         Map<K, Set<K>> dependencies = new LinkedHashMap<>();
@@ -125,6 +134,7 @@ public final class CompiledRootProgram<K> {
             if (!reachable.add(key)) {
                 continue;
             }
+            workBudget.checkpoint(reachable.size());
             // Emitterや終端だけが大量に並ぶ場合も、固定ノード上限を必ず適用する。
             if (reachable.size() > MAXIMUM_PROGRAM_NODES) {
                 return Outcome.failed(RootProgramFailure.PROGRAM_TOO_LARGE);
@@ -171,7 +181,7 @@ public final class CompiledRootProgram<K> {
             dependencies.put(key, Set.copyOf(children));
         }
 
-        List<K> order = topologicalOrder(reachable, dependencies);
+        List<K> order = topologicalOrder(reachable, dependencies, workBudget);
         // 全ノードを並べられなかった場合は、探索中に見えなかった循環があるためFallbackする。
         if (order.size() != reachable.size()) {
             return Outcome.failed(RootProgramFailure.CYCLE);
@@ -180,13 +190,16 @@ public final class CompiledRootProgram<K> {
         Map<K, Integer> indexByKey = new LinkedHashMap<>();
         // 実行時にMap検索をせずに済むよう、トポロジカル順へ連番を付ける。
         for (int index = 0; index < order.size(); index++) {
+            workBudget.checkpoint(index + 1);
             indexByKey.put(order.get(index), index);
         }
 
         int slotCount = 0;
         int alternativeCount = 0;
+        int countedNodes = 0;
         // slot配列と候補配列を一回だけ確保するため、Patternごとの件数を先に合計する。
         for (K key : order) {
+            workBudget.checkpoint(++countedNodes);
             CompiledPattern<K> pattern = selected.get(key);
             // 終端ノードには入力辺がないため、Patternノードだけを数える。
             if (pattern != null) {
@@ -224,6 +237,7 @@ public final class CompiledRootProgram<K> {
 
         // Map中心のGraphを、実行時に直接添字アクセスできる不変配列へ変換する。
         for (int node = 0; node < nodeCount; node++) {
+            workBudget.checkpoint(node + 1);
             K key = order.get(node);
             CompiledPattern<K> pattern = selected.get(key);
             emitters[node] = emitterKeys.contains(key);
@@ -317,7 +331,8 @@ public final class CompiledRootProgram<K> {
 
     private static <K> List<K> topologicalOrder(
             Set<K> reachable,
-            Map<K, Set<K>> dependencies) {
+            Map<K, Set<K>> dependencies,
+            PlanningGuard workBudget) {
         Map<K, Integer> indegree = new HashMap<>();
         // 到達した全ノードをindegree 0で初期化する。
         for (K key : reachable) {
@@ -344,6 +359,7 @@ public final class CompiledRootProgram<K> {
         while (!ready.isEmpty()) {
             K key = ready.remove();
             order.add(key);
+            workBudget.checkpoint(order.size());
             // 現在ノードを処理したので、各子の未処理親数を一つ減らす。
             for (K child : dependencies.getOrDefault(key, Set.of())) {
                 int remaining = indegree.compute(child, (ignored, value) -> value - 1);

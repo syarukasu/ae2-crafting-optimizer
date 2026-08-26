@@ -466,6 +466,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCalculationDiagnosticsMixin` | CraftingCalculationDiagnosticsMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCalculationMemoLifecycleMixin` | CraftingCalculationMemoLifecycleMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuClusterTransactionAccessMixin` | CraftingCpuClusterTransactionAccessMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuHelperCalculationMemoMixin` | 一つのAE2計算中に繰り返される本体Pattern入力の妥当性判定を、世代付き計算内Memoへ接続する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuHelperFluidFastPathMixin` | CraftingCpuHelperFluidFastPathMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuLogicBatchSourceReceiptMixin` | CraftingCpuLogicBatchSourceReceiptMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuLogicExecutionBudgetMixin` | CraftingCpuLogicExecutionBudgetMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
@@ -508,12 +509,14 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkCraftingSimulationStateAccessor` | NetworkCraftingSimulationStateAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkCraftingSimulationStateBigIntegerSnapshotMixin` | NetworkCraftingSimulationStateBigIntegerSnapshotMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageBigIntegerSnapshotMixin` | NetworkStorageBigIntegerSnapshotMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageCraftingPlanGenerationMixin` | 成立したME在庫の搬入出を観測し、転送結果を変更せず完成済み計画Cacheの在庫世代だけを進める。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageMountsAccessor` | NetworkStorageMountsAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NumberEntryWidgetAccessor` | NumberEntryWidgetAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.P2PServiceTopologyDeduplicationMixin` | P2PServiceTopologyDeduplicationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.PatternProviderLogicIntentCaptureMixin` | PatternProviderLogicIntentCaptureMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.PatternProviderLogicNativeBatchReceiptMixin` | PatternProviderLogicNativeBatchReceiptMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.StorageImportScanOrderMixin` | StorageImportScanOrderMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.StorageServiceCraftingPlanGenerationMixin` | AE2が検出した外部mount更新を観測し、Watcher通知を変更せず完成済み計画Cacheの在庫世代だけを進める。 |
 | `com.syaru.ae2craftingoptimizer.mixin.StorageServiceDeepCoalescingMixin` | StorageServiceDeepCoalescingMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.StorageServiceExactSnapshotInvalidationMixin` | StorageServiceExactSnapshotInvalidationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.StorageServiceWatcherThrottleMixin` | StorageServiceWatcherThrottleMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |

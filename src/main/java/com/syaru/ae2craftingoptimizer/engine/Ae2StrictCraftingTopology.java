@@ -19,8 +19,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Compiled Root ProgramがAE2標準結果と一致するための、実MOD API側の追加証明。
- * Patternに明示されたタグ候補は全件照合し、列挙外候補、複数Pattern、返却物、
- * 触媒、循環、動的ファジー候補を完全に排除できない場合は生成しない。
+ * 既定高速経路では各slotが単一候補であることまで照合し、複数候補、複数Pattern、返却物、
+ * 触媒、副産物、循環、動的ファジー候補を完全に排除できない場合は生成しない。
  */
 final class Ae2StrictCraftingTopology {
     private final CompiledRootProgram<AEKey> program;
@@ -40,10 +40,21 @@ final class Ae2StrictCraftingTopology {
             IGrid grid,
             Ae2CompiledCraftingGraphCache.Snapshot snapshot,
             CompiledRootProgram<AEKey> program) {
+        return compile(level, grid, snapshot, program, PlanningGuard.none());
+    }
+
+    @Nullable
+    static Ae2StrictCraftingTopology compile(
+            Level level,
+            IGrid grid,
+            Ae2CompiledCraftingGraphCache.Snapshot snapshot,
+            CompiledRootProgram<AEKey> program,
+            PlanningGuard workBudget) {
         Objects.requireNonNull(level, "level");
         Objects.requireNonNull(grid, "grid");
         Objects.requireNonNull(snapshot, "snapshot");
         Objects.requireNonNull(program, "program");
+        Objects.requireNonNull(workBudget, "workBudget");
         // 異なるPattern世代のProgramをSnapshotへ誤接続しない。
         if (program.generation() != snapshot.graph().generation()) {
             return null;
@@ -53,6 +64,7 @@ final class Ae2StrictCraftingTopology {
         List<InputProof> proofs = new ArrayList<>();
         // 配列Programの全ノードを一度だけ検証し、再帰や共有中間素材の二重訪問を避ける。
         for (int node = 0; node < program.nodeCount(); node++) {
+            workBudget.checkpoint(node + 1);
             // 64ノード単位の検証対象を反復し、割込みをAE2 long経路へ黙って戻さない。
             if (Thread.currentThread().isInterrupted()) {
                 throw new PlanningCancelledException(node);
@@ -100,6 +112,7 @@ final class Ae2StrictCraftingTopology {
             IPatternDetails details = snapshot.pattern(pattern.id());
             // 実Patternのslot数と平坦化済み入力数が一致する場合だけ添字対応を検証する。
             if (details == null
+                    || !details.getClass().getName().startsWith("appeng.")
                     || details.getInputs().length != pattern.inputs().size()
                     || details.getInputs().length != program.inputCountAt(node)) {
                 return null;
@@ -110,6 +123,10 @@ final class Ae2StrictCraftingTopology {
                 CompiledPattern.InputSlot<AEKey> compiledInput = pattern.inputs().get(slot);
                 IPatternDetails.IInput realInput = details.getInputs()[slot];
                 var realAlternatives = realInput.getPossibleInputs();
+                // Issue #156の既定高速経路は、選択順が不要な単一候補slotだけを扱う。
+                if (realAlternatives.length != 1) {
+                    return null;
+                }
                 int compiledAlternatives =
                         program.inputAlternativeCountAt(
                                 node,
@@ -170,6 +187,8 @@ final class Ae2StrictCraftingTopology {
                             || !realInput.isValid(
                                     expectedKey,
                                     level)
+                            || realInput.getRemainingKey(
+                                    expectedKey) != null
                             || !expectedKeys.add(
                                     expectedKey)) {
                         return null;

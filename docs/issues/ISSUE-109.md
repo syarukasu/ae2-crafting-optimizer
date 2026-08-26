@@ -19,7 +19,9 @@ BigInteger APIの「利用可能」「consumer登録済み」「AE2標準経路�
 
 ## 修正
 
-- 通常long計画のAuthoritative置換は`enableExperimentalCraftingEngine=true`の時だけ許可する
+- 外部BigInteger consumerやBigInteger profileの有効化だけでは通常long計画を置換しない
+- 通常long計画の置換は、独立設定`enableStrictDeterministicLongPlanner=true`か、
+  明示的な実験エンジン設定で許可する
 - BigInteger profileはwide計画の生成だけに使用する
 - 標準AE2 CPUの提出結果をACOで上書きせず、AE2本来の容量判定へ委譲する
 - `enableOptimizer=false`ならBigInteger backendとexact在庫Snapshotも停止する
@@ -49,6 +51,7 @@ BigInteger APIの「利用可能」「consumer登録済み」「AE2標準経路�
 
 - consumer登録の有無だけで標準AE2 CPUの提出結果を変更しない
 - BigInteger APIを有効化しただけで通常long計画を置換しない
+- 厳密通常PlannerはBigInteger consumerの有無を条件にしない
 - master switchがOFFの時に在庫Snapshotやクラフト演算へ介入しない
 - ME端末の通常入出庫をwide在庫表示の都合でRedirectしない
 - `NetworkStorage#getAvailableStacks`を正確量取得のために常時Redirectしない

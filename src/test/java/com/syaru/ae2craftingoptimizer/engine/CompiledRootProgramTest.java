@@ -137,6 +137,37 @@ class CompiledRootProgramTest {
     }
 
     @Test
+    void coldGraphAndProgramCompilationReportBudgetCheckpoints() {
+        int depth = 1_000;
+        List<CompiledPattern<String>> patterns = new ArrayList<>(depth);
+        // 千段の直列グラフを作り、cold pathの各構築段階が時間予算へ参加することを確認する。
+        for (int index = 1; index <= depth; index++) {
+            patterns.add(pattern(
+                    "p" + index,
+                    "k" + (index - 1),
+                    1L,
+                    "k" + index,
+                    1L));
+        }
+        AtomicInteger checkpoints = new AtomicInteger();
+
+        CompiledCraftingGraph<String> graph = CompiledCraftingGraph.compile(
+                1L,
+                patterns,
+                ignored -> checkpoints.incrementAndGet());
+        int graphCheckpoints = checkpoints.get();
+        CompiledRootProgram.Outcome<String> outcome = CompiledRootProgram.compile(
+                graph,
+                "k" + depth,
+                ignored -> false,
+                ignored -> checkpoints.incrementAndGet());
+
+        assertTrue(graphCheckpoints >= depth);
+        assertTrue(checkpoints.get() > graphCheckpoints);
+        assertTrue(outcome.program().isPresent());
+    }
+
+    @Test
     void readsOnlyKeysReferencedByTheCompiledRoot() {
         var unrelated = pattern("unrelated", "unused-raw", 1L, "unused-output", 1L);
         var program = compile(

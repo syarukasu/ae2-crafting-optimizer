@@ -8,12 +8,13 @@ import appeng.api.storage.AEKeyFilter;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
-import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.LinkedHashSet;
@@ -21,11 +22,18 @@ import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
+import org.jetbrains.annotations.Nullable;
 
 public final class Ae2CompiledCraftingGraphCache {
     /** 一世代で保持するルート別Program数の上限。異常な連続要求でも無制限に増やさない。 */
     private static final int MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT = 262_144;
+    /** 一つのDimensionで保持する到達範囲Snapshot数。多数の単発注文でも常駐量を固定する。 */
+    private static final int MAXIMUM_REACHABLE_SNAPSHOTS_PER_DIMENSION = 4_096;
+    /** 一つのRootから追跡できるPattern数。壊れたProviderによる無制限探索を拒否する。 */
+    private static final int MAXIMUM_PATTERNS_PER_REACHABLE_SNAPSHOT = 1_048_576;
     private static final Map<ICraftingService, Map<ResourceKey<Level>, Snapshot>> CACHE =
+            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<ICraftingService, Map<ResourceKey<Level>, ReachableSnapshotCache>> ROOT_CACHE =
             Collections.synchronizedMap(new WeakHashMap<>());
     private static final AEKeyFilter ALL_KEYS = key -> true;
 
@@ -39,9 +47,21 @@ public final class Ae2CompiledCraftingGraphCache {
     static Optional<Snapshot> currentSnapshot(
             IGrid grid,
             Level level,
+            AEKey root,
             long generation,
             long recipeGeneration) {
         ICraftingService service = grid.getCraftingService();
+        synchronized (ROOT_CACHE) {
+            Map<ResourceKey<Level>, ReachableSnapshotCache> byDimension = ROOT_CACHE.get(service);
+            ReachableSnapshotCache cache = byDimension == null ? null : byDimension.get(level.dimension());
+            // Root専用Snapshotが現在世代に存在する場合は、全ネットワークSnapshotより先に使う。
+            if (cache != null && cache.matches(generation, recipeGeneration)) {
+                Snapshot rootSnapshot = cache.get(root);
+                if (rootSnapshot != null) {
+                    return Optional.of(rootSnapshot);
+                }
+            }
+        }
         synchronized (CACHE) {
             Map<ResourceKey<Level>, Snapshot> byDimension = CACHE.get(service);
             Snapshot current = byDimension == null ? null : byDimension.get(level.dimension());
@@ -53,6 +73,72 @@ public final class Ae2CompiledCraftingGraphCache {
             }
             return Optional.of(current);
         }
+    }
+
+    /** Rootから到達するPatternだけを収集し、巨大ネットワーク全体の初回走査を避ける。 */
+    public static Snapshot getOrCompileRoot(IGrid grid, Level level, AEKey root) {
+        return getOrCompileRoot(grid, level, root, PlanningGuard.none());
+    }
+
+    /** Root到達範囲をAE2の計算時間枠へ参加させながら収集する。 */
+    public static Snapshot getOrCompileRoot(
+            IGrid grid,
+            Level level,
+            AEKey root,
+            PlanningGuard workBudget) {
+        Objects.requireNonNull(workBudget, "workBudget");
+        ICraftingService service = grid.getCraftingService();
+        // Pattern更新と競合したSnapshotは最大3回だけ作り直し、古い世代を公開しない。
+        for (int attempt = 0; attempt < 3; attempt++) {
+            long generation = ProviderPatternGenerationTracker.generation();
+            long recipeGeneration = RecipeGenerationTracker.generation();
+            Snapshot current = currentSnapshot(
+                            grid,
+                            level,
+                            root,
+                            generation,
+                            recipeGeneration)
+                    .orElse(null);
+            // Root専用または既存の全体Snapshotが現世代なら、重複コンパイルしない。
+            if (current != null) {
+                return current;
+            }
+
+            Snapshot rebuilt = compileReachable(
+                    service,
+                    level,
+                    root,
+                    generation,
+                    recipeGeneration,
+                    workBudget);
+            // コンパイル中にPatternまたはrecipeが変化したSnapshotは公開せず再試行する。
+            if (ProviderPatternGenerationTracker.generation() != generation
+                    || RecipeGenerationTracker.generation() != recipeGeneration) {
+                continue;
+            }
+            synchronized (ROOT_CACHE) {
+                Map<ResourceKey<Level>, ReachableSnapshotCache> byDimension =
+                        ROOT_CACHE.computeIfAbsent(service, ignored -> new LinkedHashMap<>());
+                ReachableSnapshotCache cache = byDimension.get(level.dimension());
+                // 世代が変わったDimension cacheは丸ごと交換し、旧Pattern参照を残さない。
+                if (cache == null || !cache.matches(generation, recipeGeneration)) {
+                    cache = new ReachableSnapshotCache(generation, recipeGeneration);
+                    byDimension.put(level.dimension(), cache);
+                }
+                Snapshot raced = cache.get(root);
+                if (raced != null) {
+                    return raced;
+                }
+                cache.put(root, rebuilt);
+                return rebuilt;
+            }
+        }
+        throw new StalePlanningSnapshotException(
+                new PlanningGenerationSnapshot(
+                        ProviderPatternGenerationTracker.generation(),
+                        0L,
+                        RecipeGenerationTracker.generation()),
+                0);
     }
 
     public static Snapshot getOrCompile(IGrid grid, Level level) {
@@ -120,9 +206,82 @@ public final class Ae2CompiledCraftingGraphCache {
         return rebuilt;
     }
 
+    /** Root専用Snapshotの不完全状態だけを一度破棄し、全ネットワークcacheを巻き込まない。 */
+    public static Snapshot recompileRoot(IGrid grid, Level level, AEKey root, Snapshot stale) {
+        return recompileRoot(grid, level, root, stale, PlanningGuard.none());
+    }
+
+    public static Snapshot recompileRoot(
+            IGrid grid,
+            Level level,
+            AEKey root,
+            Snapshot stale,
+            PlanningGuard workBudget) {
+        Objects.requireNonNull(workBudget, "workBudget");
+        // Root専用Snapshotだけ再試行権を共有する。全体Snapshotの権利を一注文で消費しない。
+        if (stale.isRootScopedFor(root) && !stale.claimRetryRebuild()) {
+            return stale;
+        }
+        ICraftingService service = grid.getCraftingService();
+        synchronized (ROOT_CACHE) {
+            Map<ResourceKey<Level>, ReachableSnapshotCache> byDimension = ROOT_CACHE.get(service);
+            ReachableSnapshotCache cache = byDimension == null ? null : byDimension.get(level.dimension());
+            // 別スレッドが新しいRoot Snapshotへ交換済みなら、その結果を破棄しない。
+            if (cache != null && cache.get(root) == stale) {
+                cache.remove(root);
+            }
+        }
+
+        // Pattern更新との競合は最大3回だけ再試行し、同じ全体Snapshotを再取得しない。
+        for (int attempt = 0; attempt < 3; attempt++) {
+            long generation = ProviderPatternGenerationTracker.generation();
+            long recipeGeneration = RecipeGenerationTracker.generation();
+            Snapshot rebuilt = compileReachable(
+                    service,
+                    level,
+                    root,
+                    generation,
+                    recipeGeneration,
+                    workBudget);
+            // コンパイル中に世代が変化した結果は公開せず、現在世代から作り直す。
+            if (ProviderPatternGenerationTracker.generation() != generation
+                    || RecipeGenerationTracker.generation() != recipeGeneration) {
+                continue;
+            }
+            synchronized (ROOT_CACHE) {
+                Map<ResourceKey<Level>, ReachableSnapshotCache> byDimension =
+                        ROOT_CACHE.computeIfAbsent(service, ignored -> new LinkedHashMap<>());
+                ReachableSnapshotCache cache = byDimension.get(level.dimension());
+                // Dimension cacheが別世代なら交換し、旧Pattern参照を残さない。
+                if (cache == null || !cache.matches(generation, recipeGeneration)) {
+                    cache = new ReachableSnapshotCache(generation, recipeGeneration);
+                    byDimension.put(level.dimension(), cache);
+                }
+                Snapshot raced = cache.get(root);
+                // 別スレッドが先に同じRootを再構築した場合は、その結果を採用する。
+                if (raced != null && raced != stale) {
+                    return raced;
+                }
+                cache.put(root, rebuilt);
+            }
+            // 再構築後も不完全なら、同じ世代での無限再コンパイルを禁止する。
+            rebuilt.claimRetryRebuild();
+            return rebuilt;
+        }
+        throw new StalePlanningSnapshotException(
+                new PlanningGenerationSnapshot(
+                        ProviderPatternGenerationTracker.generation(),
+                        0L,
+                        RecipeGenerationTracker.generation()),
+                0);
+    }
+
     public static void clear() {
         synchronized (CACHE) {
             CACHE.clear();
+        }
+        synchronized (ROOT_CACHE) {
+            ROOT_CACHE.clear();
         }
         SymbolicCraftingPlanner.clearTopologyCache();
         CompiledRootQualificationRegistry.clear();
@@ -187,7 +346,189 @@ public final class Ae2CompiledCraftingGraphCache {
                 registeredPatternsByOutput,
                 incompletelyCompiledOutputs,
                 craftables,
-                recipeGeneration);
+                recipeGeneration,
+                null);
+    }
+
+    private static Snapshot compileReachable(
+            ICraftingService service,
+            Level level,
+            AEKey root,
+            long generation,
+            long recipeGeneration,
+            PlanningGuard workBudget) {
+        ArrayDeque<AEKey> pending = new ArrayDeque<>();
+        Set<AEKey> visited = new LinkedHashSet<>();
+        Set<AEKey> craftables = new LinkedHashSet<>();
+        Set<IPatternDetails> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        IdentityHashMap<IPatternDetails, String> idByPattern = new IdentityHashMap<>();
+        Map<String, IPatternDetails> patternById = new LinkedHashMap<>();
+        Map<AEKey, Integer> registeredPatternsByOutput = new LinkedHashMap<>();
+        Set<AEKey> incompletelyCompiledOutputs = new LinkedHashSet<>();
+        Map<String, CompiledPattern<AEKey>> compiledById = new LinkedHashMap<>();
+        int completedWorkUnits = 0;
+        pending.add(root);
+
+        // Rootから到達する各キーを一度だけ処理し、注文と無関係なProviderを走査しない。
+        while (!pending.isEmpty()) {
+            workBudget.checkpoint(++completedWorkUnits);
+            AEKey key = pending.removeFirst();
+            if (!visited.add(key)) {
+                continue;
+            }
+            // AE2はEmitterをPatternより優先するため、同じ地点で探索を打ち切る。
+            if (service.canEmitFor(key)) {
+                craftables.add(key);
+                continue;
+            }
+
+            List<IPatternDetails> registered = List.copyOf(service.getCraftingFor(key));
+            registeredPatternsByOutput.put(key, registered.size());
+            if (registered.isEmpty()) {
+                continue;
+            }
+            craftables.add(key);
+            // 既定高速経路は一意なProducerだけを扱うため、複数候補を深く展開しない。
+            if (registered.size() != 1) {
+                incompletelyCompiledOutputs.add(key);
+                continue;
+            }
+
+            // AE2がこの出力へ登録した全候補を保持し、複数Producerを単一路線へ誤認しない。
+            for (IPatternDetails details : registered) {
+                workBudget.checkpoint(++completedWorkUnits);
+                // 外部Pattern実装は動的規則を持ち得るため、AE2本体所有の静的表現だけを数式化する。
+                if (!details.getClass().getName().startsWith("appeng.")) {
+                    incompletelyCompiledOutputs.add(key);
+                    continue;
+                }
+                if (AppliedECompatibility.requiresAe2Planner(details)) {
+                    incompletelyCompiledOutputs.add(key);
+                    OptimizationMetrics.recordAppliedEPatternFallback();
+                    continue;
+                }
+                // 多候補、返却物、副産物を入口で拒否し、Fallback対象の全候補展開を避ける。
+                if (!isStrictReachablePattern(details, level, workBudget)) {
+                    incompletelyCompiledOutputs.add(key);
+                    continue;
+                }
+                String id = idByPattern.get(details);
+                // 未登録PatternだけFingerprintを作り、同一参照の再計算を避ける。
+                if (id == null) {
+                    id = Ae2CompiledPatternFactory.fingerprint(details, workBudget);
+                    idByPattern.put(details, id);
+                }
+                if (seen.add(details)) {
+                    CompiledPattern<AEKey> pattern = Ae2CompiledPatternFactory.compile(
+                            details,
+                            id,
+                            level,
+                            workBudget);
+                    if (pattern == null) {
+                        incompletelyCompiledOutputs.add(key);
+                    } else {
+                        compiledById.putIfAbsent(id, pattern);
+                        patternById.putIfAbsent(id, details);
+                        if (compiledById.size() > MAXIMUM_PATTERNS_PER_REACHABLE_SNAPSHOT) {
+                            throw new IllegalStateException(
+                                    "reachable crafting graph exceeds its hard pattern bound");
+                        }
+                    }
+                }
+                CompiledPattern<AEKey> compiled = compiledById.get(id);
+                if (compiled == null || compiled.outputAmount(key) <= 0L) {
+                    incompletelyCompiledOutputs.add(key);
+                    continue;
+                }
+                // 全入力候補を追跡し、タグ代替候補を終端素材として落とさない。
+                for (CompiledPattern.InputSlot<AEKey> input : compiled.inputs()) {
+                    for (CompiledPattern.Stack<AEKey> alternative : input.alternatives()) {
+                        pending.addLast(alternative.key());
+                    }
+                }
+            }
+        }
+        return new Snapshot(
+                service,
+                CompiledCraftingGraph.compile(generation, compiledById.values(), workBudget),
+                idByPattern,
+                patternById,
+                compiledById,
+                registeredPatternsByOutput,
+                incompletelyCompiledOutputs,
+                craftables,
+                recipeGeneration,
+                root);
+    }
+
+    private static boolean isStrictReachablePattern(
+            IPatternDetails details,
+            Level level,
+            PlanningGuard workBudget) {
+        var outputs = details.getOutputs();
+        // 副産物や空出力はAE2標準Plannerへ残し、数式経路へ入れない。
+        if (outputs.length != 1 || outputs[0].amount() <= 0L) {
+            return false;
+        }
+        var inputs = details.getInputs();
+        // 各slotを一度だけ検証し、選択順や返却物を必要とするPatternを早期辞退する。
+        for (int slot = 0; slot < inputs.length; slot++) {
+            workBudget.checkpoint(slot + 1);
+            IPatternDetails.IInput input = inputs[slot];
+            var candidates = input.getPossibleInputs();
+            if (input.getMultiplier() <= 0L || candidates.length != 1) {
+                return false;
+            }
+            var candidate = candidates[0];
+            if (candidate.amount() <= 0L
+                    || !input.isValid(candidate.what(), level)
+                    || input.getRemainingKey(candidate.what()) != null) {
+                return false;
+            }
+            try {
+                Math.multiplyExact(candidate.amount(), input.getMultiplier());
+            } catch (ArithmeticException overflow) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static final class ReachableSnapshotCache {
+        private final long generation;
+        private final long recipeGeneration;
+        private final LinkedHashMap<AEKey, Snapshot> snapshots =
+                new LinkedHashMap<>(16, 0.75f, true);
+
+        private ReachableSnapshotCache(long generation, long recipeGeneration) {
+            this.generation = generation;
+            this.recipeGeneration = recipeGeneration;
+        }
+
+        private boolean matches(long expectedGeneration, long expectedRecipeGeneration) {
+            return generation == expectedGeneration && recipeGeneration == expectedRecipeGeneration;
+        }
+
+        private Snapshot get(AEKey root) {
+            return snapshots.get(root);
+        }
+
+        private void put(AEKey root, Snapshot snapshot) {
+            // Dimension単位の固定上限を超える前に、最も長く未使用のRootを一件だけ除去する。
+            if (!snapshots.containsKey(root)
+                    && snapshots.size() >= MAXIMUM_REACHABLE_SNAPSHOTS_PER_DIMENSION) {
+                var iterator = snapshots.keySet().iterator();
+                if (iterator.hasNext()) {
+                    iterator.next();
+                    iterator.remove();
+                }
+            }
+            snapshots.put(root, snapshot);
+        }
+
+        private void remove(AEKey root) {
+            snapshots.remove(root);
+        }
     }
 
     public static final class Snapshot {
@@ -200,6 +541,8 @@ public final class Ae2CompiledCraftingGraphCache {
         private final Set<AEKey> incompletelyCompiledOutputs;
         private final Set<AEKey> craftables;
         private final long recipeGeneration;
+        @Nullable
+        private final AEKey reachableRoot;
         private final Map<AEKey, CompiledRootProgram.Outcome<AEKey>> rootPrograms =
                 new LinkedHashMap<>();
         private final Map<AEKey, Optional<Ae2StrictCraftingTopology>> strictTopologies =
@@ -215,7 +558,8 @@ public final class Ae2CompiledCraftingGraphCache {
                 Map<AEKey, Integer> registeredPatternsByOutput,
                 Set<AEKey> incompletelyCompiledOutputs,
                 Set<AEKey> craftables,
-                long recipeGeneration) {
+                long recipeGeneration,
+                @Nullable AEKey reachableRoot) {
             this.service = service;
             this.graph = graph;
             this.idByPattern = new IdentityHashMap<>(idByPattern);
@@ -225,6 +569,7 @@ public final class Ae2CompiledCraftingGraphCache {
             this.incompletelyCompiledOutputs = Set.copyOf(incompletelyCompiledOutputs);
             this.craftables = Set.copyOf(craftables);
             this.recipeGeneration = recipeGeneration;
+            this.reachableRoot = reachableRoot;
         }
 
         public CompiledCraftingGraph<AEKey> graph() {
@@ -234,6 +579,11 @@ public final class Ae2CompiledCraftingGraphCache {
         /** このSnapshotに対する一度限りの再構築権を取得する。 */
         private boolean claimRetryRebuild() {
             return retryRebuildClaimed.compareAndSet(false, true);
+        }
+
+        /** 全ネットワークSnapshotとRoot専用Snapshotの再試行所有権を混同しない。 */
+        private boolean isRootScopedFor(AEKey root) {
+            return root.equals(reachableRoot);
         }
 
         public String id(IPatternDetails pattern) {
@@ -282,6 +632,13 @@ public final class Ae2CompiledCraftingGraphCache {
 
         /** Root Programと、作れなかった場合の正確な理由を同じ世代でキャッシュする。 */
         public CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(AEKey root) {
+            return rootProgramOutcome(root, PlanningGuard.none());
+        }
+
+        public CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(
+                AEKey root,
+                PlanningGuard workBudget) {
+            Objects.requireNonNull(workBudget, "workBudget");
             synchronized (rootPrograms) {
                 CompiledRootProgram.Outcome<AEKey> cached = rootPrograms.get(root);
                 // 既に成功またはFallbackが確定したルートは、同じ世代中に再探索しない。
@@ -293,7 +650,8 @@ public final class Ae2CompiledCraftingGraphCache {
             CompiledRootProgram.Outcome<AEKey> compiled = CompiledRootProgram.compile(
                     graph,
                     root,
-                    service::canEmitFor);
+                    service::canEmitFor,
+                    workBudget);
             if (compiled.program().isPresent()
                     && touchesIncompletePattern(compiled.program().get())) {
                 // 未コンパイルPatternを終端素材と誤認したShadow計算も作らず、直ちにAE2へ戻す。
@@ -347,6 +705,15 @@ public final class Ae2CompiledCraftingGraphCache {
                 Level level,
                 IGrid grid,
                 CompiledRootProgram<AEKey> program) {
+            return strictTopology(level, grid, program, PlanningGuard.none());
+        }
+
+        Optional<Ae2StrictCraftingTopology> strictTopology(
+                Level level,
+                IGrid grid,
+                CompiledRootProgram<AEKey> program,
+                PlanningGuard workBudget) {
+            Objects.requireNonNull(workBudget, "workBudget");
             AEKey root = program.root();
             synchronized (rootPrograms) {
                 Optional<Ae2StrictCraftingTopology> cached = strictTopologies.get(root);
@@ -356,7 +723,7 @@ public final class Ae2CompiledCraftingGraphCache {
                 }
             }
             Optional<Ae2StrictCraftingTopology> compiled = Optional.ofNullable(
-                    Ae2StrictCraftingTopology.compile(level, grid, this, program));
+                    Ae2StrictCraftingTopology.compile(level, grid, this, program, workBudget));
             synchronized (rootPrograms) {
                 Optional<Ae2StrictCraftingTopology> raced = strictTopologies.get(root);
                 // 別計算スレッドが先に証明を登録した場合は、その結果を使う。
