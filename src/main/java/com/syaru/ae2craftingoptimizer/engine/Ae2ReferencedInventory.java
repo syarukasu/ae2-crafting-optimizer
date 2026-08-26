@@ -75,11 +75,29 @@ final class Ae2ReferencedInventory {
             IGrid grid,
             IActionSource source,
             AEKey requestedOutput) {
+        return matchesLive(
+                program,
+                snapshot,
+                grid,
+                source,
+                requestedOutput,
+                PlanningExactInventorySnapshot.capture(grid));
+    }
+
+    /** 呼出側が安全なスレッドで取得したexact在庫を使い、計画後の一致だけを検証する。 */
+    static boolean matchesLive(
+            CompiledRootProgram<AEKey> program,
+            CompiledRootProgram.BigInventorySnapshot<AEKey> snapshot,
+            IGrid grid,
+            IActionSource source,
+            AEKey requestedOutput,
+            KeyCounter currentExactInventory) {
         Objects.requireNonNull(grid, "grid");
         Objects.requireNonNull(source, "source");
-        KeyCounter cached = PlanningExactInventorySnapshot.capture(grid);
-        BigKeyCounterSidecars.Snapshot exact =
-                BigKeyCounterSidecars.snapshot(cached).orElse(null);
+        Objects.requireNonNull(currentExactInventory, "currentExactInventory");
+        BigKeyCounterSidecars.Snapshot exact = BigKeyCounterSidecars
+                .snapshot(currentExactInventory)
+                .orElse(null);
         // 再検証時にSidecarが失われた場合は、丸めたlong値で一致扱いにしない。
         if (exact == null || !exact.complete()) {
             return false;
@@ -88,7 +106,7 @@ final class Ae2ReferencedInventory {
                 snapshot,
                 key -> key.equals(requestedOutput)
                         ? BigInteger.ZERO
-                        : liveExactAmount(grid, source, cached, exact, key),
+                        : liveExactAmount(grid, source, currentExactInventory, exact, key),
                 ACOConfig.getBigIntegerMaximumBits());
     }
 

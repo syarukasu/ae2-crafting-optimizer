@@ -78,7 +78,9 @@ public abstract class CraftingCalculationDiagnosticsMixin {
                 level,
                 grid,
                 actionSource,
-                networkSnapshot);
+                networkSnapshot,
+                this.output,
+                this.requestedAmount);
     }
 
     @Inject(method = "run", at = @At("HEAD"))

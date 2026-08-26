@@ -31,6 +31,29 @@ public final class Ae2CompiledCraftingGraphCache {
     private Ae2CompiledCraftingGraphCache() {
     }
 
+    /**
+     * 現在世代のSnapshotが既に存在する場合だけ返す。
+     * CraftingCalculation生成側ではコンパイルを開始せず、warm cacheの証明だけを参照する。
+     */
+    static Optional<Snapshot> currentSnapshot(
+            IGrid grid,
+            Level level,
+            long generation,
+            long recipeGeneration) {
+        ICraftingService service = grid.getCraftingService();
+        synchronized (CACHE) {
+            Map<ResourceKey<Level>, Snapshot> byDimension = CACHE.get(service);
+            Snapshot current = byDimension == null ? null : byDimension.get(level.dimension());
+            // Snapshotが無い、または要求世代と一致しない場合はcold pathへ戻す。
+            if (current == null
+                    || current.graph().generation() != generation
+                    || current.recipeGeneration() != recipeGeneration) {
+                return Optional.empty();
+            }
+            return Optional.of(current);
+        }
+    }
+
     public static Snapshot getOrCompile(IGrid grid, Level level) {
         ICraftingService service = grid.getCraftingService();
         for (int attempt = 0; attempt < 3; attempt++) {
@@ -263,6 +286,13 @@ public final class Ae2CompiledCraftingGraphCache {
             }
         }
 
+        /** Root Programを新規コンパイルせず、既存の世代内結果だけを返す。 */
+        Optional<CompiledRootProgram<AEKey>> cachedRootProgram(AEKey root) {
+            synchronized (rootPrograms) {
+                return Optional.ofNullable(rootPrograms.get(root));
+            }
+        }
+
         private void requireCurrentGenerations() {
             long currentPatternGeneration = ProviderPatternGenerationTracker.generation();
             long currentRecipeGeneration = RecipeGenerationTracker.generation();
@@ -312,6 +342,18 @@ public final class Ae2CompiledCraftingGraphCache {
                 }
                 strictTopologies.put(root, compiled);
                 return compiled;
+            }
+        }
+
+        /** 厳密Topologyを新規検証せず、証明済みの世代内結果だけを返す。 */
+        Optional<Ae2StrictCraftingTopology> cachedStrictTopology(AEKey root) {
+            synchronized (rootPrograms) {
+                Optional<Ae2StrictCraftingTopology> cached = strictTopologies.get(root);
+                // 未検証または検証不能のRootは、軽量Captureから安全証明として利用しない。
+                if (cached == null || cached.isEmpty()) {
+                    return Optional.empty();
+                }
+                return cached;
             }
         }
     }
