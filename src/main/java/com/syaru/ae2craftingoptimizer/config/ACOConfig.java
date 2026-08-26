@@ -793,7 +793,8 @@ public final class ACOConfig {
         ENABLE_CRAFTING_ENGINE_SHADOW_MODE = builder
                 .comment(
                         "Compare the compiled long planner with completed AE2 plans without replacing or modifying AE2's result.",
-                        "Requires the AQE profile or enableExperimentalCraftingEngine. Shadow mismatches only update diagnostics.")
+                        "Runs only when enableExperimentalCraftingEngine is active or wide plans explicitly require Shadow qualification.",
+                        "Shadow mismatches only update diagnostics.")
                 .define("enableShadowMode", true);
         LOG_CRAFTING_ENGINE_SHADOW_MISMATCHES = builder
                 .comment("Log the first bounded set of Shadow Mode differences. Disabled engine means no comparison or logging.")
@@ -1788,7 +1789,24 @@ public final class ACOConfig {
     }
 
     public static boolean enableCraftingEngineShadowMode() {
-        return enableCompiledCraftingGraph() && ENABLE_CRAFTING_ENGINE_SHADOW_MODE.get();
+        return shouldEnableCraftingEngineShadowMode(
+                enableCompiledCraftingGraph(),
+                ENABLE_CRAFTING_ENGINE_SHADOW_MODE.get(),
+                enableExperimentalCraftingEngine()
+                        && (enableAuthoritativeCompiledPlanner()
+                                || enableProofQualifiedLongPlans()),
+                requireAqeBigPlanShadowQualification());
+    }
+
+    static boolean shouldEnableCraftingEngineShadowMode(
+            boolean compiledGraphEnabled,
+            boolean shadowModeConfigured,
+            boolean normalReplacementEnabled,
+            boolean wideQualificationRequired) {
+        // 採用先が無い通常注文へShadow計算を重ねず、置換またはwide資格用途がある時だけ有効化する。
+        return compiledGraphEnabled
+                && shadowModeConfigured
+                && (normalReplacementEnabled || wideQualificationRequired);
     }
 
     public static boolean logCraftingEngineShadowMismatches() {
