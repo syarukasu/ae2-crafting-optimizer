@@ -52,6 +52,9 @@ public final class OptimizationMetrics {
     private static final LongAdder TRANSACTIONAL_V2_TASKS_SCANNED = new LongAdder();
     private static final LongAdder TRANSACTIONAL_V2_ROUTE_MATCHES = new LongAdder();
     private static final LongAdder TRANSACTIONAL_V2_STANDARD_FALLBACKS = new LongAdder();
+    private static final LongAdder TRANSACTIONAL_V2_PATTERN_METADATA_HITS = new LongAdder();
+    private static final LongAdder TRANSACTIONAL_V2_PATTERN_METADATA_MISSES = new LongAdder();
+    private static final LongAdder TRANSACTIONAL_V2_PATTERN_METADATA_UNSTABLE = new LongAdder();
     private static final LongAdder EXACT_STORAGE_SNAPSHOT_CACHE_HITS =
             new LongAdder();
     private static final LongAdder EXACT_STORAGE_SNAPSHOT_CACHE_MISSES =
@@ -226,6 +229,18 @@ public final class OptimizationMetrics {
         TRANSACTIONAL_V2_STANDARD_FALLBACKS.increment();
     }
 
+    public static void recordTransactionalV2PatternMetadataCacheHit() {
+        TRANSACTIONAL_V2_PATTERN_METADATA_HITS.increment();
+    }
+
+    public static void recordTransactionalV2PatternMetadataCacheMiss() {
+        TRANSACTIONAL_V2_PATTERN_METADATA_MISSES.increment();
+    }
+
+    public static void recordTransactionalV2PatternMetadataUnstable() {
+        TRANSACTIONAL_V2_PATTERN_METADATA_UNSTABLE.increment();
+    }
+
     public static void recordExactStorageSnapshotCache(boolean hit) {
         (hit
                 ? EXACT_STORAGE_SNAPSHOT_CACHE_HITS
@@ -348,6 +363,10 @@ public final class OptimizationMetrics {
                         + " task(s) scanned, " + TRANSACTIONAL_V2_ROUTE_MATCHES.sum()
                         + " route match(es), " + TRANSACTIONAL_V2_STANDARD_FALLBACKS.sum()
                         + " standard fallback(s)",
+                "Transactional V2 pattern metadata: "
+                        + TRANSACTIONAL_V2_PATTERN_METADATA_HITS.sum() + " cache hit(s), "
+                        + TRANSACTIONAL_V2_PATTERN_METADATA_MISSES.sum() + " miss(es), "
+                        + TRANSACTIONAL_V2_PATTERN_METADATA_UNSTABLE.sum() + " unstable compile(s)",
                 "Exact storage snapshots: "
                         + EXACT_STORAGE_SNAPSHOT_CACHE_HITS.sum() + " cache hit(s), "
                         + EXACT_STORAGE_SNAPSHOT_CACHE_MISSES.sum() + " miss(es), "
@@ -443,6 +462,9 @@ public final class OptimizationMetrics {
         TRANSACTIONAL_V2_TASKS_SCANNED.reset();
         TRANSACTIONAL_V2_ROUTE_MATCHES.reset();
         TRANSACTIONAL_V2_STANDARD_FALLBACKS.reset();
+        TRANSACTIONAL_V2_PATTERN_METADATA_HITS.reset();
+        TRANSACTIONAL_V2_PATTERN_METADATA_MISSES.reset();
+        TRANSACTIONAL_V2_PATTERN_METADATA_UNSTABLE.reset();
         EXACT_STORAGE_SNAPSHOT_CACHE_HITS.reset();
         EXACT_STORAGE_SNAPSHOT_CACHE_MISSES.reset();
         EXACT_STORAGE_NESTED_SCANS.reset();
