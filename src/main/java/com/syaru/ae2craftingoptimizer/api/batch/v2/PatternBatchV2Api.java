@@ -62,6 +62,11 @@ public final class PatternBatchV2Api {
         return Optional.ofNullable(SOURCES.get(id));
     }
 
+    /** 実行Jobを調べる前に、V2候補が一件でも存在するかをallocationなしで確認する。 */
+    public static boolean hasRegisteredAdapters() {
+        return !ADAPTERS.isEmpty();
+    }
+
     public static List<ResourceLocation> registeredAdapterIds() {
         return ADAPTERS.stream().map(TransactionalPatternBatchAdapter::id).toList();
     }
