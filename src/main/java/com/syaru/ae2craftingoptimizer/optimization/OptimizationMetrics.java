@@ -44,8 +44,14 @@ public final class OptimizationMetrics {
     private static final LongAdder SEQUENTIAL_INSTANT_REQUESTED = new LongAdder();
     private static final LongAdder SEQUENTIAL_INSTANT_COMPLETED = new LongAdder();
     private static final LongAdder SEQUENTIAL_INSTANT_BUDGET_STOPS = new LongAdder();
+    private static final LongAdder SEQUENTIAL_INSTANT_TOTAL_NANOS = new LongAdder();
     private static final LongAccumulator SEQUENTIAL_INSTANT_MAX_WAVE_NANOS =
             new LongAccumulator(Long::max, 0L);
+    private static final LongAdder TRANSACTIONAL_V2_PROBES = new LongAdder();
+    private static final LongAdder TRANSACTIONAL_V2_NO_ADAPTER_BYPASSES = new LongAdder();
+    private static final LongAdder TRANSACTIONAL_V2_TASKS_SCANNED = new LongAdder();
+    private static final LongAdder TRANSACTIONAL_V2_ROUTE_MATCHES = new LongAdder();
+    private static final LongAdder TRANSACTIONAL_V2_STANDARD_FALLBACKS = new LongAdder();
     private static final LongAdder EXACT_STORAGE_SNAPSHOT_CACHE_HITS =
             new LongAdder();
     private static final LongAdder EXACT_STORAGE_SNAPSHOT_CACHE_MISSES =
@@ -188,11 +194,36 @@ public final class OptimizationMetrics {
         SEQUENTIAL_INSTANT_WAVES.increment();
         SEQUENTIAL_INSTANT_REQUESTED.add(Math.max(0, requested));
         SEQUENTIAL_INSTANT_COMPLETED.add(Math.max(0, completed));
+        SEQUENTIAL_INSTANT_TOTAL_NANOS.add(Math.max(0L, elapsedNanos));
         SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.accumulate(Math.max(0L, elapsedNanos));
     }
 
     public static void recordSequentialInstantBudgetStop() {
         SEQUENTIAL_INSTANT_BUDGET_STOPS.increment();
+    }
+
+    public static void recordTransactionalV2Probe() {
+        TRANSACTIONAL_V2_PROBES.increment();
+    }
+
+    public static void recordTransactionalV2NoAdapterBypass() {
+        TRANSACTIONAL_V2_NO_ADAPTER_BYPASSES.increment();
+    }
+
+    public static void recordTransactionalV2TasksScanned(int tasks) {
+        // 呼出側が0件を渡す場合は、診断上の意味がないため加算しない。
+        if (tasks <= 0) {
+            return;
+        }
+        TRANSACTIONAL_V2_TASKS_SCANNED.add(tasks);
+    }
+
+    public static void recordTransactionalV2RouteMatch() {
+        TRANSACTIONAL_V2_ROUTE_MATCHES.increment();
+    }
+
+    public static void recordTransactionalV2StandardFallback() {
+        TRANSACTIONAL_V2_STANDARD_FALLBACKS.increment();
     }
 
     public static void recordExactStorageSnapshotCache(boolean hit) {
@@ -308,7 +339,15 @@ public final class OptimizationMetrics {
                         + " wave(s), " + SEQUENTIAL_INSTANT_COMPLETED.sum()
                         + "/" + SEQUENTIAL_INSTANT_REQUESTED.sum() + " operation(s), "
                         + SEQUENTIAL_INSTANT_BUDGET_STOPS.sum() + " budget stop(s), max wave "
-                        + (SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.get() / 1_000L) + " us",
+                        + (SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.get() / 1_000L) + " us, average wave "
+                        + averageMicros(SEQUENTIAL_INSTANT_TOTAL_NANOS.sum(), SEQUENTIAL_INSTANT_WAVES.sum())
+                        + " us",
+                "Transactional V2 probes: " + TRANSACTIONAL_V2_PROBES.sum()
+                        + " call(s), " + TRANSACTIONAL_V2_NO_ADAPTER_BYPASSES.sum()
+                        + " no-adapter bypass(es), " + TRANSACTIONAL_V2_TASKS_SCANNED.sum()
+                        + " task(s) scanned, " + TRANSACTIONAL_V2_ROUTE_MATCHES.sum()
+                        + " route match(es), " + TRANSACTIONAL_V2_STANDARD_FALLBACKS.sum()
+                        + " standard fallback(s)",
                 "Exact storage snapshots: "
                         + EXACT_STORAGE_SNAPSHOT_CACHE_HITS.sum() + " cache hit(s), "
                         + EXACT_STORAGE_SNAPSHOT_CACHE_MISSES.sum() + " miss(es), "
@@ -397,7 +436,13 @@ public final class OptimizationMetrics {
         SEQUENTIAL_INSTANT_REQUESTED.reset();
         SEQUENTIAL_INSTANT_COMPLETED.reset();
         SEQUENTIAL_INSTANT_BUDGET_STOPS.reset();
+        SEQUENTIAL_INSTANT_TOTAL_NANOS.reset();
         SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.reset();
+        TRANSACTIONAL_V2_PROBES.reset();
+        TRANSACTIONAL_V2_NO_ADAPTER_BYPASSES.reset();
+        TRANSACTIONAL_V2_TASKS_SCANNED.reset();
+        TRANSACTIONAL_V2_ROUTE_MATCHES.reset();
+        TRANSACTIONAL_V2_STANDARD_FALLBACKS.reset();
         EXACT_STORAGE_SNAPSHOT_CACHE_HITS.reset();
         EXACT_STORAGE_SNAPSHOT_CACHE_MISSES.reset();
         EXACT_STORAGE_NESTED_SCANS.reset();
@@ -421,6 +466,14 @@ public final class OptimizationMetrics {
     private static long percent(long hits, long misses) {
         long total = hits + misses;
         return total == 0L ? 0L : Math.round(hits * 100.0D / total);
+    }
+
+    private static long averageMicros(long totalNanos, long samples) {
+        // サンプル0件では除算せず、未計測を0 usとして表示する。
+        if (samples <= 0L) {
+            return 0L;
+        }
+        return totalNanos / samples / 1_000L;
     }
 
 }

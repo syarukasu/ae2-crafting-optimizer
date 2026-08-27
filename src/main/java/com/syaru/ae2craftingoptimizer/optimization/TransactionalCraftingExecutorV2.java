@@ -76,6 +76,16 @@ public final class TransactionalCraftingExecutorV2 {
                 || level == null) {
             return NOT_HANDLED;
         }
+        OptimizationMetrics.recordTransactionalV2Probe();
+        /*
+         * Issue #161: Adapterが0件なら、どのTaskやProviderもV2で受理できない。
+         * Job、Inventory、Receiptを読む前に確定辞退し、通常AE2実行へ直ちに委譲する。
+         */
+        if (!PatternBatchV2Api.hasRegisteredAdapters()) {
+            OptimizationMetrics.recordTransactionalV2NoAdapterBypass();
+            OptimizationMetrics.recordTransactionalV2StandardFallback();
+            return NOT_HANDLED;
+        }
         // Instantは機械の処理時間を消す機能ではない。同じCPU呼び出し内で複数の安全な取引を
         // 時間・操作数・取引数の予算内だけ連続して配送する。
         boolean instantDispatch = ACOConfig.enableInstantPatternDispatch();
@@ -99,6 +109,10 @@ public final class TransactionalCraftingExecutorV2 {
                     level);
             if (result == NOT_HANDLED) {
                 recordInstantDispatch(instantDispatch, committed, acceptedTotal);
+                // 一件もV2所有へ移らなかった呼出だけ、AE2標準実行への委譲として数える。
+                if (acceptedTotal == 0) {
+                    OptimizationMetrics.recordTransactionalV2StandardFallback();
+                }
                 return acceptedTotal == 0 ? NOT_HANDLED : acceptedTotal;
             }
             attempted++;
@@ -151,6 +165,7 @@ public final class TransactionalCraftingExecutorV2 {
             return NOT_HANDLED;
         }
 
+        int scannedTasks = 0;
         try {
             if (!(logic instanceof CraftingLogicTransactionAccess logicAccess)) {
                 throw new IllegalStateException(
@@ -173,7 +188,9 @@ public final class TransactionalCraftingExecutorV2 {
 
             Iterator<Map.Entry<IPatternDetails, Object>> iterator = tasks.entrySet().iterator();
             while (iterator.hasNext()) {
+                // V2 routeを探すために実際に参照したJob Taskだけを診断へ加算する。
                 Map.Entry<IPatternDetails, Object> task = iterator.next();
+                scannedTasks++;
                 IPatternDetails details = task.getKey();
                 if (details == null || !(task.getValue() instanceof CraftingTaskProgressAccess progress)) {
                     continue;
@@ -200,6 +217,7 @@ public final class TransactionalCraftingExecutorV2 {
                 if (selection == null) {
                     continue;
                 }
+                OptimizationMetrics.recordTransactionalV2RouteMatch();
 
                 BatchCpuAccountingMode accountingMode =
                         selection.adapter().cpuAccountingMode();
@@ -444,6 +462,8 @@ public final class TransactionalCraftingExecutorV2 {
         } catch (RuntimeException | LinkageError failure) {
             logFailure(logic.getClass(), failure);
             return NOT_HANDLED;
+        } finally {
+            OptimizationMetrics.recordTransactionalV2TasksScanned(scannedTasks);
         }
     }
 
