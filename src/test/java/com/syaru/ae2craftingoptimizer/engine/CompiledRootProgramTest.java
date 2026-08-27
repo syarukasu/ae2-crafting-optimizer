@@ -50,6 +50,44 @@ class CompiledRootProgramTest {
     }
 
     @Test
+    void keepsPartialInventoryAndMissingRemainderSeparate() {
+        var program = compile(
+                List.of(pattern("output", "raw", 2L, "output", 1L)),
+                "output");
+        var inventory = program.captureLongInventory(key -> key.equals("raw") ? 3L : 0L);
+
+        LongCraftingPlan<String> plan = program.planLong(
+                4L,
+                inventory,
+                PlanningGuard.none());
+
+        assertEquals(Map.of("raw", 3L), plan.usedInventory());
+        assertEquals(Map.of("raw", 5L), plan.missing());
+    }
+
+    @Test
+    void keepsPartialInventoryAndEmitterRemainderSeparate() {
+        var graph = CompiledCraftingGraph.compile(
+                1L,
+                List.of(pattern("output", "emitted", 1L, "output", 1L)));
+        var program = CompiledRootProgram.tryCompile(
+                        graph,
+                        "output",
+                        Set.of("emitted")::contains)
+                .orElseThrow();
+        var inventory = program.captureLongInventory(key -> key.equals("emitted") ? 3L : 0L);
+
+        LongCraftingPlan<String> plan = program.planLong(
+                10L,
+                inventory,
+                PlanningGuard.none());
+
+        assertEquals(Map.of("emitted", 3L), plan.usedInventory());
+        assertEquals(Map.of("emitted", 7L), plan.emitted());
+        assertTrue(plan.missing().isEmpty());
+    }
+
+    @Test
     void promotesOnlyTheOverflowingOrderAndReusesTheSameProgram() {
         var program = compile(List.of(pattern("output", "gas", 2L, "output", 1L)), "output");
         var inventory = program.captureLongInventory(ignored -> 0L);
@@ -134,6 +172,37 @@ class CompiledRootProgramTest {
 
         assertEquals(program.nodeCount(), smallVisits.get());
         assertEquals(program.nodeCount(), hugeVisits.get());
+    }
+
+    @Test
+    void coldGraphAndProgramCompilationReportBudgetCheckpoints() {
+        int depth = 1_000;
+        List<CompiledPattern<String>> patterns = new ArrayList<>(depth);
+        // 千段の直列グラフを作り、cold pathの各構築段階が時間予算へ参加することを確認する。
+        for (int index = 1; index <= depth; index++) {
+            patterns.add(pattern(
+                    "p" + index,
+                    "k" + (index - 1),
+                    1L,
+                    "k" + index,
+                    1L));
+        }
+        AtomicInteger checkpoints = new AtomicInteger();
+
+        CompiledCraftingGraph<String> graph = CompiledCraftingGraph.compile(
+                1L,
+                patterns,
+                ignored -> checkpoints.incrementAndGet());
+        int graphCheckpoints = checkpoints.get();
+        CompiledRootProgram.Outcome<String> outcome = CompiledRootProgram.compile(
+                graph,
+                "k" + depth,
+                ignored -> false,
+                ignored -> checkpoints.incrementAndGet());
+
+        assertTrue(graphCheckpoints >= depth);
+        assertTrue(checkpoints.get() > graphCheckpoints);
+        assertTrue(outcome.program().isPresent());
     }
 
     @Test

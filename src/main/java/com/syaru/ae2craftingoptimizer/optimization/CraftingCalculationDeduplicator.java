@@ -8,6 +8,7 @@ import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
+import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -250,7 +251,9 @@ public final class CraftingCalculationDeduplicator {
             AEKey output,
             long amount,
             CalculationStrategy strategy,
-            long storageGeneration) {
+            long storageGeneration,
+            long patternGeneration,
+            long recipeGeneration) {
         private static RequestKey of(
                 Level level,
                 ICraftingSimulationRequester requester,
@@ -265,7 +268,9 @@ public final class CraftingCalculationDeduplicator {
                     output,
                     amount,
                     strategy,
-                    STORAGE_GENERATION.get());
+                    STORAGE_GENERATION.get(),
+                    ProviderPatternGenerationTracker.generation(),
+                    RecipeGenerationTracker.generation());
         }
     }
 

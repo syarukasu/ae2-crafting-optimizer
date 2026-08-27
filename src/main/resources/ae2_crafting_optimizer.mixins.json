@@ -31,6 +31,7 @@
     "CraftAmountMenuLongAmountMixin",
     "CraftConfirmMenuLongAmountMixin",
     "CraftingPlanSummaryWidePlanMixin",
+    "CraftingCpuHelperCalculationMemoMixin",
     "CraftingCpuHelperFluidFastPathMixin",
     "CraftingCpuLogicExecutionBudgetMixin",
     "CraftingCpuLogicBatchSourceReceiptMixin",
@@ -64,6 +65,7 @@
     "NeoEco20_3CraftingCpuExecutionBudgetMixin",
     "NeoEco20_4CraftingCpuExecutionBudgetMixin",
     "NetworkCraftingSimulationStateAccessor",
+    "NetworkStorageCraftingPlanGenerationMixin",
     "NetworkStorageMountsAccessor",
     "PatternProviderLogicIntentCaptureMixin",
     "PatternProviderLogicNativeBatchReceiptMixin",
@@ -74,6 +76,7 @@
     "ExtendedAePlusInfinityDataStorageConsistencyMixin",
     "MekanismCachedRecipeAccessor",
     "P2PServiceTopologyDeduplicationMixin",
+    "StorageServiceCraftingPlanGenerationMixin",
     "StorageImportScanOrderMixin"
   ],
   "client": [
