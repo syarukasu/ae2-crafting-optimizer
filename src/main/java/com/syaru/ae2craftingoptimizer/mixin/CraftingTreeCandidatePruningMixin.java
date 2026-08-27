@@ -4,7 +4,6 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
 import appeng.crafting.CraftingTreeNode;
-import com.syaru.ae2craftingoptimizer.optimization.PatternCandidatePruner;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationMemo;
 import appeng.crafting.CraftingCalculation;
 import java.util.Collection;
@@ -18,10 +17,6 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public abstract class CraftingTreeCandidatePruningMixin {
     @Shadow
     @Final
-    private AEKey what;
-
-    @Shadow
-    @Final
     private CraftingCalculation job;
 
     @Redirect(
@@ -31,7 +26,6 @@ public abstract class CraftingTreeCandidatePruningMixin {
                     target = "Lappeng/api/networking/crafting/ICraftingService;getCraftingFor(Lappeng/api/stacks/AEKey;)Ljava/util/Collection;"),
             require = 1)
     private Collection<IPatternDetails> aco$pruneInvalidCandidates(ICraftingService craftingService, AEKey output) {
-        return PatternCandidatePruner.prune(
-                CraftingCalculationMemo.patterns(job, craftingService, output), what);
+        return CraftingCalculationMemo.patternCandidates(job, craftingService, output);
     }
 }

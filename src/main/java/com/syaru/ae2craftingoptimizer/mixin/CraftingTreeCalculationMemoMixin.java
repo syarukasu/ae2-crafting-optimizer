@@ -3,6 +3,7 @@ package com.syaru.ae2craftingoptimizer.mixin;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
+import appeng.api.stacks.GenericStack;
 import appeng.crafting.CraftingCalculation;
 import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.CraftingTreeProcess;
@@ -12,6 +13,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import net.minecraft.world.level.Level;
 
 @Mixin(value = CraftingTreeNode.class, remap = false)
 public abstract class CraftingTreeCalculationMemoMixin {
@@ -22,6 +24,10 @@ public abstract class CraftingTreeCalculationMemoMixin {
     @Shadow
     @Final
     private IPatternDetails.IInput parentInput;
+
+    @Shadow
+    @Final
+    private Level level;
 
     @Redirect(
             method = {"<init>", "findCraftedStack"},
@@ -41,12 +47,28 @@ public abstract class CraftingTreeCalculationMemoMixin {
 
     @Redirect(
             method = "findCraftedStack",
+            at = @At(value = "INVOKE", target = "Lappeng/api/crafting/IPatternDetails$IInput;getPossibleInputs()[Lappeng/api/stacks/GenericStack;"),
+            require = 2)
+    private GenericStack[] aco$reuseFindCraftedStackInputs(IPatternDetails.IInput input) {
+        return CraftingCalculationMemo.possibleInputs(input);
+    }
+
+    @Redirect(
+            method = "notRecursive",
+            at = @At(value = "INVOKE", target = "Lappeng/api/crafting/IPatternDetails$IInput;getPossibleInputs()[Lappeng/api/stacks/GenericStack;"),
+            require = 1)
+    private GenericStack[] aco$reuseRecursionCheckInputs(IPatternDetails.IInput input) {
+        return CraftingCalculationMemo.possibleInputs(input);
+    }
+
+    @Redirect(
+            method = "findCraftedStack",
             at = @At(value = "INVOKE", target = "Lappeng/api/networking/crafting/ICraftingService;getFuzzyCraftable(Lappeng/api/stacks/AEKey;Lappeng/api/storage/AEKeyFilter;)Lappeng/api/stacks/AEKey;"),
             require = 1)
     private AEKey aco$memoizeFuzzyCraftable(
             ICraftingService service, AEKey key, appeng.api.storage.AEKeyFilter filter) {
         return CraftingCalculationMemo.fuzzyCraftable(
-                job, service, parentInput, key, () -> service.getFuzzyCraftable(key, filter));
+                job, service, parentInput, key, level, () -> service.getFuzzyCraftable(key, filter));
     }
 
     @Redirect(

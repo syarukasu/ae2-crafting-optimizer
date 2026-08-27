@@ -44,12 +44,12 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | クラス | 行数 | 判断 |
 |---|---:|---|
 | `PhysicalCraftingTreeTransaction` | 3754 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
-| `ACOConfig` | 2034 | 中。長大だがConfig IDと既定値の正本として凝集している。key互換を固定する試験なしに分割しない。 |
+| `ACOConfig` | 2064 | 中。長大だがConfig IDと既定値の正本として凝集している。key互換を固定する試験なしに分割しない。 |
 | `AqeBigCraftingExecutionManager` | 1678 | 高。外部CPU所有権と復旧境界。起動・再起動・取消試験を用意してから段階分割する。 |
-| `CompiledRootProgram` | 1294 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
+| `CompiledRootProgram` | 1406 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
+| `Ae2AuthoritativeCraftingPlanner` | 1365 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
 | `BigCraftingJob` | 1266 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
 | `ExactNetworkStorageBridge` | 1185 | 高。実在庫境界。snapshotとmutationの分離候補だが原子性試験が先。 |
-| `Ae2AuthoritativeCraftingPlanner` | 1047 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
 | `TransactionalCraftingExecutorV2` | 935 | 高。所有権移転後の処理。見た目の短縮目的では分割せず、phase単位の試験を先に増やす。 |
 | `BigCraftingHostRuntime` | 920 | 高。外部Host容量と予約を所有。複数Job仕様を勝手に導入しない。 |
 | `BigCraftingRuntime` | 875 | 中。公開API側のruntime registry。Host runtimeとの責務重複を監視する。 |
@@ -89,7 +89,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **382件**
+本版の本番トップレベル型: **387件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -463,6 +463,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCalculationDiagnosticsMixin` | CraftingCalculationDiagnosticsMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCalculationMemoLifecycleMixin` | CraftingCalculationMemoLifecycleMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuClusterTransactionAccessMixin` | CraftingCpuClusterTransactionAccessMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuHelperCalculationMemoMixin` | CraftingCpuHelperCalculationMemoMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuHelperFluidFastPathMixin` | CraftingCpuHelperFluidFastPathMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuLogicBatchSourceReceiptMixin` | CraftingCpuLogicBatchSourceReceiptMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuLogicExecutionBudgetMixin` | CraftingCpuLogicExecutionBudgetMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
@@ -508,6 +509,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkCraftingSimulationStateAccessor` | NetworkCraftingSimulationStateAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkCraftingSimulationStateBigIntegerSnapshotMixin` | NetworkCraftingSimulationStateBigIntegerSnapshotMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageBigIntegerSnapshotMixin` | NetworkStorageBigIntegerSnapshotMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageCraftingPlanGenerationMixin` | NetworkStorageCraftingPlanGenerationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageMountsAccessor` | NetworkStorageMountsAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NumberEntryWidgetAccessor` | NumberEntryWidgetAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.P2PServiceTopologyDeduplicationMixin` | P2PServiceTopologyDeduplicationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
@@ -515,6 +517,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.mixin.PatternProviderLogicNativeBatchReceiptMixin` | PatternProviderLogicNativeBatchReceiptMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.PerformanceMixinConfigPlugin` | PerformanceMixinConfigPluginが担当するMixin群の適用可否を、対象MODと対応版から決定する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.StorageImportScanOrderMixin` | StorageImportScanOrderMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.StorageServiceCraftingPlanGenerationMixin` | StorageServiceCraftingPlanGenerationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.StorageServiceDeepCoalescingMixin` | StorageServiceDeepCoalescingMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.StorageServiceExactSnapshotInvalidationMixin` | StorageServiceExactSnapshotInvalidationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.StorageServiceWatcherThrottleMixin` | StorageServiceWatcherThrottleMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
@@ -530,6 +533,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 
 | クラス | 仕事 |
 |---|---|
+| `com.syaru.ae2craftingoptimizer.optimization.Ae2DecisionProgramCache` | AE2標準Plannerの候補順と安全な静的入力metadataだけを世代付きで再利用し、分岐と在庫会計はAE2へ残す。 |
 | `com.syaru.ae2craftingoptimizer.optimization.Ae2OverclockUpgradeCountCache` | Ae2OverclockUpgradeCountCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.AssemblerMatrixBusyCountCache` | AssemblerMatrixBusyCountCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.BatchedCraftingExecutor` | 機械が正確に受理した実行数だけをまとめて会計する旧Batch実行器。 |
@@ -554,6 +558,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.optimization.ExactBatchInputLimiter` | 一回分のキー別入力合計から、signed-longで安全に所有できる実行回数を求める。 |
 | `com.syaru.ae2craftingoptimizer.optimization.FallbackBoundary` | ACOがAE2標準経路へ安全に戻せる最終地点を、ownership取得の前後で分類する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.FallbackReasonCode` | 高速経路を辞退した理由を安定した診断codeとして列挙する。 |
+| `com.syaru.ae2craftingoptimizer.optimization.GenerationScopedDecisionCache` | Provider Pattern世代とrecipe世代が安定したDecision Programだけを固定上限LRUへ公開する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.GenerationSlotCache` | 設定Inventoryの世代とサイズに結び付いた、nullも保持できる固定長slot cache。 |
 | `com.syaru.ae2craftingoptimizer.optimization.GridTickBudget` | GridTickBudgetが示す上限、時間予算、適格条件を副作用なしで判定する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.MethodHandleInvocationCache` | MethodHandleInvocationCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |

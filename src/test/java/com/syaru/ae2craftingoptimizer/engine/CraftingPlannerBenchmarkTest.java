@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class CraftingPlannerBenchmarkTest {
@@ -29,6 +30,17 @@ class CraftingPlannerBenchmarkTest {
                         ignored -> false)
                 .orElseThrow();
         var inventory = program.captureLongInventory(ignored -> 0L);
+        AtomicInteger singleOrderVisits = new AtomicInteger();
+        AtomicInteger maximumLongOrderVisits = new AtomicInteger();
+
+        LongCraftingPlan<String> singleOrder = program.planLong(
+                1L,
+                inventory,
+                singleOrderVisits::set);
+        LongCraftingPlan<String> maximumLongOrder = program.planLong(
+                Long.MAX_VALUE,
+                inventory,
+                maximumLongOrderVisits::set);
 
         BigCraftingPlan<String> plan = assertTimeout(
                 Duration.ofSeconds(2),
@@ -37,6 +49,9 @@ class CraftingPlannerBenchmarkTest {
                         inventory,
                         PlanningGuard.none(),
                         BigCountMath.HARD_MAXIMUM_BITS));
+        assertEquals(1_001, singleOrderVisits.get());
+        assertEquals(1_001, maximumLongOrderVisits.get());
+        assertEquals(singleOrderVisits.get(), maximumLongOrderVisits.get());
         assertEquals(1_001, plan.expandedRequests());
     }
 }

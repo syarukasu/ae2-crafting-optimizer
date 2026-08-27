@@ -13,6 +13,7 @@
     "CraftingBlockEntityTransactionAccessMixin",
     "CraftingCalculationCheckedMathMixin",
     "CraftingCalculationDiagnosticsMixin",
+    "CraftingCpuHelperCalculationMemoMixin",
     "CraftingCpuClusterTransactionAccessMixin",
     "CraftingCpuLogicBatchSourceReceiptMixin",
     "CraftingCpuLogicTransactionalBatchV2Mixin",
@@ -27,8 +28,10 @@
     "ListCraftingInventoryExactCountsMixin",
     "MEStorageMenuDisplaySaturationMixin",
     "NetworkCraftingSimulationStateAccessor",
+    "NetworkStorageCraftingPlanGenerationMixin",
     "NetworkStorageMountsAccessor",
     "PatternProviderLogicNativeBatchReceiptMixin",
+    "StorageServiceCraftingPlanGenerationMixin",
     "TaskProgressTransactionAccessMixin"
   ],
   "client": [
