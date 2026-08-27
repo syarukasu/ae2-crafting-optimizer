@@ -70,6 +70,38 @@ class Issue156PlanningAccelerationSourceTest {
         assertFalse(recompileRoot.contains("getOrCompileRoot("));
     }
 
+    @Test
+    void fallbackDecisionProgramKeepsAe2BranchOwnership() {
+        String decisionCache = read(JAVA.resolve(Path.of(
+                "optimization", "Ae2DecisionProgramCache.java")));
+        String candidateMixin = read(JAVA.resolve(Path.of(
+                "mixin", "CraftingTreeCandidatePruningMixin.java")));
+        String helperMixin = read(JAVA.resolve(Path.of(
+                "mixin", "CraftingCpuHelperCalculationMemoMixin.java")));
+
+        assertTrue(candidateMixin.contains("CraftingCalculationMemo.patternCandidates"));
+        assertTrue(helperMixin.contains("CraftingCalculationMemo.possibleInputs"));
+        assertTrue(decisionCache.contains("isCrossCalculationSafePattern"));
+        assertTrue(decisionCache.contains("isCrossCalculationSafeInput"));
+        assertFalse(decisionCache.contains("CraftingTreeProcess"));
+        assertFalse(decisionCache.contains("ChildCraftingSimulationState"));
+        assertFalse(decisionCache.contains("applyDiff"));
+    }
+
+    @Test
+    void decisionProgramsRequireStableProviderAndRecipeGenerations() {
+        String decisionCache = read(JAVA.resolve(Path.of(
+                "optimization", "Ae2DecisionProgramCache.java")));
+        String generationCache = read(JAVA.resolve(Path.of(
+                "optimization", "GenerationScopedDecisionCache.java")));
+
+        assertTrue(decisionCache.contains("ProviderPatternGenerationTracker.generation()"));
+        assertTrue(decisionCache.contains("RecipeGenerationTracker.generation()"));
+        assertTrue(generationCache.contains("generationStillCurrent.getAsBoolean()"));
+        assertTrue(generationCache.contains("compiler.get()"));
+        assertFalse(generationCache.contains("synchronized Lookup<V> getOrCompute"));
+    }
+
     private static String read(Path path) {
         try {
             return Files.readString(path);

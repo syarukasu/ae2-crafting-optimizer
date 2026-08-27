@@ -76,9 +76,9 @@ class CriticalMixinContractSourceTest {
     @Test
     void verifiedAe2CoreOptimizationsDoNotSilentlyDisableTheirInjectionPoints() {
         Map<String, Long> requiredInjectionLines = Map.of(
-                "CraftingCpuHelperCalculationMemoMixin.java", 1L,
+                "CraftingCpuHelperCalculationMemoMixin.java", 2L,
                 "CraftingCpuLogicTransactionalBatchV2Mixin.java", 1L,
-                "CraftingTreeCalculationMemoMixin.java", 4L,
+                "CraftingTreeCalculationMemoMixin.java", 6L,
                 "CraftingTreeCandidatePruningMixin.java", 1L,
                 "NetworkStorageCraftingPlanGenerationMixin.java", 2L,
                 "StorageServiceDeepCoalescingMixin.java", 4L,

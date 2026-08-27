@@ -2,6 +2,7 @@ package com.syaru.ae2craftingoptimizer.mixin;
 
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.stacks.AEKey;
+import appeng.api.stacks.GenericStack;
 import appeng.crafting.execution.CraftingCpuHelper;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationMemo;
 import net.minecraft.world.level.Level;
@@ -12,6 +13,16 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 /** AE2計算中に同じ入力候補へ繰り返されるrecipe妥当性判定だけを再利用する。 */
 @Mixin(value = CraftingCpuHelper.class, remap = false)
 public abstract class CraftingCpuHelperCalculationMemoMixin {
+    @Redirect(
+            method = "getValidItemTemplates",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lappeng/api/crafting/IPatternDetails$IInput;getPossibleInputs()[Lappeng/api/stacks/GenericStack;"),
+            require = 1)
+    private static GenericStack[] aco$reusePossibleInputs(IPatternDetails.IInput input) {
+        return CraftingCalculationMemo.possibleInputs(input);
+    }
+
     @Redirect(
             method = "lambda$getValidItemTemplates$0",
             at = @At(
