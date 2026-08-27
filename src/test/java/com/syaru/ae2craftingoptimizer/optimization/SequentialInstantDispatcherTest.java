@@ -6,9 +6,9 @@ import org.junit.jupiter.api.Test;
 
 class SequentialInstantDispatcherTest {
     @Test
-    void coldStartUsesProbeAsOneWaveNotTickLimit() {
-        assertEquals(65_536, SequentialInstantDispatcher.calculateWaveOperations(
-                264_192, 4_000_000L, 0L, 65_536, 65_536));
+    void coldStartUsesBoundedProbeAsOneWaveNotTickLimit() {
+        assertEquals(1_024, SequentialInstantDispatcher.calculateWaveOperations(
+                264_192, 4_000_000L, 0L, 1_024, 65_536));
     }
 
     @Test
@@ -21,6 +21,12 @@ class SequentialInstantDispatcherTest {
     void measuredWaveUsesSeventyFivePercentOfRemainingBudget() {
         assertEquals(3_000, SequentialInstantDispatcher.calculateWaveOperations(
                 264_192, 4_000_000L, 1_000L, 256, 65_536));
+    }
+
+    @Test
+    void measuredExpensiveSmallWaveStillHonorsTimeBudget() {
+        assertEquals(3, SequentialInstantDispatcher.calculateWaveOperations(
+                10_000, 4_000_000L, 1_000_000L, 1_024, 65_536));
     }
 
     @Test
