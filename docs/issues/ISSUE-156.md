@@ -84,6 +84,19 @@ Shadow計算は次のどちらかに該当する場合だけ有効になる。
 
 採用先が無い既定構成では通常注文へShadow計算を重ねない。
 
+### hot pathの割り当て削減
+
+数式Plannerの結果は変えず、注文ごとの一時処理を次のように削減する。
+
+- 単一入力候補では候補順位計算を省略する
+- 通常`long`候補順位で`BigInteger`を生成しない
+- checked演算のノード位置文字列は、失敗時だけ生成する
+- 在庫Snapshotとコンパイル配列は、private生成元から所有権を移して重複cloneしない
+- `used`、`emitted`、`missing`用の五配列を三配列へ集約する
+- 最終結果Mapを四回走査せず、一回のノード走査で同時に構築する
+
+配列とSnapshotは外部へ公開されず、計画結果は従来どおり不変Mapへcopyされる。
+
 ## 維持する不変条件
 
 - BigInteger正本をlongへ切り捨てない。
@@ -114,6 +127,20 @@ Shadow計算は次のどちらかに該当する場合だけ有効になる。
 - warm long-safe root: O(1)のcache参照だけを行い、全mount exact走査とBigInteger preflightを省略する。
 - 世代変更: Snapshotごと証明を破棄し、次のcold rootで再構築する。
 - 通常AE2結果を守るため、wall-clock時間による打ち切りや無条件retryは追加しない。
+
+### 同一JVM内の性能プローブ
+
+`PlannerPerformanceProbeTest`で、1,000段の一意な直列DAGを40回暖機後に120回計算した。
+これはMinecraft全体の発注時間ではなく、Planner hot pathだけの相対値である。
+
+| 環境 | 配列Planner | 旧Map型Planner | 相対高速化 | 配列割当 | 旧Map割当 | 割当削減 |
+|---|---:|---:|---:|---:|---:|---:|
+| Forge / Java 17 | 29.286 ms | 205.103 ms | 7.00倍 | 15.262 MiB | 123.048 MiB | 8.06倍 |
+| NeoForge / Java 21 | 30.645 ms | 208.420 ms | 6.80倍 | 15.251 MiB | 123.032 MiB | 8.07倍 |
+
+Forgeで割り当て削減前の配列Plannerは55.602 msだったため、今回のhot path修正だけで
+同プローブを約47%短縮した。絶対時間と割当量はJIT、CPU、GCで変動するため、回帰判定には
+速度の固定閾値を使わず、出力一致と固有ノード数比例を必須条件とする。
 
 ## 検証
 
