@@ -28,6 +28,7 @@ import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureGate;
 import com.syaru.ae2craftingoptimizer.optimization.P2PNotificationDeduplicator;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
+import com.syaru.ae2craftingoptimizer.optimization.TransactionalExactPatternCache;
 import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
 import com.syaru.ae2craftingoptimizer.transaction.BatchTransactionRecovery;
 import net.minecraftforge.common.MinecraftForge;
@@ -139,6 +140,7 @@ public final class ACOServerLifecycle {
         Ae2CompiledCraftingGraphCache.clear();
         PatternTaskFingerprint.clear();
         PatternProviderRoutingCache.clear();
+        TransactionalExactPatternCache.clear();
         NativeBatchTargetGuard.clear();
         OptionalNativeBatchIntegrations.clearRecipeCaches();
     }
