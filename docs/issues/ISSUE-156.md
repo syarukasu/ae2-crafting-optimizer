@@ -88,6 +88,19 @@ for each reachable key once:
 共有中間素材の需要は、そのノードを処理する前に全親から集約される。
 通常量は`long`配列を使い、検査済み演算がoverflowした注文だけ既存BigInteger経路へ昇格する。
 
+### hot pathの割り当て削減
+
+数式Plannerの結果は変えず、注文ごとの一時処理を次のように削減する。
+
+- 単一入力候補では候補順位計算を省略する
+- 通常`long`候補順位で`BigInteger`を生成しない
+- checked演算のノード位置文字列は、失敗時だけ生成する
+- 在庫Snapshotとコンパイル配列は、private生成元から所有権を移して重複cloneしない
+- `used`、`emitted`、`missing`用の五配列を三配列へ集約する
+- 最終結果Mapを四回走査せず、一回のノード走査で同時に構築する
+
+配列とSnapshotは外部へ公開されず、計画結果は従来どおり不変Mapへcopyされる。
+
 ### AE2時間分割
 
 Root探索、Pattern変換、Fingerprint、SCC解析、配列Program生成、live証明、計画本体は、
@@ -146,10 +159,24 @@ ME在庫の成立した`insert/extract`とAE2が検出した外部mount更新は
 改善幅はクラフトツリー形状とcacheの暖機状態に依存する。単純な短い直列レシピでは差が小さく、
 共有中間素材が多い巨大DAGと同一Rootの反復注文ほど効果が大きい。
 
+### 同一JVM内の性能プローブ
+
+`PlannerPerformanceProbeTest`で、1,000段の一意な直列DAGを40回暖機後に120回計算した。
+これはMinecraft全体の発注時間ではなく、Planner hot pathだけの相対値である。
+
+| 環境 | 配列Planner | 旧Map型Planner | 相対高速化 | 配列割当 | 旧Map割当 | 割当削減 |
+|---|---:|---:|---:|---:|---:|---:|
+| Forge / Java 17 | 29.286 ms | 205.103 ms | 7.00倍 | 15.262 MiB | 123.048 MiB | 8.06倍 |
+| NeoForge / Java 21 | 30.645 ms | 208.420 ms | 6.80倍 | 15.251 MiB | 123.032 MiB | 8.07倍 |
+
+Forgeで割り当て削減前の配列Plannerは55.602 msだったため、今回のhot path修正だけで
+同プローブを約47%短縮した。絶対時間と割当量はJIT、CPU、GCで変動するため、回帰判定には
+速度の固定閾値を使わず、出力一致と固有ノード数比例を必須条件とする。
+
 ## 検証
 
-- Forge 1.20.1: JUnit 456件成功、失敗0件、エラー0件、skip 2件
-- NeoForge 1.21.1: JUnit 472件成功、失敗0件、エラー0件
+- Forge 1.20.1: JUnit 460件成功、失敗0件、エラー0件、skip 2件
+- NeoForge 1.21.1: JUnit 476件成功、失敗0件、エラー0件
 - `clean build`: 両版で成功
 - `git diff --check`: 両版で実施
 - Minecraft起動試験: 指示により実施しない

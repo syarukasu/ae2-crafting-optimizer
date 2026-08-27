@@ -78,14 +78,18 @@ public final class CompiledRootProgram<K> {
         this.rootIndex = rootIndex;
         this.keys = List.copyOf(keys);
         this.indexByKey = Map.copyOf(indexByKey);
-        this.patterns = patterns.clone();
-        this.patternIds = patternIds.clone();
-        this.outputAmounts = outputAmounts.clone();
-        this.inputOffsets = inputOffsets.clone();
-        this.alternativeOffsets = alternativeOffsets.clone();
-        this.inputIndices = inputIndices.clone();
-        this.inputAmounts = inputAmounts.clone();
-        this.emittable = emittable.clone();
+        /*
+         * 全配列はcompile内で新規作成され、このprivate constructorへ所有権を移す。
+         * 外部参照が存在しない配列を再cloneすると、cold compileのメモリ帯域だけを倍増させる。
+         */
+        this.patterns = patterns;
+        this.patternIds = patternIds;
+        this.outputAmounts = outputAmounts;
+        this.inputOffsets = inputOffsets;
+        this.alternativeOffsets = alternativeOffsets;
+        this.inputIndices = inputIndices;
+        this.inputAmounts = inputAmounts;
+        this.emittable = emittable;
         this.patternsByOutput = Map.copyOf(patternsByOutput);
         this.emittableKeys = Set.copyOf(emittableKeys);
         this.patternCount = patternCount;
@@ -445,14 +449,14 @@ public final class CompiledRootProgram<K> {
         long[] demand = new long[nodeCount];
         long[] patternExecutions = new long[nodeCount];
         long[] used = new long[nodeCount];
-        long[] emitted = new long[nodeCount];
-        long[] missing = new long[nodeCount];
         demand[rootIndex] = requestedAmount;
 
         // 全親の要求が集約済みになるトポロジカル順で、各固有キーを一度だけ処理する。
         for (int node = 0; node < nodeCount; node++) {
             guard.checkpoint(node + 1);
             long required = demand[node];
+            // 処理済みノードの需要欄は、Emitterまたは不足終端の残量格納へ再利用する。
+            demand[node] = 0L;
             // この注文から到達しなかった枝は配列上に存在しても計算しない。
             if (required == 0L) {
                 continue;
@@ -467,19 +471,20 @@ public final class CompiledRootProgram<K> {
             }
             // EmitterはAE2と同じく不足量を直接供給し、その先を展開しない。
             if (emittable[node]) {
-                emitted[node] = deficit;
+                demand[node] = deficit;
                 continue;
             }
             // Patternがない終端は全件を不足一覧へ残し、他の枝の計算は継続する。
             if (patterns[node] == null) {
-                missing[node] = deficit;
+                demand[node] = deficit;
                 continue;
             }
 
-            long executions = CheckedLongMath.ceilDiv(
+            long executions = CheckedLongMath.ceilDivIndexed(
                     deficit,
                     outputAmounts[node],
-                    "compiled-root/executions/" + node);
+                    "compiled-root/executions",
+                    node);
             patternExecutions[node] = executions;
             // 各slotで具体候補を一つ選び、実行回数を掛けて子ノード需要へ加算する。
             for (int slot = inputOffsets[node]; slot < inputOffsets[node + 1]; slot++) {
@@ -487,24 +492,30 @@ public final class CompiledRootProgram<K> {
                         slot,
                         executions,
                         inventory);
-                long requiredInput = CheckedLongMath.multiply(
+                long requiredInput = CheckedLongMath.multiplyIndexed(
                         inputAmounts[edge],
                         executions,
-                        "compiled-root/input/" + node + '/' + edge);
+                        "compiled-root/input",
+                        edge);
                 int child = inputIndices[edge];
-                demand[child] = CheckedLongMath.add(
+                demand[child] = CheckedLongMath.addIndexed(
                         demand[child],
                         requiredInput,
-                        "compiled-root/demand/" + child);
+                        "compiled-root/demand",
+                        child);
             }
         }
+        LongResultMaps<K> resultMaps = longResultMaps(
+                patternExecutions,
+                used,
+                demand);
         return new LongCraftingPlan<>(
                 root,
                 requestedAmount,
-                longPatternMap(patternExecutions),
-                longKeyMap(used),
-                longKeyMap(emitted),
-                longKeyMap(missing));
+                resultMaps.patternExecutions(),
+                resultMaps.usedInventory(),
+                resultMaps.emitted(),
+                resultMaps.missing());
     }
 
     /** long SnapshotをBigIntegerへ昇格し、同じ配列プログラムを一巡する。 */
@@ -529,7 +540,7 @@ public final class CompiledRootProgram<K> {
             PlanningGuard guard,
             int maximumBits) {
         requireSnapshot(inventory);
-        return planBigInternal(requestedAmount, inventory.copyAmounts(), guard, maximumBits);
+        return planBigInternal(requestedAmount, inventory.amounts, guard, maximumBits);
     }
 
     /**
@@ -729,14 +740,14 @@ public final class CompiledRootProgram<K> {
         BigInteger[] demand = new BigInteger[nodeCount];
         BigInteger[] patternExecutions = new BigInteger[nodeCount];
         BigInteger[] used = new BigInteger[nodeCount];
-        BigInteger[] emitted = new BigInteger[nodeCount];
-        BigInteger[] missing = new BigInteger[nodeCount];
         demand[rootIndex] = requestedAmount;
 
         // 注文桁数に関係なく、long経路と同じ固有ノード数だけを一巡する。
         for (int node = 0; node < nodeCount; node++) {
             guard.checkpoint(node + 1);
             BigInteger required = zeroIfNull(demand[node]);
+            // 処理済みノードの需要欄は、Emitterまたは不足終端の残量格納へ再利用する。
+            demand[node] = null;
             // この注文から到達しなかった枝はBigInteger演算を割り当てない。
             if (required.signum() == 0) {
                 continue;
@@ -751,12 +762,12 @@ public final class CompiledRootProgram<K> {
             }
             // EmitterはAE2と同じく不足量を直接供給する。
             if (emittable[node]) {
-                emitted[node] = deficit;
+                demand[node] = deficit;
                 continue;
             }
             // Patternがない全終端を不足配列へ記録し、最初の不足で打ち切らない。
             if (patterns[node] == null) {
-                missing[node] = deficit;
+                demand[node] = deficit;
                 continue;
             }
 
@@ -789,68 +800,116 @@ public final class CompiledRootProgram<K> {
                         maximumBits);
             }
         }
+        BigResultMaps<K> resultMaps = bigResultMaps(
+                patternExecutions,
+                used,
+                demand);
         return new BigCraftingPlan<>(
                 root,
                 requestedAmount,
-                bigPatternMap(patternExecutions),
-                bigKeyMap(used),
-                bigKeyMap(emitted),
-                bigKeyMap(missing),
+                resultMaps.patternExecutions(),
+                resultMaps.usedInventory(),
+                resultMaps.emitted(),
+                resultMaps.missing(),
                 nodeCount);
     }
 
-    private Map<String, Long> longPatternMap(long[] counts) {
-        Map<String, Long> result = new LinkedHashMap<>();
-        // 実行されたPatternだけを最終AE2計画用Mapへ物質化する。
-        for (int node = 0; node < counts.length; node++) {
-            // 0回のPatternは計画へ含めない。
-            if (counts[node] > 0L) {
+    /** 三本の数量配列を一巡し、最終Planが必要とする四Mapを同時に物質化する。 */
+    private LongResultMaps<K> longResultMaps(
+            long[] patternExecutions,
+            long[] used,
+            long[] terminalRemainders) {
+        Map<String, Long> patterns = new LinkedHashMap<>();
+        Map<K, Long> usedInventory = new LinkedHashMap<>();
+        Map<K, Long> emitted = new LinkedHashMap<>();
+        Map<K, Long> missing = new LinkedHashMap<>();
+        // 個別Mapごとの全ノード再走査を避け、各ノードを一度だけ分類する。
+        for (int node = 0; node < patternExecutions.length; node++) {
+            long executions = patternExecutions[node];
+            // 実行されたPatternだけをAE2計画へ登録する。
+            if (executions > 0L) {
                 CheckedLongMath.merge(
-                        result,
+                        patterns,
                         patternIds[node],
-                        counts[node],
+                        executions,
                         "compiled-root/result-pattern");
             }
-        }
-        return Map.copyOf(result);
-    }
-
-    private Map<K, Long> longKeyMap(long[] counts) {
-        Map<K, Long> result = new LinkedHashMap<>();
-        // 0でないキーだけをAE2のKeyCounterへ渡す最終Mapへ変換する。
-        for (int node = 0; node < counts.length; node++) {
-            // 0量は計画サイズと後続同期量を増やすだけなので除外する。
-            if (counts[node] > 0L) {
-                result.put(keys.get(node), counts[node]);
+            long usedAmount = used[node];
+            // 在庫を実際に予約したキーだけを結果へ登録する。
+            if (usedAmount > 0L) {
+                usedInventory.put(keys.get(node), usedAmount);
+            }
+            long remainder = terminalRemainders[node];
+            // 解決済みまたはPatternノードには終端残量がない。
+            if (remainder == 0L) {
+                continue;
+            }
+            // 同じ残量配列を静的ノード種別でEmitterと不足へ分離する。
+            if (emittable[node]) {
+                emitted.put(keys.get(node), remainder);
+            } else {
+                missing.put(keys.get(node), remainder);
             }
         }
-        return Map.copyOf(result);
+        return new LongResultMaps<>(
+                patterns,
+                usedInventory,
+                emitted,
+                missing);
     }
 
-    private Map<String, BigInteger> bigPatternMap(BigInteger[] counts) {
-        Map<String, BigInteger> result = new LinkedHashMap<>();
-        // 実行されたPatternだけをBigInteger計画用Mapへ物質化する。
-        for (int node = 0; node < counts.length; node++) {
-            BigInteger amount = zeroIfNull(counts[node]);
-            // 0回のPatternは計画へ含めない。
-            if (amount.signum() != 0) {
-                result.put(patternIds[node], amount);
+    /** BigInteger経路も各ノードを一巡だけし、計画Mapの重複走査を避ける。 */
+    private BigResultMaps<K> bigResultMaps(
+            BigInteger[] patternExecutions,
+            BigInteger[] used,
+            BigInteger[] terminalRemainders) {
+        Map<String, BigInteger> patterns = new LinkedHashMap<>();
+        Map<K, BigInteger> usedInventory = new LinkedHashMap<>();
+        Map<K, BigInteger> emitted = new LinkedHashMap<>();
+        Map<K, BigInteger> missing = new LinkedHashMap<>();
+        // nullを0として扱い、到達したノードだけを結果Mapへ物質化する。
+        for (int node = 0; node < patternExecutions.length; node++) {
+            BigInteger executions = zeroIfNull(patternExecutions[node]);
+            // 実行されたPatternだけをBigInteger計画へ登録する。
+            if (executions.signum() != 0) {
+                patterns.put(patternIds[node], executions);
+            }
+            BigInteger usedAmount = zeroIfNull(used[node]);
+            // 在庫を実際に予約したキーだけを結果へ登録する。
+            if (usedAmount.signum() != 0) {
+                usedInventory.put(keys.get(node), usedAmount);
+            }
+            BigInteger remainder = zeroIfNull(terminalRemainders[node]);
+            // 解決済みまたはPatternノードには終端残量がない。
+            if (remainder.signum() == 0) {
+                continue;
+            }
+            // 同じ残量配列を静的ノード種別でEmitterと不足へ分離する。
+            if (emittable[node]) {
+                emitted.put(keys.get(node), remainder);
+            } else {
+                missing.put(keys.get(node), remainder);
             }
         }
-        return Map.copyOf(result);
+        return new BigResultMaps<>(
+                patterns,
+                usedInventory,
+                emitted,
+                missing);
     }
 
-    private Map<K, BigInteger> bigKeyMap(BigInteger[] counts) {
-        Map<K, BigInteger> result = new LinkedHashMap<>();
-        // 0でないキーだけをBigInteger計画の最終Mapへ変換する。
-        for (int node = 0; node < counts.length; node++) {
-            BigInteger amount = zeroIfNull(counts[node]);
-            // 0量は保存・同期対象から除外する。
-            if (amount.signum() != 0) {
-                result.put(keys.get(node), amount);
-            }
-        }
-        return Map.copyOf(result);
+    private record LongResultMaps<K>(
+            Map<String, Long> patternExecutions,
+            Map<K, Long> usedInventory,
+            Map<K, Long> emitted,
+            Map<K, Long> missing) {
+    }
+
+    private record BigResultMaps<K>(
+            Map<String, BigInteger> patternExecutions,
+            Map<K, BigInteger> usedInventory,
+            Map<K, BigInteger> emitted,
+            Map<K, BigInteger> missing) {
     }
 
     private static BigInteger zeroIfNull(BigInteger value) {
@@ -861,19 +920,24 @@ public final class CompiledRootProgram<K> {
             int slot,
             long executions,
             InventorySnapshot<K> inventory) {
+        int firstEdge = alternativeOffsets[slot];
+        int edgeLimit = alternativeOffsets[slot + 1];
+        // 一意候補は順位付け不要なので、通常AE2高速経路ではそのまま返す。
+        if (edgeLimit - firstEdge == 1) {
+            return firstEdge;
+        }
         int selected = -1;
         int selectedRank = Integer.MAX_VALUE;
         CountOverflowException firstOverflow = null;
         // Patternが提示した候補順を保ち、同順位ではAE2の先頭候補を採用する。
-        for (int edge = alternativeOffsets[slot];
-                edge < alternativeOffsets[slot + 1];
-                edge++) {
+        for (int edge = firstEdge; edge < edgeLimit; edge++) {
             long required;
             try {
-                required = CheckedLongMath.multiply(
+                required = CheckedLongMath.multiplyIndexed(
                         inputAmounts[edge],
                         executions,
-                        "compiled-root/alternative/" + slot + '/' + edge);
+                        "compiled-root/alternative",
+                        edge);
             } catch (CountOverflowException overflow) {
                 // 他候補だけがlongへ収まる場合を試すため、最初のoverflowを保留する。
                 if (firstOverflow == null) {
@@ -881,10 +945,10 @@ public final class CompiledRootProgram<K> {
                 }
                 continue;
             }
-            int rank = alternativeRank(
+            int rank = alternativeRankLong(
                     inputIndices[edge],
-                    BigInteger.valueOf(required),
-                    BigInteger.valueOf(inventory.amountAt(inputIndices[edge])),
+                    required,
+                    inventory.amountAt(inputIndices[edge]),
                     false);
             // より安全な候補だけへ更新し、同順位のPattern順は崩さない。
             if (rank < selectedRank) {
@@ -902,6 +966,40 @@ public final class CompiledRootProgram<K> {
         }
         throw new IllegalStateException(
                 "compiled input slot has no long alternative");
+    }
+
+    /** long経路の候補順位をprimitive比較だけで決め、候補ごとのBigInteger生成を避ける。 */
+    private int alternativeRankLong(
+            int child,
+            long required,
+            long available,
+            boolean craftingTableOnly) {
+        // このslotを現在在庫だけで満たせる候補を最優先する。
+        if (available >= required) {
+            return ALTERNATIVE_RANK_AVAILABLE;
+        }
+        CompiledPattern<K> childPattern = patternAt(child);
+        // 作業台限定経路では、加工機へpushする下位Patternを選択対象にしない。
+        if (childPattern != null
+                && (!craftingTableOnly
+                        || !childPattern.externalPush())) {
+            return ALTERNATIVE_RANK_CRAFTABLE;
+        }
+        // 通常PlannerだけはEmitterをAE2と同じ供給可能候補として扱う。
+        if (!craftingTableOnly && emittable[child]) {
+            return ALTERNATIVE_RANK_CRAFTABLE;
+        }
+        // 不足を減らせる部分在庫は、完全に存在しない終端候補より先に使う。
+        if (available > 0L) {
+            return ALTERNATIVE_RANK_PARTIAL;
+        }
+        // 作業台限定経路で使えない供給経路は、通常の不足終端より後に置く。
+        if (craftingTableOnly
+                && (childPattern != null
+                        || emittable[child])) {
+            return ALTERNATIVE_RANK_UNSUPPORTED;
+        }
+        return ALTERNATIVE_RANK_MISSING;
     }
 
     private int selectBigAlternative(
@@ -1265,7 +1363,8 @@ public final class CompiledRootProgram<K> {
 
         private InventorySnapshot(CompiledRootProgram<K> owner, long[] amounts) {
             this.owner = owner;
-            this.amounts = amounts.clone();
+            // private生成元が新規確保した配列の所有権を受け取り、同内容の再copyを避ける。
+            this.amounts = amounts;
         }
 
         private CompiledRootProgram<K> owner() {
@@ -1288,15 +1387,12 @@ public final class CompiledRootProgram<K> {
 
         private BigInventorySnapshot(CompiledRootProgram<K> owner, BigInteger[] amounts) {
             this.owner = owner;
-            this.amounts = amounts.clone();
+            // private生成元が新規確保した配列の所有権を受け取り、同内容の再copyを避ける。
+            this.amounts = amounts;
         }
 
         private CompiledRootProgram<K> owner() {
             return owner;
-        }
-
-        private BigInteger[] copyAmounts() {
-            return amounts.clone();
         }
 
         private BigInteger amountAt(int index) {

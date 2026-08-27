@@ -29,6 +29,40 @@ class CheckedLongMathTest {
     }
 
     @Test
+    void indexedOperationsKeepExactArithmeticAndLazyFailureContext() {
+        assertEquals(
+                Long.MAX_VALUE,
+                CheckedLongMath.addIndexed(
+                        Long.MAX_VALUE - 1L,
+                        1L,
+                        "test/add",
+                        7));
+        assertEquals(
+                Long.MAX_VALUE,
+                CheckedLongMath.multiplyIndexed(
+                        Long.MAX_VALUE,
+                        1L,
+                        "test/multiply",
+                        8));
+        assertEquals(
+                (Long.MAX_VALUE / 2L) + 1L,
+                CheckedLongMath.ceilDivIndexed(
+                        Long.MAX_VALUE,
+                        2L,
+                        "test/ceil",
+                        9));
+
+        CountOverflowException overflow = assertThrows(
+                CountOverflowException.class,
+                () -> CheckedLongMath.multiplyIndexed(
+                        Long.MAX_VALUE,
+                        2L,
+                        "test/multiply",
+                        8));
+        assertTrue(overflow.getMessage().contains("test/multiply/8"));
+    }
+
+    @Test
     void detectsDistinctLongMaximumInputsWithoutAddingThem() {
         assertTrue(CheckedLongMath.sumExceedsLong(
                 Map.of("gas_a", Long.MAX_VALUE, "gas_b", Long.MAX_VALUE),
