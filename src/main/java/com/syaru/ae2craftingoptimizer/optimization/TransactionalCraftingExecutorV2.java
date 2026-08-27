@@ -195,16 +195,28 @@ public final class TransactionalCraftingExecutorV2 {
                 if (details == null || !(task.getValue() instanceof CraftingTaskProgressAccess progress)) {
                     continue;
                 }
+                long remaining = progress.aco$getTaskProgress();
+                // 完了済みTaskはReceiptも静的metadataも読まず、次のAE2 Taskへ進む。
+                if (remaining < 1L) {
+                    continue;
+                }
+                TransactionalExactPatternCache.Lookup compiledLookup =
+                        TransactionalExactPatternCache.lookup(details);
+                // 取得後に世代が進んだmetadataは使わず、このwaveの現在値だけを直接読む。
+                if (compiledLookup.state() == TransactionalExactPatternCache.State.UNSTABLE
+                        || !compiledLookup.isCurrent()) {
+                    compiledLookup = TransactionalExactPatternCache.compileUncached(details);
+                }
+                // 加工Patternなど静的にV2対象外のTaskは、fingerprint生成前にAE2へ残す。
+                if (compiledLookup.state() != TransactionalExactPatternCache.State.SUPPORTED) {
+                    continue;
+                }
                 String taskFingerprint = PatternTaskFingerprint.of(details);
                 if (sourceReceipts.aco$hasUnresolvedBatchSourceReceipt(taskFingerprint)) {
                     return 0;
                 }
-                long remaining = progress.aco$getTaskProgress();
                 // 一回だけの作業台クラフトもAAC実Workerへ渡し、注文量で実行経路を変えない。
-                if (remaining < 1L) {
-                    continue;
-                }
-                ExactPlan plan = ExactPlan.create(details, inventory, level);
+                ExactPlan plan = ExactPlan.create(compiledLookup.pattern(), inventory, level);
                 if (plan == null) {
                     continue;
                 }
@@ -808,101 +820,90 @@ public final class TransactionalCraftingExecutorV2 {
             KeyCounter remainingOutputsPerExecution) {
         @Nullable
         private static ExactPlan create(
-                IPatternDetails details,
+                TransactionalExactPatternCache.CompiledPattern compiled,
                 ICraftingInventory inventory,
                 Level level) {
-            /*
-             * 通常作業台PatternはIMolecularAssemblerSupportedPattern側で
-             * supportsPushInputsToExternalInventory=falseを返す。加工Pattern判定を
-             * ここへ流用せず、作業台Patternかどうかを型で判定する。
-             */
-            if (!(details instanceof appeng.blockentity.crafting.IMolecularAssemblerSupportedPattern)) {
+            // 静的metadataを証明できないPatternはV2で所有せず、AE2へ残す。
+            if (compiled == null) {
                 return null;
             }
-            KeyCounter[] inputs = new KeyCounter[details.getInputs().length];
+            TransactionalExactPatternCache.CompiledInput[] compiledInputs = compiled.inputs();
+            KeyCounter[] inputs = new KeyCounter[compiledInputs.length];
             try {
-                for (int index = 0; index < details.getInputs().length; index++) {
-                    IPatternDetails.IInput input = details.getInputs()[index];
-                    var possible = input.getPossibleInputs();
-                    if (input.getMultiplier() <= 0L || possible.length == 0) {
-                        return null;
-                    }
-                    GenericStack selected = selectConcreteInput(
-                            input,
-                            possible,
+                // 各入力slotについて、現在の在庫で最も多く実行できる候補を従来順で選ぶ。
+                for (int index = 0; index < compiledInputs.length; index++) {
+                    TransactionalExactPatternCache.CompiledInput compiledInput = compiledInputs[index];
+                    SelectedInput selected = selectConcreteInput(
+                            compiledInput,
                             inventory,
                             level);
+                    // 有効な候補がないPatternはこのwaveのV2対象にしない。
                     if (selected == null) {
                         return null;
                     }
-                    long amount = Math.multiplyExact(
-                            selected.amount(),
-                            input.getMultiplier());
                     KeyCounter slot = inputs[index] = new KeyCounter();
-                    slot.add(selected.what(), amount);
-                }
-                KeyCounter outputs = new KeyCounter();
-                for (var output : details.getOutputs()) {
-                    if (output.amount() <= 0L) {
-                        return null;
-                    }
-                    outputs.set(
-                            output.what(), Math.addExact(outputs.get(output.what()), output.amount()));
+                    slot.add(selected.key(), selected.amountPerExecution());
                 }
                 KeyCounter remainingOutputs = new KeyCounter();
-                for (int index = 0; index < details.getInputs().length; index++) {
-                    IPatternDetails.IInput input = details.getInputs()[index];
+                // 選択した各入力候補から、AE2定義の返却物を毎wave再計算する。
+                for (int index = 0; index < compiledInputs.length; index++) {
+                    TransactionalExactPatternCache.CompiledInput compiledInput = compiledInputs[index];
                     AEKey selectedKey = firstKey(inputs[index]);
-                    AEKey remainingKey = input.getRemainingKey(selectedKey);
+                    AEKey remainingKey = compiledInput.input().getRemainingKey(selectedKey);
+                    // 返却物が定義されたslotだけを一実行分の出力会計へ加える。
                     if (remainingKey != null) {
-                        long amount = input.getMultiplier();
                         remainingOutputs.set(
                                 remainingKey,
                                 Math.addExact(
                                         remainingOutputs.get(remainingKey),
-                                        amount));
+                                        compiledInput.input().getMultiplier()));
                     }
                 }
-                return new ExactPlan(inputs, outputs, remainingOutputs);
+                return new ExactPlan(inputs, compiled.outputsPerExecution(), remainingOutputs);
             } catch (ArithmeticException ignored) {
                 return null;
             }
         }
 
         @Nullable
-        private static GenericStack selectConcreteInput(
-                IPatternDetails.IInput input,
-                GenericStack[] candidates,
+        private static SelectedInput selectConcreteInput(
+                TransactionalExactPatternCache.CompiledInput input,
                 ICraftingInventory inventory,
                 Level level) {
-            GenericStack selected = null;
+            TransactionalExactPatternCache.Candidate selected = null;
+            // -1は在庫0の最初の有効候補も選択対象にするための初期値。
             long selectedCrafts = -1L;
-            for (GenericStack candidate : candidates) {
-                if (candidate == null
-                        || candidate.amount() <= 0L
-                        || !input.isValid(candidate.what(), level)) {
+            // AE2の候補順を維持し、同数なら先に現れた候補を選ぶ。
+            for (TransactionalExactPatternCache.Candidate candidate : input.candidates()) {
+                GenericStack stack = candidate.stack();
+                // null・非正量・現在worldで無効な候補を従来と同じ順序で除外する。
+                if (stack == null
+                        || stack.amount() <= 0L
+                        || !input.input().isValid(stack.what(), level)) {
                     continue;
                 }
-                long perCraft;
-                try {
-                    perCraft = Math.multiplyExact(
-                            candidate.amount(),
-                            input.getMultiplier());
-                } catch (ArithmeticException overflow) {
+                // checked乗算に収まらない候補は、isValid確認後に従来どおり除外する。
+                if (candidate.amountPerExecution() <= 0L) {
                     continue;
                 }
                 long available = inventory.extract(
-                        candidate.what(),
+                        stack.what(),
                         Long.MAX_VALUE,
                         Actionable.SIMULATE);
-                long crafts = available / perCraft;
+                long crafts = available / candidate.amountPerExecution();
                 // 在庫が最も多い一種類だけを選び、同じBatch内で代替素材を混在させない。
                 if (crafts > selectedCrafts) {
                     selected = candidate;
                     selectedCrafts = crafts;
                 }
             }
-            return selected;
+            // すべての候補が無効なら、このPatternをV2では実行しない。
+            if (selected == null || selected.stack() == null) {
+                return null;
+            }
+            return new SelectedInput(
+                    selected.stack().what(),
+                    selected.amountPerExecution());
         }
 
         private static AEKey firstKey(KeyCounter counter) {
@@ -950,6 +951,9 @@ public final class TransactionalCraftingExecutorV2 {
                                 entry.getLongValue(),
                                 executions)));
             }
+        }
+
+        private record SelectedInput(AEKey key, long amountPerExecution) {
         }
     }
 }

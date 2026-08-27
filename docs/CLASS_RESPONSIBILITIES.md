@@ -584,6 +584,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.optimization.StateOwnership` | 最適化中の正本がAE2、ACO cache、ACO transaction、外部アドオンのどれかを示す。 |
 | `com.syaru.ae2craftingoptimizer.optimization.StorageWatcherUpdateBuffer` | client可視のstorage差分を上限付きで集約し、screenやtopology変更時に即flushする。 |
 | `com.syaru.ae2craftingoptimizer.optimization.TransactionalCraftingExecutorV2` | Batch V2のprepare、transfer、commit、rollbackをReceipt契約に従って進める。 |
+| `com.syaru.ae2craftingoptimizer.optimization.TransactionalExactPatternCache` | V2作業台Patternの静的metadataだけをProvider Pattern世代単位で再利用する。在庫、候補有効性、返却物、Provider状態は保持しない。 |
 
 ### `com.syaru.ae2craftingoptimizer.scheduler`
 
