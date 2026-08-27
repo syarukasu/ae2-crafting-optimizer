@@ -580,6 +580,7 @@ mixin + access  ->  integration  ->  optimization / scheduler
 | `com.syaru.ae2craftingoptimizer.optimization.RoundRobinSlotWindow` | IO Portの固定スロットを、永続cursorから公平に巡回する純粋計算。 |
 | `com.syaru.ae2craftingoptimizer.optimization.SequentialInstantDispatcher` | AE2本来のexecuteCraftingを小さな計測波へ分け、同じserver tick内で時間予算まで継続する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.ServerTickClock` | ServerTickClockが示す世代、進捗、tick時刻を単調に追跡する。 |
+| `com.syaru.ae2craftingoptimizer.optimization.StandardAe2CoprocessorCountResolver` | 標準AE2クラスタの構成ユニットをlongで一度だけ再集計し、int桁あふれ前の実行並列数を復元する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.SharedCalculationFuture` | 一つの計算Futureを複数呼出者へ共有し、各待機者の取消を所有Futureの取消と分離する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.StateOwnership` | 最適化中の正本がAE2、ACO cache、ACO transaction、外部アドオンのどれかを示す。 |
 | `com.syaru.ae2craftingoptimizer.optimization.StorageWatcherUpdateBuffer` | client可視のstorage差分を上限付きで集約し、screenやtopology変更時に即flushする。 |

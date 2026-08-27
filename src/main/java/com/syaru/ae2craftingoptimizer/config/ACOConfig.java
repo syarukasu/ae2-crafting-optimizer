@@ -156,6 +156,7 @@ public final class ACOConfig {
     private static final ModConfigSpec.BooleanValue ENABLE_INSTANT_PATTERN_DISPATCH;
     private static final ModConfigSpec.IntValue INSTANT_PATTERN_DISPATCH_TIME_BUDGET_MILLIS;
     private static final ModConfigSpec.IntValue INSTANT_PATTERN_DISPATCH_PROBE_OPERATIONS;
+    private static final ModConfigSpec.IntValue INSTANT_PATTERN_DISPATCH_MAXIMUM_UNMEASURED_WAVE_OPERATIONS;
     private static final ModConfigSpec.IntValue INSTANT_PATTERN_DISPATCH_MAXIMUM_WAVE_OPERATIONS;
     private static final ModConfigSpec.IntValue MAX_INSTANT_PATTERN_DISPATCH_TRANSACTIONS;
     private static final ModConfigSpec.BooleanValue REQUIRE_SINGLE_TRANSACTIONAL_BATCH_TARGET;
@@ -749,6 +750,12 @@ public final class ACOConfig {
                         "Cold-start wave size before ACO has measured the cost of one normal AE2 pattern push.",
                         "This limits only one timing wave, not the total number dispatched during the tick.")
                 .defineInRange("instantPatternDispatchProbeOperations", 65_536, 1, 65_536);
+        INSTANT_PATTERN_DISPATCH_MAXIMUM_UNMEASURED_WAVE_OPERATIONS = builder
+                .comment(
+                        "Safety ceiling for an unmeasured cold-start wave.",
+                        "The 1024-operation default prevents a legacy 65536 probe from spending an entire tick inside an unexpectedly expensive Pattern Provider hook.",
+                        "After the first measurement, ACO immediately uses the configured CPU/grid time budget instead of this ceiling.")
+                .defineInRange("instantPatternDispatchMaximumUnmeasuredWaveOperations", 1_024, 1, 65_536);
         INSTANT_PATTERN_DISPATCH_MAXIMUM_WAVE_OPERATIONS = builder
                 .comment(
                         "Maximum operations passed to one measured AE2 execution wave.",
@@ -1657,6 +1664,12 @@ public final class ACOConfig {
 
     public static int getInstantPatternDispatchProbeOperations() {
         return Math.min(65_536, Math.max(1, INSTANT_PATTERN_DISPATCH_PROBE_OPERATIONS.get()));
+    }
+
+    public static int getInstantPatternDispatchMaximumUnmeasuredWaveOperations() {
+        return Math.min(
+                65_536,
+                Math.max(1, INSTANT_PATTERN_DISPATCH_MAXIMUM_UNMEASURED_WAVE_OPERATIONS.get()));
     }
 
     public static int getInstantPatternDispatchMaximumWaveOperations() {

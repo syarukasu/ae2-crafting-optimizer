@@ -48,6 +48,7 @@ public final class OptimizationMetrics {
     private static final LongAdder SEQUENTIAL_INSTANT_COMPLETED = new LongAdder();
     private static final LongAdder SEQUENTIAL_INSTANT_BUDGET_STOPS = new LongAdder();
     private static final LongAdder SEQUENTIAL_INSTANT_TOTAL_NANOS = new LongAdder();
+    private static final LongAdder WIDE_COPROCESSOR_RECONSTRUCTIONS = new LongAdder();
     private static final LongAccumulator SEQUENTIAL_INSTANT_MAX_WAVE_NANOS =
             new LongAccumulator(Long::max, 0L);
     private static final LongAdder TRANSACTIONAL_V2_PROBES = new LongAdder();
@@ -227,6 +228,10 @@ public final class OptimizationMetrics {
         SEQUENTIAL_INSTANT_BUDGET_STOPS.increment();
     }
 
+    public static void recordWideCoprocessorReconstruction() {
+        WIDE_COPROCESSOR_RECONSTRUCTIONS.increment();
+    }
+
     public static void recordTransactionalV2Probe() {
         TRANSACTIONAL_V2_PROBES.increment();
     }
@@ -400,6 +405,8 @@ public final class OptimizationMetrics {
                         + (SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.get() / 1_000L) + " us, average wave "
                         + averageMicros(SEQUENTIAL_INSTANT_TOTAL_NANOS.sum(), SEQUENTIAL_INSTANT_WAVES.sum())
                         + " us",
+                "Wide co-processor execution count: "
+                        + WIDE_COPROCESSOR_RECONSTRUCTIONS.sum() + " cluster reconstruction(s)",
                 "Transactional V2 probes: " + TRANSACTIONAL_V2_PROBES.sum()
                         + " call(s), " + TRANSACTIONAL_V2_NO_ADAPTER_BYPASSES.sum()
                         + " no-adapter bypass(es), " + TRANSACTIONAL_V2_TASKS_SCANNED.sum()
@@ -508,6 +515,7 @@ public final class OptimizationMetrics {
         SEQUENTIAL_INSTANT_COMPLETED.reset();
         SEQUENTIAL_INSTANT_BUDGET_STOPS.reset();
         SEQUENTIAL_INSTANT_TOTAL_NANOS.reset();
+        WIDE_COPROCESSOR_RECONSTRUCTIONS.reset();
         SEQUENTIAL_INSTANT_MAX_WAVE_NANOS.reset();
         TRANSACTIONAL_V2_PROBES.reset();
         TRANSACTIONAL_V2_NO_ADAPTER_BYPASSES.reset();
