@@ -50,6 +50,44 @@ class CompiledRootProgramTest {
     }
 
     @Test
+    void keepsPartialInventoryAndMissingRemainderSeparate() {
+        var program = compile(
+                List.of(pattern("output", "raw", 2L, "output", 1L)),
+                "output");
+        var inventory = program.captureLongInventory(key -> key.equals("raw") ? 3L : 0L);
+
+        LongCraftingPlan<String> plan = program.planLong(
+                4L,
+                inventory,
+                PlanningGuard.none());
+
+        assertEquals(Map.of("raw", 3L), plan.usedInventory());
+        assertEquals(Map.of("raw", 5L), plan.missing());
+    }
+
+    @Test
+    void keepsPartialInventoryAndEmitterRemainderSeparate() {
+        var graph = CompiledCraftingGraph.compile(
+                1L,
+                List.of(pattern("output", "emitted", 1L, "output", 1L)));
+        var program = CompiledRootProgram.tryCompile(
+                        graph,
+                        "output",
+                        Set.of("emitted")::contains)
+                .orElseThrow();
+        var inventory = program.captureLongInventory(key -> key.equals("emitted") ? 3L : 0L);
+
+        LongCraftingPlan<String> plan = program.planLong(
+                10L,
+                inventory,
+                PlanningGuard.none());
+
+        assertEquals(Map.of("emitted", 3L), plan.usedInventory());
+        assertEquals(Map.of("emitted", 7L), plan.emitted());
+        assertTrue(plan.missing().isEmpty());
+    }
+
+    @Test
     void promotesOnlyTheOverflowingOrderAndReusesTheSameProgram() {
         var program = compile(List.of(pattern("output", "gas", 2L, "output", 1L)), "output");
         var inventory = program.captureLongInventory(ignored -> 0L);
