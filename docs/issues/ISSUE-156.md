@@ -120,6 +120,30 @@ ACOのcold compileがserver tickを独占せず、AE2自身の計算時間枠と
 Provider Pattern世代またはrecipe世代が変わった時点でMemoは利用しない。
 ThreadLocalはAE2が`finally`から呼ぶ`finish()`で破棄し、例外終了時も残さない。
 
+### 対象外レシピのDecision Program
+
+厳密な数式Plannerを採用できない複数Producer、複数入力候補、返却物を持つ注文でも、
+AE2標準Plannerが毎注文繰り返す静的metadata読取を世代単位で再利用する。
+
+- `getCraftingFor`が返す候補順
+- AE2標準`IInput`の`getPossibleInputs`
+- 純粋なkey比較だけを行うProcessing Inputの`IInput.isValid`
+- 同じProcessing Inputのfuzzy craftable候補
+- 固定nullを返すProcessing、Stonecutting、Smithing Inputの返却物
+
+共有対象は実装名が完全一致するAE2標準Pattern/Inputだけである。外部Pattern、動的Provider、
+metadata取得に失敗した入力、在庫量で候補順を変える実験設定は注文間で共有しない。
+作業台、石切、鍛冶の入力判定は任意recipeの`matches(Level)`へ到達できるため、AE2実装でも
+注文間共有せず、従来どおり一回の計算内だけメモ化する。作業台recipeの返却物も同様である。
+
+Decision Programは候補を選ばない。複数Producerを元の順番で試す処理、子Simulation、
+在庫差分、成功した子だけをcommitする処理はAE2本体が所有する。このため高速経路に
+入れないレシピもmetadata再走査を減らせるが、AE2のクラフト結果は変更しない。
+
+Program構築はcache lock外で行う。構築前後でProvider Pattern世代またはrecipe世代が
+変わった結果は公開せず、その計算だけAE2の現在値へ戻す。別rootの同時cold compileを
+直列化せず、stale Pattern参照も次注文へ持ち越さない。
+
 ### 完成済み計画Cacheの失効
 
 同一要求Cacheのキーへ在庫世代、Provider Pattern世代、recipe世代を含める。
@@ -146,6 +170,9 @@ ME在庫の成立した`insert/extract`とAE2が検出した外部mount更新は
 - cold Graph/Programコンパイルが時間予算へチェックポイントを返すこと
 - BigInteger連携だけでは通常計画を置換しないIssue #109境界
 - 新規Mixinが必須注入数を持ち、搬入出をRedirectしないこと
+- Decision ProgramがAE2のbranch、Simulation、差分commitを所有しないこと
+- Program構築中に世代が変わった結果をcacheへ公開しないこと
+- 外部Patternと動的metadataを注文間で共有しないこと
 - 全クラス責務台帳とIssue回帰マニフェストの同期
 
 ## 性能特性
@@ -154,6 +181,7 @@ ME在庫の成立した`insert/extract`とAE2が検出した外部mount更新は
 - warm単一路線: 構造解析を再利用し、参照キーと固有ノードを一巡する。
 - 共有DAG: 同じ中間素材を一度だけ処理する。
 - 曖昧なレシピ: 入口で早期辞退し、ACO側の深い探索を重ねない。
+- 対象外レシピ: AE2標準分岐を維持し、静的metadataと判定結果だけを再利用する。
 - Patternまたはrecipe変更後: 旧Snapshotを使わず、次の注文で対象Rootだけ再構築する。
 
 改善幅はクラフトツリー形状とcacheの暖機状態に依存する。単純な短い直列レシピでは差が小さく、
@@ -175,8 +203,8 @@ Forgeで割り当て削減前の配列Plannerは55.602 msだったため、今�
 
 ## 検証
 
-- Forge 1.20.1: JUnit 460件成功、失敗0件、エラー0件、skip 2件
-- NeoForge 1.21.1: JUnit 476件成功、失敗0件、エラー0件
+- Forge 1.20.1: JUnit 470件成功、失敗0件、エラー0件、skip 2件
+- NeoForge 1.21.1: JUnit 486件成功、失敗0件、エラー0件
 - `clean build`: 両版で成功
 - `git diff --check`: 両版で実施
 - Minecraft起動試験: 指示により実施しない

@@ -30,6 +30,8 @@ public final class OptimizationMetrics {
     private static final LongAdder CRAFTING_ENGINE_SHADOW_MISMATCHES = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_SKIPS = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_OVERFLOWS = new LongAdder();
+    private static final LongAdder DECISION_PROGRAM_CACHE_HITS = new LongAdder();
+    private static final LongAdder DECISION_PROGRAM_CACHE_MISSES = new LongAdder();
     private static final LongAdder APPLIED_E_PATTERN_FALLBACKS = new LongAdder();
     private static final LongAdder APPLIED_E_DYNAMIC_PROVIDER_REFRESHES = new LongAdder();
     private static final LongAdder APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES = new LongAdder();
@@ -143,6 +145,10 @@ public final class OptimizationMetrics {
 
     public static void recordCraftingEngineShadowOverflow() {
         CRAFTING_ENGINE_SHADOW_OVERFLOWS.increment();
+    }
+
+    public static void recordDecisionProgramCache(boolean hit) {
+        (hit ? DECISION_PROGRAM_CACHE_HITS : DECISION_PROGRAM_CACHE_MISSES).increment();
     }
 
     public static void recordAppliedEPatternFallback() {
@@ -282,6 +288,8 @@ public final class OptimizationMetrics {
         long reflectionMisses = REFLECTION_LOOKUP_MISSES.sum();
         long upgradeHits = AE2_OVERCLOCK_UPGRADE_COUNT_HITS.sum();
         long upgradeMisses = AE2_OVERCLOCK_UPGRADE_COUNT_MISSES.sum();
+        long decisionHits = DECISION_PROGRAM_CACHE_HITS.sum();
+        long decisionMisses = DECISION_PROGRAM_CACHE_MISSES.sum();
         List<String> lines = new ArrayList<>(List.of(
                 "Shared CPU budget: " + SHARED_BUDGET_LIMITS.sum()
                         + " limit(s), " + SHARED_DEFERRED_OPERATIONS.sum() + " operation(s) deferred",
@@ -297,6 +305,8 @@ public final class OptimizationMetrics {
                         + " match(es), " + CRAFTING_ENGINE_SHADOW_MISMATCHES.sum()
                         + " mismatch(es), " + CRAFTING_ENGINE_SHADOW_SKIPS.sum()
                         + " skip(s), " + CRAFTING_ENGINE_SHADOW_OVERFLOWS.sum() + " overflow(s)",
+                "AE2 Decision Program cache: " + decisionHits + " hit(s), " + decisionMisses
+                        + " miss(es), " + percent(decisionHits, decisionMisses) + "% hit rate",
                 "AppliedE compatibility: " + APPLIED_E_PATTERN_FALLBACKS.sum()
                         + " dynamic pattern fallback(s), " + APPLIED_E_DYNAMIC_PROVIDER_REFRESHES.sum()
                         + " provider refresh(es) preserved, " + APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES.sum()
@@ -384,6 +394,8 @@ public final class OptimizationMetrics {
         CRAFTING_ENGINE_SHADOW_MISMATCHES.reset();
         CRAFTING_ENGINE_SHADOW_SKIPS.reset();
         CRAFTING_ENGINE_SHADOW_OVERFLOWS.reset();
+        DECISION_PROGRAM_CACHE_HITS.reset();
+        DECISION_PROGRAM_CACHE_MISSES.reset();
         APPLIED_E_PATTERN_FALLBACKS.reset();
         APPLIED_E_DYNAMIC_PROVIDER_REFRESHES.reset();
         APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES.reset();
