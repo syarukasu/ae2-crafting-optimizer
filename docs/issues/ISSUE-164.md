@@ -117,6 +117,8 @@ ACOの本番骨格を次の五領域へ限定する。
 - 端末、Bus、IO Port、P2P、Storage Watcherの状態または実行順を変更する旧hookを削除した。
 - 外部CPU専用コマンド、独立Fair Scheduler、決定的first-missing preflight、在庫量による
   Pattern順序変更、到達不能な内部互換型を削除した。
+- 本番から到達不能で単体試験だけが呼んでいた試作cache、planning session、数量matcher、
+  progress投影、保存則ledgerを試験ごと削除した。外部公開APIはこの監査対象から除外した。
 - Config、Feature、Mixin JSON、Mixin台帳、起動報告、責務一覧を現行実装へ揃え、
   退役Configとno-op設定を残していない。
 - AAC向けBigInteger、V2、crafting-table、vector公開APIはシグネチャ回帰試験で固定した。
@@ -125,13 +127,16 @@ ACOの本番骨格を次の五領域へ限定する。
 
 - Forge 1.20.1 / Java 17: `gradlew clean test --no-daemon` 成功
 - Forge 1.20.1 / Java 17: `gradlew clean build --no-daemon` 成功
-- JUnit: 432件中430件成功、2件skip、失敗0件
+- JUnit: 411件中409件成功、2件skip、失敗0件
 - `verifyMixinPackageBoundary` 成功
 - `verifyIssueRegressionManifest` 成功
 - Mixin JSON 55件のソース存在確認成功
 - Config公開アクセサ105件の本番参照監査成功
 - `git diff --check` 成功
-- NeoForge 1.21.1の同等検証結果は版別PR作成時に追記する。
+- NeoForge 1.21.1 / Java 21: `gradlew clean test --no-daemon --no-build-cache` 成功
+- NeoForge 1.21.1 / Java 21: `gradlew clean build --no-daemon --no-build-cache` 成功
+- NeoForge JUnit: 432件成功、skip 0件、失敗0件
+- NeoForge Mixin JSON 8ファイル・54件のソース存在確認成功
 
 ## 完了
 

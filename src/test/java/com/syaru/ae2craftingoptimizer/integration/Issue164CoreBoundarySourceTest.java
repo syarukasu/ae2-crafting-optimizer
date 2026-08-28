@@ -79,6 +79,18 @@ class Issue164CoreBoundarySourceTest {
                 "com/syaru/ae2craftingoptimizer/batch/ExactPatternSnapshot.java"));
         assertFalse(existsMain(
                 "com/syaru/ae2craftingoptimizer/engine/vector/VectorInventorySnapshot.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/batch/ExactMultisetMatcher.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/engine/CompiledPlanningSession.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/engine/GenerationAwareGraphCache.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/engine/vector/LongClampedProgressProjection.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/optimization/GenerationSlotCache.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/transaction/BatchConservationLedger.java"));
     }
 
     private static String readMain(String relativePath) throws IOException {
