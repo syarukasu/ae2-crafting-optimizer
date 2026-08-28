@@ -44,13 +44,24 @@ public final class BigKeyCounterSidecars {
             }
 
             Map<AEKey, BigInteger> merged = new LinkedHashMap<>(current.amounts());
+            Set<AEKey> exactKeys = new LinkedHashSet<>(current.exactKeys());
             // 同一キーをBigIntegerで加算し、long境界を越えても負数へ巻き戻さない。
             for (Map.Entry<AEKey, BigInteger> entry : contribution.amounts().entrySet()) {
                 merged.merge(entry.getKey(), entry.getValue(), BigInteger::add);
+                // 現在値と今回の寄与の両方が正確なキーだけ、合計値も正確と証明できる。
+                if (current.isExact(entry.getKey())
+                        && contribution.isExact(entry.getKey())) {
+                    exactKeys.add(entry.getKey());
+                } else {
+                    exactKeys.remove(entry.getKey());
+                }
             }
             SIDECARS.put(
                     new IdentityWeakReference(target, COLLECTED_COUNTERS),
-                    new Snapshot(merged, current.complete() && contribution.complete()));
+                    new Snapshot(
+                            merged,
+                            current.complete() && contribution.complete(),
+                            exactKeys));
         }
     }
 
@@ -88,6 +99,7 @@ public final class BigKeyCounterSidecars {
             Snapshot sourceSnapshot,
             Set<AEKey> visibleKeys) {
         Map<AEKey, BigInteger> visible = new LinkedHashMap<>();
+        Set<AEKey> exactVisible = new LinkedHashSet<>();
         // 可視キーSnapshotに存在する正確値だけを伝播し、AE2が除外したキーを復活させない。
         for (Map.Entry<AEKey, BigInteger> entry : sourceSnapshot.amounts().entrySet()) {
             AEKey key = entry.getKey();
@@ -96,8 +108,12 @@ public final class BigKeyCounterSidecars {
                 continue;
             }
             visible.put(key, entry.getValue());
+            // sourceで値が証明済みのキーだけ、コピー先でもexactとして扱う。
+            if (sourceSnapshot.isExact(key)) {
+                exactVisible.add(key);
+            }
         }
-        return new Snapshot(visible, sourceSnapshot.complete());
+        return new Snapshot(visible, sourceSnapshot.complete(), exactVisible);
     }
 
     /** long FacadeとBigInteger Sidecarを一つの独立したKeyCounterへ複製する。 */
@@ -142,7 +158,7 @@ public final class BigKeyCounterSidecars {
                 amounts.put(entry.getKey(), BigInteger.valueOf(amount));
             }
         }
-        return new Snapshot(amounts, complete);
+        return new Snapshot(amounts, complete, amounts.keySet());
     }
 
     /** 単体テスト間でstatic Sidecarを共有しないためのreset。 */
@@ -174,9 +190,18 @@ public final class BigKeyCounterSidecars {
     }
 
     /** 一回の在庫集計に対応する不変BigInteger Map。 */
-    public record Snapshot(Map<AEKey, BigInteger> amounts, boolean complete) {
+    public record Snapshot(
+            Map<AEKey, BigInteger> amounts,
+            boolean complete,
+            Set<AEKey> exactKeys) {
+        /** 既存アダプター向けの簡略コンストラクター。false時はキー単位の証明も持たない。 */
+        public Snapshot(Map<AEKey, BigInteger> amounts, boolean complete) {
+            this(amounts, complete, complete ? amounts.keySet() : Set.of());
+        }
+
         public Snapshot {
             Objects.requireNonNull(amounts, "amounts");
+            Objects.requireNonNull(exactKeys, "exactKeys");
             Map<AEKey, BigInteger> checked = new LinkedHashMap<>();
             // 不正な負数やnullをSidecarへ入れず、計画時の在庫過大評価を防ぐ。
             for (Map.Entry<AEKey, BigInteger> entry : amounts.entrySet()) {
@@ -195,10 +220,28 @@ public final class BigKeyCounterSidecars {
             }
             // Issue #93: MapNとfastutil検索のC2融合を避けるため、所有Mapを読み取り専用化する。
             amounts = Collections.unmodifiableMap(checked);
+
+            Set<AEKey> checkedExactKeys = new LinkedHashSet<>();
+            // 正確性集合も不変コピーし、存在する正量キーだけに限定する。
+            for (AEKey key : exactKeys) {
+                Objects.requireNonNull(key, "exact inventory key");
+                // 0量はMapへ保持しないため、正確性集合にも登録しない。
+                if (checked.containsKey(key)) {
+                    checkedExactKeys.add(key);
+                }
+            }
+            exactKeys = Collections.unmodifiableSet(checkedExactKeys);
         }
 
         public BigInteger amount(AEKey key) {
             return amounts.getOrDefault(Objects.requireNonNull(key, "key"), BigInteger.ZERO);
+        }
+
+        /** 指定キーの値が、ネットワーク内の不完全な別キーに影響されず確定しているか返す。 */
+        public boolean isExact(AEKey key) {
+            Objects.requireNonNull(key, "key");
+            // 完全Snapshotでは、Mapにないキーの0も正確に証明できる。
+            return complete || exactKeys.contains(key);
         }
 
         public boolean containsWideValue() {

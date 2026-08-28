@@ -570,7 +570,6 @@ public final class ExactNetworkStorageBridge {
             }
             if (!journal.begin(
                     prepared.operationId(),
-                    ExactNetworkStorageSnapshotCache.currentGeneration(),
                     direction.name(),
                     journalSteps,
                     ACOConfig.getBatchTransactionJournalMaximumEntries())) {

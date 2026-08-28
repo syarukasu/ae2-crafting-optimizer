@@ -2,10 +2,8 @@ package com.syaru.ae2craftingoptimizer.mixin;
 
 import appeng.api.networking.IGridNode;
 import appeng.me.service.CraftingService;
-import com.syaru.ae2craftingoptimizer.optimization.CraftableSetCache;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDeduplicator;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget;
-import com.syaru.ae2craftingoptimizer.optimization.CraftingRequestThrottle;
 import com.syaru.ae2craftingoptimizer.optimization.PatternLookupCache;
 import net.minecraft.nbt.CompoundTag;
 import org.spongepowered.asm.mixin.Mixin;
@@ -33,8 +31,6 @@ public abstract class CraftingServiceInvalidationMixin {
     private static void ae2CraftingOptimizer$clearAdaptiveBudget(String reason) {
         CraftingCalculationDeduplicator.clear(reason);
         CraftingExecutionBudget.clearAdaptiveState(reason);
-        CraftingRequestThrottle.clear(reason);
-        CraftableSetCache.clear(reason);
         PatternLookupCache.clear(reason);
     }
 }

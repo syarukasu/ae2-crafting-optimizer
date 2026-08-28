@@ -38,17 +38,16 @@ class Issues118To120RegressionTest {
     }
 
     @Test
-    void exactJobPersistenceUsesTheRegistryProviderFromAe2() {
+    void standardAe2ExactJobPersistenceUsesTheRegistryProviderFromAe2() {
         String state = read(JAVA.resolve(Path.of(
                 "engine", "ExactCraftingJobState.java")));
         String ae2Mixin = read(JAVA.resolve(Path.of(
                 "mixin", "Ae2ExactCraftingLogicMixin.java")));
-        String advancedAeMixin = read(JAVA.resolve(Path.of(
-                "mixin", "AdvancedAeExactCraftingLogicMixin.java")));
         assertTrue(state.contains("HolderLookup.Provider registries"));
         assertFalse(state.contains("ACORegistryAccess.require()"));
         assertTrue(ae2Mixin.contains("jobTag,\n                registries"));
-        assertTrue(advancedAeMixin.contains("jobTag,\n                registries"));
+        assertFalse(Files.exists(JAVA.resolve(Path.of(
+                "mixin", "AdvancedAeExactCraftingLogicMixin.java"))));
     }
 
     @Test

@@ -313,7 +313,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     shadowQualified,
                     ACOConfig.enableProofQualifiedLongPlans(),
                     wideArithmeticRequired,
-                    ACOConfig.requireAqeBigPlanShadowQualification())) {
+                    ACOConfig.requireWidePlanShadowQualification())) {
                 CraftingFallbackDiagnostics.record(output, capture.patternGeneration(), capture.recipeGeneration(),
                         FallbackReasonCode.SHADOW_NOT_QUALIFIED);
                 return declineOrThrow(
@@ -1051,20 +1051,20 @@ public final class Ae2AuthoritativeCraftingPlanner {
         /*
          * 回帰防止: ACO Issue #109
          * BigInteger CPU連携はwide計画を作るための能力であり、通常long計画を置換する許可ではない。
-         * 通常AE2の結果を差し替えるのは、実験エンジンを明示的に有効化した場合だけに限定する。
+         * 通常AE2の結果を差し替えるのは、compiled graphを明示的に有効化した場合だけに限定する。
          */
         return normalLongReplacementEnabled(
-                ACOConfig.enableExperimentalCraftingEngine(),
+                ACOConfig.enableCompiledCraftingGraph(),
                 ACOConfig.enableAuthoritativeCompiledPlanner(),
                 ACOConfig.enableProofQualifiedLongPlans());
     }
 
     static boolean normalLongReplacementEnabled(
-            boolean experimentalEngineEnabled,
+            boolean compiledGraphEnabled,
             boolean authoritativePlannerEnabled,
             boolean proofQualifiedLongPlansEnabled) {
-        // 実験エンジンOFFなら、下位の置換設定が残っていても通常long計画へ介入しない。
-        if (!experimentalEngineEnabled) {
+        // compiled graphがOFFなら、下位の置換設定が残っていても通常long計画へ介入しない。
+        if (!compiledGraphEnabled) {
             return false;
         }
         return authoritativePlannerEnabled || proofQualifiedLongPlansEnabled;

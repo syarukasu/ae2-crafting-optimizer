@@ -1,7 +1,6 @@
 package com.syaru.ae2craftingoptimizer;
 
 import com.mojang.logging.LogUtils;
-import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchApi;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchV2Api;
 import com.syaru.ae2craftingoptimizer.api.contract.ExactCountLimits;
 import com.syaru.ae2craftingoptimizer.api.contract.IntegrationCapabilities;
@@ -19,7 +18,7 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import org.slf4j.Logger;
 
 /**
- * ACOのForgeエントリーポイント。
+ * ACOのNeoForgeエントリーポイント。
  *
  * <p>ここでは登録とイベント配線だけを行う。サーバー状態の初期化・破棄は
  * {@link ACOServerLifecycle} が、起動時の設定報告は専用Reportが担当する。
@@ -32,7 +31,6 @@ public final class AE2CraftingOptimizer {
 
     public AE2CraftingOptimizer(IEventBus modBus, ModContainer container) {
         ACOConfig.register(container);
-        PatternBatchApi.registerBuiltIns();
         PatternBatchV2Api.registerBuiltIns();
         modBus.addListener(BigCraftingNetwork::register);
         modBus.addListener(this::commonSetup);

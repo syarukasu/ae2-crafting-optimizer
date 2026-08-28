@@ -1,7 +1,7 @@
 # Issue #164: ACOの実行所有権とレガシー互換層を整理する
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/164
-- 状態: Ready
+- 状態: Implemented
 - 対象版: 1.5.x
 - 対象ローダー: Forge 1.20.1 / NeoForge 1.21.1
 - 関連Issue・PR: #109、#115、#125、#129、#145、#156、#161
@@ -106,11 +106,32 @@ ACOの本番骨格を次の五領域へ限定する。
 
 ## 実装結果
 
-実装後に記録する。
+- `ACOServerLifecycle`は標準AE2のexact executionだけをtickし、外部AQE/Advanced AE
+  CPUのJob、子Window、予約、取消、復旧を所有しない。
+- Pattern Batch V1、組み込みSequential Adapter、GTCEu/Mekanism Native Batch本体を削除し、
+  外部Workerとの実行契約をV2へ一本化した。公開V2シグネチャは維持した。
+- Pattern Provider連携を対象一覧の読み取り専用Accessorへ縮小し、ReceiptやEscrowを
+  Provider内部へ注入するMixinを削除した。
+- 共有AE2在庫をBigInteger表示値へ置換するMixinとcacheを削除した。正確在庫取得は
+  `PlanningExactInventorySnapshot`を通る計画境界内だけで行う。
+- 端末、Bus、IO Port、P2P、Storage Watcherの状態または実行順を変更する旧hookを削除した。
+- 外部CPU専用コマンド、独立Fair Scheduler、決定的first-missing preflight、在庫量による
+  Pattern順序変更、到達不能な内部互換型を削除した。
+- Config、Feature、Mixin JSON、Mixin台帳、起動報告、責務一覧を現行実装へ揃え、
+  退役Configとno-op設定を残していない。
+- AAC向けBigInteger、V2、crafting-table、vector公開APIはシグネチャ回帰試験で固定した。
 
 ## 検証結果
 
-実装後に記録する。
+- Forge 1.20.1 / Java 17: `gradlew clean test --no-daemon` 成功
+- Forge 1.20.1 / Java 17: `gradlew clean build --no-daemon` 成功
+- JUnit: 432件中430件成功、2件skip、失敗0件
+- `verifyMixinPackageBoundary` 成功
+- `verifyIssueRegressionManifest` 成功
+- Mixin JSON 55件のソース存在確認成功
+- Config公開アクセサ105件の本番参照監査成功
+- `git diff --check` 成功
+- NeoForge 1.21.1の同等検証結果は版別PR作成時に追記する。
 
 ## 完了
 

@@ -6,21 +6,9 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "AdvancedAeCraftingCpuLogicExecutionBudgetMixin",
-    "AdvancedAeExactCraftingLogicMixin",
-    "AdvancedAeCraftingCpuLogicBatchSourceReceiptMixin",
-    "AdvancedAeCraftingCpuLogicTransactionalBatchV2Mixin",
-    "AdvancedAeCraftingCpuTransactionAccessMixin",
-    "AdvancedAeCraftingCpuClusterRecoveryMixin",
-    "AdvancedAeCraftingCpuAccessorMixin",
-    "AdvancedAeCraftingClusterBigWindowMixin",
-    "AdvancedAeBigCapacityPlanSubmissionMixin",
-    "AdvancedAeCraftingCpuLogicBigChildMixin",
-    "AdvancedAeCraftingBlockEntityTransactionAccessMixin",
-    "AdvancedAeExecutingCraftingJobTransactionAccessMixin",
-    "AdvancedAeTaskProgressTransactionAccessMixin",
     "AdvancedAePatternProviderIntentCaptureMixin",
     "AdvancedAeReactionChamberRecipeCacheMixin",
-    "AdvancedAePatternProviderLogicNativeBatchReceiptMixin"
+    "AdvancedAePatternProviderLogicTargetAccessMixin"
   ],
   "injectors": {
     "defaultRequire": 1

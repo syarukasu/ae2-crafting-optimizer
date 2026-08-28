@@ -1,8 +1,5 @@
 package com.syaru.ae2craftingoptimizer.integration;
 
-import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingJobAccess;
-import com.syaru.ae2craftingoptimizer.access.AdvancedAeExactCraftingLogicAccess;
-import com.syaru.ae2craftingoptimizer.access.BigCapacityPlanBoundaryAccess;
 import com.syaru.ae2craftingoptimizer.access.CheckedCraftingArithmeticHookAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterHostTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.CraftingClusterRecoveryAccess;
@@ -13,13 +10,10 @@ import com.syaru.ae2craftingoptimizer.access.CraftingServiceCalculationHookAcces
 import com.syaru.ae2craftingoptimizer.access.CraftingTaskProgressAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactBigIntegerInventoryHookAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingInventoryAccess;
-import com.syaru.ae2craftingoptimizer.access.MekanismCachedRecipeAccess;
 import com.syaru.ae2craftingoptimizer.access.NetworkStorageMountsAccess;
-import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
+import com.syaru.ae2craftingoptimizer.access.PatternProviderTargetAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
-import com.syaru.ae2craftingoptimizer.api.batch.v2.NativeBatchReceiptStore;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
-import com.syaru.ae2craftingoptimizer.scheduler.FairSchedulerStateStore;
 import java.util.ArrayList;
 import java.util.List;
 import net.neoforged.fml.ModList;
@@ -30,27 +24,20 @@ import net.neoforged.fml.ModList;
  */
 public final class ExperimentalCompatibilityValidator {
     static final String SUPPORTED_AE2_VERSION = "19.2.17";
-    static final String SUPPORTED_ADVANCED_AE_VERSION_PREFIX = "1.6.";
-    static final String SUPPORTED_ADVANCED_AE_VERSION_SUFFIX = "-1.21.1";
 
     private ExperimentalCompatibilityValidator() {
     }
 
     public static void validateEnabledFeatures() {
         List<String> failures = new ArrayList<>();
-        /*
-         * AQEまたは登録済み外部コンシューマがBigInteger計算を使用する。
-         * 片方だけを見て早期returnすると、共通計算境界の欠落を見逃すため共通判定を使う。
-         */
-        boolean strictCraftingProfile = ACOConfig.enableExperimentalCraftingEngine()
-                || ACOConfig.enableBigCraftingProfile();
+        // compiled plannerを有効化した場合だけ、対象AE2版の内部契約を監査する。
+        boolean strictCraftingProfile = ACOConfig.enableCompiledCraftingGraph();
         if (strictCraftingProfile) {
-            requireExactVersion(failures, "ae2", SUPPORTED_AE2_VERSION);
+            requireSupportedAe2Version(failures);
         }
-        // 計算共有・完了Cache・事前不足判定は同じCraftingService Mixinを使用する。
+        // 計算共有と完了Cacheは同じCraftingService Mixinを使用する。
         if (ACOConfig.deduplicateActiveCraftingCalculations()
-                || ACOConfig.cacheCompletedCraftingPlans()
-                || ACOConfig.fastFailMissingCrafts()) {
+                || ACOConfig.cacheCompletedCraftingPlans()) {
             require(failures, "appeng.me.service.CraftingService",
                     CraftingServiceCalculationHookAccess.class);
         }
@@ -72,27 +59,6 @@ public final class ExperimentalCompatibilityValidator {
             require(failures, "appeng.api.stacks.KeyCounter",
                     ExactBigIntegerInventoryHookAccess.class);
         }
-        if ((ACOConfig.enableTransactionalBatchingV2()
-                        || ACOConfig.enableFairCraftingJobScheduler()
-                        || ACOConfig.enableAtomicBigCapacityPlans()
-                        || ACOConfig.enableBigIntegerGameplayExecution())
-                && ModList.get().isLoaded("advanced_ae")) {
-            requireSupportedVersionSeries(
-                    failures,
-                    "advanced_ae",
-                    SUPPORTED_ADVANCED_AE_VERSION_PREFIX,
-                    SUPPORTED_ADVANCED_AE_VERSION_SUFFIX);
-        }
-        /*
-         * Advanced AEのBigInteger提出境界はAtomic long計画とExact計画の双方が使用する。
-         * どちらか一方でも有効なら、Cluster Mixinが実在することを監査する。
-         */
-        if ((ACOConfig.enableAtomicBigCapacityPlans()
-                        || ACOConfig.enableBigIntegerGameplayExecution())
-                && ModList.get().isLoaded("advanced_ae")) {
-            require(failures, "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster",
-                    BigCapacityPlanBoundaryAccess.class);
-        }
         if (ACOConfig.enableTransactionalBatchingV2()) {
             require(failures, "appeng.crafting.execution.CraftingCpuLogic",
                     CraftingLogicTransactionAccess.class, BatchSourceReceiptStore.class);
@@ -105,57 +71,9 @@ public final class ExperimentalCompatibilityValidator {
             require(failures, "appeng.blockentity.crafting.CraftingBlockEntity",
                     CraftingClusterHostTransactionAccess.class);
             require(failures, "appeng.helpers.patternprovider.PatternProviderLogic",
-                    NativeBatchReceiptStore.class, PatternProviderTransactionAccess.class);
-
-            if (ModList.get().isLoaded("advanced_ae")) {
-                require(failures, "net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic",
-                        CraftingLogicTransactionAccess.class, BatchSourceReceiptStore.class);
-                require(failures, "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob",
-                        CraftingJobTransactionAccess.class);
-                require(failures, "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob$TaskProgress",
-                        CraftingTaskProgressAccess.class);
-                require(failures, "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPU",
-                        CraftingOwnerTransactionAccess.class);
-                require(failures, "net.pedroksl.advanced_ae.common.cluster.AdvCraftingCPUCluster",
-                        CraftingClusterRecoveryAccess.class);
-                require(failures, "net.pedroksl.advanced_ae.common.logic.AdvPatternProviderLogic",
-                        NativeBatchReceiptStore.class, PatternProviderTransactionAccess.class);
-            }
+                    PatternProviderTargetAccess.class);
         }
-        /*
-         * BigInteger Jobは別CPUを作らず、Advanced AEの実Jobカウンタを直接拡張する。
-         * 三つの正本Mixinが一つでも欠ける状態ではlongへ縮退せず、起動時に明示的に拒否する。
-         */
-        if (ACOConfig.enableBigIntegerGameplayExecution()
-                && ModList.get().isLoaded("advanced_ae")) {
-            require(failures, "net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic",
-                    AdvancedAeExactCraftingLogicAccess.class);
-            require(failures, "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob",
-                    AdvancedAeExactCraftingJobAccess.class);
-            require(failures, "net.pedroksl.advanced_ae.common.logic.ExecutingCraftingJob$TaskProgress",
-                    CraftingTaskProgressAccess.class);
-            require(failures, "appeng.crafting.inv.ListCraftingInventory",
-                    ExactCraftingInventoryAccess.class);
-        }
-        if (ACOConfig.enableFairCraftingJobScheduler()) {
-            require(failures, "appeng.crafting.execution.CraftingCpuLogic",
-                    FairSchedulerStateStore.class);
-            if (ModList.get().isLoaded("advanced_ae")) {
-                require(failures, "net.pedroksl.advanced_ae.common.logic.AdvCraftingCPULogic",
-                        FairSchedulerStateStore.class);
-            }
-        }
-        if (ACOConfig.enableMekanismNativeBatching()) {
-            if (!OptionalNativeBatchIntegrations.mekanismRegistered()) {
-                failures.add("Mekanism native adapter was not registered for the exact supported versions");
-            }
-            require(failures, "mekanism.api.recipes.cache.CachedRecipe",
-                    MekanismCachedRecipeAccess.class);
-        }
-        if (ACOConfig.enableGtceuNativeBatching()
-                && !OptionalNativeBatchIntegrations.gtceuRegistered()) {
-            failures.add("GTCEu native adapter was not registered for the exact supported version");
-        }
+        // 必須変換が一つでも欠ける場合は、部分適用による状態破損を避けて明示的に失敗する。
         if (!failures.isEmpty()) {
             throw new IllegalStateException(
                     "ACO experimental integration audit failed. Disable the affected experimental switch "
@@ -164,33 +82,13 @@ public final class ExperimentalCompatibilityValidator {
         }
     }
 
-    private static void requireExactVersion(
-            List<String> failures,
-            String modId,
-            String expectedVersion) {
-        String installed = ModList.get().getModContainerById(modId)
+    private static void requireSupportedAe2Version(List<String> failures) {
+        String installed = ModList.get().getModContainerById("ae2")
                 .map(container -> container.getModInfo().getVersion().toString())
                 .orElse(null);
-        if (!expectedVersion.equals(installed)) {
-            failures.add(modId + " version must be exactly " + expectedVersion
-                    + " for the experimental engine (installed " + installed + ")");
-        }
-    }
-
-    private static void requireSupportedVersionSeries(
-            List<String> failures,
-            String modId,
-            String versionPrefix,
-            String versionSuffix) {
-        String installed = ModList.get().getModContainerById(modId)
-                .map(container -> container.getModInfo().getVersion().toString())
-                .orElse(null);
-        // 実行中のバージョンが、監査済みの同一Minecraft系列かを接頭辞と接尾辞で確認する。
-        boolean supported = installed != null
-                && installed.startsWith(versionPrefix)
-                && installed.endsWith(versionSuffix);
-        if (!supported) {
-            failures.add(modId + " version must match " + versionPrefix + "*" + versionSuffix
+        // 内部Mixinを使うcompiled plannerだけは、検証済みAE2版へ限定する。
+        if (!SUPPORTED_AE2_VERSION.equals(installed)) {
+            failures.add("ae2 version must be " + SUPPORTED_AE2_VERSION
                     + " for the experimental engine (installed " + installed + ")");
         }
     }

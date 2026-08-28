@@ -6,7 +6,7 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.implementations.blockentities.ICraftingMachine;
 import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.util.IConfigManager;
-import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
+import com.syaru.ae2craftingoptimizer.access.PatternProviderTargetAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.AdvancedAePatternProviderAccess;
 import java.util.ArrayList;
@@ -14,44 +14,28 @@ import java.util.Collection;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.fml.ModList;
 import org.jetbrains.annotations.Nullable;
 
+/** V2取引へ渡せるPattern Providerと配送先を、状態変更前に検証する。 */
 public final class PatternProviderBatchEligibility {
     private PatternProviderBatchEligibility() {
     }
 
     @Nullable
-    public static BatchTarget inspect(ICraftingProvider provider, IPatternDetails pattern, Level level) {
-        if (!ACOConfig.enableTransactionalPatternBatching()) {
-            return null;
-        }
-        return inspect(provider, pattern, level, ACOConfig.requireSingleTransactionalBatchTarget(), true);
-    }
-
-    @Nullable
-    public static BatchTarget inspectV2(ICraftingProvider provider, IPatternDetails pattern, Level level) {
+    public static BatchTarget inspectV2(
+            ICraftingProvider provider,
+            IPatternDetails pattern,
+            Level level) {
         if (!ACOConfig.enableTransactionalBatchingV2()) {
             return null;
         }
-        return inspect(provider, pattern, level, true, false);
-    }
-
-    @Nullable
-    private static BatchTarget inspect(
-            ICraftingProvider provider,
-            IPatternDetails pattern,
-            Level level,
-            boolean requireSingleTarget,
-            boolean enforceLegacyNamespaces) {
         if (provider == null
                 || pattern == null
                 || level == null
-                || !(provider instanceof PatternProviderTransactionAccess access)
+                || !(provider instanceof PatternProviderTargetAccess access)
                 || !isSafeProcessingPattern(pattern)) {
             return null;
         }
@@ -78,48 +62,29 @@ public final class PatternProviderBatchEligibility {
                 return null;
             }
 
-            List<Direction> targets = new ArrayList<>(rawTargets.size());
-            targets.addAll(rawTargets);
-            if (targets.isEmpty()
-                    || (requireSingleTarget && targets.size() != 1)) {
+            List<Direction> targets = new ArrayList<>(rawTargets);
+            // V2取引は一つのTargetだけを所有し、曖昧な配送先へは介入しない。
+            if (targets.size() != 1) {
                 return null;
             }
 
-            List<String> allowedNamespaces = ACOConfig.getTransactionalBatchTargetNamespaces();
-            if (enforceLegacyNamespaces && allowedNamespaces.isEmpty()) {
-                return null;
-            }
             BlockPos providerPos = providerBlockEntity.getBlockPos();
-            for (Direction providerSide : targets) {
-                BlockPos targetPos = providerPos.relative(providerSide);
-                // V2ではProvider send bufferを取引Escrowにする。同一ChunkならTargetの
-                // InventoryとProvider Receiptが一つのChunk保存単位に収まり、境界Crashでの
-                // 片側だけ保存される危険を避けられる。
-                if (!enforceLegacyNamespaces
-                        && ((providerPos.getX() >> 4) != (targetPos.getX() >> 4)
-                                || (providerPos.getZ() >> 4) != (targetPos.getZ() >> 4))) {
-                    return null;
-                }
-                BlockEntity target = level.getBlockEntity(targetPos);
-                Direction targetSide = providerSide.getOpposite();
-                if (target == null
-                        || (enforceLegacyNamespaces && !hasAllowedNamespace(target, allowedNamespaces))
-                        || isDedicatedCraftingMachine(level, targetPos, targetSide, target)) {
-                    return null;
-                }
-            }
-
-            Direction selectedSide = targets.get(0);
-            BlockEntity selectedTarget = level.getBlockEntity(providerPos.relative(selectedSide));
-            if (selectedTarget == null) {
+            Direction providerSide = targets.get(0);
+            BlockPos targetPos = providerPos.relative(providerSide);
+            // Provider ReceiptとTargetを同じChunk保存単位へ閉じ込める。
+            if ((providerPos.getX() >> 4) != (targetPos.getX() >> 4)
+                    || (providerPos.getZ() >> 4) != (targetPos.getZ() >> 4)) {
                 return null;
             }
-            return new BatchTarget(
-                    selectedSide,
-                    selectedSide.getOpposite(),
-                    selectedTarget,
-                    targets.size() == 1);
+
+            BlockEntity target = level.getBlockEntity(targetPos);
+            Direction targetSide = providerSide.getOpposite();
+            if (target == null || isDedicatedCraftingMachine(targetSide, target)) {
+                return null;
+            }
+            return new BatchTarget(providerSide, targetSide, target, true);
         } catch (RuntimeException | LinkageError ignored) {
+            // 外部Providerの照会が失敗した時点では所有権がないため、AE2標準経路へ返す。
             return null;
         }
     }
@@ -128,22 +93,29 @@ public final class PatternProviderBatchEligibility {
         if (!pattern.supportsPushInputsToExternalInventory()) {
             return false;
         }
+        // 各入力が単一候補かつ返却物なしであることを証明する。
         for (IPatternDetails.IInput input : pattern.getInputs()) {
-            if (input.getMultiplier() <= 0) {
+            if (input.getMultiplier() <= 0 || !hasOneConsumableInput(input)) {
                 return false;
-            }
-            var possibleInputs = input.getPossibleInputs();
-            if (possibleInputs.length != 1) {
-                return false;
-            }
-            for (var possibleInput : possibleInputs) {
-                if (possibleInput.amount() <= 0 || input.getRemainingKey(possibleInput.what()) != null) {
-                    return false;
-                }
             }
         }
+        // 宣言出力が正の数量だけで構成されることを証明する。
         for (var output : pattern.getOutputs()) {
             if (output.amount() <= 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasOneConsumableInput(IPatternDetails.IInput input) {
+        var possibleInputs = input.getPossibleInputs();
+        if (possibleInputs.length != 1) {
+            return false;
+        }
+        // 単一候補でも触媒・容器返却を含む入力はV2へ渡さない。
+        for (var possibleInput : possibleInputs) {
+            if (possibleInput.amount() <= 0 || input.getRemainingKey(possibleInput.what()) != null) {
                 return false;
             }
         }
@@ -155,18 +127,7 @@ public final class PatternProviderBatchEligibility {
                 && AdvancedAePatternProviderAccess.hasDirectionalInputs(pattern);
     }
 
-    private static boolean hasAllowedNamespace(BlockEntity target, List<String> allowedNamespaces) {
-        ResourceLocation blockEntityType = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(target.getType());
-        if (blockEntityType != null && allowedNamespaces.contains(blockEntityType.getNamespace())) {
-            return true;
-        }
-        ResourceLocation block = BuiltInRegistries.BLOCK.getKey(target.getBlockState().getBlock());
-        return block != null && allowedNamespaces.contains(block.getNamespace());
-    }
-
     private static boolean isDedicatedCraftingMachine(
-            Level level,
-            BlockPos targetPos,
             Direction targetSide,
             BlockEntity target) {
         ICraftingMachine craftingMachine = ICraftingMachine.of(target, targetSide);
@@ -179,5 +140,4 @@ public final class PatternProviderBatchEligibility {
             BlockEntity target,
             boolean deterministicTarget) {
     }
-
 }

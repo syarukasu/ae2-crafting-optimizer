@@ -53,7 +53,8 @@ class Issue125RegressionSourceTest {
                 "com/syaru/ae2craftingoptimizer/engine/craftingtable/CraftingTableBatchTargetResolver.java");
 
         assertTrue(source.contains("CraftingTableBatchTarget"));
-        assertTrue(source.contains("PatternProviderTransactionAccess"));
+        assertTrue(source.contains("PatternProviderTargetAccess"));
+        assertFalse(source.contains("aco$stageOwnedBatch"));
         assertTrue(source.contains("ProviderOwnedPatternBatchTarget"));
         assertFalse(source.contains("NeoECO"));
     }

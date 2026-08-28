@@ -45,7 +45,6 @@ public final class ExactStorageMutationJournal extends SavedData {
 
     public synchronized boolean begin(
             UUID operationId,
-            long generation,
             String direction,
             List<Step> steps,
             int maximumEntries) {
@@ -61,7 +60,6 @@ public final class ExactStorageMutationJournal extends SavedData {
                 operationId,
                 new Entry(
                         operationId,
-                        generation,
                         requireDirection(direction),
                         steps));
         setDirty();
@@ -190,7 +188,6 @@ public final class ExactStorageMutationJournal extends SavedData {
 
     public static final class Entry {
         private final UUID operationId;
-        private final long generation;
         private final String direction;
         private final List<Step> steps;
         private boolean quarantined;
@@ -198,14 +195,9 @@ public final class ExactStorageMutationJournal extends SavedData {
 
         private Entry(
                 UUID operationId,
-                long generation,
                 String direction,
                 List<Step> steps) {
             this.operationId = Objects.requireNonNull(operationId, "operationId");
-            if (generation < 0L) {
-                throw new IllegalArgumentException("generation must not be negative");
-            }
-            this.generation = generation;
             this.direction = requireDirection(direction);
             if (steps.isEmpty() || steps.size() > HARD_MAXIMUM_STEPS) {
                 throw new IllegalArgumentException("invalid exact journal step count");
@@ -218,10 +210,6 @@ public final class ExactStorageMutationJournal extends SavedData {
 
         public UUID operationId() {
             return operationId;
-        }
-
-        public long generation() {
-            return generation;
         }
 
         public String direction() {
@@ -249,7 +237,7 @@ public final class ExactStorageMutationJournal extends SavedData {
         }
 
         private Entry copy() {
-            Entry result = new Entry(operationId, generation, direction, steps);
+            Entry result = new Entry(operationId, direction, steps);
             result.quarantined = quarantined;
             result.quarantineReason = quarantineReason;
             return result;
@@ -258,7 +246,6 @@ public final class ExactStorageMutationJournal extends SavedData {
         private CompoundTag save() {
             CompoundTag tag = new CompoundTag();
             tag.putUUID("id", operationId);
-            tag.putLong("generation", generation);
             tag.putString("direction", direction);
             tag.putBoolean("quarantined", quarantined);
             tag.putString("quarantineReason", quarantineReason);
@@ -285,7 +272,6 @@ public final class ExactStorageMutationJournal extends SavedData {
             }
             Entry entry = new Entry(
                     tag.getUUID("id"),
-                    tag.getLong("generation"),
                     tag.getString("direction"),
                     loaded);
             entry.quarantined = tag.getBoolean("quarantined");
