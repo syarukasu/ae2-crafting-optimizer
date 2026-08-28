@@ -39,11 +39,11 @@ public final class BigIntegerPlanDiagnostics {
             return;
         }
         AE2CraftingOptimizer.LOGGER.debug(
-                "ACO BigInteger plan declined: reason={}, output={}, requested={}, "
-                        + "patternGeneration={}, recipeGeneration={}, thread={}, detail={}",
+                "ACO-DIAG event=planning_declined reason={} output={} requested={} "
+                        + "patternGeneration={} recipeGeneration={} thread={} detail={}",
                 reason,
                 outputId == null ? "<unknown>" : outputId,
-                requestedAmount == null ? "<unknown>" : requestedAmount,
+                formatRequestedAmount(requestedAmount),
                 patternGeneration < 0L ? "<unknown>" : patternGeneration,
                 recipeGeneration < 0L ? "<unknown>" : recipeGeneration,
                 Thread.currentThread().getName(),
@@ -52,10 +52,22 @@ public final class BigIntegerPlanDiagnostics {
 
     private static boolean detailedLoggingEnabled() {
         try {
-            return ACOConfig.logBigIntegerPlanDeclines();
+            return ACOConfig.logCraftingDecisionFlow();
         } catch (IllegalStateException configNotLoaded) {
             return false;
         }
+    }
+
+    /** 巨大値の全10進桁をログへ展開せず、long範囲だけをそのまま表示する。 */
+    static String formatRequestedAmount(@Nullable BigInteger amount) {
+        if (amount == null) {
+            return "<unknown>";
+        }
+        // signed long内なら、実際に注文された値をそのまま診断へ残す。
+        if (amount.bitLength() <= 63) {
+            return amount.toString();
+        }
+        return "sign=" + amount.signum() + ",bits=" + amount.bitLength();
     }
 
     public static List<String> summaryLines() {

@@ -151,7 +151,7 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue LOG_SLOW_CRAFT_CALCULATIONS;
     private static final ForgeConfigSpec.IntValue SLOW_CRAFT_CALCULATION_MILLIS;
     private static final ForgeConfigSpec.BooleanValue LOG_CACHE_STATISTICS;
-    private static final ForgeConfigSpec.BooleanValue LOG_BIG_INTEGER_PLAN_DECLINES;
+    private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_DECISION_FLOW;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -507,9 +507,9 @@ public final class ACOConfig {
         LOG_CACHE_STATISTICS = builder
                 .comment("Log bounded cache statistics.")
                 .define("logCacheStatistics", false);
-        LOG_BIG_INTEGER_PLAN_DECLINES = builder
-                .comment("Log exact planner decline reasons; counters remain available when disabled.")
-                .define("logBigIntegerPlanDeclines", false);
+        LOG_CRAFTING_DECISION_FLOW = builder
+                .comment("Write structured planning and exact-execution boundary events to debug.log without per-tick success spam.")
+                .define("logCraftingDecisionFlow", true);
         builder.pop();
 
         SPEC = builder.build();
@@ -682,5 +682,5 @@ public final class ACOConfig {
     public static boolean logSlowCraftCalculations() { return enableOptimizer() && LOG_SLOW_CRAFT_CALCULATIONS.get(); }
     public static int getSlowCraftCalculationMillis() { return SLOW_CRAFT_CALCULATION_MILLIS.get(); }
     public static boolean logCacheStatistics() { return enableOptimizer() && LOG_CACHE_STATISTICS.get(); }
-    public static boolean logBigIntegerPlanDeclines() { return enableBigIntegerCraftingBackend() && LOG_BIG_INTEGER_PLAN_DECLINES.get(); }
+    public static boolean logCraftingDecisionFlow() { return enableOptimizer() && LOG_CRAFTING_DECISION_FLOW.get(); }
 }

@@ -232,6 +232,9 @@ maximumActiveStagesPerGridPerTick = 256
 gridTimeBudgetMillis = 2
 logExecutionStalls = true
 verifyStorageRouteBeforeOwnership = true
+
+[diagnostics]
+logCraftingDecisionFlow = true
 ```
 
 `exactVectorCrafting` is the physical crafting tree described above. External
@@ -241,6 +244,10 @@ The soft time budget begins when Exact Vector first runs on a grid during that
 server tick. Trees with at most 64 physical recipe nodes are fully scanned
 within the count limit, and dependency-blocked nodes do not consume active-stage
 capacity.
+
+`logCraftingDecisionFlow` writes bounded `ACO-DIAG event=...` records to
+`debug.log`. It records one planning result and lifecycle transitions, not
+per-tick success, complete inventories, or full huge decimal values.
 
 See [Configuration](docs/CONFIGURATION.md),
 [Feature ownership](docs/FEATURE_OWNERSHIP.md),

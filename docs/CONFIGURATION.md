@@ -76,6 +76,21 @@ Optional integration settings cover:
 Recipe Intent is a hint only. GTCEu or Mekanism performs the final recipe test and owns machine
 execution. ACO does not contain a built-in native machine batch adapter.
 
+## Diagnostics
+
+```toml
+[diagnostics]
+logCraftingDecisionFlow = true
+```
+
+`logCraftingDecisionFlow` records bounded `ACO-DIAG event=...` lines in `debug.log` for
+planning decisions, compiled-graph rebuilds, and ACO-owned standard AE2 exact execution
+lifecycle transitions. It does not log every successful tick, entire inventory or pattern
+collections, or every decimal digit of huge `BigInteger` values. Disabling it changes only
+diagnostic output and never changes planning, ownership, accounting, or fallback decisions.
+The former `logBigIntegerPlanDeclines` key was removed; its narrower output is covered by this
+single structured diagnostic contract.
+
 ## Removed settings
 
 The following families were removed instead of being kept as no-op compatibility switches:

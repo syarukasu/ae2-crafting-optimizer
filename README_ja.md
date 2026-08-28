@@ -167,10 +167,17 @@ maximumActiveStagesPerGridPerTick = 256
 gridTimeBudgetMillis = 2
 logExecutionStalls = true
 verifyStorageRouteBeforeOwnership = true
+
+[diagnostics]
+logCraftingDecisionFlow = true
 ```
 
 `exactVectorCrafting`は本項の物理クラフトツリーです。外部CPUの選択や実行は
 この設定から行いません。
+
+`logCraftingDecisionFlow`は`debug.log`へ、上限付きの
+`ACO-DIAG event=...`行を出します。計画結果と状態遷移だけを記録し、毎tickの正常処理、
+全在庫、巨大値の全10進桁は出力しません。
 
 Issue #164では、旧Pattern Batch V1、外部CPU実行Manager、内蔵GTCEu/Mekanism
 Native Batch、独立Fair Scheduler、端末・ストレージ・Bus・P2P書換えを削除しました。
