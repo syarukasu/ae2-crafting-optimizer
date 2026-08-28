@@ -12,8 +12,7 @@ import org.junit.jupiter.api.Test;
 /** Issue #164: ACOの中核責務と外部MODの実行所有権の境界を固定する。 */
 class Issue164CoreBoundarySourceTest {
     private static final Path MAIN = Path.of("src", "main", "java");
-    private static final Path MIXIN_CONFIG = Path.of(
-            "src", "main", "resources", "ae2_crafting_optimizer.mixins.json");
+    private static final Path MIXIN_ROOT = Path.of("src", "main", "resources");
 
     @Test
     void lifecycleOwnsOnlyStandardAe2ExactExecution() throws IOException {
@@ -44,7 +43,7 @@ class Issue164CoreBoundarySourceTest {
     void providerAndMixinBoundariesRemainReadOnlyAndNarrow() throws IOException {
         String access = readMain(
                 "com/syaru/ae2craftingoptimizer/access/PatternProviderTargetAccess.java");
-        String mixins = Files.readString(MIXIN_CONFIG, StandardCharsets.UTF_8);
+        String mixins = readAllMixinConfigs();
 
         assertTrue(access.contains("aco$getProviderTargets"));
         assertFalse(access.contains("aco$stageOwnedBatch"));
@@ -58,7 +57,7 @@ class Issue164CoreBoundarySourceTest {
 
     @Test
     void exactInventorySnapshotStaysInsidePlanningBoundary() throws IOException {
-        String mixins = Files.readString(MIXIN_CONFIG, StandardCharsets.UTF_8);
+        String mixins = readAllMixinConfigs();
 
         assertTrue(existsMain(
                 "com/syaru/ae2craftingoptimizer/integration/PlanningExactInventorySnapshot.java"));
@@ -79,10 +78,37 @@ class Issue164CoreBoundarySourceTest {
                 "com/syaru/ae2craftingoptimizer/batch/ExactPatternSnapshot.java"));
         assertFalse(existsMain(
                 "com/syaru/ae2craftingoptimizer/engine/vector/VectorInventorySnapshot.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/batch/ExactMultisetMatcher.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/engine/CompiledPlanningSession.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/engine/GenerationAwareGraphCache.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/engine/vector/LongClampedProgressProjection.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/optimization/GenerationSlotCache.java"));
+        assertFalse(existsMain(
+                "com/syaru/ae2craftingoptimizer/transaction/BatchConservationLedger.java"));
     }
 
     private static String readMain(String relativePath) throws IOException {
         return Files.readString(MAIN.resolve(relativePath), StandardCharsets.UTF_8);
+    }
+
+    private static String readAllMixinConfigs() throws IOException {
+        try (var paths = Files.list(MIXIN_ROOT)) {
+            var configs = paths
+                    .filter(path -> path.getFileName().toString().endsWith("mixins.json"))
+                    .sorted()
+                    .toList();
+            StringBuilder combined = new StringBuilder();
+            // 分割された全Mixin設定を連結し、別domainへの再登録も同じ境界試験で検出する。
+            for (Path config : configs) {
+                combined.append(Files.readString(config, StandardCharsets.UTF_8)).append('\n');
+            }
+            return combined.toString();
+        }
     }
 
     private static boolean existsMain(String relativePath) {

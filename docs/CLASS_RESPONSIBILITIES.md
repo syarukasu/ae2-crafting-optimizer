@@ -44,8 +44,8 @@ mixin + access  ->  integration  ->  optimization
 | クラス | 行数 | 判断 |
 |---|---:|---|
 | `PhysicalCraftingTreeTransaction` | 3754 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
-| `Ae2AuthoritativeCraftingPlanner` | 1333 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
-| `CompiledRootProgram` | 1294 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
+| `Ae2AuthoritativeCraftingPlanner` | 1419 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
+| `CompiledRootProgram` | 1332 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
 | `BigCraftingJob` | 1266 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
 | `ExactNetworkStorageBridge` | 1184 | 高。実在庫境界。snapshotとmutationの分離候補だが原子性試験が先。 |
 | `TransactionalCraftingExecutorV2` | 960 | 高。所有権移転後の処理。見た目の短縮目的では分割せず、phase単位の試験を先に増やす。 |
@@ -89,7 +89,7 @@ mixin + access  ->  integration  ->  optimization
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **313件**
+本版の本番トップレベル型: **308件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -235,7 +235,6 @@ mixin + access  ->  integration  ->  optimization
 |---|---|
 | `com.syaru.ae2craftingoptimizer.batch.Ae2BatchSourceReconciler` | Ae2BatchSourceReconcilerが示す計画、Receipt、実状態を照合し、一意に証明できる結果だけを返す。 |
 | `com.syaru.ae2craftingoptimizer.batch.BatchSourceReceiptLedger` | BatchSourceReceiptLedgerが示す所有量、Receipt、収支をexact値で記録・検証する。 |
-| `com.syaru.ae2craftingoptimizer.batch.ExactMultisetMatcher` | ExactMultisetMatcherが示す入力や互換条件を検証し、証明不能な高速経路を拒否する。 |
 | `com.syaru.ae2craftingoptimizer.batch.NativePatternBatchSupport` | NativePatternBatchSupportが示す二つのAPI境界を接続し、対応不能時は元の所有者へ判断を戻す。 |
 | `com.syaru.ae2craftingoptimizer.batch.PatternTaskFingerprint` | PatternTaskFingerprintが示す対象を、順序と内容から安定して識別する。 |
 
@@ -303,7 +302,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.CheckedLongMath` | 通常計画のlong演算をexact検査し、overflow時は昇格用例外を返す。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledCraftingGraph` | 世代内で再利用するPattern nodeと入出力edgeの不変グラフ。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledPattern` | 一つのPatternをnode ID、exact係数、候補情報へ正規化した不変値。 |
-| `com.syaru.ae2craftingoptimizer.engine.CompiledPlanningSession` | 一計算で共有するgraph snapshot、在庫snapshot、取消token、世代検証を束ねる。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledRootProgram` | 一つのrootから到達する決定的DAGを配列プログラムへ変換し、数量に依存しない計算を行う。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledRootQualificationRegistry` | AE2標準計画とのShadow一致実績を、世代付きRoot Program単位で記録する。 |
 | `com.syaru.ae2craftingoptimizer.engine.CountOverflowException` | CountOverflowExceptionが示す失敗を呼出側へ型付きで通知する。 |
@@ -312,7 +310,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobLedger` | AE2実JobのBigIntegerカウンタを再起動後も検証する永続Journal。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState` | 標準AE2の実Jobへ付随するexact task、waiting、output、Receiptのsidecar正本。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator` | Exact計画が参照するPatternだけを、CPU提出直前のCraftingServiceへ再照合する。 |
-| `com.syaru.ae2craftingoptimizer.engine.GenerationAwareGraphCache` | GenerationAwareGraphCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlan` | LongCraftingPlanが示すクラフト計画またはコンパイル済みプログラムを不変値として保持する。 |
 | `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlanner` | 通常規模の注文をchecked long演算で展開するPlanner。 |
 | `com.syaru.ae2craftingoptimizer.engine.OverflowPromotingCraftingPlanner` | checked long Plannerを先に試し、overflowした注文だけ最初からBigIntegerで再計算する。 |
@@ -322,7 +319,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.PlanningGuard` | PlanningGuardが示す入力や互換条件を検証し、証明不能な高速経路を拒否する。 |
 | `com.syaru.ae2craftingoptimizer.engine.PlanningRuntimeEpoch` | 現在のサーバープロセスを識別する一時ID。 |
 | `com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker` | RecipeGenerationTrackerが示す世代、進捗、tick時刻を単調に追跡する。 |
-| `com.syaru.ae2craftingoptimizer.engine.RootProgramFailure` | Root Programの構造的失敗と一時的なSnapshot不完全を型付きで区別する。 |
+| `com.syaru.ae2craftingoptimizer.engine.RootProgramFailure` | Root Programをコンパイルできなかった正確な理由。 |
 | `com.syaru.ae2craftingoptimizer.engine.StalePlanningSnapshotException` | StalePlanningSnapshotExceptionが示す失敗を呼出側へ型付きで通知する。 |
 | `com.syaru.ae2craftingoptimizer.engine.SymbolicCraftingPlanner` | 決定的なPattern DAGを CompiledRootProgram へ変換し、数式一巡で計画する公開Facade。 |
 | `com.syaru.ae2craftingoptimizer.engine.WideArithmeticPreflight` | 通常計画へBigInteger Plannerを重ねる前に、全量クラフト時の安全な上限だけを調べる。 |
@@ -343,7 +340,6 @@ mixin + access  ->  integration  ->  optimization
 
 | クラス | 仕事 |
 |---|---|
-| `com.syaru.ae2craftingoptimizer.engine.vector.LongClampedProgressProjection` | Exact Vectorの正確な数量を変更せず、AE2のlong表示へ進捗を投影する。 |
 | `com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanner` | Compiled Root Programを、要求数量に依存しない一つのExact Vector式へ変換する。 |
 | `com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator` | Config上限とBigInteger桁数を、Executor選択より前に一か所で検査する。 |
 | `com.syaru.ae2craftingoptimizer.engine.vector.VectorPlanFingerprint` | Programと正確な境界量から、保存Receiptを取り違えない安定SHA-256を作る。 |
@@ -496,7 +492,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.optimization.ExactBatchInputLimiter` | 一回分のキー別入力合計から、signed-longで安全に所有できる実行回数を求める。 |
 | `com.syaru.ae2craftingoptimizer.optimization.FallbackBoundary` | ACOがAE2標準経路へ安全に戻せる最終地点を、ownership取得の前後で分類する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.FallbackReasonCode` | 高速経路を辞退した理由を安定した診断codeとして列挙する。 |
-| `com.syaru.ae2craftingoptimizer.optimization.GenerationSlotCache` | 設定Inventoryの世代とサイズに結び付いた、nullも保持できる固定長slot cache。 |
 | `com.syaru.ae2craftingoptimizer.optimization.MethodHandleInvocationCache` | MethodHandleInvocationCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationDomain` | 最適化をnetwork、storage IO、provider、client sync、planning、execution、BigInteger、任意連携へ分割する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.OptimizationFeature` | 各最適化の安定ID、実装状態、domain、risk、状態所有者、失効条件、fallback境界、関連回帰Issueを宣言する正本。 |
@@ -531,7 +526,6 @@ mixin + access  ->  integration  ->  optimization
 
 | クラス | 仕事 |
 |---|---|
-| `com.syaru.ae2craftingoptimizer.transaction.BatchConservationLedger` | Native Batch一件の保存則を検証する副作用のない状態機械。 |
 | `com.syaru.ae2craftingoptimizer.transaction.BatchRecoveryCompatibilityBridge` | 公開Recordへ移行した後も、ACO 1.5.x旧ABIでビルド済みのAdapterを復旧時に呼び出す。 |
 | `com.syaru.ae2craftingoptimizer.transaction.BatchTransactionCoordinator` | 一回のNative Batchと永続Journalを結ぶ状態遷移窓口。 |
 | `com.syaru.ae2craftingoptimizer.transaction.BatchTransactionJournal` | Overworld SavedDataへ未完了取引を保存する台帳。 |

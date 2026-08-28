@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Limited ACO's runtime ownership to crafting planning, exact BigInteger data,
+  standard AE2 execution budgets, public worker contracts, and diagnostics.
+- Removed ACO-owned Advanced AE/AQE job execution, Pattern Batch V1, built-in
+  GTCEu/Mekanism native batches, the independent fair scheduler, and retired
+  terminal, storage, bus, IO Port, and P2P hooks.
+- Removed internal prototype classes that had no production caller. Versioned
+  BigInteger, Transactional Batch V2, crafting-table, and vector APIs remain.
+
 ### Fixed
 
 - Classify compiled Root Program failures instead of collapsing incomplete

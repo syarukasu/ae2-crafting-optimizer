@@ -77,7 +77,6 @@ $overrides = @{
     'com.syaru.ae2craftingoptimizer.engine.CheckedLongMath' = '通常計画のlong演算をexact検査し、overflow時は昇格用例外を返す。'
     'com.syaru.ae2craftingoptimizer.engine.CompiledCraftingGraph' = '世代内で再利用するPattern nodeと入出力edgeの不変グラフ。'
     'com.syaru.ae2craftingoptimizer.engine.CompiledPattern' = '一つのPatternをnode ID、exact係数、候補情報へ正規化した不変値。'
-    'com.syaru.ae2craftingoptimizer.engine.CompiledPlanningSession' = '一計算で共有するgraph snapshot、在庫snapshot、取消token、世代検証を束ねる。'
     'com.syaru.ae2craftingoptimizer.engine.CraftingPlanShadowComparator' = 'ACO計画とAE2標準計画の結果・不足・bytesを比較し、不一致なら採用を拒否する。'
     'com.syaru.ae2craftingoptimizer.engine.PlanningCancellationToken' = '共有計算を直接cancelせず、呼出者ごとの取消要求を協調的に伝えるtoken。'
     'com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath' = 'Provider Intentに一致するGT recipe候補だけを優先し、GTCEu本来の成立判定へ渡す。'
