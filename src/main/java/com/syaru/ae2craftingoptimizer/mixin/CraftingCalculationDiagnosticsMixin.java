@@ -46,6 +46,9 @@ public abstract class CraftingCalculationDiagnosticsMixin {
     private long aco$calculationStartedAt;
 
     @Unique
+    private long aco$calculationId;
+
+    @Unique
     private Ae2CraftingShadowValidator.Capture aco$shadowCapture;
 
     @Unique
@@ -86,6 +89,7 @@ public abstract class CraftingCalculationDiagnosticsMixin {
     @Inject(method = "run", at = @At("HEAD"))
     private void aco$startCalculationTimer(CallbackInfoReturnable<ICraftingPlan> cir) {
         aco$calculationStartedAt = System.nanoTime();
+        aco$calculationId = CraftingCalculationDiagnostics.nextCalculationId();
         CraftingFallbackDiagnostics.reset();
     }
 
@@ -122,6 +126,20 @@ public abstract class CraftingCalculationDiagnosticsMixin {
                 aco$usedAuthoritativePlan
                         ? "compiled-strict"
                         : "ae2-fallback",
+                fallback);
+        CraftingCalculationDiagnostics.logDecision(
+                aco$calculationId,
+                output,
+                requestedAmount,
+                returned,
+                System.nanoTime() - aco$calculationStartedAt,
+                aco$usedAuthoritativePlan ? "compiled-strict" : "ae2-standard",
+                aco$authoritativeCapture == null
+                        ? -1L
+                        : aco$authoritativeCapture.patternGeneration(),
+                aco$authoritativeCapture == null
+                        ? -1L
+                        : aco$authoritativeCapture.recipeGeneration(),
                 fallback);
         // Authoritative結果を自分自身と比較して一致回数を水増しせず、AE2標準結果だけを教材にする。
         if (!aco$usedAuthoritativePlan) {

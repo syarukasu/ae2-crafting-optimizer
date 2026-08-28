@@ -13,6 +13,8 @@ All notable changes to this project are documented here.
   terminal, storage, bus, IO Port, and P2P hooks.
 - Removed internal prototype classes that had no production caller. Versioned
   BigInteger, Transactional Batch V2, crafting-table, and vector APIs remain.
+- Added bounded `ACO-DIAG` records for planning decisions, graph generations,
+  and standard AE2 exact-execution lifecycle transitions in `debug.log`.
 
 ### Fixed
 

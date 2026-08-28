@@ -2,6 +2,7 @@
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/164
 - 状態: Implemented
+- 診断追補: Verified (automated)
 - 対象版: 1.5.x
 - 対象ローダー: Forge 1.20.1 / NeoForge 1.21.1
 - 関連Issue・PR: #109、#115、#125、#129、#145、#156、#161
@@ -74,6 +75,18 @@ ACOの本番骨格を次の五領域へ限定する。
 - 外部MODのprivate fieldを恒久的な実行契約にする。
 - clean-break後に互換fallbackやlegacy pathを追加して削除責務を復活させる。
 
+## debug.log診断契約
+
+- 全行を`ACO-DIAG event=<安定イベント名>`で検索可能にする。
+- 計画完了時は計算ID、出力、注文数、採用経路、simulation、missing件数、
+  AE2互換bytes、exact sidecar種別、exact bytes、Pattern/recipe世代、所要時間を出す。
+- 計画辞退時は理由コード、出力、注文数、Pattern/recipe世代、thread、詳細を出す。
+- Compiled Graphの構築と上限付き再構築は、世代、Pattern数、不完全出力数、所要時間を出す。
+- 標準AE2 exact実行は、復元、開始、待機、完了、取消、隔離をJob/CPU/Transaction IDで結ぶ。
+- 待機理由は変化時に即時、同一理由は600 tickごとにだけ再出力する。
+- 毎tickの正常進行、全在庫、全Pattern、巨大BigIntegerの全10進桁は出力しない。
+- 診断は判定、所有権、会計、fallbackを一切変更しない。
+
 ## 修正方針
 
 1. `ACOServerLifecycle`から外部AQE実行tickとclearを除去する。
@@ -99,9 +112,17 @@ ACOの本番骨格を次の五領域へ限定する。
 ## 試験計画
 
 - 単体試験: 外部CPU実行非所有、V1非登録、退役Config非存在、Mixin三者一致
+- 診断試験: 構造化イベント、計画route、exact lifecycle、600 tick抑制契約
 - 境界試験: 公開BigInteger/V2 APIシグネチャ、通常long、Long.MAX_VALUE、wide sidecar
 - 故障・取消・復旧試験: 既存の標準AE2 exact transaction試験を維持
 - ビルド: 両版`clean test`、`clean build`、issue regression manifest
+
+## 診断追補の検証結果
+
+- NeoForge 1.21.1 / Java 21: JUnit 438件（失敗0、エラー0、スキップ0）
+- `clean build --no-daemon --no-build-cache`: 成功
+- `verifyIssueRegressionManifest`: 成功
+- 診断は計画結果、Graph世代、exact実行境界だけを観測し、計画・所有権・会計の分岐を変更しない。
 - GameTestまたはユーザー側確認: 本依頼では起動試験を行わない
 
 ## 実装結果
