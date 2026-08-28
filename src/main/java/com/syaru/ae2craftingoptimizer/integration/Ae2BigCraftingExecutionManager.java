@@ -567,7 +567,9 @@ public final class Ae2BigCraftingExecutionManager {
                 Context context,
                 String reason,
                 int operationBudget) {
-            if (!ACOConfig.logExactExecutionStalls()) {
+            // 診断全体またはstall診断が無効なら、待機イベントだけを残さない。
+            if (!ACOConfig.logCraftingDecisionFlow()
+                    || !ACOConfig.logExactExecutionStalls()) {
                 return;
             }
             String checked = reason == null || reason.isBlank()

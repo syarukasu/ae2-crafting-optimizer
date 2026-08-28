@@ -39,6 +39,9 @@ class Issue164DiagnosticsSourceTest {
         assertTrue(manager.contains("\"exact_completed\""));
         assertTrue(manager.contains("\"exact_cancelled\""));
         assertTrue(manager.contains("ACO-DIAG event=exact_quarantined"));
+        String compactManager = manager.replaceAll("\\s+", " ");
+        assertTrue(compactManager.contains(
+                "if (!ACOConfig.logCraftingDecisionFlow() || !ACOConfig.logExactExecutionStalls())"));
         assertTrue(manager.contains("stallTicksSinceLog >= 600"));
         assertTrue(manager.contains("jobId={} cpu={} transactionId={} state={}"));
     }
