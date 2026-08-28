@@ -7,10 +7,7 @@ package com.syaru.ae2craftingoptimizer.optimization;
  * 一つの領域を無効化した場合、その領域はAE2の状態へ一切介入しない。
  */
 public enum OptimizationDomain {
-    NETWORK_TOPOLOGY,
-    STORAGE_IO,
     PATTERN_PROVIDER,
-    CLIENT_SYNC,
     CRAFTING_PLANNING,
     CRAFTING_EXECUTION,
     BIG_INTEGER,

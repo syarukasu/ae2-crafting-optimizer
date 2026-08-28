@@ -5,21 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-/** Issue #109: BigInteger連携だけで通常long計画を置換しないことを固定する。 */
+/** Issue #109: BigInteger APIの有効化だけで通常long計画を置換しないことを固定する。 */
 class Issue109NormalAe2BoundaryTest {
     @Test
-    void disabledExperimentalEngineKeepsNormalAe2EvenWhenReplacementFlagsRemainEnabled() {
-        assertFalse(Ae2AuthoritativeCraftingPlanner.normalLongReplacementEnabled(
-                false, true, true));
+    void disabledReplacementPoliciesKeepNormalAe2() {
+        assertFalse(Ae2AuthoritativeCraftingPlanner.normalLongReplacementEnabled(false, false));
     }
 
     @Test
-    void explicitExperimentalEngineMayEnableEitherNormalReplacementPolicy() {
-        assertTrue(Ae2AuthoritativeCraftingPlanner.normalLongReplacementEnabled(
-                true, true, false));
-        assertTrue(Ae2AuthoritativeCraftingPlanner.normalLongReplacementEnabled(
-                true, false, true));
-        assertFalse(Ae2AuthoritativeCraftingPlanner.normalLongReplacementEnabled(
-                true, false, false));
+    void eitherExplicitStrictPolicyMayEnableNormalReplacement() {
+        assertTrue(Ae2AuthoritativeCraftingPlanner.normalLongReplacementEnabled(true, false));
+        assertTrue(Ae2AuthoritativeCraftingPlanner.normalLongReplacementEnabled(false, true));
     }
 }

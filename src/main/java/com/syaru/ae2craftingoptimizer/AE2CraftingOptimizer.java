@@ -1,7 +1,6 @@
 package com.syaru.ae2craftingoptimizer;
 
 import com.mojang.logging.LogUtils;
-import com.syaru.ae2craftingoptimizer.api.batch.PatternBatchApi;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.PatternBatchV2Api;
 import com.syaru.ae2craftingoptimizer.api.contract.ExactCountLimits;
 import com.syaru.ae2craftingoptimizer.api.contract.IntegrationCapabilities;
@@ -34,7 +33,6 @@ public final class AE2CraftingOptimizer {
         BigCraftingNetwork.register();
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         ACOConfig.register();
-        PatternBatchApi.registerBuiltIns();
         PatternBatchV2Api.registerBuiltIns();
         modBus.addListener(this::commonSetup);
         MinecraftForge.EVENT_BUS.addListener(this::onRegisterCommands);

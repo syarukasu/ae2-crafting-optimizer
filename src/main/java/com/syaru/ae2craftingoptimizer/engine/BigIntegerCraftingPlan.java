@@ -12,11 +12,11 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Pattern回数または個別AEKey量がsigned longを超える、AQE専用のBigInteger親計画。
+ * Pattern回数または個別AEKey量がsigned longを超える、CPU非依存のBigInteger計画。
  *
  * <p>AE2の画面同期APIはlong固定なので、標準getterはLong.MAX_VALUE以下の表示Facadeを返す。
- * Advanced AE提出境界ではFacadeから実CPUとCraftingLinkだけを作り、正確なPattern task、
- * waitingFor、remainingOutput、容量を同じ実Jobへ設置する。通常AE2 CPUは専用Mixinで拒否する。</p>
+ * 標準AE2 exact実行または明示登録された外部consumerは、Facadeではなく公開sidecarから
+ * 正確なPattern task、missing、remaining output、容量を取得する。</p>
  */
 public final class BigIntegerCraftingPlan implements WideCraftingPlan {
     private final GenericStack finalOutput;

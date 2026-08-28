@@ -242,7 +242,7 @@ public final class TransactionalCraftingExecutorV2 {
                         remaining,
                         maxPatterns,
                         accountingMode,
-                        ACOConfig.getNativeBatchMaximumExecutions());
+                        ACOConfig.getMaximumBatchExecutions());
                 requested = plan.safeBatchSize(requested);
                 requested = selection.adapter().limitExecutions(selection.context(), requested);
                 requested = limitByWaitingFor(
@@ -275,7 +275,7 @@ public final class TransactionalCraftingExecutorV2 {
                         minimumExecutions)) {
                     // 正数の小口辞退だけを統計化し、単なる在庫0とは区別する。
                     if (requested > 0L) {
-                        OptimizationMetrics.recordNativeBatchMinimumDecline(
+                        OptimizationMetrics.recordTransactionalV2MinimumDecline(
                                 selection.adapter()
                                         .id()
                                         .toString());
@@ -311,7 +311,7 @@ public final class TransactionalCraftingExecutorV2 {
                 if (!Double.isFinite(power) || power < 0.0D) {
                     continue;
                 }
-                if (!NativeBatchTargetGuard.tryClaim(
+                if (!TransactionalBatchTargetGuard.tryClaim(
                         level, selection.context().target().getBlockPos())) {
                     continue;
                 }
@@ -431,7 +431,8 @@ public final class TransactionalCraftingExecutorV2 {
                             selection.adapter(),
                             selection.context(),
                             resolvedRecord);
-                    OptimizationMetrics.recordNativePatternBatch(selection.adapter().id().toString(), accepted);
+                    OptimizationMetrics.recordTransactionalV2Commit(
+                            selection.adapter().id().toString(), accepted);
                     return accountingMode == BatchCpuAccountingMode.SINGLE_PHYSICAL_OPERATION
                             ? 1
                             : Math.toIntExact(accepted);

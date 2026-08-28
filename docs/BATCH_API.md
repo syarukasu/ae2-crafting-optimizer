@@ -1,78 +1,65 @@
-# Transactional Pattern Batch APIs
+# Transactional Pattern Batch V2
 
-ACO contains two API generations. They are intentionally separate because a
-machine-facing batch optimization is safe only when ownership and restart
-recovery are explicit.
+ACO exposes one machine-batch contract: `api.batch.v2`.
 
-## V1 Compatibility API
+Issue #164 removed Pattern Batch V1, its sequential adapter, and ACO's built-in
+GTCEu/Mekanism adapters. A removed V1 symbol or configuration key is not a
+compatibility surface and must not be reintroduced as a fallback.
 
-`PatternBatchApi`, `PatternBatchAdapter`, and
-`ae2_crafting_optimizer:sequential_pattern_provider` remain available for source
-and Config compatibility with ACO 1.2.0/1.2.1.
+## Ownership
 
-ACO 1.2.2 and the current development tree do **not** register a V1 crafting-CPU
-execution Mixin. Registering a V1 adapter therefore does not redirect live AE2
-crafting. The legacy Config keys are readable no-ops. This prevents the old
-aggregate path from changing AE2 task progress or waiting-output accounting.
+ACO owns the source-side transaction journal and standard AE2 accounting only
+after every participant has accepted the same immutable transaction identity.
+The external adapter owns its target, recipe validation, machine state, power,
+progress, output receipt, and restart recovery.
 
-## V2 Durable API
+Before ownership transfer an adapter may decline and AE2 continues normally.
+After ownership transfer neither side may retry through a legacy path or guess
+whether a side effect happened.
 
-The opt-in development API is under `api.batch.v2`:
+## Public Types
 
-- `TransactionalPatternBatchAdapter` owns target preparation, exact acceptance,
-  target reconciliation, rollback, and terminal-receipt cleanup.
-- `BatchSourceReconciler` owns CPU inventory rollback and accepted-task,
-  energy, and waiting-output accounting.
-- `PatternBatchV2Api` registers both sides by stable `ResourceLocation` ids.
-- `BatchTransactionJournal` persists the cross-owner transaction in overworld
-  `SavedData` before source inputs move.
+- `TransactionalPatternBatchAdapter`: target preparation, exact acceptance,
+  reconciliation, rollback, and receipt cleanup.
+- `BatchSourceReconciler`: source inventory, energy, task-progress, and expected
+  output accounting.
+- `PatternBatchV2Api`: stable-ID registration and lookup.
+- `BatchTransactionJournal`: persisted cross-owner state written before source
+  input moves.
+- `ProviderOwnedPatternBatchTarget`: optional provider-owned target boundary.
 
-V2 is inactive unless all of these server switches permit it:
+ACO registers only its standard AE2 source reconciler. It does not register a
+machine adapter. When no external adapter is registered, the live hook exits
+before inspecting or mutating an AE2 job.
 
-```toml
-[experimentalCraftingEngine]
-enableExperimentalCraftingEngine = true
-enableTransactionalBatchingV2 = true
-persistBatchTransactionJournal = true
-```
+## Transaction Contract
 
-All switches remain false by default except the journal safety dependency.
-Existing unresolved journal records continue reconciliation after a feature is
-disabled.
-
-## Adapter Contract
-
-The normal path is:
+The successful path is:
 
 ```text
 prepare target receipt
 stage source receipt and journal
-extract an exact complete source aggregate
-commit an all-or-zero target aggregate
+extract one exact complete source aggregate
+commit one all-or-zero target aggregate
 account energy, task progress, and expected outputs
-finish and remove the journal
+finish the journal
 remove terminal source and target receipts
 ```
 
-An adapter must obey these rules:
+An implementation must satisfy all of these rules:
 
-- `minimumExecutions` is evaluated after task progress, waiting-output,
-  source-energy, and source-inventory limits. When the final available count is
-  smaller, ACO moves no input and leaves that execution call to AE2's normal
-  path. The default is `1`, preserving existing adapters.
-- The transaction UUID, pattern fingerprint, offered count, exact aggregate
-  inputs, and expected outputs must remain unchanged through recovery.
-- `commit` returns either zero or the complete offered count. Partial native
-  acceptance is invalid and is quarantined.
-- Target acceptance must have a durable receipt outside transient machine
-  simulation state.
-- A throw after target invocation is an unknown outcome, not rejection.
-- `reconcileTarget` must report accepted, not accepted, retry, or quarantine
-  without invoking the target operation again.
-- Unsupported recipes and machines return zero before source ownership changes.
-- Terminal evidence is removed only after the overworld journal is terminal.
+- The transaction UUID, pattern fingerprint, exact aggregate inputs, expected
+  outputs, and offered count are immutable.
+- Unsupported recipes and machines decline before source ownership changes.
+- `commit` accepts zero or the complete offered count. Partial acceptance is a
+  protocol violation and is quarantined.
+- Target acceptance has a durable receipt outside transient simulation state.
+- An exception after target invocation is an unknown outcome, not rejection.
+- Recovery reconciles existing evidence and never invokes the target operation
+  a second time.
+- Terminal evidence is removed only after both owners reach a terminal state.
 
-The AE2 source receipt is forward-only:
+The source receipt is forward-only:
 
 ```text
 STAGED -> EXTRACTING -> EXTRACTED -> TARGET_ACCEPTED
@@ -82,27 +69,8 @@ STAGED -> EXTRACTING -> EXTRACTED -> TARGET_ACCEPTED
 ```
 
 `EXTRACTING`, `ENERGY_ACCOUNTING`, and `OUTPUT_ACCOUNTING` are uncertainty
-barriers. Recovery quarantines those states rather than guessing whether the
-side effect completed and risking loss, duplication, or a double charge.
-
-## Built-In Native Adapters
-
-The development tree includes typed adapters for:
-
-- GTCEu Modern `7.5.3`;
-- Mekanism `10.4.16.80` with Applied Mekanistics `1.4.3`.
-
-They load only when their child switch is enabled and every dependency version
-matches exactly. Both require an exact deterministic processing pattern, one
-deterministic adjacent target, Pattern Provider Blocking Mode, healthy receipt
-ledgers, and native recipe/capacity validation. Unsupported chance outputs,
-container returns, substitutions, conditions, keys, or targets use AE2's normal
-path.
-
-The target receipt belongs to persisted Pattern Provider logic. GTCEu or
-Mekanism still owns recipe duration, power, machine progress, and final output;
-ACO performs one aggregate all-or-zero provider push and never calls a machine
-tick method speculatively.
+barriers. Recovery quarantines an unresolved barrier rather than risking item
+loss, duplication, or double charging.
 
 ## Registration
 
@@ -111,10 +79,22 @@ PatternBatchV2Api.registerAdapter(MyTransactionalAdapter.INSTANCE);
 PatternBatchV2Api.registerSource(MySourceReconciler.INSTANCE);
 ```
 
-Adapter and source ids must be unique and stable across restarts. A third-party
-integration must provide its own persistent target receipt and copied-world
-kill/restart tests. Passing insertion simulation alone is not proof of durable
-acceptance.
+IDs must be unique and stable across restarts. Third-party integrations must
+provide copied-world kill/restart tests and exact accounting tests. Successful
+insertion simulation alone is not proof of durable acceptance.
 
-See [Experimental Crafting Engine](EXPERIMENTAL_ENGINE.md) and
-[Testing](TESTING.md) before enabling V2.
+## Configuration
+
+```toml
+[craftingExecution]
+enableTransactionalBatchingV2 = true
+persistTransactionJournal = true
+maximumBatchExecutions = 65536
+```
+
+Disabling V2 prevents new ownership transfers. Existing non-terminal journal
+records remain recoverable; disabling a feature is not permission to abandon
+already-owned input.
+
+See [Feature Ownership](FEATURE_OWNERSHIP.md),
+[Project Charter](PROJECT_CHARTER.md), and [Testing](TESTING.md).

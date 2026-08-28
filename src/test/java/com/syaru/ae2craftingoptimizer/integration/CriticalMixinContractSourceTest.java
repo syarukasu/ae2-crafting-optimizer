@@ -64,9 +64,11 @@ class CriticalMixinContractSourceTest {
     }
 
     @Test
-    void compatibilityAuditCoversBothBigIntegerProfilesAndCriticalSurfaces() {
+    void compatibilityAuditCoversTheSharedPlanningCoreAndCriticalSurfaces() {
         String source = read(VALIDATOR);
-        assertTrue(source.contains("enableBigCraftingProfile()"));
+        assertTrue(source.contains("enableCompiledCraftingGraph()"));
+        assertFalse(source.contains("enableAqeBigCraftingProfile()"));
+        assertFalse(source.contains("enableExternalBigCraftingProfile()"));
         assertTrue(source.contains("CraftingServiceCalculationHookAccess.class"));
         assertTrue(source.contains("CheckedCraftingArithmeticHookAccess.class"));
         assertTrue(source.contains("ExactBigIntegerInventoryHookAccess.class"));
@@ -78,9 +80,7 @@ class CriticalMixinContractSourceTest {
         Map<String, Long> requiredInjectionLines = Map.of(
                 "CraftingCpuLogicTransactionalBatchV2Mixin.java", 1L,
                 "CraftingTreeCalculationMemoMixin.java", 4L,
-                "CraftingTreeCandidatePruningMixin.java", 1L,
-                "StorageServiceDeepCoalescingMixin.java", 4L,
-                "StorageServiceWatcherThrottleMixin.java", 6L);
+                "CraftingTreeCandidatePruningMixin.java", 1L);
 
         requiredInjectionLines.forEach((fileName, requiredLines) -> {
             String source = read(MIXIN_ROOT.resolve(fileName));

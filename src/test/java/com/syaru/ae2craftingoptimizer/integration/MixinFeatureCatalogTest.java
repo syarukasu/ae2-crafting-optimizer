@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.syaru.ae2craftingoptimizer.mixin.MixinFeatureCatalog;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeature;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureRegistry;
-import com.syaru.ae2craftingoptimizer.optimization.OptimizationImplementationStatus;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -50,14 +49,4 @@ class MixinFeatureCatalogTest {
         }
     }
 
-    @Test
-    void retiredCompatibilityKeyCanNeverHaveAConfiguredMixin() {
-        // 互換キーだけの機能へMixinを戻す場合は、先に台帳と回帰試験をACTIVEへ更新させる。
-        for (var entry : MixinFeatureCatalog.snapshot().entrySet()) {
-            assertEquals(
-                    OptimizationImplementationStatus.ACTIVE,
-                    entry.getValue().implementationStatus(),
-                    entry.getKey());
-        }
-    }
 }

@@ -10,22 +10,16 @@ import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
 import com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager;
-import com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageSnapshotCache;
-import com.syaru.ae2craftingoptimizer.integration.OptionalAqeBigCraftingExecution;
-import com.syaru.ae2craftingoptimizer.integration.OptionalNativeBatchIntegrations;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
 import com.syaru.ae2craftingoptimizer.mekanism.MekanismRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.optimization.Ae2OverclockUpgradeCountCache;
 import com.syaru.ae2craftingoptimizer.optimization.AssemblerMatrixBusyCountCache;
-import com.syaru.ae2craftingoptimizer.optimization.BusFuzzySearchCache;
-import com.syaru.ae2craftingoptimizer.optimization.BusTransferSimulationCache;
 import com.syaru.ae2craftingoptimizer.optimization.CircuitCutterRecipeCache;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget;
 import com.syaru.ae2craftingoptimizer.optimization.MethodHandleInvocationCache;
-import com.syaru.ae2craftingoptimizer.optimization.NativeBatchTargetGuard;
+import com.syaru.ae2craftingoptimizer.optimization.TransactionalBatchTargetGuard;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureGate;
-import com.syaru.ae2craftingoptimizer.optimization.P2PNotificationDeduplicator;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import com.syaru.ae2craftingoptimizer.optimization.ServerTickClock;
 import com.syaru.ae2craftingoptimizer.optimization.TransactionalExactPatternCache;
@@ -60,10 +54,8 @@ public final class ACOServerLifecycle {
 
     private static void onServerStarted(ServerStartedEvent event) {
         OptimizationFeatureGate.resetDiagnostics();
-        OptionalNativeBatchIntegrations.registerEnabledVerifiedAdapters();
         ExperimentalCompatibilityValidator.validateEnabledFeatures();
         ServerTickClock.reset();
-        ExactNetworkStorageSnapshotCache.reset();
         Ae2OverclockUpgradeCountCache.clear();
         AssemblerMatrixBusyCountCache.clear();
         MethodHandleInvocationCache.clear();
@@ -84,7 +76,6 @@ public final class ACOServerLifecycle {
         RecipeIntentRegistry.cleanupExpired(gameTime);
         BatchTransactionRecovery.tick(event.getServer(), gameTime);
         Ae2BigCraftingExecutionManager.tick(event.getServer());
-        OptionalAqeBigCraftingExecution.tick(event.getServer());
     }
 
     private static void onDatapackSync(OnDatapackSyncEvent event) {
@@ -113,21 +104,12 @@ public final class ACOServerLifecycle {
         Ae2OverclockUpgradeCountCache.clear();
         AssemblerMatrixBusyCountCache.clear();
         MethodHandleInvocationCache.clear();
-        ExactNetworkStorageSnapshotCache.reset();
         ServerTickClock.reset();
-        BusFuzzySearchCache.clear();
-        BusTransferSimulationCache.clear();
-        P2PNotificationDeduplicator.clear();
         OptimizationMetrics.reset();
         OptimizationFeatureGate.resetDiagnostics();
         Ae2CraftingShadowValidator.resetDiagnostics();
         BigCraftingStatusInbox.clear();
         Ae2BigCraftingExecutionManager.clear();
-        OptionalAqeBigCraftingExecution.clear();
-        /*
-         * AQE側の未送信窓を先に戻してからRegistryを破棄する。
-         * 順序を逆にするとManagerがHostへ到達できず、prepared leaseだけが残る。
-         */
         BigCraftingHostRegistry.clear();
     }
 
@@ -141,7 +123,6 @@ public final class ACOServerLifecycle {
         PatternTaskFingerprint.clear();
         PatternProviderRoutingCache.clear();
         TransactionalExactPatternCache.clear();
-        NativeBatchTargetGuard.clear();
-        OptionalNativeBatchIntegrations.clearRecipeCaches();
+        TransactionalBatchTargetGuard.clear();
     }
 }

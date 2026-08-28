@@ -9,13 +9,14 @@ import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 
-/** Allows at most one native aggregate push to one target in a server tick. */
-public final class NativeBatchTargetGuard {
+/** V2取引が同一server tickに同じtargetへ二重commitすることを防ぐ。 */
+public final class TransactionalBatchTargetGuard {
+    /** 異常な座標流入で一tickのSetが無制限に成長しないための固定上限。 */
     private static final int MAX_TARGETS_PER_TICK = 1_048_576;
     private static final Map<Object, TickClaims> CLAIMS =
             Collections.synchronizedMap(new WeakHashMap<>());
 
-    private NativeBatchTargetGuard() {
+    private TransactionalBatchTargetGuard() {
     }
 
     public static boolean tryClaim(Level level, BlockPos target) {
@@ -26,18 +27,22 @@ public final class NativeBatchTargetGuard {
 
     static boolean tryClaim(Object scope, long target, long gameTick) {
         Objects.requireNonNull(scope, "scope");
+        // 負のtickはLevel由来ではないため、呼出側の不整合として拒否する。
         if (gameTick < 0L) {
             throw new IllegalArgumentException("gameTick must not be negative");
         }
         synchronized (CLAIMS) {
             TickClaims claims = CLAIMS.computeIfAbsent(scope, ignored -> new TickClaims());
+            // tickが変わった時だけ前tickのclaimをまとめて破棄する。
             if (claims.gameTick != gameTick) {
                 claims.gameTick = gameTick;
                 claims.targets.clear();
             }
+            // 同一targetの二重commitを、targetへ触る前に拒否する。
             if (claims.targets.contains(target)) {
                 return false;
             }
+            // 固定上限到達後は新しい所有権を取らずfail-closedにする。
             if (claims.targets.size() >= MAX_TARGETS_PER_TICK) {
                 return false;
             }

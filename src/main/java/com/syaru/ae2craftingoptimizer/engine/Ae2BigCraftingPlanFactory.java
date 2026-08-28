@@ -74,7 +74,7 @@ public final class Ae2BigCraftingPlanFactory {
          * 明示的なBig Job作成でも、管理者が要求した場合はShadow一致済みProgramだけを使う。
          * 既定では、AE2が表現できないlong超過注文をShadow実績なしで永久拒否しない。
          */
-        if (ACOConfig.requireAqeBigPlanShadowQualification()
+        if (ACOConfig.requireWidePlanShadowQualification()
                 && !CompiledRootQualificationRegistry.isQualified(
                         program,
                         ACOConfig.getAuthoritativeMinimumShadowMatches())) {

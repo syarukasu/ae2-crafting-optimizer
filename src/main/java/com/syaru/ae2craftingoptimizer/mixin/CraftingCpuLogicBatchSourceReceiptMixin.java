@@ -11,8 +11,6 @@ import com.syaru.ae2craftingoptimizer.access.CraftingOwnerTransactionAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceipt;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
 import com.syaru.ae2craftingoptimizer.batch.BatchSourceReceiptLedger;
-import com.syaru.ae2craftingoptimizer.scheduler.FairSchedulerPersistentState;
-import com.syaru.ae2craftingoptimizer.scheduler.FairSchedulerStateStore;
 import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 import org.spongepowered.asm.mixin.Mixin;
@@ -25,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = CraftingCpuLogic.class, remap = false)
 public abstract class CraftingCpuLogicBatchSourceReceiptMixin
-        implements BatchSourceReceiptStore, FairSchedulerStateStore, CraftingLogicTransactionAccess {
+        implements BatchSourceReceiptStore, CraftingLogicTransactionAccess {
     @Shadow
     @Final
     private CraftingCPUCluster cluster;
@@ -39,23 +37,16 @@ public abstract class CraftingCpuLogicBatchSourceReceiptMixin
     @Unique
     private final BatchSourceReceiptLedger aco$batchSourceReceipts = new BatchSourceReceiptLedger();
 
-    @Unique
-    private final FairSchedulerPersistentState aco$fairSchedulerState = new FairSchedulerPersistentState();
-
     @Inject(method = "writeToNBT", at = @At("RETURN"))
     private void aco$saveBatchSourceReceipts(CompoundTag tag, CallbackInfo ci) {
         if (!aco$batchSourceReceipts.isEmpty()) {
             tag.put("acoBatchSourceReceipts", aco$batchSourceReceipts.save());
-        }
-        if (aco$fairSchedulerState.initialized()) {
-            tag.put("acoFairScheduler", aco$fairSchedulerState.save());
         }
     }
 
     @Inject(method = "readFromNBT", at = @At("RETURN"))
     private void aco$loadBatchSourceReceipts(CompoundTag tag, CallbackInfo ci) {
         aco$batchSourceReceipts.load(tag.getCompound("acoBatchSourceReceipts"));
-        aco$fairSchedulerState.load(tag.getCompound("acoFairScheduler"));
     }
 
     @Override
@@ -103,11 +94,6 @@ public abstract class CraftingCpuLogicBatchSourceReceiptMixin
     @Override
     public boolean aco$removeTerminalBatchSourceReceipt(UUID transactionId) {
         return aco$batchSourceReceipts.removeTerminal(transactionId);
-    }
-
-    @Override
-    public FairSchedulerPersistentState aco$getFairSchedulerState() {
-        return aco$fairSchedulerState;
     }
 
     @Override

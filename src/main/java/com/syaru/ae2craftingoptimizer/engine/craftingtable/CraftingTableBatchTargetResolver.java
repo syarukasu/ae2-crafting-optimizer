@@ -3,7 +3,7 @@ package com.syaru.ae2craftingoptimizer.engine.craftingtable;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.me.service.CraftingService;
-import com.syaru.ae2craftingoptimizer.access.PatternProviderTransactionAccess;
+import com.syaru.ae2craftingoptimizer.access.PatternProviderTargetAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.ProviderOwnedPatternBatchTarget;
 import com.syaru.ae2craftingoptimizer.api.craftingtable.CraftingTableBatchTarget;
 import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
@@ -49,7 +49,7 @@ public final class CraftingTableBatchTargetResolver {
                         level);
             }
             // 接続方向から解決できないProviderは、別の実装経路を持たないため除外する。
-            if (!(provider instanceof PatternProviderTransactionAccess access)) {
+            if (!(provider instanceof PatternProviderTargetAccess access)) {
                 continue;
             }
             BlockEntity providerEntity = access.aco$getProviderBlockEntity();
