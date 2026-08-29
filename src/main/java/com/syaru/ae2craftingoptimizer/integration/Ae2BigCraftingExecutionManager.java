@@ -122,7 +122,6 @@ public final class Ae2BigCraftingExecutionManager {
         private ExactCraftingJobAccess lastExactJob;
         /** Issue #125: 進行ゼロのtickで観測した待機理由。進行があれば毎回消す。 */
         private String stallReason = "";
-        private int stallTicksSinceLog;
         /** 同じ理由でも別Jobへ切り替わった時は、そのJobの初回診断を必ず出す。 */
         private UUID stallJobId;
         /** restoreOrStartが開始を見送った直近の具体的な理由。 */
@@ -247,11 +246,13 @@ public final class Ae2BigCraftingExecutionManager {
                     quarantine("standard AE2 exact job completed with unbalanced counters", null);
                     return true;
                 }
+                reportLifecycle(context, "exact_completed", "accounting balanced");
                 ExactVectorDiagnostics.transactionCompleted();
                 finish(context, true);
                 return false;
             }
             if (outcome.kind() == PhysicalCraftingTreeTransaction.Kind.CANCELLED) {
+                reportLifecycle(context, "exact_cancelled", outcome.detail());
                 ExactVectorDiagnostics.transactionCancelled();
                 finish(context, false);
                 return false;
@@ -295,6 +296,7 @@ public final class Ae2BigCraftingExecutionManager {
                             "exact physical execution belongs to another AE2 job");
                 }
                 transactionJobId = context.jobId();
+                reportLifecycle(context, "exact_restored", "restored from exact job NBT");
             }
             if (transaction != null) {
                 return;
@@ -304,11 +306,16 @@ public final class Ae2BigCraftingExecutionManager {
             if (!ACOConfig.enableExactBigIntegerPhysicalExecution()) {
                 startDeferralReason = "exact physical execution is disabled by config";
                 reportStall(context, startDeferralReason, 0);
+                reportLifecycle(context, "exact_declined", startDeferralReason);
                 finish(context, false);
                 return;
             }
             // 入力所有権取得前の世代不一致だけは、同じAE2 Jobを通常取消経路で閉じられる。
             if (isStale(context.state(), graphSnapshot)) {
+                reportLifecycle(
+                        context,
+                        "exact_declined",
+                        "planning generations no longer match the exact job");
                 finish(context, false);
                 return;
             }
@@ -330,6 +337,7 @@ public final class Ae2BigCraftingExecutionManager {
                             context.jobId(),
                             stableKey(),
                             support.reason());
+                    reportLifecycle(context, "exact_declined", support.reason());
                     finish(context, false);
                 }
                 return;
@@ -354,6 +362,7 @@ public final class Ae2BigCraftingExecutionManager {
             ExactVectorDiagnostics.planPrepared();
             ExactVectorDiagnostics.transactionStarted(
                     com.syaru.ae2craftingoptimizer.api.vector.VectorResourceMode.NETWORK_STORAGE);
+            reportLifecycle(context, "exact_started", "physical ownership acquired");
         }
 
         private PreparedVectorBatch prepare(
@@ -522,27 +531,43 @@ public final class Ae2BigCraftingExecutionManager {
                 cluster.markDirty();
             }
             ExactVectorDiagnostics.transactionQuarantined();
+            BigInteger exactRemaining = lastExactJob == null
+                    ? null
+                    : lastExactJob.aco$getExactRemainingOutput();
             if (failure == null) {
                 AE2CraftingOptimizer.LOGGER.error(
-                        "Quarantined standard AE2 exact job: {}",
+                        "ACO-DIAG event=exact_quarantined jobId={} cpu={} transactionId={} state={} "
+                                + "finalOutputRemaining={} detail={}",
+                        transactionJobId == null ? "<unknown>" : transactionJobId,
+                        stableKey(),
+                        transaction == null ? "not-started" : transaction.transactionId(),
+                        transaction == null ? "NOT_STARTED" : transaction.state(),
+                        formatExactAmount(exactRemaining),
                         checked);
             } else {
                 AE2CraftingOptimizer.LOGGER.error(
-                        "Quarantined standard AE2 exact job: {}",
+                        "ACO-DIAG event=exact_quarantined jobId={} cpu={} transactionId={} state={} "
+                                + "finalOutputRemaining={} detail={}",
+                        transactionJobId == null ? "<unknown>" : transactionJobId,
+                        stableKey(),
+                        transaction == null ? "not-started" : transaction.transactionId(),
+                        transaction == null ? "NOT_STARTED" : transaction.state(),
+                        formatExactAmount(exactRemaining),
                         checked,
                         failure);
             }
         }
 
         /**
-         * Issue #125: 進行ゼロの待機理由を表へ出す。理由が変わった時に一度、
-         * 同じ理由が続く間は600 tickごとに一度だけWARNする。
+         * Issue #125: 進行ゼロの待機理由を、理由またはJobが変わった時にdebug.logへ出す。
          */
         private void reportStall(
                 Context context,
                 String reason,
                 int operationBudget) {
-            if (!ACOConfig.logExactExecutionStalls()) {
+            // 診断全体またはstall診断が無効なら、待機イベントだけを残さない。
+            if (!ACOConfig.logCraftingDecisionFlow()
+                    || !ACOConfig.logExactExecutionStalls()) {
                 return;
             }
             String checked = reason == null || reason.isBlank()
@@ -550,37 +575,71 @@ public final class Ae2BigCraftingExecutionManager {
                     : reason;
             boolean changedReason = !context.jobId().equals(stallJobId)
                     || !checked.equals(stallReason);
-            stallTicksSinceLog++;
-             if (changedReason || stallTicksSinceLog >= 600) {
-                PhysicalCraftingTreeTransaction.ExecutionDiagnostics diagnostics = transaction == null
-                        ? null
-                        : transaction.executionDiagnostics();
-                BigInteger exactRemaining = context.exactJob().aco$getExactRemainingOutput();
-                AE2CraftingOptimizer.LOGGER.warn(
-                        "Standard AE2 exact job is making no progress: jobId={}, cpu={}, transactionId={}, state={}, stepId={}, patternId={}, receiptState={}, reason={}, operationBudget={}, consumedOperations={}, remainingOperations={}, remainingPhysicalSteps={}, finalOutputRemaining={}",
-                        context.jobId(),
-                        stableKey(),
-                        transaction == null ? "not-started" : transaction.transactionId(),
-                        transaction == null ? "NOT_STARTED" : transaction.state(),
-                        diagnostics == null ? "not-started" : diagnostics.activeStep(),
-                        diagnostics == null ? "not-started" : diagnostics.patternId(),
-                        diagnostics == null ? "NONE" : diagnostics.receiptState(),
-                        checked,
-                        operationBudget,
-                        transaction == null ? 0 : transaction.lastConsumedOperations(),
-                        diagnostics == null ? "unknown" : diagnostics.remainingOperations(),
-                        diagnostics == null ? "unknown" : diagnostics.remainingPhysicalSteps(),
-                        exactRemaining);
-                stallReason = checked;
-                stallJobId = context.jobId();
-                stallTicksSinceLog = 0;
+            // 同じJob・同じ理由は記録済みなので、次の状態遷移まで再出力しない。
+            if (!changedReason) {
+                return;
             }
+            PhysicalCraftingTreeTransaction.ExecutionDiagnostics diagnostics = transaction == null
+                    ? null
+                    : transaction.executionDiagnostics();
+            BigInteger exactRemaining = context.exactJob().aco$getExactRemainingOutput();
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event=exact_waiting jobId={} cpu={} transactionId={} state={} stepId={} "
+                            + "patternId={} receiptState={} reason={} operationBudget={} consumedOperations={} "
+                            + "remainingOperations={} remainingPhysicalSteps={} finalOutputRemaining={}",
+                    context.jobId(),
+                    stableKey(),
+                    transaction == null ? "not-started" : transaction.transactionId(),
+                    transaction == null ? "NOT_STARTED" : transaction.state(),
+                    diagnostics == null ? "not-started" : diagnostics.activeStep(),
+                    diagnostics == null ? "not-started" : diagnostics.patternId(),
+                    diagnostics == null ? "NONE" : diagnostics.receiptState(),
+                    checked,
+                    operationBudget,
+                    transaction == null ? 0 : transaction.lastConsumedOperations(),
+                    diagnostics == null ? "unknown" : diagnostics.remainingOperations(),
+                    diagnostics == null ? "unknown" : diagnostics.remainingPhysicalSteps(),
+                    formatExactAmount(exactRemaining));
+            stallReason = checked;
+            stallJobId = context.jobId();
+        }
+
+        /** exact実行の所有権境界だけを記録し、正常進行中の毎tickログは作らない。 */
+        private void reportLifecycle(
+                Context context,
+                String event,
+                String detail) {
+            if (!ACOConfig.logCraftingDecisionFlow()) {
+                return;
+            }
+            BigInteger exactRemaining = context.exactJob().aco$getExactRemainingOutput();
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event={} jobId={} cpu={} transactionId={} state={} "
+                            + "finalOutputRemaining={} detail={}",
+                    event,
+                    context.jobId(),
+                    stableKey(),
+                    transaction == null ? "not-started" : transaction.transactionId(),
+                    transaction == null ? "NOT_STARTED" : transaction.state(),
+                    formatExactAmount(exactRemaining),
+                    detail == null || detail.isBlank() ? "none" : detail);
+        }
+
+        /** 巨大な正確量は全桁を展開せず、long範囲またはbit長だけを出力する。 */
+        private static String formatExactAmount(BigInteger amount) {
+            if (amount == null) {
+                return "none";
+            }
+            // signed long内なら、GUIや境界試験と直接比較できる実値を残す。
+            if (amount.bitLength() <= 63) {
+                return amount.toString();
+            }
+            return "sign=" + amount.signum() + ",bits=" + amount.bitLength();
         }
 
         private void clearStall() {
             stallReason = "";
             stallJobId = null;
-            stallTicksSinceLog = 0;
         }
 
         private void close() {

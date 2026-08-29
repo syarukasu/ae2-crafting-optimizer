@@ -90,8 +90,7 @@ public final class BigCraftingEngineApi {
      * 対応CPUアドオンが同じ計算を二重実行しないための能力照会だけを行う。
      */
     public static boolean isCalculationProfileActive() {
-        return ACOConfig.enableBigCraftingProfile()
-                && ACOConfig.enableCompiledCraftingGraph()
+        return ACOConfig.enableCompiledCraftingGraph()
                 && ACOConfig.enableBigIntegerCraftingBackend();
     }
 

@@ -24,8 +24,6 @@ public final class OptimizationMetrics {
     private static final LongAdder ASSEMBLER_MATRIX_THREAD_COUNT_HITS = new LongAdder();
     private static final LongAdder ASSEMBLER_MATRIX_BUSY_COUNT_HITS = new LongAdder();
     private static final LongAdder ASSEMBLER_MATRIX_STATUS_UPDATES_COALESCED = new LongAdder();
-    private static final LongAdder TRANSACTIONAL_PATTERN_BATCH_COMMITS = new LongAdder();
-    private static final LongAdder TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_MATCHES = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_MISMATCHES = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_SKIPS = new LongAdder();
@@ -36,9 +34,9 @@ public final class OptimizationMetrics {
     private static final LongAdder CRAFTING_CALCULATION_DEDUP_HITS = new LongAdder();
     private static final LongAdder CRAFTING_CALCULATION_CACHE_HITS = new LongAdder();
     private static final Map<FallbackReasonCode, LongAdder> CRAFTING_FALLBACK_REASONS = new ConcurrentHashMap<>();
-    private static final LongAdder NATIVE_BATCH_TRANSACTIONS = new LongAdder();
-    private static final Map<String, LongAdder> NATIVE_BATCH_EXECUTIONS = new ConcurrentHashMap<>();
-    private static final Map<String, LongAdder> NATIVE_BATCH_MINIMUM_DECLINES = new ConcurrentHashMap<>();
+    private static final LongAdder TRANSACTIONAL_V2_TRANSACTIONS = new LongAdder();
+    private static final Map<String, LongAdder> TRANSACTIONAL_V2_EXECUTIONS = new ConcurrentHashMap<>();
+    private static final Map<String, LongAdder> TRANSACTIONAL_V2_MINIMUM_DECLINES = new ConcurrentHashMap<>();
     private static final LongAdder INSTANT_DISPATCH_CALLS = new LongAdder();
     private static final LongAdder INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS = new LongAdder();
     private static final LongAdder INSTANT_DISPATCH_TRANSACTIONS = new LongAdder();
@@ -59,16 +57,6 @@ public final class OptimizationMetrics {
     private static final LongAdder TRANSACTIONAL_V2_PATTERN_METADATA_HITS = new LongAdder();
     private static final LongAdder TRANSACTIONAL_V2_PATTERN_METADATA_MISSES = new LongAdder();
     private static final LongAdder TRANSACTIONAL_V2_PATTERN_METADATA_UNSTABLE = new LongAdder();
-    private static final LongAdder EXACT_STORAGE_SNAPSHOT_CACHE_HITS =
-            new LongAdder();
-    private static final LongAdder EXACT_STORAGE_SNAPSHOT_CACHE_MISSES =
-            new LongAdder();
-    private static final LongAdder EXACT_STORAGE_NESTED_SCANS =
-            new LongAdder();
-    private static final LongAdder EXACT_STORAGE_SNAPSHOT_INVALIDATIONS =
-            new LongAdder();
-    private static final LongAdder EXACT_STORAGE_TERMINAL_REUSES =
-            new LongAdder();
     private static final LongAdder EXACT_VECTOR_PREPARED_PLANS =
             new LongAdder();
     private static final LongAdder EXACT_VECTOR_EXECUTOR_REJECTIONS =
@@ -146,11 +134,6 @@ public final class OptimizationMetrics {
         ASSEMBLER_MATRIX_STATUS_UPDATES_COALESCED.increment();
     }
 
-    public static void recordTransactionalPatternBatch(long patternExecutions) {
-        TRANSACTIONAL_PATTERN_BATCH_COMMITS.increment();
-        TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS.add(Math.max(1L, patternExecutions));
-    }
-
     public static void recordCraftingEngineShadowComparison(boolean matched) {
         (matched ? CRAFTING_ENGINE_SHADOW_MATCHES : CRAFTING_ENGINE_SHADOW_MISMATCHES).increment();
     }
@@ -189,13 +172,13 @@ public final class OptimizationMetrics {
         CRAFTING_FALLBACK_REASONS.computeIfAbsent(code, ignored -> new LongAdder()).increment();
     }
 
-    public static void recordNativePatternBatch(String adapterId, long executions) {
-        NATIVE_BATCH_TRANSACTIONS.increment();
-        NATIVE_BATCH_EXECUTIONS.computeIfAbsent(adapterId, ignored -> new LongAdder()).add(executions);
+    public static void recordTransactionalV2Commit(String adapterId, long executions) {
+        TRANSACTIONAL_V2_TRANSACTIONS.increment();
+        TRANSACTIONAL_V2_EXECUTIONS.computeIfAbsent(adapterId, ignored -> new LongAdder()).add(executions);
     }
 
-    public static void recordNativeBatchMinimumDecline(String adapterId) {
-        NATIVE_BATCH_MINIMUM_DECLINES
+    public static void recordTransactionalV2MinimumDecline(String adapterId) {
+        TRANSACTIONAL_V2_MINIMUM_DECLINES
                 .computeIfAbsent(
                         adapterId,
                         ignored -> new LongAdder())
@@ -266,24 +249,6 @@ public final class OptimizationMetrics {
 
     public static void recordTransactionalV2PatternMetadataUnstable() {
         TRANSACTIONAL_V2_PATTERN_METADATA_UNSTABLE.increment();
-    }
-
-    public static void recordExactStorageSnapshotCache(boolean hit) {
-        (hit
-                ? EXACT_STORAGE_SNAPSHOT_CACHE_HITS
-                : EXACT_STORAGE_SNAPSHOT_CACHE_MISSES).increment();
-    }
-
-    public static void recordExactStorageNestedScan() {
-        EXACT_STORAGE_NESTED_SCANS.increment();
-    }
-
-    public static void recordExactStorageSnapshotInvalidation() {
-        EXACT_STORAGE_SNAPSHOT_INVALIDATIONS.increment();
-    }
-
-    public static void recordExactStorageTerminalReuse() {
-        EXACT_STORAGE_TERMINAL_REUSES.increment();
     }
 
     /** 所有方式ごとのTransaction開始を一回だけ数える。 */
@@ -380,9 +345,6 @@ public final class OptimizationMetrics {
                 "Mekanism resolved recipe cache: " + mekHits + " hit(s), " + mekMisses
                         + " miss(es), " + percent(mekHits, mekMisses) + "% hit rate",
                 "Mekanism recipe validations: " + MEKANISM_RECIPE_VALIDATIONS.sum(),
-                "Transactional pattern batching: " + TRANSACTIONAL_PATTERN_BATCH_COMMITS.sum()
-                        + " adapter commit(s), " + TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS.sum()
-                        + " exactly accepted execution(s)",
                 "Experimental planner Shadow Mode: " + CRAFTING_ENGINE_SHADOW_MATCHES.sum()
                         + " match(es), " + CRAFTING_ENGINE_SHADOW_MISMATCHES.sum()
                         + " mismatch(es), " + CRAFTING_ENGINE_SHADOW_SKIPS.sum()
@@ -395,9 +357,9 @@ public final class OptimizationMetrics {
                         + " active hit(s), " + CRAFTING_CALCULATION_CACHE_HITS.sum()
                         + " completed-plan hit(s)",
                 "AE2 fallback reasons: " + CRAFTING_FALLBACK_REASONS,
-                "Experimental native batch: " + NATIVE_BATCH_TRANSACTIONS.sum()
-                        + " transaction(s), executions by adapter " + NATIVE_BATCH_EXECUTIONS
-                        + ", below-minimum fallback(s) by adapter " + NATIVE_BATCH_MINIMUM_DECLINES,
+                "Transactional V2 commits: " + TRANSACTIONAL_V2_TRANSACTIONS.sum()
+                        + " transaction(s), executions by adapter " + TRANSACTIONAL_V2_EXECUTIONS
+                        + ", below-minimum decline(s) by adapter " + TRANSACTIONAL_V2_MINIMUM_DECLINES,
                 "Sequential Instant: " + SEQUENTIAL_INSTANT_WAVES.sum()
                         + " wave(s), " + SEQUENTIAL_INSTANT_COMPLETED.sum()
                         + "/" + SEQUENTIAL_INSTANT_REQUESTED.sum() + " operation(s), "
@@ -417,12 +379,6 @@ public final class OptimizationMetrics {
                         + TRANSACTIONAL_V2_PATTERN_METADATA_HITS.sum() + " cache hit(s), "
                         + TRANSACTIONAL_V2_PATTERN_METADATA_MISSES.sum() + " miss(es), "
                         + TRANSACTIONAL_V2_PATTERN_METADATA_UNSTABLE.sum() + " unstable compile(s)",
-                "Exact storage snapshots: "
-                        + EXACT_STORAGE_SNAPSHOT_CACHE_HITS.sum() + " cache hit(s), "
-                        + EXACT_STORAGE_SNAPSHOT_CACHE_MISSES.sum() + " miss(es), "
-                        + EXACT_STORAGE_NESTED_SCANS.sum() + " nested scan(s), "
-                        + EXACT_STORAGE_SNAPSHOT_INVALIDATIONS.sum() + " invalidation(s), "
-                        + EXACT_STORAGE_TERMINAL_REUSES.sum() + " terminal reuse(s)",
                 "Physical crafting tree: starts host/network "
                         + EXACT_VECTOR_HOST_ESCROWED_STARTS.sum() + "/"
                         + EXACT_VECTOR_NETWORK_STORAGE_STARTS.sum()
@@ -466,11 +422,10 @@ public final class OptimizationMetrics {
         for (var entry : OptimizationFeatureGate.denialSnapshot().entrySet()) {
             OptimizationFeatureGate.DenialSnapshot denial = entry.getValue();
             lines.add("Feature gate " + entry.getKey()
-                    + ": denied feature(s) by master/domain/feature/retired "
+                    + ": denied feature(s) by master/domain/feature "
                     + denial.masterDisabled() + "/"
                     + denial.domainDisabled() + "/"
-                    + denial.featureDisabled() + "/"
-                    + denial.retiredCompatibilityKey());
+                    + denial.featureDisabled());
         }
         return List.copyOf(lines);
     }
@@ -492,8 +447,6 @@ public final class OptimizationMetrics {
         ASSEMBLER_MATRIX_THREAD_COUNT_HITS.reset();
         ASSEMBLER_MATRIX_BUSY_COUNT_HITS.reset();
         ASSEMBLER_MATRIX_STATUS_UPDATES_COALESCED.reset();
-        TRANSACTIONAL_PATTERN_BATCH_COMMITS.reset();
-        TRANSACTIONAL_PATTERN_BATCH_EXECUTIONS.reset();
         CRAFTING_ENGINE_SHADOW_MATCHES.reset();
         CRAFTING_ENGINE_SHADOW_MISMATCHES.reset();
         CRAFTING_ENGINE_SHADOW_SKIPS.reset();
@@ -504,8 +457,9 @@ public final class OptimizationMetrics {
         CRAFTING_CALCULATION_DEDUP_HITS.reset();
         CRAFTING_CALCULATION_CACHE_HITS.reset();
         CRAFTING_FALLBACK_REASONS.clear();
-        NATIVE_BATCH_TRANSACTIONS.reset();
-        NATIVE_BATCH_EXECUTIONS.clear();
+        TRANSACTIONAL_V2_TRANSACTIONS.reset();
+        TRANSACTIONAL_V2_EXECUTIONS.clear();
+        TRANSACTIONAL_V2_MINIMUM_DECLINES.clear();
         INSTANT_DISPATCH_CALLS.reset();
         INSTANT_DISPATCH_MULTI_TRANSACTION_CALLS.reset();
         INSTANT_DISPATCH_TRANSACTIONS.reset();
@@ -525,11 +479,6 @@ public final class OptimizationMetrics {
         TRANSACTIONAL_V2_PATTERN_METADATA_HITS.reset();
         TRANSACTIONAL_V2_PATTERN_METADATA_MISSES.reset();
         TRANSACTIONAL_V2_PATTERN_METADATA_UNSTABLE.reset();
-        EXACT_STORAGE_SNAPSHOT_CACHE_HITS.reset();
-        EXACT_STORAGE_SNAPSHOT_CACHE_MISSES.reset();
-        EXACT_STORAGE_NESTED_SCANS.reset();
-        EXACT_STORAGE_SNAPSHOT_INVALIDATIONS.reset();
-        EXACT_STORAGE_TERMINAL_REUSES.reset();
         EXACT_VECTOR_HOST_ESCROWED_STARTS.reset();
         EXACT_VECTOR_NETWORK_STORAGE_STARTS.reset();
         EXACT_VECTOR_PREPARED_PLANS.reset();

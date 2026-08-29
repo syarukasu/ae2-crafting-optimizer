@@ -2,75 +2,90 @@
 
 ## English
 
-### Short Summary
+AE2 Crafting Optimizer (ACO) is an optimization and exact-count integration
+layer for Applied Energistics 2. It reduces repeated autocrafting work while
+keeping AE2 authoritative for normal recipes, providers, jobs, storage, and UI.
 
-Configurable AE2 optimizer with checked crafting calculations, TPS-bounded CPU dispatch, exact BigInteger accounting, and optional AQE/AAC integration.
+### What ACO does
 
-### Full Description
+- generation-keyed Pattern lookup and compiled-graph caches;
+- calculation-local inventory and candidate memoization;
+- checked arithmetic with `BigInteger` promotion on `long` overflow;
+- versioned exact-plan APIs for compatible add-ons;
+- measured standard-AE2 CPU execution budgets and sequential dispatch waves;
+- durable Transactional Pattern Batch V2 contracts for explicitly registered
+  external adapters;
+- optional Recipe Intent hints and bounded add-on lookup caches;
+- diagnostics for slow calculations, plan declines, caches, and exact stalls.
 
-**AE2 Crafting Optimizer (ACO)** is a NeoForge 1.21.1 optimization and
-integration layer for Applied Energistics 2. It targets large automation
-networks and exceptionally large autocrafting requests while keeping AE2
-authoritative for normal recipes, providers, storage mutation, and job
-submission.
+ACO uses a compiled result only when recipe choice and accounting are proven.
+Unsupported or ambiguous planning returns to AE2 before ACO takes ownership.
+After an exact transaction owns input, it resumes, returns input exactly on
+cancellation, or quarantines an uncertain state; it never retries through a
+legacy path.
 
-Main features:
+### What ACO does not do
 
-- generation-keyed compiled Pattern graphs and calculation-local memoization;
-- checked `long` arithmetic with bounded BigInteger promotion on overflow;
-- conservative fallback whenever a recipe cannot be proven equivalent;
-- per-CPU and per-grid execution budgets for large co-processor counts;
-- durable transaction recovery for compatible batch adapters;
-- optional Advanced Quantum Engineering and Advanced Assembly Computing APIs;
-- bounded client synchronization and diagnostics.
+- modify recipes, crafting validity, Quantum Computer structures, or storage;
+- replace external CPU or machine execution;
+- own AQE, InsaneAE, Advanced AE, NeoECO, GTCEu, or Mekanism progress/power;
+- rewrite terminal, storage watcher, packet, bus, IO Port, P2P, or Grid Tick
+  behavior;
+- clamp exact counts to `long` for decisions;
+- generate final output directly from a crafting plan.
 
-ACO does not add recipes, increase crafting CPU capacity, or change normal
-AE2 crafting eligibility. Install the same JAR on the server and every client.
+Issue #164 removes the former Pattern Batch V1, external-CPU execution
+managers, built-in GTCEu/Mekanism native batching, independent Fair Scheduler,
+and retired no-op configuration. They are not compatibility fallbacks.
 
-Requirements for ACO 1.6.x:
+### Environment
 
 - Minecraft 1.21.1
-- NeoForge 21.1.247 or newer in the 21.1 series
+- NeoForge 21.1.x
 - Java 21
 - Applied Energistics 2 19.2.17
+- optional Advanced AE 1.6.x-1.21.1, Neo ECO AE Extension 21.x, GTCEu,
+  Mekanism, and Applied Mekanistics integrations
+- dedicated server and singleplayer as a normal NeoForge mod
 
-Optional integrations are versioned separately. ACO 1.6.x supports the audited
-Advanced AE 1.6.x-1.21.1 series and Neo ECO AE Extension 21.1.1. The 1.5.x release
-line remains available for Forge 1.20.1.
+Install the same ACO version on the server and every client. Report ACO-only
+problems to this project first; do not report them upstream unless they also
+reproduce without ACO.
 
 ## 日本語
 
-### 短い説明
+AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けの最適化・exact数量
+連携レイヤーです。通常レシピ、Provider、Job、ストレージ、GUIの正本をAE2に残した
+まま、巨大自動クラフトで繰り返される処理を減らします。
 
-検査付きクラフト計算、TPS予算付きCPU実行、正確なBigInteger会計、AQE/AAC任意連携を備えたAE2最適化MODです。
+### ACOが行うこと
 
-### 詳細説明
+- 世代付きPattern検索・Compiled Graph Cache
+- 一計算内の在庫・候補メモ化
+- checked演算と`long` overflow時の`BigInteger`昇格
+- 対応アドオン向け版付きexact plan API
+- 標準AE2 CPUの実測実行予算とSequential Dispatch Wave
+- 明示登録Adapter向け永続Transactional Pattern Batch V2
+- Recipe Intent hintと上限付きアドオン検索Cache
+- 遅い計算、計画辞退、Cache、exact停滞の診断
 
-**AE2 Crafting Optimizer（ACO）**は、Applied Energistics 2向けの
-NeoForge 1.21.1最適化・連携レイヤーです。大規模な自動化ネットワークと
-極端に大きい自動クラフト注文を対象にしつつ、通常レシピ、Provider、
-ストレージ変更、ジョブ投入の最終判断はAE2へ残します。
+レシピ選択と会計を証明できる場合だけCompiled結果を採用します。未対応または曖昧な
+計画は、ACOが所有権を取る前にAE2へ返します。入力所有後は再開、正確な取消返却、
+隔離のいずれかとし、legacy経路へ再投入しません。
 
-主な機能:
+### ACOが行わないこと
 
-- 世代管理されたCompiled Pattern Graphと計算内メモ化
-- 検査付き`long`演算と、オーバーフロー時だけ行うBigInteger昇格
-- 同値性を証明できないレシピの保守的なAE2フォールバック
-- 巨大なコプロセッサ数向けのCPU単位・ME Grid単位の実行予算
-- 対応Batch Adapter向けの永続Transaction復旧
-- Advanced Quantum Engineering / Advanced Assembly Computing任意連携API
-- 上限付きクライアント同期と診断機能
+- レシピ、クラフト可否、Quantum Computer構造、ストレージ内容の変更
+- 外部CPUや機械の実行置換
+- AQE、InsaneAE、Advanced AE、NeoECO、GTCEu、Mekanismの進捗・電力所有
+- 端末、Storage Watcher、Packet、Bus、IO Port、P2P、Grid Tickの書換え
+- 判定用exact数量の`long`クランプ
+- Planからの最終成果物直接生成
 
-ACOはレシピ追加、CPU容量増加、通常AE2のクラフト可否変更を行いません。
-サーバーと全クライアントへ同じJARを導入してください。
+Issue #164で旧Pattern Batch V1、外部CPU実行Manager、内蔵GTCEu/Mekanism Native
+Batch、独立Fair Scheduler、退役no-op設定を削除しました。互換Fallbackとしても
+残していません。
 
-ACO 1.6.xの必須環境:
-
-- Minecraft 1.21.1
-- NeoForge 21.1.247以降の21.1系列
-- Java 21
-- Applied Energistics 2 19.2.17
-
-ACO 1.6.xはAdvanced AE 1.6.x-1.21.1およびNeo ECO AE Extension
-21.1.1との組み合わせを対象にしています。Forge 1.20.1向けには
-引き続き1.5.x系列を使用してください。
+サーバーと全クライアントへ同じACO版を導入してください。ACO固有の問題はまず本
+プロジェクトへ報告し、ACOなしで再現しない問題を依存MOD作者へ直接報告しないで
+ください。

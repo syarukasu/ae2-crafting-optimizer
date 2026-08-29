@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.syaru.ae2craftingoptimizer.mixin.MixinFeatureCatalog;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeature;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureRegistry;
-import com.syaru.ae2craftingoptimizer.optimization.OptimizationImplementationStatus;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -22,12 +21,18 @@ class MixinFeatureCatalogTest {
     private static final Pattern QUOTED_MIXIN = Pattern.compile("\\\"([A-Za-z0-9_]+)\\\"");
     private static final Set<Path> MIXIN_CONFIGS = Set.of(
             Path.of("src/main/resources/ae2_crafting_optimizer.mixins.json"),
-            Path.of("src/main/resources/aco.performance.mixins.json"));
+            Path.of("src/main/resources/aco.performance.mixins.json"),
+            Path.of("src/main/resources/aco.integration.advanced_ae.mixins.json"),
+            Path.of("src/main/resources/aco.integration.ae2_overclocked.mixins.json"),
+            Path.of("src/main/resources/aco.integration.extendedae.mixins.json"),
+            Path.of("src/main/resources/aco.integration.gtceu.mixins.json"),
+            Path.of("src/main/resources/aco.integration.mekanism.mixins.json"),
+            Path.of("src/main/resources/aco.integration.neoecoae.mixins.json"));
 
     @Test
     void everyConfiguredMixinHasAnExplicitFeatureContract() throws IOException {
         Set<String> configured = new HashSet<>();
-        // coreとperformanceの両設定を一つの責務台帳へ照合する。
+        // core、performance、任意連携の全設定を一つの責務台帳へ照合する。
         for (Path config : MIXIN_CONFIGS) {
             String json = Files.readString(config, StandardCharsets.UTF_8);
             Matcher matcher = QUOTED_MIXIN.matcher(json);
@@ -54,14 +59,4 @@ class MixinFeatureCatalogTest {
         }
     }
 
-    @Test
-    void retiredCompatibilityKeyCanNeverHaveAConfiguredMixin() {
-        // 互換キーだけの機能へMixinを戻す場合は、先に台帳と回帰試験をACTIVEへ更新させる。
-        for (var entry : MixinFeatureCatalog.snapshot().entrySet()) {
-            assertEquals(
-                    OptimizationImplementationStatus.ACTIVE,
-                    entry.getValue().implementationStatus(),
-                    entry.getKey());
-        }
-    }
 }

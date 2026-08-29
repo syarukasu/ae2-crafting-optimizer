@@ -42,17 +42,6 @@ class OptimizationFeatureGateTest {
     }
 
     @Test
-    void retiredCompatibilityKeyCannotEnableItsRemovedRuntimePath() {
-        assertEquals(
-                OptimizationFeatureGate.Decision.RETIRED_COMPATIBILITY_KEY,
-                OptimizationFeatureGate.evaluate(
-                        true,
-                        true,
-                        true,
-                        OptimizationImplementationStatus.RETIRED_COMPATIBILITY_KEY));
-    }
-
-    @Test
     void diagnosticsSupportMoreThanSixtyFourFeatures() {
         // 130機能を仮定し、三つのlong wordをまたぐindexを正確に保持できることを検査する。
         OptimizationFeatureGate.ConcurrentFeatureBits bits =
@@ -74,27 +63,6 @@ class OptimizationFeatureGateTest {
     }
 
     @Test
-    void everyRetiredKeyHasAReasonAndOnlyActiveReplacements() {
-        long retiredCount = Arrays.stream(OptimizationFeature.values())
-                .filter(feature -> feature.implementationStatus()
-                        == OptimizationImplementationStatus.RETIRED_COMPATIBILITY_KEY)
-                .count();
-        // Issue #145で監査した廃止キーは11件。追加する場合は理由と代替を明示して再審査する。
-        assertEquals(11L, retiredCount);
-        // 廃止キーを未完成扱いで復活させないよう、理由と安全な後継機能を検査する。
-        Arrays.stream(OptimizationFeature.values())
-                .filter(feature -> feature.implementationStatus()
-                        == OptimizationImplementationStatus.RETIRED_COMPATIBILITY_KEY)
-                .forEach(feature -> {
-                    assertFalse(feature.retirementReason().isBlank(), feature.id());
-                    feature.safeReplacements().forEach(replacement -> assertEquals(
-                            OptimizationImplementationStatus.ACTIVE,
-                            replacement.implementationStatus(),
-                            feature.id() + " -> " + replacement.id()));
-                });
-    }
-
-    @Test
     void denialSnapshotSeparatesReasonsAndResetClearsThem() {
         OptimizationFeatureGate.record(
                 OptimizationFeature.BIG_INTEGER_BACKEND,
@@ -105,18 +73,10 @@ class OptimizationFeatureGateTest {
         OptimizationFeatureGate.record(
                 OptimizationFeature.EXACT_INVENTORY_SNAPSHOT,
                 OptimizationFeatureGate.Decision.FEATURE_DISABLED);
-        OptimizationFeatureGate.record(
-                OptimizationFeature.TWO_STAGE_MISSING_PREVIEW,
-                OptimizationFeatureGate.Decision.RETIRED_COMPATIBILITY_KEY);
-
         var bigInteger = OptimizationFeatureGate.denialSnapshot().get(OptimizationDomain.BIG_INTEGER);
         assertEquals(1L, bigInteger.masterDisabled());
         assertEquals(1L, bigInteger.domainDisabled());
         assertEquals(1L, bigInteger.featureDisabled());
-        assertEquals(0L, bigInteger.retiredCompatibilityKey());
-
-        var clientSync = OptimizationFeatureGate.denialSnapshot().get(OptimizationDomain.CLIENT_SYNC);
-        assertEquals(1L, clientSync.retiredCompatibilityKey());
 
         OptimizationFeatureGate.resetDiagnostics();
         var resetBigInteger = OptimizationFeatureGate.denialSnapshot().get(OptimizationDomain.BIG_INTEGER);
@@ -181,7 +141,6 @@ class OptimizationFeatureGateTest {
     void activeOwnedStateDeclaresAnInvalidationContract() {
         // ACOが保持するcache/transactionは、正本変化または終端状態で必ず破棄できなければならない。
         Arrays.stream(OptimizationFeature.values())
-                .filter(feature -> feature.implementationStatus() == OptimizationImplementationStatus.ACTIVE)
                 .filter(feature -> feature.ownership() == StateOwnership.ACO_CACHE
                         || feature.ownership() == StateOwnership.ACO_TRANSACTION)
                 .forEach(feature -> assertFalse(

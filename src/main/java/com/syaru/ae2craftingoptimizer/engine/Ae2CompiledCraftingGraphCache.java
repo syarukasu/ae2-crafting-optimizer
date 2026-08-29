@@ -5,6 +5,8 @@ import appeng.api.networking.IGrid;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
 import appeng.api.storage.AEKeyFilter;
+import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
+import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
@@ -18,6 +20,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.WeakHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
@@ -95,6 +99,37 @@ public final class Ae2CompiledCraftingGraphCache {
                 0);
     }
 
+    /** 不完全なSnapshotを同じ注文中に一度だけ破棄し、現在世代から再構築する。 */
+    public static Snapshot recompile(IGrid grid, Level level, Snapshot stale) {
+        // 同じSnapshotに対する再構築権は一度だけ与える。
+        if (!stale.claimRetryRebuild()) {
+            return stale;
+        }
+        ICraftingService service = grid.getCraftingService();
+        synchronized (CACHE) {
+            Map<ResourceKey<Level>, Snapshot> byDimension = CACHE.get(service);
+            Snapshot current = byDimension == null ? null : byDimension.get(level.dimension());
+            // 別スレッドが新しいSnapshotへ交換済みなら、その結果を破棄しない。
+            if (current == stale && byDimension != null) {
+                byDimension.remove(level.dimension());
+            }
+        }
+        Snapshot rebuilt = getOrCompile(grid, level);
+        // 再構築後も不完全なら、世代変更まで追加の再構築を禁止する。
+        rebuilt.claimRetryRebuild();
+        if (ACOConfig.logCraftingDecisionFlow()) {
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event=graph_recompiled dimension={} oldPatternGeneration={} "
+                            + "oldRecipeGeneration={} newPatternGeneration={} newRecipeGeneration={}",
+                    level.dimension().location(),
+                    stale.graph().generation(),
+                    stale.recipeGeneration(),
+                    rebuilt.graph().generation(),
+                    rebuilt.recipeGeneration());
+        }
+        return rebuilt;
+    }
+
     public static void clear() {
         synchronized (CACHE) {
             CACHE.clear();
@@ -108,6 +143,7 @@ public final class Ae2CompiledCraftingGraphCache {
             Level level,
             long generation,
             long recipeGeneration) {
+        long startedNanos = System.nanoTime();
         Set<AEKey> craftables = Set.copyOf(service.getCraftables(ALL_KEYS));
         Set<IPatternDetails> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         IdentityHashMap<IPatternDetails, String> idByPattern = new IdentityHashMap<>();
@@ -153,7 +189,7 @@ public final class Ae2CompiledCraftingGraphCache {
                 }
             }
         }
-        return new Snapshot(
+        Snapshot snapshot = new Snapshot(
                 service,
                 CompiledCraftingGraph.compile(generation, compiledById.values()),
                 idByPattern,
@@ -163,6 +199,20 @@ public final class Ae2CompiledCraftingGraphCache {
                 incompletelyCompiledOutputs,
                 craftables,
                 recipeGeneration);
+        if (ACOConfig.logCraftingDecisionFlow()) {
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event=graph_compiled dimension={} patternGeneration={} recipeGeneration={} "
+                            + "craftableKeys={} registeredPatterns={} compiledPatterns={} incompleteOutputs={} elapsedMs={}",
+                    level.dimension().location(),
+                    generation,
+                    recipeGeneration,
+                    craftables.size(),
+                    seen.size(),
+                    compiledById.size(),
+                    incompletelyCompiledOutputs.size(),
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos));
+        }
+        return snapshot;
     }
 
     public static final class Snapshot {
@@ -179,6 +229,7 @@ public final class Ae2CompiledCraftingGraphCache {
                 new LinkedHashMap<>();
         private final Map<AEKey, Optional<Ae2StrictCraftingTopology>> strictTopologies =
                 new LinkedHashMap<>();
+        private final AtomicBoolean retryRebuildClaimed = new AtomicBoolean();
 
         private Snapshot(
                 ICraftingService service,
@@ -203,6 +254,11 @@ public final class Ae2CompiledCraftingGraphCache {
 
         public CompiledCraftingGraph<AEKey> graph() {
             return graph;
+        }
+
+        /** このSnapshotに対する一度限りの再構築権を取得する。 */
+        private boolean claimRetryRebuild() {
+            return retryRebuildClaimed.compareAndSet(false, true);
         }
 
         public String id(IPatternDetails pattern) {
@@ -246,35 +302,48 @@ public final class Ae2CompiledCraftingGraphCache {
          * 一時的なcanEmitFor不一致や更新途中の失敗は固定せず、次の要求で再評価する。
          */
         public Optional<CompiledRootProgram<AEKey>> rootProgram(AEKey root) {
+            return rootProgramOutcome(root).program();
+        }
+
+        /** Root Programと失敗理由を返す。成功Programだけを世代内キャッシュへ保存する。 */
+        public CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(AEKey root) {
             requireCurrentGenerations();
             synchronized (rootPrograms) {
                 CompiledRootProgram<AEKey> cached = rootPrograms.get(root);
                 if (cached != null) {
-                    return Optional.of(cached);
+                    return CompiledRootProgram.Outcome.compiled(cached);
                 }
             }
 
-            Optional<CompiledRootProgram<AEKey>> compiled = CompiledRootProgram.tryCompile(
+            CompiledRootProgram.Outcome<AEKey> compiled = CompiledRootProgram.compile(
                     graph,
                     root,
                     service::canEmitFor);
-            if (compiled.isPresent() && touchesIncompletePattern(compiled.get())) {
+            if (compiled.program().isPresent()
+                    && touchesIncompletePattern(compiled.program().get())) {
                 // 未コンパイルPatternを終端素材と誤認したShadow計算も作らず、直ちにAE2へ戻す。
-                compiled = Optional.empty();
+                compiled = compiled.withFailure(RootProgramFailure.INCOMPLETE_PATTERN_SNAPSHOT);
+            } else if (compiled.program().isPresent()
+                    && graph.patternsFor(root).isEmpty()
+                    && registeredPatternsByOutput.getOrDefault(root, 0) == 0
+                    && !service.getCraftingFor(root).isEmpty()) {
+                // AE2にはPatternがあるのにGraphへ無い場合は、終端Programとして誤採用しない。
+                compiled = CompiledRootProgram.Outcome.failed(
+                        RootProgramFailure.MISSING_FROM_SNAPSHOT);
             }
 
             // Lazy compileの途中にprovider/recipe世代が変わった結果は、Fallbackとして固定しない。
             requireCurrentGenerations();
-            if (compiled.isEmpty()) {
-                return Optional.empty();
+            if (compiled.program().isEmpty()) {
+                return compiled;
             }
 
-            CompiledRootProgram<AEKey> candidate = compiled.orElseThrow();
+            CompiledRootProgram<AEKey> candidate = compiled.program().orElseThrow();
             synchronized (rootPrograms) {
                 CompiledRootProgram<AEKey> raced = rootPrograms.get(root);
                 // 別計算スレッドが先に登録した場合は、その同一世代Programを採用する。
                 if (raced != null) {
-                    return Optional.of(raced);
+                    return CompiledRootProgram.Outcome.compiled(raced);
                 }
                 // 固定上限へ達した場合は古いルートを一括破棄し、無制限な常駐を防ぐ。
                 if (rootPrograms.size() >= MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT) {
@@ -282,7 +351,7 @@ public final class Ae2CompiledCraftingGraphCache {
                     strictTopologies.clear();
                 }
                 rootPrograms.put(root, candidate);
-                return Optional.of(candidate);
+                return CompiledRootProgram.Outcome.compiled(candidate);
             }
         }
 

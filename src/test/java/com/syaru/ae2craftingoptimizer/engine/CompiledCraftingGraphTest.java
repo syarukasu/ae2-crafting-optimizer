@@ -1,13 +1,11 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class CompiledCraftingGraphTest {
@@ -21,23 +19,6 @@ class CompiledCraftingGraphTest {
         assertTrue(graph.isCyclic("a"));
         assertTrue(graph.sharesCycle("a", "b"));
         assertFalse(graph.isCyclic("c"));
-    }
-
-    @Test
-    void reusesOnlyTheSameGeneration() {
-        GenerationAwareGraphCache<String> cache = new GenerationAwareGraphCache<>();
-        AtomicInteger builds = new AtomicInteger();
-        var first = cache.getOrCompile(1L, generation -> {
-            builds.incrementAndGet();
-            return CompiledCraftingGraph.compile(generation, List.of(pattern("p", "raw", "out")));
-        });
-        var second = cache.getOrCompile(1L, generation -> {
-            builds.incrementAndGet();
-            return CompiledCraftingGraph.compile(generation, List.of());
-        });
-
-        assertSame(first, second);
-        assertTrue(builds.get() == 1);
     }
 
     @Test

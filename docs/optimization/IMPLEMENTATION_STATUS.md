@@ -1,42 +1,69 @@
-# Issue #129 実装状態
+# 現行実装状態
 
-この表は「設定キーが存在する」と「実行経路が存在する」を分離します。`ACTIVE`だけが稼働対象です。`RETIRED_COMPATIBILITY_KEY`は既存TOMLとの互換性のため値を読みますが、危険な旧実装は廃止済みであり、共通gateが必ず拒否します。これらは未完成機能の待機列ではありません。
+この文書は設定名ではなく、ACOに実在するruntime経路を記録します。
 
-| 領域 | ACTIVE | RETIRED_COMPATIBILITY_KEY | 理由と境界 |
-|---|---|---|---|
-| Network topology | P2P同一通知の短時間重複排除 | Grid Tick全面延期、Storage更新coalesce | 接続・切断・周波数・電力変化はAE2へ即時通知する。進捗を持つTickableを遅延しない |
-| Storage I/O | Import Busの直前成功slotを先頭検査するscan-order hint、Export Busの設定世代付き候補cacheと失敗要求backoff、IO Portのround-robin slot window | Capability cache、negative transfer cache、bus operation cap、bus search cache | 候補順と設定keyだけをcacheする。抽出・挿入・simulation・rollback・セル移動はAE2本体を正本とし、hint不成立時は同じ呼出し内でAE2通常経路へ戻る |
-| Pattern provider | Pattern索引、内容世代、同一tick refresh coalesce | terminal用craftable-set cache | 読み取り前にpending refreshをflushし、Provider内容またはresource reloadで失効する |
-| Client sync | 不変Projectionだけをworkerへ渡す端末検索・sort、失敗時のAE2同期更新fallback、scrollbar release安全化 | two-stage missing preview、端末update coalescing、表示range、Storage Watcher throttle | server inventory・packet・virtual slotを変更しない。可変AEKey/Entryはclient threadで読み、古い世代の結果は破棄する |
-| Crafting planning | 計算内memo、候補剪定、compiled graph、checked arithmetic、overflow昇格 | なし | mutable在庫量をcacheせず、辞退はownership取得前だけ行う |
-| Crafting execution | CPU/grid予算、receipt付きtransaction、fair scheduler | なし | ownership取得後はcommit、rollback、quarantineのいずれかで閉じる |
-| BigInteger | exact snapshot、wide plan、long window、exact vector会計 | なし | BigInteger正本をlongへ切り捨てず、表示値を会計へ使用しない |
-| Optional integration | GTCEu/Mekanism intent、Advanced AE/ExtendedAE/NeoECO Adapter | なし | 外部MODのrecipe validity、機械進捗、構造、GUIを所有しない |
+## 実装済み
 
-## 廃止キーと安全な代替
+### Pattern Provider
 
-廃止理由と安全な代替は`OptimizationFeature.retirementReason()`および`safeReplacements()`を正本とし、JUnitで全件を検証します。広範囲なTick延期、可変在庫cache、packet範囲制限は再実装せず、P2P通知重複排除、実行予算、走査順hint、候補key cache、不変Projection検索へ分割しました。two-stage missing previewは最終結果前の表示がプレイヤー判断を変えるため、代替なしで廃止しています。
+- `CraftingService.getCraftingFor`をAE2順のまま世代付きcacheへ保存
+- Provider内容fingerprintによる世代更新
+- 同一tickの重複refreshを、次のcrafting read前に必ずflush
+- Pattern Provider targetはV2適格性判定のため読み取るだけで、send bufferやReceiptを書き換えない
 
-## Storage I/Oを再実装する条件
+### クラフト計画
 
-次をすべて自動試験できる独立PRまでは、旧transfer置換Mixinを再登録しません。現在ACTIVEのscan-order、候補key、slot windowはAE2のtransfer結果を所有しません。
+- 同一の実行中計算Futureを共有し、待機者とcancel所有者を分離
+- 不足simulationだけを既定対象とする短寿命completed-plan cache
+- 一計算内の不変問い合わせmemo
+- null、identity重複、構造不正だけを除く候補剪定
+- Pattern/recipe世代付きcompiled graphとstrict planner
+- long演算のoverflow検査と必要時だけのBigInteger再計算
+- AE2結果と一致を確認するShadow Mode
 
-- simulationとmodulationの間に外部在庫が変化しても収支が一致する
-- 部分挿入時に余剰を完全rollbackでき、失敗時にvoidしない
-- Capability invalidation、隣接Block Entity交換、chunk unloadを検出する
-- Import候補ヒント失敗後に同じtickのAE2通常全走査へ戻る
-- IO Portのセル移動が一回だけ行われ、中間状態を保存しない
-- 機能OFF時の呼出し回数、順序、戻り値がAE2単体と一致する
+### 実行
 
-## 過去実装の禁止事項
+- 標準AE2 CPUごとの適応予算
+- 標準AE2 gridごとの共有時間予算
+- AE2本来の逐次`pushPattern`を、未計測波と計測済み波へ分けて実行
+- 外部Adapterが明示登録した場合だけ使用するTransactional Batch V2 API
+- V2取引のJournal、reconcile、rollback、quarantine
 
-次の旧Mixin名をruntime設定へ戻してはいけません。
+### exact数量
 
-- `StorageImportLastSuccessfulSlotMixin`
-- `StorageImportSimulationCacheMixin`
-- `StorageExportSimulationCacheMixin`
-- `IOPortIncrementalProcessingMixin`
-- `BlockApiCacheTickCacheMixin`
-- `GridTickBudgetMixin`
+- exact在庫snapshotと、AE2へ見せる飽和long facadeの分離
+- `CraftingPlan`へexact sidecarをidentity関連付け
+- `BigInteger`計画、欠品、容量、進捗の公開API
+- 標準AE2 CPUが所有するexact physical transaction
+- quantity-independentな決定的作業台DAGのVector実行
+- exact storage routeの所有権取得前preflight
 
-これらは1.2.2で削除されています。特に旧Import実装は外部から先に抽出し、AE2側の実挿入量がsimulation結果より減った場合に、戻せない余剰をvoidし得ました。
+### 任意連携
+
+- AppliedE temporary patternをAE2/AppliedE Plannerへ残す境界
+- GTCEuとMekanismへ短寿命Recipe Intent候補を渡し、最終判定は各MODへ委譲
+- Circuit Cutter、Reaction Chamber、AE2 Overclock、Assembly Matrixの検証済みlookup cache
+- Advanced AEとNeoECOのCPUへ、状態を所有しない実行予算だけを適用
+
+## 削除済み
+
+- Pattern Batch V1と内蔵Sequential Adapter
+- ACO内蔵GTCEu/Mekanism Native Batch
+- Fair SchedulerとそのNBT
+- AQE/Advanced AE固有の親Job、子Window、取消、復旧、完了管理
+- two-stage missing previewと最初の欠品だけを返すfast-fail
+- 在庫量によるPattern並べ替え
+- terminal、watcher、packet、scrollbarへのMixin
+- Import/Export Bus、IO Port、Capability、P2P、Grid TickへのMixin
+- 削除済み機能のConfig互換キー
+
+## 完了判定
+
+次を満たしてもMinecraft実働の証明にはなりませんが、PRへ入る最低条件です。
+
+- `OptimizationFeature`、Config、Mixin catalog、Mixin JSONの集合が一致
+- 公開BigInteger/V2/crafting-table/vector APIのsignature test成功
+- 全JUnit成功
+- Forge 1.20.1とNeoForge 1.21.1で`clean build`成功
+- `git diff --check`成功
+- Issue回帰表と責務一覧を同じPRで更新

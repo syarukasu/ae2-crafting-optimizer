@@ -29,7 +29,7 @@ final class ExactStorageMutationJournalTest {
                 1,
                 BigInteger.valueOf(3L));
 
-        assertTrue(journal.begin(operation, 12L, "EXTRACT", List.of(step), 16));
+        assertTrue(journal.begin(operation, "EXTRACT", List.of(step), 16));
         assertFalse(journal.pending().getFirst().steps().getFirst().applied());
         assertTrue(journal.markApplied(operation, 0));
         assertTrue(journal.pending().getFirst().steps().getFirst().applied());
@@ -38,7 +38,6 @@ final class ExactStorageMutationJournalTest {
         ExactStorageMutationJournal loaded =
                 ExactStorageMutationJournal.load(saved, null);
         ExactStorageMutationJournal.Entry entry = loaded.pending().getFirst();
-        assertEquals(12L, entry.generation());
         assertEquals(operation, entry.operationId());
         assertTrue(entry.steps().getFirst().applied());
         assertEquals(BigInteger.valueOf(7L), entry.steps().getFirst().afterAmount());
@@ -55,7 +54,6 @@ final class ExactStorageMutationJournalTest {
         assertFalse(journal.isHealthy());
         assertFalse(journal.begin(
                 UUID.randomUUID(),
-                1L,
                 "INSERT",
                 List.of(new ExactStorageMutationJournal.Step(
                         UUID.randomUUID(),
