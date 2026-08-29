@@ -83,7 +83,8 @@ ACOの本番骨格を次の五領域へ限定する。
 - 計画辞退時は理由コード、出力、注文数、Pattern/recipe世代、thread、詳細を出す。
 - Compiled Graphの構築と上限付き再構築は、世代、Pattern数、不完全出力数、所要時間を出す。
 - 標準AE2 exact実行は、復元、開始、待機、完了、取消、隔離をJob/CPU/Transaction IDで結ぶ。
-- 待機理由は変化時に即時、同一理由は600 tickごとにだけ再出力する。
+- `CraftingCalculation.run()`の入口で`planning_started`を出し、結果行と同じIDで結ぶ。
+- 待機理由は変化時に即時出力し、同一理由の周期再出力は行わない。
 - 毎tickの正常進行、全在庫、全Pattern、巨大BigIntegerの全10進桁は出力しない。
 - 診断は判定、所有権、会計、fallbackを一切変更しない。
 
@@ -112,7 +113,7 @@ ACOの本番骨格を次の五領域へ限定する。
 ## 試験計画
 
 - 単体試験: 外部CPU実行非所有、V1非登録、退役Config非存在、Mixin三者一致
-- 診断試験: 構造化イベント、計画route、exact lifecycle、600 tick抑制契約
+- 診断試験: 構造化イベント、計画入口と結果の相関、exact lifecycle、状態遷移契約
 - 境界試験: 公開BigInteger/V2 APIシグネチャ、通常long、Long.MAX_VALUE、wide sidecar
 - 故障・取消・復旧試験: 既存の標準AE2 exact transaction試験を維持
 - ビルド: 両版`clean test`、`clean build`、issue regression manifest

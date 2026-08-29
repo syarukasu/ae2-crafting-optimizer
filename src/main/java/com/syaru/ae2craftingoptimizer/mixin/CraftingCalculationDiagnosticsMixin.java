@@ -89,6 +89,16 @@ public abstract class CraftingCalculationDiagnosticsMixin {
     private void aco$startCalculationTimer(CallbackInfoReturnable<ICraftingPlan> cir) {
         aco$calculationStartedAt = System.nanoTime();
         aco$calculationId = CraftingCalculationDiagnostics.nextCalculationId();
+        CraftingCalculationDiagnostics.logStarted(
+                aco$calculationId,
+                output,
+                requestedAmount,
+                aco$authoritativeCapture == null
+                        ? -1L
+                        : aco$authoritativeCapture.patternGeneration(),
+                aco$authoritativeCapture == null
+                        ? -1L
+                        : aco$authoritativeCapture.recipeGeneration());
     }
 
     /**

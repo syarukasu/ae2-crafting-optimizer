@@ -124,8 +124,6 @@ public final class Ae2BigCraftingExecutionManager {
         private UUID lastReportedWaitingJobId;
         /** 直前にログへ出した待機理由。状態変化の境界だけを診断ログへ出す。 */
         private String lastReportedWaitingReason;
-        /** 同じ待機理由を再通知するまでのサーバーtick数。1 tick = 50 ms。 */
-        private int waitingTicksSinceLog;
 
         private Controller(CraftingCPUCluster cluster) {
             this.cluster = cluster;
@@ -271,7 +269,7 @@ public final class Ae2BigCraftingExecutionManager {
 
         /**
          * Issue #125: 標準AE2 CPUが進めない区間の理由を、状態変化ごとに診断ログへ出す。
-         * 同じ理由が続く場合は600 tickごとに一度だけ再通知し、ログスパムを避ける。
+         * 同じ理由が続く間は再出力せず、次の状態遷移を新しいイベントとして記録する。
          */
         private void reportWaitingReason(
                 Context context,
@@ -288,14 +286,12 @@ public final class Ae2BigCraftingExecutionManager {
                     : rawReason;
             boolean changedReason = !jobId.equals(lastReportedWaitingJobId)
                     || !reason.equals(lastReportedWaitingReason);
-            waitingTicksSinceLog++;
-            // 同じジョブ・同じ理由の連続tickは抑制し、状態変化または600 tickごとに記録する。
-            if (!changedReason && waitingTicksSinceLog < 600) {
+            // 同じジョブ・同じ理由は既に記録済みなので、状態が変わるまで再出力しない。
+            if (!changedReason) {
                 return;
             }
             lastReportedWaitingJobId = jobId;
             lastReportedWaitingReason = reason;
-            waitingTicksSinceLog = 0;
             PhysicalCraftingTreeTransaction.ExecutionDiagnostics diagnostics = transaction == null
                     ? null
                     : transaction.executionDiagnostics();
@@ -355,7 +351,6 @@ public final class Ae2BigCraftingExecutionManager {
         private void clearWaitingReport() {
             lastReportedWaitingJobId = null;
             lastReportedWaitingReason = null;
-            waitingTicksSinceLog = 0;
         }
 
         private Context context() {
