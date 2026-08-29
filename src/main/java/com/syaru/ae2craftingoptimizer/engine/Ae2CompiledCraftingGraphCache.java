@@ -5,6 +5,8 @@ import appeng.api.networking.IGrid;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
 import appeng.api.storage.AEKeyFilter;
+import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
+import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
@@ -18,6 +20,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.WeakHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
@@ -117,6 +120,16 @@ public final class Ae2CompiledCraftingGraphCache {
         Snapshot rebuilt = getOrCompile(grid, level);
         // 再構築後も不完全なら、世代変更まで追加の再構築を禁止する。
         rebuilt.claimRetryRebuild();
+        if (ACOConfig.logCraftingDecisionFlow()) {
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event=graph_recompiled dimension={} oldPatternGeneration={} "
+                            + "oldRecipeGeneration={} newPatternGeneration={} newRecipeGeneration={}",
+                    level.dimension().location(),
+                    stale.graph().generation(),
+                    stale.recipeGeneration(),
+                    rebuilt.graph().generation(),
+                    rebuilt.recipeGeneration());
+        }
         return rebuilt;
     }
 
@@ -133,6 +146,7 @@ public final class Ae2CompiledCraftingGraphCache {
             Level level,
             long generation,
             long recipeGeneration) {
+        long startedNanos = System.nanoTime();
         Set<AEKey> craftables = Set.copyOf(service.getCraftables(ALL_KEYS));
         Set<IPatternDetails> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         IdentityHashMap<IPatternDetails, String> idByPattern = new IdentityHashMap<>();
@@ -178,7 +192,7 @@ public final class Ae2CompiledCraftingGraphCache {
                 }
             }
         }
-        return new Snapshot(
+        Snapshot snapshot = new Snapshot(
                 service,
                 CompiledCraftingGraph.compile(generation, compiledById.values()),
                 idByPattern,
@@ -188,6 +202,20 @@ public final class Ae2CompiledCraftingGraphCache {
                 incompletelyCompiledOutputs,
                 craftables,
                 recipeGeneration);
+        if (ACOConfig.logCraftingDecisionFlow()) {
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event=graph_compiled dimension={} patternGeneration={} recipeGeneration={} "
+                            + "craftableKeys={} registeredPatterns={} compiledPatterns={} incompleteOutputs={} elapsedMs={}",
+                    level.dimension().location(),
+                    generation,
+                    recipeGeneration,
+                    craftables.size(),
+                    seen.size(),
+                    compiledById.size(),
+                    incompletelyCompiledOutputs.size(),
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos));
+        }
+        return snapshot;
     }
 
     public static final class Snapshot {

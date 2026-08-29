@@ -8,7 +8,6 @@ import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.access.CraftingServiceCalculationHookAccess;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDeduplicator;
-import com.syaru.ae2craftingoptimizer.optimization.DeterministicCraftingPreflight;
 import java.util.concurrent.Future;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Final;
@@ -46,19 +45,6 @@ public abstract class CraftingServiceCalculationDeduplicationMixin
                 strategy);
         if (activeCalculation != null) {
             cir.setReturnValue(activeCalculation);
-            return;
-        }
-
-        Future<ICraftingPlan> fastFailedPlan = DeterministicCraftingPreflight.tryFastFail(
-                (CraftingService) (Object) this,
-                grid,
-                level,
-                requester,
-                output,
-                amount,
-                strategy);
-        if (fastFailedPlan != null) {
-            cir.setReturnValue(fastFailedPlan);
         }
     }
 

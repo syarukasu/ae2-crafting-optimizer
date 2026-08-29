@@ -231,7 +231,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
 
         boolean longSafetyCertified =
                 capture.arithmeticCaptureMode() == ArithmeticCaptureMode.PROVEN_LONG_SAFE;
-        // 通常long計画を置換しない既定構成では、warm cacheの安全証明だけで直ちにAE2へ戻す。
+        // 通常long計画の厳密な採用経路を両方切った場合は、AE2へ返す。
         if (longSafetyCertified && !normalLongReplacementEnabled()) {
             return null;
         }
@@ -303,7 +303,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     shadowQualified,
                     ACOConfig.enableProofQualifiedLongPlans(),
                     wideArithmeticRequired,
-                    ACOConfig.requireAqeBigPlanShadowQualification())) {
+                    ACOConfig.requireWidePlanShadowQualification())) {
                 return declineOrThrow(
                         capture,
                         output,
@@ -1044,25 +1044,15 @@ public final class Ae2AuthoritativeCraftingPlanner {
     }
 
     private static boolean normalLongReplacementEnabled() {
-        /*
-         * 回帰防止: ACO Issue #109
-         * BigInteger CPU連携はwide計画を作るための能力であり、通常long計画を置換する許可ではない。
-         * 通常AE2の結果を差し替えるのは、実験エンジンを明示的に有効化した場合だけに限定する。
-         */
         return normalLongReplacementEnabled(
-                ACOConfig.enableExperimentalCraftingEngine(),
                 ACOConfig.enableAuthoritativeCompiledPlanner(),
                 ACOConfig.enableProofQualifiedLongPlans());
     }
 
     static boolean normalLongReplacementEnabled(
-            boolean experimentalEngineEnabled,
             boolean authoritativePlannerEnabled,
             boolean proofQualifiedLongPlansEnabled) {
-        // 実験エンジンOFFなら、下位の置換設定が残っていても通常long計画へ介入しない。
-        if (!experimentalEngineEnabled) {
-            return false;
-        }
+        // 厳密証明を通過した二つの採用経路だけが、通常long計画を置換できる。
         return authoritativePlannerEnabled || proofQualifiedLongPlansEnabled;
     }
 

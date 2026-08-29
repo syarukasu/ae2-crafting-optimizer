@@ -70,7 +70,7 @@ paths because UELM does not replace those storage classes.
 
 - Generation-keyed compiled Pattern graphs.
 - Calculation-local inventory and candidate memoization.
-- Deterministic missing-material fast paths with conservative fallback.
+- Strict compiled planning only when recipe choice and accounting are proven.
 - Checked `add`, `multiply`, and `ceilDiv` arithmetic.
 - `long` fast paths and bounded `BigInteger` promotion after overflow.
 - Cancellation and stale-result rejection when provider or recipe generations
@@ -188,8 +188,9 @@ CPUs into BigInteger CPUs.
 - Exact inventory, missing amounts, task progress, escrow, and receipts are
   never derived from that facade.
 
-AQE is an optional current host integration. AAC is an optional physical
-executor. ACO itself requires neither mod.
+AQE and InsaneAE may consume ACO's versioned exact-plan API while retaining
+their own CPU execution. AAC may register a physical worker contract. ACO
+itself requires none of these mods.
 
 ## Long Root Orders
 
@@ -216,30 +217,37 @@ ACO intentionally does not:
 
 ## Important Configuration
 
-The generated TOML is authoritative. The principal physical-tree settings are:
+The generated TOML is authoritative. The principal standard-AE2 exact settings
+are:
 
 ```toml
 [exactVectorCrafting]
 enabled = true
-enableAqeBigIntegerParents = true
+enablePhysicalExecution = true
 maximumPatternNodes = 1024
 maximumUniqueInputKeys = 128
 maximumUniqueOutputKeys = 128
 maximumStartsPerGridPerTick = 1
 maximumActiveStagesPerGridPerTick = 256
-maximumActiveTransactionsPerGrid = 4
 gridTimeBudgetMillis = 2
-logVectorDiagnostics = false
+logExecutionStalls = true
+verifyStorageRouteBeforeOwnership = true
+
+[diagnostics]
+logCraftingDecisionFlow = true
 ```
 
-`exactVectorCrafting` is retained as the config section name for migration.
-Its implementation is the physical crafting tree described above; the deleted
-direct Vector executor cannot be re-enabled.
+`exactVectorCrafting` is the physical crafting tree described above. External
+CPU add-ons are not selected or configured by this section.
 
 The soft time budget begins when Exact Vector first runs on a grid during that
 server tick. Trees with at most 64 physical recipe nodes are fully scanned
 within the count limit, and dependency-blocked nodes do not consume active-stage
 capacity.
+
+`logCraftingDecisionFlow` writes bounded `ACO-DIAG event=...` records to
+`debug.log`. It records one planning result and lifecycle transitions, not
+per-tick success, complete inventories, or full huge decimal values.
 
 See [Configuration](docs/CONFIGURATION.md),
 [Feature ownership](docs/FEATURE_OWNERSHIP.md),
@@ -264,6 +272,11 @@ researching the actual implementation boundaries:
 - [InsaneAE](https://github.com/taikun24/InsaneAE): one real craft plus exact
   coefficient accounting.
 - Neo ECO AE Extension: persistent physical crafting Workers and Threads.
+
+Issue #164 deliberately removes the former Pattern Batch V1, external-CPU
+execution managers, built-in GTCEu/Mekanism native batching, independent Fair
+Scheduler, and terminal/storage/bus/P2P rewrites. They are not retained as
+legacy fallbacks or no-op configuration keys.
 
 No dependency source code is redistributed.
 

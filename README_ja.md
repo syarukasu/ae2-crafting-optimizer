@@ -43,7 +43,7 @@ config/ae2_crafting_optimizer-common.toml
 
 - Provider・レシピ世代単位のCompiled Pattern Graph
 - 一計算内の在庫・候補メモ化
-- 厳密に証明できる材料不足の高速判定
+- レシピ選択と会計を証明できる場合だけ使う厳密なCompiled Planner
 - `add`、`multiply`、`ceilDiv`のオーバーフロー検査
 - `long`優先と、overflow時だけの`BigInteger`昇格
 - 世代変更時の古い計算結果破棄
@@ -136,8 +136,9 @@ BigInteger化しません。
 - `long`しか受け取れないAE2 APIに限り表示・互換Facadeを`Long.MAX_VALUE`へ飽和
 - 在庫、材料不足、Task進捗、Escrow、ReceiptはFacadeから逆算しない
 
-AQEは任意のHost連携、AACは任意の物理Executorです。ACO本体の必須依存では
-ありません。
+AQEとInsaneAEは、自身のCPU実行を保持したままACOの版付きexact plan APIを
+利用できます。AACは物理Worker契約を登録できます。いずれもACO本体の必須依存
+ではありません。
 
 ## 安全規則
 
@@ -157,20 +158,30 @@ ACOは次を行いません。
 ```toml
 [exactVectorCrafting]
 enabled = true
-enableAqeBigIntegerParents = true
+enablePhysicalExecution = true
 maximumPatternNodes = 1024
 maximumUniqueInputKeys = 128
 maximumUniqueOutputKeys = 128
 maximumStartsPerGridPerTick = 1
 maximumActiveStagesPerGridPerTick = 256
-maximumActiveTransactionsPerGrid = 4
 gridTimeBudgetMillis = 2
-logVectorDiagnostics = false
+logExecutionStalls = true
+verifyStorageRouteBeforeOwnership = true
+
+[diagnostics]
+logCraftingDecisionFlow = true
 ```
 
-`exactVectorCrafting`という節名はConfig移行のため維持しています。実装は本項の
-物理クラフトツリーであり、削除済み直接Vector Executorを再有効化する設定では
-ありません。
+`exactVectorCrafting`は本項の物理クラフトツリーです。外部CPUの選択や実行は
+この設定から行いません。
+
+`logCraftingDecisionFlow`は`debug.log`へ、上限付きの
+`ACO-DIAG event=...`行を出します。計画結果と状態遷移だけを記録し、毎tickの正常処理、
+全在庫、巨大値の全10進桁は出力しません。
+
+Issue #164では、旧Pattern Batch V1、外部CPU実行Manager、内蔵GTCEu/Mekanism
+Native Batch、独立Fair Scheduler、端末・ストレージ・Bus・P2P書換えを削除しました。
+これらはlegacy fallbackやno-op設定としても残していません。
 
 詳細は[Configuration](docs/CONFIGURATION.md)、
 [Feature ownership](docs/FEATURE_OWNERSHIP.md)、

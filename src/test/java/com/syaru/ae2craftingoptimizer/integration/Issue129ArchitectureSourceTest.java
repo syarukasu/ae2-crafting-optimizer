@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.syaru.ae2craftingoptimizer.mixin.MixinFeatureCatalog;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeature;
-import com.syaru.ae2craftingoptimizer.optimization.OptimizationImplementationStatus;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -26,20 +25,16 @@ class Issue129ArchitectureSourceTest {
         assertTrue(source.contains("OptimizationFeature.BIG_INTEGER_BACKEND"));
         assertTrue(source.contains("OptimizationFeature.EXACT_VECTOR_CRAFTING"));
         assertTrue(source.contains("OptimizationFeature.CRAFTING_EXECUTION_BUDGET"));
-        assertTrue(source.contains("OptimizationFeature.TERMINAL_UPDATE_COALESCING"));
-        assertTrue(source.contains("OptimizationFeature.P2P_TOPOLOGY_DEDUPLICATION"));
+        assertTrue(source.contains("OptimizationFeature.CRAFTING_QUERY_MEMOIZATION"));
+        assertTrue(source.contains("OptimizationFeature.PATTERN_LOOKUP_CACHE"));
     }
 
     @Test
     void everyActiveFeatureIsConnectedToAConfigOrMixinBoundary() throws IOException {
         String config = Files.readString(CONFIG, StandardCharsets.UTF_8);
         Set<OptimizationFeature> mixinFeatures = Set.copyOf(MixinFeatureCatalog.snapshot().values());
-        // ACTIVE機能が中央gateにもMixin台帳にも接続されず、名前だけ残る状態を拒否する。
+        // 宣言機能が中央gateにもMixin台帳にも接続されず、名前だけ残る状態を拒否する。
         for (OptimizationFeature feature : OptimizationFeature.values()) {
-            // 廃止済み互換キーは実行入口を持たないことが契約なので対象外とする。
-            if (feature.implementationStatus() != OptimizationImplementationStatus.ACTIVE) {
-                continue;
-            }
             boolean connectedToConfig = config.contains("OptimizationFeature." + feature.name());
             assertTrue(connectedToConfig || mixinFeatures.contains(feature), feature.id());
         }
@@ -91,27 +86,33 @@ class Issue129ArchitectureSourceTest {
         // 1.2.2で消失・停止回帰のため撤去したMixinを、監査なしで再登録させない。
         for (String mixin : prohibitedMixins) {
             assertFalse(mixinConfig.contains('"' + mixin + '"'), mixin);
-            assertTrue(status.contains('`' + mixin + '`'), mixin);
+            assertFalse(Files.exists(Path.of(
+                    "src/main/java/com/syaru/ae2craftingoptimizer/mixin/" + mixin + ".java")), mixin);
         }
+        assertTrue(status.contains("Import/Export Bus"));
+        assertTrue(status.contains("IO Port"));
+        assertTrue(status.contains("Grid Tick"));
     }
 
     @Test
-    void safeExportCraftBackoffDoesNotDependOnRemovedGridTickRewrite() throws IOException {
-        String config = Files.readString(CONFIG, StandardCharsets.UTF_8);
-        int methodStart = config.indexOf("public static boolean throttleExportBusCraftRequests()");
-        int methodEnd = config.indexOf("public static int getExportBusCraftFailureCooldownTicks()", methodStart);
-        assertTrue(methodStart >= 0 && methodEnd > methodStart);
-        String method = config.substring(methodStart, methodEnd);
-        assertTrue(method.contains("OptimizationFeature.EXPORT_CRAFT_REQUEST_BACKOFF"));
-        assertFalse(method.contains("enableGridTickBudget()"));
-    }
-
-    @Test
-    void exportCandidateCacheFallsBackForUnknownConfigInventoryImplementations() throws IOException {
-        String mixin = Files.readString(
-                Path.of("src/main/java/com/syaru/ae2craftingoptimizer/mixin/ExportBusCandidateCacheMixin.java"),
+    void transportAndGuiOwnershipMixinsStayRemoved() throws IOException {
+        String mixinConfig = Files.readString(
+                Path.of("src/main/resources/ae2_crafting_optimizer.mixins.json"),
                 StandardCharsets.UTF_8);
-        assertTrue(mixin.contains("instanceof ConfigInventoryGenerationAccess"));
-        assertTrue(mixin.contains("return config.getKey(slot);"));
+        String[] retiredMixins = {
+                "ExportBusCandidateCacheMixin",
+                "IOPortSlotWindowMixin",
+                "P2PServiceTopologyDeduplicationMixin",
+                "StorageImportScanOrderMixin",
+                "ClientRepoUpdateCoalescingMixin",
+                "Ae2ScrollbarReleaseSafetyMixin"
+        };
+        // ACOがAE2の搬送・GUI所有権へ再び介入しないことを固定する。
+        for (String retiredMixin : retiredMixins) {
+            assertFalse(mixinConfig.contains(retiredMixin), retiredMixin);
+            assertFalse(Files.exists(Path.of(
+                    "src/main/java/com/syaru/ae2craftingoptimizer/mixin/" + retiredMixin + ".java")),
+                    retiredMixin);
+        }
     }
 }

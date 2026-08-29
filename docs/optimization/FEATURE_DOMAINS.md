@@ -1,49 +1,45 @@
-# ACO最適化ドメイン
+# ACO機能領域
 
-Issue #129以降、最適化は次の八領域へ分けます。個別機能は`OptimizationFeature`へ登録し、`OptimizationFeatureGate`を通過した場合だけ動作します。設定キーだけ残る廃止済み機能は`OptimizationImplementationStatus.RETIRED_COMPATIBILITY_KEY`とし、値が`true`でも実行しません。現在の稼働状況は[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)を正本とします。
+Issue #164以降、ACOの実装領域は次の5つだけです。`OptimizationFeature`へ存在する機能は、
+ConfigまたはMixinの実入口を必ず持ちます。削除済み機能の互換キーは残しません。
 
-| Domain | 目的 | 正本 | 無効時 |
-|---|---|---|---|
-| `NETWORK_TOPOLOGY` | P2P、経路、grid tick、構造変更通知の重複排除 | AE2 | AE2へ完全委譲 |
-| `STORAGE_IO` | Import/Export Bus、IO Port、Capability探索の増分化 | AE2 | AE2へ完全委譲 |
-| `PATTERN_PROVIDER` | Pattern索引、世代、refresh、routing再利用 | AE2、ACO cache | cacheを参照しない |
-| `CLIENT_SYNC` | 端末、watcher、検索、同期の差分化 | AE2 server state | packetとGUIを変更しない |
-| `CRAFTING_PLANNING` | メモ化、compiled graph、checked math | AE2、ACO immutable plan | AE2 plannerへ委譲 |
-| `CRAFTING_EXECUTION` | tick予算、公平性、transaction dispatch | AE2またはACO transaction | AE2 executorへ委譲 |
-| `BIG_INTEGER` | long超過計画、exact在庫、exact実行 | ACO exact state | 通常long経路へ影響しない |
-| `OPTIONAL_INTEGRATION` | GTCEu、Mekanism、Advanced AE等のAdapter | 各アドオン | Adapterを登録しない |
+| 領域 | ACOが行うこと | ACOが行わないこと |
+|---|---|---|
+| `PATTERN_PROVIDER` | Pattern順を変えないlookup cache、内容世代、重複refreshの集約 | Providerの配送、対象選択、入力消費、成果物会計 |
+| `CRAFTING_PLANNING` | 計算内memo、構造的候補剪定、世代付きcompiled graph、checked算術、Shadow比較 | 証明不能なレシピの近似、欠品の早期打切り、AE2のPattern選択変更 |
+| `CRAFTING_EXECUTION` | 標準AE2 CPUの時間・操作予算、AE2本来の逐次投入を波単位で実行、公開V2取引契約 | 外部CPUのJob、進捗、電力、取消、完了を所有すること |
+| `BIG_INTEGER` | exact在庫snapshot、wide plan sidecar、標準AE2 exact取引、公開Host/Plan API | exact値をlongへ切り捨てた判定、外部CPUの実行台帳 |
+| `OPTIONAL_INTEGRATION` | AppliedE境界、GTCEu/Mekanism Recipe Intent、検証済みadd-on lookup cache | 外部機械のレシピ可否、速度、入出力、構造を変更すること |
 
-## 共通判定順
+## 共通gate
 
-1. `general.enableOptimizer`
-2. `optimizationDomains.<domain>`
-3. 既存の個別設定
-4. 互換性・対象クラス・実行時前提
+全機能は次の順序で`OptimizationFeatureGate`を通ります。
 
-1から3のどこかで無効なら、対象コードは状態を読んで推測せず、書き換えずにreturnします。4で辞退する場合も、ownership取得前だけAE2標準経路へ戻せます。
+1. `enableOptimizer`
+2. 対応するdomainスイッチ
+3. 個別機能スイッチ
 
-## Risk
+どこかで拒否した場合、対象経路はAE2または外部MODの状態へ触れる前にreturnします。
+「退役機能をtrueにしても動かさない」という第4の互換層はありません。
 
-- `LOW`: immutable lookupや純粋な診断。正本を変更しない
-- `MEDIUM`: bounded cacheや処理順の調整。世代失効が必須
-- `HIGH`: packet、planner、execution、BigInteger、transaction。過去Issueとの対応と専用回帰試験が必須
+## 所有権
 
-## 実装クラス
+- `ACO_CACHE`: 世代・寿命・上限を持つ派生情報。正本変更で破棄します。
+- `ACO_TRANSACTION`: ACOが標準AE2 exact取引または公開V2取引を明示的に取得した後の状態。
+- `AE2`: 通常クラフト、通常在庫、通常Provider配送、GUI、リンク、CPU Job。
+- `EXTERNAL_ADDON`: 外部CPU・機械の構造、実行、電力、進捗、Receipt、完了。
 
-- `OptimizationDomain`: 八つの責務領域
-- `OptimizationFeature`: 機能ID、実装状態、risk、正本所有者、失効条件、fallback境界、関連Issue
-- `OptimizationFeatureRegistry`: 機能一覧、ID検索、domain別一覧の唯一の正本
-- `OptimizationFeatureGate`: master/domain/個別設定の共通判定と固定個数の診断counter
-- `ACOConfig`: 設定schema。個別getterから共通gateを呼ぶ
-- `ACOServerLifecycle`: server世代ごとの診断初期化とcache破棄
-- `ACOStartupReport`: 起動時にdomain状態を列挙
-- `MixinFeatureCatalog`: core/performance/clientの全Mixinを機能責務へ結び、未登録Mixinをfail-closedにする
+所有権取得前に証明できない高速経路は辞退できます。取得後はAE2へfallbackせず、commit、
+rollback、再開、quarantineのいずれかで閉じます。
 
-## 禁止境界
+## 再追加禁止
 
-- `CLIENT_SYNC`はserver inventory、slot、recipe validityを変更しない
-- `STORAGE_IO`はsimulation成功を実transfer成功としてcacheしない
-- `CRAFTING_PLANNING`はownershipを取得しない
-- `CRAFTING_EXECUTION`はreceiptなしで成果物を生成しない
-- `BIG_INTEGER`は正本を`longValue()`、飽和値、指数表示値へ変換しない
-- `OPTIONAL_INTEGRATION`は外部アドオン固有処理の所有者にならない
+独立したIssue、所有権設計、故障注入試験なしに、次をACOへ戻してはいけません。
+
+- 端末のslot、packet、表示range、検索結果の置換
+- Import/Export Bus、IO Port、Capability、Storage transferの置換
+- P2PまたはGrid Tick全体の延期
+- 成功済み計画の無条件再利用
+- 在庫量によるPattern順変更
+- ACO内蔵GTCEu/Mekanism Native Batch
+- AQE、InsaneAE、NeoECO固有のJob実行Mixin
