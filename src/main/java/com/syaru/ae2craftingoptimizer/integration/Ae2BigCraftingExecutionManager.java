@@ -122,7 +122,6 @@ public final class Ae2BigCraftingExecutionManager {
         private ExactCraftingJobAccess lastExactJob;
         /** Issue #125: 進行ゼロのtickで観測した待機理由。進行があれば毎回消す。 */
         private String stallReason = "";
-        private int stallTicksSinceLog;
         /** 同じ理由でも別Jobへ切り替わった時は、そのJobの初回診断を必ず出す。 */
         private UUID stallJobId;
         /** restoreOrStartが開始を見送った直近の具体的な理由。 */
@@ -560,8 +559,7 @@ public final class Ae2BigCraftingExecutionManager {
         }
 
         /**
-         * Issue #125: 進行ゼロの待機理由を表へ出す。理由が変わった時に一度、
-         * 同じ理由が続く間は600 tickごとに一度だけdebug.logへ出す。
+         * Issue #125: 進行ゼロの待機理由を、理由またはJobが変わった時にdebug.logへ出す。
          */
         private void reportStall(
                 Context context,
@@ -577,34 +575,33 @@ public final class Ae2BigCraftingExecutionManager {
                     : reason;
             boolean changedReason = !context.jobId().equals(stallJobId)
                     || !checked.equals(stallReason);
-            stallTicksSinceLog++;
-            // 同一理由の毎tick出力を避け、30秒相当の600 tickごとにだけ再通知する。
-            if (changedReason || stallTicksSinceLog >= 600) {
-                PhysicalCraftingTreeTransaction.ExecutionDiagnostics diagnostics = transaction == null
-                        ? null
-                        : transaction.executionDiagnostics();
-                BigInteger exactRemaining = context.exactJob().aco$getExactRemainingOutput();
-                AE2CraftingOptimizer.LOGGER.debug(
-                        "ACO-DIAG event=exact_waiting jobId={} cpu={} transactionId={} state={} stepId={} "
-                                + "patternId={} receiptState={} reason={} operationBudget={} consumedOperations={} "
-                                + "remainingOperations={} remainingPhysicalSteps={} finalOutputRemaining={}",
-                        context.jobId(),
-                        stableKey(),
-                        transaction == null ? "not-started" : transaction.transactionId(),
-                        transaction == null ? "NOT_STARTED" : transaction.state(),
-                        diagnostics == null ? "not-started" : diagnostics.activeStep(),
-                        diagnostics == null ? "not-started" : diagnostics.patternId(),
-                        diagnostics == null ? "NONE" : diagnostics.receiptState(),
-                        checked,
-                        operationBudget,
-                        transaction == null ? 0 : transaction.lastConsumedOperations(),
-                        diagnostics == null ? "unknown" : diagnostics.remainingOperations(),
-                        diagnostics == null ? "unknown" : diagnostics.remainingPhysicalSteps(),
-                        formatExactAmount(exactRemaining));
-                stallReason = checked;
-                stallJobId = context.jobId();
-                stallTicksSinceLog = 0;
+            // 同じJob・同じ理由は記録済みなので、次の状態遷移まで再出力しない。
+            if (!changedReason) {
+                return;
             }
+            PhysicalCraftingTreeTransaction.ExecutionDiagnostics diagnostics = transaction == null
+                    ? null
+                    : transaction.executionDiagnostics();
+            BigInteger exactRemaining = context.exactJob().aco$getExactRemainingOutput();
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event=exact_waiting jobId={} cpu={} transactionId={} state={} stepId={} "
+                            + "patternId={} receiptState={} reason={} operationBudget={} consumedOperations={} "
+                            + "remainingOperations={} remainingPhysicalSteps={} finalOutputRemaining={}",
+                    context.jobId(),
+                    stableKey(),
+                    transaction == null ? "not-started" : transaction.transactionId(),
+                    transaction == null ? "NOT_STARTED" : transaction.state(),
+                    diagnostics == null ? "not-started" : diagnostics.activeStep(),
+                    diagnostics == null ? "not-started" : diagnostics.patternId(),
+                    diagnostics == null ? "NONE" : diagnostics.receiptState(),
+                    checked,
+                    operationBudget,
+                    transaction == null ? 0 : transaction.lastConsumedOperations(),
+                    diagnostics == null ? "unknown" : diagnostics.remainingOperations(),
+                    diagnostics == null ? "unknown" : diagnostics.remainingPhysicalSteps(),
+                    formatExactAmount(exactRemaining));
+            stallReason = checked;
+            stallJobId = context.jobId();
         }
 
         /** exact実行の所有権境界だけを記録し、正常進行中の毎tickログは作らない。 */
@@ -643,7 +640,6 @@ public final class Ae2BigCraftingExecutionManager {
         private void clearStall() {
             stallReason = "";
             stallJobId = null;
-            stallTicksSinceLog = 0;
         }
 
         private void close() {

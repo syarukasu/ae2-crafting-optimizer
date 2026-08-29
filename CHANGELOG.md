@@ -15,6 +15,8 @@ All notable changes to this project are documented here.
   BigInteger, Transactional Batch V2, crafting-table, and vector APIs remain.
 - Added bounded `ACO-DIAG` records for planning decisions, graph generations,
   and standard AE2 exact-execution lifecycle transitions in `debug.log`.
+- Added a `planning_started` record at the calculation entry boundary and
+  removed the arbitrary periodic wait-log timer in favor of state transitions.
 
 ### Fixed
 

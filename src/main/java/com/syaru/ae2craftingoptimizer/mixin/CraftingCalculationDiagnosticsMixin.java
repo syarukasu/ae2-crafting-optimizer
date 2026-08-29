@@ -91,6 +91,16 @@ public abstract class CraftingCalculationDiagnosticsMixin {
         aco$calculationStartedAt = System.nanoTime();
         aco$calculationId = CraftingCalculationDiagnostics.nextCalculationId();
         CraftingFallbackDiagnostics.reset();
+        CraftingCalculationDiagnostics.logStarted(
+                aco$calculationId,
+                output,
+                requestedAmount,
+                aco$authoritativeCapture == null
+                        ? -1L
+                        : aco$authoritativeCapture.patternGeneration(),
+                aco$authoritativeCapture == null
+                        ? -1L
+                        : aco$authoritativeCapture.recipeGeneration());
     }
 
     /**

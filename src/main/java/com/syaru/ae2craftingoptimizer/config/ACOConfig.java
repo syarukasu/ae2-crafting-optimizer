@@ -387,7 +387,7 @@ public final class ACOConfig {
                 .comment("Soft main-thread scheduling budget per grid, measured from exact processing start.")
                 .defineInRange("gridTimeBudgetMillis", 2, 1, MAXIMUM_TICK_BUDGET_MILLIS);
         LOG_EXACT_EXECUTION_STALLS = builder
-                .comment("Log a changed stall reason immediately and an unchanged reason every 600 ticks.")
+                .comment("Log exact execution wait-state transitions without periodic repeats.")
                 .define("logExecutionStalls", true);
         EXACT_VECTOR_VERIFY_STORAGE_ROUTE = builder
                 .comment("Prove exact input release and final output insertion before ownership transfer.")

@@ -1,5 +1,6 @@
 package com.syaru.ae2craftingoptimizer.integration;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -21,6 +22,7 @@ class Issue164DiagnosticsSourceTest {
         String graph = readMain(
                 "com/syaru/ae2craftingoptimizer/engine/Ae2CompiledCraftingGraphCache.java");
 
+        assertTrue(calculation.contains("ACO-DIAG event=planning_started"));
         assertTrue(calculation.contains("ACO-DIAG event=planning_complete"));
         assertTrue(calculation.contains("ACO-DIAG event=planning_slow"));
         assertTrue(decline.contains("ACO-DIAG event=planning_declined"));
@@ -29,7 +31,7 @@ class Issue164DiagnosticsSourceTest {
     }
 
     @Test
-    void exactLifecycleEventsAreCorrelatedAndWaitingIsRateLimited() throws IOException {
+    void exactLifecycleEventsAreCorrelatedAndWaitingUsesStateTransitions() throws IOException {
         String manager = readMain(
                 "com/syaru/ae2craftingoptimizer/integration/Ae2BigCraftingExecutionManager.java");
 
@@ -42,7 +44,8 @@ class Issue164DiagnosticsSourceTest {
         String compactManager = manager.replaceAll("\\s+", " ");
         assertTrue(compactManager.contains(
                 "if (!ACOConfig.logCraftingDecisionFlow() || !ACOConfig.logExactExecutionStalls())"));
-        assertTrue(manager.contains("stallTicksSinceLog >= 600"));
+        assertTrue(manager.contains("if (!changedReason)"));
+        assertFalse(manager.contains("stallTicksSinceLog"));
         assertTrue(manager.contains("jobId={} cpu={} transactionId={} state={}"));
     }
 

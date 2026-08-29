@@ -140,8 +140,8 @@ accept the final output:
    accepting a job that can never finish;
 3. with `exactVectorCrafting.verifyStorageRouteBeforeOwnership = false`, the
    previous accept-then-wait behavior returns, and
-   `exactVectorCrafting.logExecutionStalls` reports the waiting reason once per
-   reason change and once per 600 ticks.
+   `exactVectorCrafting.logExecutionStalls` reports each waiting-state transition
+   once without a periodic repeat timer.
 
 ### No Fallback After Ownership
 

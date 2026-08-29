@@ -23,6 +23,27 @@ public final class CraftingCalculationDiagnostics {
                 current -> current == Long.MAX_VALUE ? 1L : current + 1L);
     }
 
+    /** CraftingCalculation.runの入口を一件一行で記録し、結果ログと相関できるようにする。 */
+    public static void logStarted(
+            long calculationId,
+            AEKey output,
+            long requestedAmount,
+            long patternGeneration,
+            long recipeGeneration) {
+        if (!ACOConfig.logCraftingDecisionFlow()) {
+            return;
+        }
+        AE2CraftingOptimizer.LOGGER.debug(
+                "ACO-DIAG event=planning_started calculationId={} output={} requested={} "
+                        + "patternGeneration={} recipeGeneration={} thread={}",
+                calculationId,
+                output == null ? "<unknown>" : output.getId(),
+                requestedAmount,
+                patternGeneration < 0L ? "<unknown>" : patternGeneration,
+                recipeGeneration < 0L ? "<unknown>" : recipeGeneration,
+                Thread.currentThread().getName());
+    }
+
     /** 計算結果を一件一行で記録し、AE2標準経路とACO採用経路を区別可能にする。 */
     public static void logDecision(
             long calculationId,
