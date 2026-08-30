@@ -42,3 +42,11 @@ rootを取得できる場合でも`NO_COMPILED_PROGRAM`になりました。ま�
 - 状態: Gradle verified
 - 対象: Forge 1.20.1 / NeoForge 1.21.1
 - 起動・GameTest: ユーザー側確認。Gradle試験では代替しない。
+
+## Issue #167後のcache境界
+
+Issue #103の「一時的なcompile失敗をnegative cacheへ残さない」は、mutableなAE2索引から
+取得した途中状態を新しい世代で再利用しないための規則である。Issue #167以降は、公開前に
+pattern、recipe、config revisionを検証したimmutable Snapshot内だけで、構造上の
+`RootProgramFailure`を有界LRUへ保持する。storage不足結果はここへ保存せず、storage revisionを
+含む別の完了Plan cacheで管理する。異なるrevisionへ失敗結果を持ち越してはならない。

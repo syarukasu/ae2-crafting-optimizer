@@ -1,7 +1,7 @@
 # Issue #167: Planner・Snapshot・世代・キャッシュ境界を一貫化する
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/167
-- 状態: Ready
+- 状態: Implemented / Gradle verified / GameTest pending
 - 対象版: 1.5.x
 - 対象ローダー: Forge 1.20.1 / NeoForge 1.21.1
 - 関連Issue・PR: #61、#79、#90、#103、#109、#125、#156、#159、#161、#162、#164、#165
@@ -34,8 +34,10 @@ Planner高速化とキャッシュの一部がAE2標準候補集合を変更し�
 
 ## 現在結果
 
-旧Pattern結果を新世代として公開でき、古い在庫へ新Pattern世代を付け替えられる。
-また、候補削減とrequester衝突によってAE2と異なる結果またはFuture共有が発生し得る。
+候補削減と世代外Pattern replayは削除した。Planner入力はserver threadで取得した
+immutable root graph、参照在庫、Emitter、recipe/pattern/config/storage revisionへ固定し、
+workerはlive Grid、Level、BlockEntity、AE2 serviceを読まない。stale結果は新世代へ
+付け替えず、通常long計画は所有権取得前にAE2へ戻し、wide計画は元の理由で失敗する。
 
 ## 所有権
 
@@ -99,11 +101,32 @@ Planner高速化とキャッシュの一部がAE2標準候補集合を変更し�
 
 ## 実装結果
 
-未実装。
+- AE2のPattern候補集合と順序を変更したcandidate pruningとglobal lookup cacheを削除した。
+- root到達範囲だけをserver threadで固定し、workerへ不変graphと参照在庫だけを渡した。
+- pattern、recipe、config、storage revisionをcapture、dedup、cache、完了結果へ通した。
+- requesterとaction sourceは32bit hashではなく参照同一性で比較する。
+- 同一requestのin-flight Futureは同一service、要求、設定、参照、全revisionの場合だけ共有する。
+- subscriber単位の取消を分離し、最後のsubscriberが離れた場合だけdelegateを取消する。
+- 完了Plan cacheは独立したAE2 Counterを毎回materializeし、storage revision変更で失効する。
+- Root Program cacheは256件かつ合計1,048,576ノードのweighted LRUとし、対応Topologyも
+  同時に退避する。上限超過Programはその計算だけで使い、常駐させない。
+- 同一計算内のAE2候補、Emitter、Fuzzy候補、返却物、入力妥当性だけをmemo化し、
+  pattern/recipe世代変更時に破棄する。
+- shared DAGはexact byte会計の一意性を証明できないため高速wide経路から明示的に辞退する。
+- stale、graph不一致、内部失敗、取消、timeoutをCPU容量不足へ読み替えない。
+- capture、compile、cache、dedup、planner、stale rejectionをbounded diagnosticsへ追加した。
 
 ## 検証結果
 
-未実施。
+- NeoForge 1.21.1 / Java 21: 122 suites、494 tests、failure 0、error 0、skip 0。
+- `verifyIssueRegressionManifest`: 成功。
+- `clean build --no-build-cache`: 成功。
+- 1,000ノード直列Planner、40回warmup、120回計測の同一JVM相対値:
+  compiled 28.669 ms、旧Map型296.586 ms、10.35倍。割り当て15.245 MiB対
+  123.081 MiB、8.07分の1。
+- `git diff --check`: 成功。
+- Minecraft起動とGameTest実行は行っていない。固定fixtureは
+  `evidence/ISSUE-167-GAMETEST-FIXTURE.md`、Matrix状態は`PENDING`のまま。
 
 ## 完了
 
