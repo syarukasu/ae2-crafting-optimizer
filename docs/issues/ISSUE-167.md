@@ -71,9 +71,13 @@ Planner高速化とキャッシュの一部がAE2標準候補集合を変更し�
 4. requesterを強い参照同一性で比較するdedup keyへ変更する。
 5. server threadでrevision前後を検証しながらimmutable captureを取得する。
 6. graph compile、Topology証明、参照在庫再検証をcapture上のpure処理へ移す。
-7. stale時は一度だけ完全captureを取り直す。取り直せないlong計画は所有権取得前にAE2へ戻し、
-   wide計画は理由付きで明示失敗する。
-8. cache、dedup、plannerの時間と件数をboundedな診断へ追加する。
+7. 在庫revisionをnetwork単位の専用Trackerへ分離し、計算開始前のAE2在庫cache更新、
+   `NetworkStorage`の成立済みmutation、mount/unmountを同じrevisionへ集約する。
+8. stale時に旧在庫へ新世代を付けた再試行は行わない。long計画は所有権取得前に
+   AE2へ戻し、wide計画は元の理由を保持して明示失敗する。
+9. workerへはrevision tokenと不変在庫値だけを渡し、`Grid`から現在値を読み直さない。
+10. 世代counterはwrapさせず、上限到達時はABA一致を作る前に明示失敗する。
+11. cache、dedup、plannerの時間と件数をboundedな診断へ追加する。
 
 ## 実装前チェック
 

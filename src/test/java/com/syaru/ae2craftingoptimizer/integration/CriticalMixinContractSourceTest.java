@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -79,8 +80,8 @@ class CriticalMixinContractSourceTest {
     void verifiedAe2CoreOptimizationsDoNotSilentlyDisableTheirInjectionPoints() {
         Map<String, Long> requiredInjectionLines = Map.of(
                 "CraftingCpuLogicTransactionalBatchV2Mixin.java", 1L,
-                "CraftingTreeCalculationMemoMixin.java", 4L,
-                "CraftingTreeCandidatePruningMixin.java", 1L);
+                "CraftingTreeCalculationMemoMixin.java", 7L,
+                "CraftingCpuHelperCalculationMemoMixin.java", 2L);
 
         requiredInjectionLines.forEach((fileName, requiredLines) -> {
             String source = read(MIXIN_ROOT.resolve(fileName));
@@ -92,6 +93,18 @@ class CriticalMixinContractSourceTest {
                     source.contains("require = 0"),
                     fileName + " must not silently disable an AE2 core hook");
         });
+    }
+
+    @Test
+    void issue167KeepsAe2CandidateOwnershipInsideAe2() throws IOException {
+        String mixinConfig = Files.readString(
+                Path.of("src/main/resources/ae2_crafting_optimizer.mixins.json"),
+                StandardCharsets.UTF_8);
+        // Issue #167: AE2の候補集合を削るMixinと世代外global cacheは再導入しない。
+        assertFalse(mixinConfig.contains("CraftingTreeCandidatePruningMixin"));
+        assertFalse(mixinConfig.contains("CraftingServicePatternLookupCacheMixin"));
+        assertFalse(Files.exists(MIXIN_ROOT.resolve("CraftingTreeCandidatePruningMixin.java")));
+        assertFalse(Files.exists(MIXIN_ROOT.resolve("CraftingServicePatternLookupCacheMixin.java")));
     }
 
     @Test

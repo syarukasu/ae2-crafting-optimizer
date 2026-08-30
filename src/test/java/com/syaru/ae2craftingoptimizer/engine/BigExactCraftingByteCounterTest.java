@@ -89,12 +89,15 @@ class BigExactCraftingByteCounterTest {
                 BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)
                         .add(BigInteger.valueOf(26L)),
                 exact);
-        assertThrows(ArithmeticException.class, () -> ExactCraftingByteCounter.calculate(
-                "result",
-                1L,
-                patterns,
-                Map.of("pressurized_reaction", 1L),
-                ignored -> 8L));
+        // AE2標準long経路は有限doubleを最後のcastで飽和し、exact経路だけが真の合計を保持する。
+        assertEquals(
+                Long.MAX_VALUE,
+                ExactCraftingByteCounter.calculate(
+                        "result",
+                        1L,
+                        patterns,
+                        Map.of("pressurized_reaction", 1L),
+                        ignored -> 8L));
     }
 
     @Test
