@@ -3,6 +3,7 @@ package com.syaru.ae2craftingoptimizer.mixin;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
+import appeng.api.stacks.GenericStack;
 import appeng.crafting.CraftingCalculation;
 import appeng.crafting.CraftingTreeNode;
 import appeng.crafting.CraftingTreeProcess;
@@ -37,6 +38,33 @@ public abstract class CraftingTreeCalculationMemoMixin {
             require = 1)
     private java.util.Collection<IPatternDetails> aco$memoizePatternLookup(ICraftingService service, AEKey key) {
         return CraftingCalculationMemo.patterns(job, service, key);
+    }
+
+    @Redirect(
+            method = "buildChildPatterns",
+            at = @At(value = "INVOKE", target = "Lappeng/api/networking/crafting/ICraftingService;getCraftingFor(Lappeng/api/stacks/AEKey;)Ljava/util/Collection;"),
+            require = 1)
+    private java.util.Collection<IPatternDetails> aco$reuseUnmodifiedPatternCandidates(
+            ICraftingService service,
+            AEKey key) {
+        // Issue #167: 候補をpruneせず、AE2が返した同一順序のListだけを一計算内で再利用する。
+        return CraftingCalculationMemo.patternCandidates(job, service, key);
+    }
+
+    @Redirect(
+            method = "findCraftedStack",
+            at = @At(value = "INVOKE", target = "Lappeng/api/crafting/IPatternDetails$IInput;getPossibleInputs()[Lappeng/api/stacks/GenericStack;"),
+            require = 2)
+    private GenericStack[] aco$reuseFindCraftedStackInputs(IPatternDetails.IInput input) {
+        return CraftingCalculationMemo.possibleInputs(input);
+    }
+
+    @Redirect(
+            method = "notRecursive",
+            at = @At(value = "INVOKE", target = "Lappeng/api/crafting/IPatternDetails$IInput;getPossibleInputs()[Lappeng/api/stacks/GenericStack;"),
+            require = 1)
+    private GenericStack[] aco$reuseRecursionCheckInputs(IPatternDetails.IInput input) {
+        return CraftingCalculationMemo.possibleInputs(input);
     }
 
     @Redirect(

@@ -66,8 +66,13 @@ public final class ExactCraftingByteCounter<K> {
             throw new ArithmeticException("crafting bytes are not finite");
         }
         bytes += amount;
-        if (!Double.isFinite(bytes) || bytes >= Long.MAX_VALUE) {
-            throw new ArithmeticException("crafting bytes exceed long range");
+        /*
+         * AE2 15.4.10は最後にdoubleをlongへcastする。JavaのcastはLong.MAX_VALUEを
+         * 越える有限値をLong.MAX_VALUEへ飽和するため、ACOだけが途中で拒否すると
+         * 通常CPUの容量判定を変えてしまう。非有限値だけを内部異常として拒否する。
+         */
+        if (!Double.isFinite(bytes)) {
+            throw new ArithmeticException("crafting bytes are not finite");
         }
     }
 }

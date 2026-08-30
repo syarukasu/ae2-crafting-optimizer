@@ -28,6 +28,29 @@ public final class OptimizationMetrics {
     private static final LongAdder CRAFTING_ENGINE_SHADOW_MISMATCHES = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_SKIPS = new LongAdder();
     private static final LongAdder CRAFTING_ENGINE_SHADOW_OVERFLOWS = new LongAdder();
+    private static final LongAdder ACTIVE_CALCULATION_DEDUP_HITS = new LongAdder();
+    private static final LongAdder ACTIVE_CALCULATION_REGISTRATIONS = new LongAdder();
+    private static final LongAdder ACTIVE_CALCULATION_EVICTIONS = new LongAdder();
+    private static final LongAdder CALCULATION_DEDUP_STALE_REJECTIONS = new LongAdder();
+    private static final LongAdder COMPLETED_PLAN_CACHE_HITS = new LongAdder();
+    private static final LongAdder COMPLETED_PLAN_CACHE_STORES = new LongAdder();
+    private static final LongAdder PLANNING_GRAPH_CAPTURE_HITS = new LongAdder();
+    private static final LongAdder PLANNING_GRAPH_CAPTURE_MISSES = new LongAdder();
+    private static final LongAdder PLANNING_GRAPH_COMPILE_HITS = new LongAdder();
+    private static final LongAdder PLANNING_GRAPH_COMPILE_MISSES = new LongAdder();
+    private static final LongAdder PLANNING_GRAPH_STALE_REJECTIONS = new LongAdder();
+    private static final LongAdder PLANNING_GRAPH_CAPTURE_NANOS = new LongAdder();
+    private static final LongAdder PLANNING_GRAPH_COMPILE_NANOS = new LongAdder();
+    private static final LongAdder PLANNING_CAPTURE_ATTEMPTS = new LongAdder();
+    private static final LongAdder PLANNING_CAPTURE_ACCEPTS = new LongAdder();
+    private static final LongAdder PLANNING_CAPTURE_NANOS = new LongAdder();
+    private static final LongAccumulator PLANNING_CAPTURE_MAX_NANOS =
+            new LongAccumulator(Long::max, 0L);
+    private static final LongAdder AUTHORITATIVE_PLANNER_ATTEMPTS = new LongAdder();
+    private static final LongAdder AUTHORITATIVE_PLANNER_ADOPTIONS = new LongAdder();
+    private static final LongAdder AUTHORITATIVE_PLANNER_NANOS = new LongAdder();
+    private static final LongAccumulator AUTHORITATIVE_PLANNER_MAX_NANOS =
+            new LongAccumulator(Long::max, 0L);
     private static final LongAdder APPLIED_E_PATTERN_FALLBACKS = new LongAdder();
     private static final LongAdder APPLIED_E_DYNAMIC_PROVIDER_REFRESHES = new LongAdder();
     private static final LongAdder APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES = new LongAdder();
@@ -144,6 +167,90 @@ public final class OptimizationMetrics {
 
     public static void recordCraftingEngineShadowOverflow() {
         CRAFTING_ENGINE_SHADOW_OVERFLOWS.increment();
+    }
+
+    public static void recordActiveCalculationDedupHit() {
+        ACTIVE_CALCULATION_DEDUP_HITS.increment();
+    }
+
+    public static void recordActiveCalculationRegistration() {
+        ACTIVE_CALCULATION_REGISTRATIONS.increment();
+    }
+
+    public static void recordActiveCalculationEvictions(int evicted) {
+        // 上限未到達の通常登録では統計加算を行わない。
+        if (evicted <= 0) {
+            return;
+        }
+        ACTIVE_CALCULATION_EVICTIONS.add(evicted);
+    }
+
+    public static void recordCalculationDedupStaleRejection() {
+        CALCULATION_DEDUP_STALE_REJECTIONS.increment();
+    }
+
+    public static void recordCompletedPlanCacheHit() {
+        COMPLETED_PLAN_CACHE_HITS.increment();
+    }
+
+    public static void recordCompletedPlanCacheStore() {
+        COMPLETED_PLAN_CACHE_STORES.increment();
+    }
+
+    public static void recordPlanningGraphCaptureCache(boolean hit) {
+        (hit ? PLANNING_GRAPH_CAPTURE_HITS : PLANNING_GRAPH_CAPTURE_MISSES).increment();
+    }
+
+    public static void recordPlanningGraphCompileCache(boolean hit) {
+        (hit ? PLANNING_GRAPH_COMPILE_HITS : PLANNING_GRAPH_COMPILE_MISSES).increment();
+    }
+
+    public static void recordPlanningGraphStaleRejection() {
+        PLANNING_GRAPH_STALE_REJECTIONS.increment();
+    }
+
+    public static void recordPlanningGraphCaptureNanos(long elapsedNanos) {
+        // 単調時計の負値は測定不能なので統計へ加えない。
+        if (elapsedNanos < 0L) {
+            return;
+        }
+        PLANNING_GRAPH_CAPTURE_NANOS.add(elapsedNanos);
+    }
+
+    public static void recordPlanningGraphCompileNanos(long elapsedNanos) {
+        // 単調時計の負値は測定不能なので統計へ加えない。
+        if (elapsedNanos < 0L) {
+            return;
+        }
+        PLANNING_GRAPH_COMPILE_NANOS.add(elapsedNanos);
+    }
+
+    /** server threadで行うimmutable planning captureの件数と実時間を記録する。 */
+    public static void recordPlanningCapture(boolean accepted, long elapsedNanos) {
+        // 単調時計の負値は測定不能なので統計へ加えない。
+        if (elapsedNanos < 0L) {
+            return;
+        }
+        PLANNING_CAPTURE_ATTEMPTS.increment();
+        if (accepted) {
+            PLANNING_CAPTURE_ACCEPTS.increment();
+        }
+        PLANNING_CAPTURE_NANOS.add(elapsedNanos);
+        PLANNING_CAPTURE_MAX_NANOS.accumulate(elapsedNanos);
+    }
+
+    /** worker上のAuthoritative Planner試行と採用結果を記録する。 */
+    public static void recordAuthoritativePlanner(boolean adopted, long elapsedNanos) {
+        // 単調時計の負値は測定不能なので統計へ加えない。
+        if (elapsedNanos < 0L) {
+            return;
+        }
+        AUTHORITATIVE_PLANNER_ATTEMPTS.increment();
+        if (adopted) {
+            AUTHORITATIVE_PLANNER_ADOPTIONS.increment();
+        }
+        AUTHORITATIVE_PLANNER_NANOS.add(elapsedNanos);
+        AUTHORITATIVE_PLANNER_MAX_NANOS.accumulate(elapsedNanos);
     }
 
     public static void recordAppliedEPatternFallback() {
@@ -349,6 +456,27 @@ public final class OptimizationMetrics {
                         + " match(es), " + CRAFTING_ENGINE_SHADOW_MISMATCHES.sum()
                         + " mismatch(es), " + CRAFTING_ENGINE_SHADOW_SKIPS.sum()
                         + " skip(s), " + CRAFTING_ENGINE_SHADOW_OVERFLOWS.sum() + " overflow(s)",
+                "Crafting calculation reuse: " + ACTIVE_CALCULATION_DEDUP_HITS.sum()
+                        + " in-flight hit(s)/" + ACTIVE_CALCULATION_REGISTRATIONS.sum()
+                        + " registration(s), " + ACTIVE_CALCULATION_EVICTIONS.sum()
+                        + " index eviction(s), completed " + COMPLETED_PLAN_CACHE_HITS.sum()
+                        + " hit(s)/" + COMPLETED_PLAN_CACHE_STORES.sum() + " store(s), "
+                        + CALCULATION_DEDUP_STALE_REJECTIONS.sum() + " stale rejection(s)",
+                "Immutable planning graph: capture " + PLANNING_GRAPH_CAPTURE_HITS.sum()
+                        + " hit(s)/" + PLANNING_GRAPH_CAPTURE_MISSES.sum() + " miss(es), compile "
+                        + PLANNING_GRAPH_COMPILE_HITS.sum() + " hit(s)/"
+                        + PLANNING_GRAPH_COMPILE_MISSES.sum() + " miss(es), "
+                        + PLANNING_GRAPH_STALE_REJECTIONS.sum() + " stale rejection(s), capture "
+                        + (PLANNING_GRAPH_CAPTURE_NANOS.sum() / 1_000L) + " us total, compile "
+                        + (PLANNING_GRAPH_COMPILE_NANOS.sum() / 1_000L) + " us total",
+                "Planning boundary: immutable capture " + PLANNING_CAPTURE_ACCEPTS.sum()
+                        + "/" + PLANNING_CAPTURE_ATTEMPTS.sum() + " accepted, total/max "
+                        + (PLANNING_CAPTURE_NANOS.sum() / 1_000L) + "/"
+                        + (PLANNING_CAPTURE_MAX_NANOS.get() / 1_000L) + " us; authoritative planner "
+                        + AUTHORITATIVE_PLANNER_ADOPTIONS.sum() + "/"
+                        + AUTHORITATIVE_PLANNER_ATTEMPTS.sum() + " adopted, total/max "
+                        + (AUTHORITATIVE_PLANNER_NANOS.sum() / 1_000L) + "/"
+                        + (AUTHORITATIVE_PLANNER_MAX_NANOS.get() / 1_000L) + " us",
                 "AppliedE compatibility: " + APPLIED_E_PATTERN_FALLBACKS.sum()
                         + " dynamic pattern fallback(s), " + APPLIED_E_DYNAMIC_PROVIDER_REFRESHES.sum()
                         + " provider refresh(es) preserved, " + APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES.sum()
@@ -451,6 +579,27 @@ public final class OptimizationMetrics {
         CRAFTING_ENGINE_SHADOW_MISMATCHES.reset();
         CRAFTING_ENGINE_SHADOW_SKIPS.reset();
         CRAFTING_ENGINE_SHADOW_OVERFLOWS.reset();
+        ACTIVE_CALCULATION_DEDUP_HITS.reset();
+        ACTIVE_CALCULATION_REGISTRATIONS.reset();
+        ACTIVE_CALCULATION_EVICTIONS.reset();
+        CALCULATION_DEDUP_STALE_REJECTIONS.reset();
+        COMPLETED_PLAN_CACHE_HITS.reset();
+        COMPLETED_PLAN_CACHE_STORES.reset();
+        PLANNING_GRAPH_CAPTURE_HITS.reset();
+        PLANNING_GRAPH_CAPTURE_MISSES.reset();
+        PLANNING_GRAPH_COMPILE_HITS.reset();
+        PLANNING_GRAPH_COMPILE_MISSES.reset();
+        PLANNING_GRAPH_STALE_REJECTIONS.reset();
+        PLANNING_GRAPH_CAPTURE_NANOS.reset();
+        PLANNING_GRAPH_COMPILE_NANOS.reset();
+        PLANNING_CAPTURE_ATTEMPTS.reset();
+        PLANNING_CAPTURE_ACCEPTS.reset();
+        PLANNING_CAPTURE_NANOS.reset();
+        PLANNING_CAPTURE_MAX_NANOS.reset();
+        AUTHORITATIVE_PLANNER_ATTEMPTS.reset();
+        AUTHORITATIVE_PLANNER_ADOPTIONS.reset();
+        AUTHORITATIVE_PLANNER_NANOS.reset();
+        AUTHORITATIVE_PLANNER_MAX_NANOS.reset();
         APPLIED_E_PATTERN_FALLBACKS.reset();
         APPLIED_E_DYNAMIC_PROVIDER_REFRESHES.reset();
         APPLIED_E_COMPLETED_PLAN_CACHE_BYPASSES.reset();

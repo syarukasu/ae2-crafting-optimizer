@@ -5,6 +5,7 @@ import com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusInbox;
 import com.syaru.ae2craftingoptimizer.batch.PatternTaskFingerprint;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
+import com.syaru.ae2craftingoptimizer.engine.Ae2ImmutablePlanningGraphCache;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
@@ -16,6 +17,7 @@ import com.syaru.ae2craftingoptimizer.optimization.Ae2OverclockUpgradeCountCache
 import com.syaru.ae2craftingoptimizer.optimization.AssemblerMatrixBusyCountCache;
 import com.syaru.ae2craftingoptimizer.optimization.CircuitCutterRecipeCache;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget;
+import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDeduplicator;
 import com.syaru.ae2craftingoptimizer.optimization.MethodHandleInvocationCache;
 import com.syaru.ae2craftingoptimizer.optimization.TransactionalBatchTargetGuard;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
@@ -93,8 +95,12 @@ public final class ACOServerLifecycle {
         if (event.getPlayer() != null) {
             return;
         }
-        clearReloadSensitiveState("server data reload");
+        /*
+         * Issue #167: workerが旧recipe世代を現行と判定できないよう、cache掃除より先に
+         * revisionを公開する。掃除中に完了した旧計画も結果適用前の世代検証で破棄される。
+         */
         RecipeGenerationTracker.invalidate();
+        clearReloadSensitiveState("server data reload");
         BigCraftingStatusInbox.clear();
         BatchTransactionRecovery.clearRuntimeState();
     }
@@ -132,12 +138,15 @@ public final class ACOServerLifecycle {
     }
 
     private static void clearReloadSensitiveState(String reason) {
+        // lifecycle境界では索引だけを破棄し、計算本体やcaller所有Futureをcancelしない。
+        CraftingCalculationDeduplicator.clear(reason);
         RecipeIntentRegistry.clear(reason);
         GTCEuRecipeIntentFastPath.clearIndexes(reason);
         MekanismRecipeIntentFastPath.clearIndexes(reason);
         CircuitCutterRecipeCache.clear();
         ProviderPatternGenerationTracker.clear();
         Ae2CompiledCraftingGraphCache.clear();
+        Ae2ImmutablePlanningGraphCache.clear();
         PatternTaskFingerprint.clear();
         PatternProviderRoutingCache.clear();
         TransactionalExactPatternCache.clear();

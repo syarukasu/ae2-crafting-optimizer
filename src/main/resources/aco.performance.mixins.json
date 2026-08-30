@@ -6,12 +6,11 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "CraftingCalculationMemoLifecycleMixin",
+    "CraftingCpuHelperCalculationMemoMixin",
     "CraftingCpuLogicExecutionBudgetMixin",
     "CraftingProviderRefreshCoalescingMixin",
     "CraftingServiceCalculationDeduplicationMixin",
     "CraftingServiceInvalidationMixin",
-    "CraftingServicePatternLookupCacheMixin",
-    "CraftingTreeCandidatePruningMixin",
     "CraftingTreeCalculationMemoMixin",
     "PatternProviderLogicIntentCaptureMixin"
   ],

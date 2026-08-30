@@ -1189,6 +1189,36 @@ public final class CompiledRootProgram<K> {
                 - alternativeOffsets[slot];
     }
 
+    /**
+     * CPU bytesをAE2の展開木と同じ式で数えられる、単一候補かつ木構造の入力domainかを返す。
+     * 同じ中間キーを複数slotから参照するDAGは数量計画には使えるが、固有ノード単位の
+     * 実行回数を各枝で再帰展開するとbytesを二重計上するため、exact結果の採用対象にしない。
+     */
+    boolean hasUniqueInputOccurrencePerKey() {
+        boolean[] referenced = new boolean[keys.size()];
+        // 全入力slotを一巡し、各キーが展開木へ一度だけ現れることを証明する。
+        for (int node = 0; node < keys.size(); node++) {
+            int firstSlot = inputOffsets[node];
+            int lastSlot = inputOffsets[node + 1];
+            // 同じPattern内の重複slotも、別Patternからの共有参照と同様に拒否する。
+            for (int slot = firstSlot; slot < lastSlot; slot++) {
+                int firstAlternative = alternativeOffsets[slot];
+                int alternativeCount = alternativeOffsets[slot + 1] - firstAlternative;
+                // AE2の候補選択が必要なslotはexact単一路線として証明できない。
+                if (alternativeCount != 1) {
+                    return false;
+                }
+                int child = inputIndices[firstAlternative];
+                // 二回目の参照は共有DAGであり、現在のbytes式では展開回数を証明できない。
+                if (referenced[child]) {
+                    return false;
+                }
+                referenced[child] = true;
+            }
+        }
+        return true;
+    }
+
     public K inputAlternativeKeyAt(
             int node,
             int input,
