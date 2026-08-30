@@ -147,7 +147,7 @@ class Issue167PlannerSnapshotBoundaryTest {
         assertFalse(capture.contains("toTagGeneric()"));
         assertFalse(capture.contains("StableFingerprint.sha256"));
         assertFalse(capture.contains("StringBuilder"));
-        assertTrue(fingerprint.contains("toTagGeneric()"));
+        assertTrue(fingerprint.contains("toTagGeneric(registryAccess)"));
         assertTrue(fingerprint.contains("StableFingerprint.sha256"));
     }
 

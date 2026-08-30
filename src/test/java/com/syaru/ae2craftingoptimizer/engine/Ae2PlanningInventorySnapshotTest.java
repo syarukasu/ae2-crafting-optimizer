@@ -7,8 +7,9 @@ import appeng.api.stacks.AEKeyType;
 import appeng.api.stacks.KeyCounter;
 import java.util.List;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -42,7 +43,7 @@ class Ae2PlanningInventorySnapshotTest {
         private final ResourceLocation id;
 
         private TestKey(String path) {
-            id = new ResourceLocation("ae2_crafting_optimizer", path);
+            id = ResourceLocation.fromNamespaceAndPath("ae2_crafting_optimizer", path);
         }
 
         @Override
@@ -56,7 +57,7 @@ class Ae2PlanningInventorySnapshotTest {
         }
 
         @Override
-        public CompoundTag toTag() {
+        public CompoundTag toTag(HolderLookup.Provider registries) {
             return new CompoundTag();
         }
 
@@ -71,7 +72,7 @@ class Ae2PlanningInventorySnapshotTest {
         }
 
         @Override
-        public void writeToPacket(FriendlyByteBuf buffer) {
+        public void writeToPacket(RegistryFriendlyByteBuf buffer) {
             // Packetを使わない在庫Snapshot単体試験である。
         }
 
@@ -83,6 +84,11 @@ class Ae2PlanningInventorySnapshotTest {
         @Override
         public void addDrops(long amount, List<ItemStack> drops, Level level, BlockPos pos) {
             // ワールド内ドロップを作らない在庫Snapshot単体試験である。
+        }
+
+        @Override
+        public boolean hasComponents() {
+            return false;
         }
     }
 }

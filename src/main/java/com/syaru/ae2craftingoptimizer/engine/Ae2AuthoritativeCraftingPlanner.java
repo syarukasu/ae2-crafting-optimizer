@@ -1091,13 +1091,19 @@ public final class Ae2AuthoritativeCraftingPlanner {
 
     private static boolean normalLongReplacementEnabled() {
         return normalLongReplacementEnabled(
+                ACOConfig.enableCompiledCraftingGraph(),
                 ACOConfig.enableAuthoritativeCompiledPlanner(),
                 ACOConfig.enableProofQualifiedLongPlans());
     }
 
     static boolean normalLongReplacementEnabled(
+            boolean compiledGraphEnabled,
             boolean authoritativePlannerEnabled,
             boolean proofQualifiedLongPlansEnabled) {
+        // compiled graphがOFFなら、下位の置換設定が残っていても通常long計画へ介入しない。
+        if (!compiledGraphEnabled) {
+            return false;
+        }
         // 厳密証明を通過した二つの採用経路だけが、通常long計画を置換できる。
         return authoritativePlannerEnabled || proofQualifiedLongPlansEnabled;
     }
