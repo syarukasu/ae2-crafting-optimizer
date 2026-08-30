@@ -19,10 +19,10 @@ final class ACOStartupReport {
     static void logActiveConfiguration() {
         AE2CraftingOptimizer.LOGGER.info("ACO active: {}", ACOConfig.enableOptimizer());
         AE2CraftingOptimizer.LOGGER.info(
-                "ACO planning core: deduplicate {}, completed cache {}, pattern cache {}, compiled graph {}, shadow {}",
+                "ACO planning core: deduplicate {}, completed cache {}, calculation-local memo {}, compiled graph {}, shadow {}",
                 ACOConfig.deduplicateActiveCraftingCalculations(),
                 ACOConfig.cacheCompletedCraftingPlans(),
-                ACOConfig.cachePatternLookups(),
+                ACOConfig.memoizeCraftingCalculationQueries(),
                 ACOConfig.enableCompiledCraftingGraph(),
                 ACOConfig.enableCraftingEngineShadowMode());
         AE2CraftingOptimizer.LOGGER.info(

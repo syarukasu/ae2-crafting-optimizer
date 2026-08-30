@@ -29,6 +29,8 @@ public final class ACOConfig {
     private static final int MAXIMUM_BOUNDED_ENTRIES = 1_048_576;
     /** Authoritative採用前に同一世代のRoot Programへ要求するShadow一致数。 */
     private static final int DEFAULT_AUTHORITATIVE_SHADOW_MATCHES = 64;
+    /** 一networkで共有索引へ残す実行中計算数。超過時も計算本体はcancelしない。 */
+    private static final int DEFAULT_ACTIVE_CALCULATION_MAXIMUM_ENTRIES = 4096;
     /** 設定ミスで永久に採用されない状態を作らないための一致数上限。 */
     private static final int MAXIMUM_AUTHORITATIVE_SHADOW_MATCHES = 1_048_576;
     /** MiB設定をbyteへ変換する二進単位。 */
@@ -45,15 +47,12 @@ public final class ACOConfig {
 
     private static final ForgeConfigSpec.BooleanValue DEDUPLICATE_ACTIVE_CRAFTING_CALCULATIONS;
     private static final ForgeConfigSpec.IntValue ACTIVE_CALCULATION_DEDUPLICATION_WINDOW_TICKS;
+    private static final ForgeConfigSpec.IntValue ACTIVE_CALCULATION_DEDUPLICATION_MAXIMUM_ENTRIES;
     private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_CALCULATION_DEDUPLICATION;
     private static final ForgeConfigSpec.BooleanValue CACHE_COMPLETED_CRAFTING_PLANS;
     private static final ForgeConfigSpec.BooleanValue CACHE_SUCCESSFUL_COMPLETED_CRAFTING_PLANS;
     private static final ForgeConfigSpec.IntValue COMPLETED_CRAFTING_PLAN_CACHE_SIZE;
     private static final ForgeConfigSpec.IntValue COMPLETED_CRAFTING_PLAN_CACHE_TTL_TICKS;
-    private static final ForgeConfigSpec.BooleanValue CACHE_PATTERN_LOOKUPS;
-    private static final ForgeConfigSpec.IntValue PATTERN_LOOKUP_CACHE_SIZE;
-    private static final ForgeConfigSpec.BooleanValue LOG_PATTERN_LOOKUP_CACHE;
-    private static final ForgeConfigSpec.BooleanValue PRUNE_INVALID_CRAFTING_CANDIDATES;
     private static final ForgeConfigSpec.BooleanValue MEMOIZE_CRAFTING_CALCULATION_QUERIES;
     private static final ForgeConfigSpec.BooleanValue COALESCE_CRAFTING_PROVIDER_REFRESHES;
     private static final ForgeConfigSpec.BooleanValue TRACK_PROVIDER_PATTERN_GENERATIONS;
@@ -128,7 +127,6 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.BooleanValue ENABLE_CHECKED_AE2_CRAFTING_ARITHMETIC;
     private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_CRAFTING_BACKEND;
     private static final ForgeConfigSpec.BooleanValue ENABLE_EXACT_BIG_INTEGER_INVENTORY_SNAPSHOTS;
-    private static final ForgeConfigSpec.BooleanValue RETRY_INCOMPLETE_CRAFTING_GRAPH_SNAPSHOT;
     private static final ForgeConfigSpec.BooleanValue LOG_WIDE_PLAN_SUBMISSION_DECLINES;
     private static final ForgeConfigSpec.BooleanValue ENABLE_ATOMIC_BIG_CAPACITY_PLANS;
     private static final ForgeConfigSpec.BooleanValue ENABLE_BIG_INTEGER_GAMEPLAY_EXECUTION;
@@ -187,6 +185,13 @@ public final class ACOConfig {
         ACTIVE_CALCULATION_DEDUPLICATION_WINDOW_TICKS = builder
                 .comment("Maximum age of a reusable running calculation, in ticks.")
                 .defineInRange("activeCalculationWindowTicks", 200, 1, TICKS_PER_SECOND * 60);
+        ACTIVE_CALCULATION_DEDUPLICATION_MAXIMUM_ENTRIES = builder
+                .comment("Maximum in-flight calculations indexed per AE2 crafting service. Eviction never cancels the calculation.")
+                .defineInRange(
+                        "activeCalculationMaximumEntries",
+                        DEFAULT_ACTIVE_CALCULATION_MAXIMUM_ENTRIES,
+                        1,
+                        MAXIMUM_BOUNDED_ENTRIES);
         LOG_CRAFTING_CALCULATION_DEDUPLICATION = builder
                 .comment("Log calculation single-flight hits. Disabled to avoid normal-operation spam.")
                 .define("logCalculationDeduplication", false);
@@ -202,18 +207,6 @@ public final class ACOConfig {
         COMPLETED_CRAFTING_PLAN_CACHE_TTL_TICKS = builder
                 .comment("Completed-plan cache lifetime in ticks.")
                 .defineInRange("completedPlanCacheTtlTicks", 40, 1, TICKS_PER_SECOND * 60);
-        CACHE_PATTERN_LOOKUPS = builder
-                .comment("Cache CraftingService pattern lookups in AE2 order until provider generation changes.")
-                .define("cachePatternLookups", true);
-        PATTERN_LOOKUP_CACHE_SIZE = builder
-                .comment("Maximum number of output-to-pattern lookup entries.")
-                .defineInRange("patternLookupCacheSize", 8192, 0, MAXIMUM_BOUNDED_ENTRIES);
-        LOG_PATTERN_LOOKUP_CACHE = builder
-                .comment("Log lookup-cache hits and clears.")
-                .define("logPatternLookupCache", false);
-        PRUNE_INVALID_CRAFTING_CANDIDATES = builder
-                .comment("Remove only null, identity-duplicate, or structurally invalid candidates without reordering AE2 choices.")
-                .define("pruneInvalidCandidates", true);
         MEMOIZE_CRAFTING_CALCULATION_QUERIES = builder
                 .comment("Memoize calculation-invariant queries only inside one crafting calculation.")
                 .define("memoizeCalculationQueries", true);
@@ -257,9 +250,6 @@ public final class ACOConfig {
         REQUIRE_WIDE_PLAN_SHADOW_QUALIFICATION = builder
                 .comment("Require prior matching long-range Shadow evidence before accepting a proven wide plan.")
                 .define("requireWidePlanShadowQualification", false);
-        RETRY_INCOMPLETE_CRAFTING_GRAPH_SNAPSHOT = builder
-                .comment("Rebuild once only when the captured graph is proven incomplete; structural failures are not retried.")
-                .define("retryIncompleteGraphSnapshot", true);
         builder.pop();
 
         builder.push("craftingExecution");
@@ -545,6 +535,7 @@ public final class ACOConfig {
     }
 
     public static int getActiveCalculationDeduplicationWindowTicks() { return ACTIVE_CALCULATION_DEDUPLICATION_WINDOW_TICKS.get(); }
+    public static int getActiveCalculationDeduplicationMaximumEntries() { return ACTIVE_CALCULATION_DEDUPLICATION_MAXIMUM_ENTRIES.get(); }
     public static boolean logCraftingCalculationDeduplication() { return enableOptimizer() && LOG_CRAFTING_CALCULATION_DEDUPLICATION.get(); }
 
     public static boolean cacheCompletedCraftingPlans() {
@@ -556,14 +547,6 @@ public final class ACOConfig {
     public static int getCompletedCraftingPlanCacheSize() { return COMPLETED_CRAFTING_PLAN_CACHE_SIZE.get(); }
     public static int getCompletedCraftingPlanCacheTtlTicks() { return COMPLETED_CRAFTING_PLAN_CACHE_TTL_TICKS.get(); }
 
-    public static boolean cachePatternLookups() {
-        return OptimizationFeatureGate.allows(OptimizationFeature.PATTERN_LOOKUP_CACHE, CACHE_PATTERN_LOOKUPS.get())
-                && getPatternLookupCacheSize() > 0;
-    }
-
-    public static int getPatternLookupCacheSize() { return PATTERN_LOOKUP_CACHE_SIZE.get(); }
-    public static boolean logPatternLookupCache() { return enableOptimizer() && LOG_PATTERN_LOOKUP_CACHE.get(); }
-    public static boolean pruneInvalidCraftingCandidates() { return OptimizationFeatureGate.allows(OptimizationFeature.CANDIDATE_PRUNING, PRUNE_INVALID_CRAFTING_CANDIDATES.get()); }
     public static boolean memoizeCraftingCalculationQueries() { return OptimizationFeatureGate.allows(OptimizationFeature.CRAFTING_QUERY_MEMOIZATION, MEMOIZE_CRAFTING_CALCULATION_QUERIES.get()); }
     public static boolean coalesceCraftingProviderRefreshes() { return OptimizationFeatureGate.allows(OptimizationFeature.PROVIDER_REFRESH_COALESCING, COALESCE_CRAFTING_PROVIDER_REFRESHES.get()); }
     public static boolean trackProviderPatternGenerations() { return OptimizationFeatureGate.allows(OptimizationFeature.PROVIDER_GENERATION_TRACKING, TRACK_PROVIDER_PATTERN_GENERATIONS.get()); }
@@ -590,8 +573,6 @@ public final class ACOConfig {
     public static int getCraftingEngineShadowMaximumPatterns() { return CRAFTING_ENGINE_SHADOW_MAXIMUM_PATTERNS.get(); }
     public static int getAuthoritativeMinimumShadowMatches() { return AUTHORITATIVE_MINIMUM_SHADOW_MATCHES.get(); }
     public static boolean requireWidePlanShadowQualification() { return REQUIRE_WIDE_PLAN_SHADOW_QUALIFICATION.get(); }
-    public static boolean retryIncompleteCraftingGraphSnapshot() { return enableCompiledCraftingGraph() && RETRY_INCOMPLETE_CRAFTING_GRAPH_SNAPSHOT.get(); }
-
     public static boolean throttleCraftingExecution() { return OptimizationFeatureGate.allows(OptimizationFeature.CRAFTING_EXECUTION_BUDGET, THROTTLE_CRAFTING_EXECUTION.get()); }
     public static int getMaxEffectiveCoprocessorsPerCpu() { return MAX_EFFECTIVE_COPROCESSORS_PER_CPU.get(); }
     public static boolean adaptiveCraftingExecutionBudget() { return throttleCraftingExecution() && ADAPTIVE_CRAFTING_EXECUTION_BUDGET.get(); }
