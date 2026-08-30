@@ -130,7 +130,7 @@ workerはlive Grid、Level、BlockEntity、AE2 serviceを読まない。stale結
 
 ## 完了
 
-- PR:
-- マージコミット:
-- 修正版:
-- リリース:
+- PR: Forge 1.20.1 #168 / NeoForge 1.21.1 #169（Draft）
+- マージコミット: 未マージ
+- 修正版: Draft検証ブランチ
+- リリース: 未リリース
