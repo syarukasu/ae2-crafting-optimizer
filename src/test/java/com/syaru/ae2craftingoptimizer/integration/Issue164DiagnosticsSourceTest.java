@@ -27,7 +27,8 @@ class Issue164DiagnosticsSourceTest {
         assertTrue(calculation.contains("ACO-DIAG event=planning_slow"));
         assertTrue(decline.contains("ACO-DIAG event=planning_declined"));
         assertTrue(graph.contains("ACO-DIAG event=graph_compiled"));
-        assertTrue(graph.contains("ACO-DIAG event=graph_recompiled"));
+        assertTrue(graph.contains("configurationRevision={}"));
+        assertFalse(graph.contains("ACO-DIAG event=graph_recompiled"));
     }
 
     @Test

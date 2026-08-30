@@ -60,22 +60,6 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
     }
 
     @Test
-    void retriesOnlySnapshotShapedRootProgramFailures() {
-        assertTrue(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
-                RootProgramFailure.INCOMPLETE_PATTERN_SNAPSHOT,
-                true));
-        assertFalse(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
-                RootProgramFailure.MULTIPLE_PRODUCERS,
-                true));
-        assertFalse(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
-                RootProgramFailure.CYCLE,
-                true));
-        assertFalse(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
-                RootProgramFailure.MISSING_FROM_SNAPSHOT,
-                false));
-    }
-
-    @Test
     void honorsWidePlanShadowRequirement() {
         assertFalse(Ae2AuthoritativeCraftingPlanner.isQualifiedForReplacement(
                 false,
@@ -90,22 +74,10 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
     }
 
     @Test
-    void retriesTheFirstStaleSnapshot() {
-        assertEquals(
-                Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.RETRY,
-                Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
-                        true,
-                        false,
-                        false));
-    }
-
-    @Test
-    void doesNotRebindALongSafetyCertificateToANewGeneration() {
+    void ordinaryStaleSnapshotFallsBackWithoutRelabelingInventory() {
         assertEquals(
                 Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.FALLBACK_TO_AE2,
                 Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
-                        true,
-                        false,
                         false,
                         false));
     }
@@ -126,7 +98,6 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
                 Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.FALLBACK_TO_AE2,
                 Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
                         false,
-                        false,
                         false));
     }
 
@@ -136,7 +107,6 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
                 Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.REJECT_WIDE,
                 Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
                         false,
-                        false,
                         true));
     }
 
@@ -145,7 +115,6 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
         assertEquals(
                 Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.CANCEL,
                 Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
-                        true,
                         true,
                         false));
     }

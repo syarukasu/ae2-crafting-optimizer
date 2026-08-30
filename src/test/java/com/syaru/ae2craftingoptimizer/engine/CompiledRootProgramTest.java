@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -200,6 +201,40 @@ class CompiledRootProgramTest {
                         "a",
                         ignored -> false)
                 .isEmpty());
+    }
+
+    @Test
+    void provesOnlyTreeShapedSingleOccurrenceInputsForExactByteAccounting() {
+        var tree = compile(List.of(
+                pattern("root", "middle", 2L, "output", 1L),
+                pattern("middle", "raw", 3L, "middle", 1L)), "output");
+        assertTrue(tree.hasUniqueInputOccurrencePerKey());
+
+        var left = new CompiledPattern<>(
+                "left",
+                List.of(slot("shared", 1L)),
+                Map.of("left-output", 1L),
+                false);
+        var right = new CompiledPattern<>(
+                "right",
+                List.of(slot("shared", 1L)),
+                Map.of("right-output", 1L),
+                false);
+        var root = new CompiledPattern<>(
+                "root",
+                List.of(slot("left-output", 1L), slot("right-output", 1L)),
+                Map.of("output", 1L),
+                false);
+        var sharedDag = compile(List.of(root, left, right), "output");
+        assertFalse(sharedDag.hasUniqueInputOccurrencePerKey());
+
+        var duplicateSlots = new CompiledPattern<>(
+                "duplicate-slots",
+                List.of(slot("raw", 1L), slot("raw", 1L)),
+                Map.of("output", 1L),
+                false);
+        assertFalse(compile(List.of(duplicateSlots), "output")
+                .hasUniqueInputOccurrencePerKey());
     }
 
     @Test

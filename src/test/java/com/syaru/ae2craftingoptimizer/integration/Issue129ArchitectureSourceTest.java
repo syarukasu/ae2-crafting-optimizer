@@ -26,7 +26,7 @@ class Issue129ArchitectureSourceTest {
         assertTrue(source.contains("OptimizationFeature.EXACT_VECTOR_CRAFTING"));
         assertTrue(source.contains("OptimizationFeature.CRAFTING_EXECUTION_BUDGET"));
         assertTrue(source.contains("OptimizationFeature.CRAFTING_QUERY_MEMOIZATION"));
-        assertTrue(source.contains("OptimizationFeature.PATTERN_LOOKUP_CACHE"));
+        assertFalse(source.contains("OptimizationFeature.PATTERN_LOOKUP_CACHE"));
     }
 
     @Test
