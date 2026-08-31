@@ -5,6 +5,7 @@ import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.networking.IGrid;
 import appeng.api.networking.security.IActionSource;
+import appeng.api.networking.storage.IStorageService;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
@@ -52,6 +53,14 @@ public abstract class CraftingCalculationDiagnosticsMixin {
     @Final
     private NetworkCraftingSimulationState networkInv;
 
+    @Shadow
+    @Final
+    private Level level;
+
+    @Shadow
+    @Final
+    private ICraftingSimulationRequester simRequester;
+
     @Unique
     private long aco$calculationStartedAt;
 
@@ -97,14 +106,14 @@ public abstract class CraftingCalculationDiagnosticsMixin {
     @Unique
     private boolean aco$usesDedupFrame;
 
-    @Inject(method = "<init>", at = @At("HEAD"))
-    private void aco$captureStorageGenerationBeforeSnapshot(
-            Level level,
-            IGrid grid,
-            ICraftingSimulationRequester requester,
-            GenericStack output,
-            CalculationStrategy strategy,
-            CallbackInfo ci) {
+    @Redirect(
+            method = "<init>",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lappeng/api/networking/IGrid;getStorageService()Lappeng/api/networking/storage/IStorageService;"),
+            require = 1)
+    private IStorageService aco$captureStorageGenerationBeforeSnapshot(IGrid grid) {
+        IStorageService storageService = grid.getStorageService();
         boolean decisionFlowLogging = ACOConfig.logCraftingDecisionFlow();
         // 診断OFFでは、全クラフト計算で共有Atomic IDを更新しない。
         aco$calculationId = decisionFlowLogging
@@ -113,7 +122,7 @@ public abstract class CraftingCalculationDiagnosticsMixin {
         aco$gridIdentity = decisionFlowLogging
                 ? System.identityHashCode(grid)
                 : 0;
-        aco$usesDedupFrame = CraftingCalculationSnapshotContext.matches(requester);
+        aco$usesDedupFrame = CraftingCalculationSnapshotContext.matches(simRequester);
         aco$capturePlanningRevision = aco$usesDedupFrame
                 || Ae2AuthoritativeCraftingPlanner.planningEnabled()
                 || ACOConfig.enableCraftingEngineShadowMode();
@@ -122,10 +131,9 @@ public abstract class CraftingCalculationDiagnosticsMixin {
          * live Gridを追加走査しない。AE2標準constructorの責務は変更しない。
          */
         if (!aco$capturePlanningRevision
-                || grid == null
                 || !ServerPlanningThreadGuard.canCapture(level)) {
             aco$capturePlanningRevision = false;
-            return;
+            return storageService;
         }
         // Config変更をstorage/pattern/recipe captureの前後で検出する基準を先に固定する。
         aco$configurationRevision = PlanningConfigurationRevisionTracker.current();
@@ -133,6 +141,7 @@ public abstract class CraftingCalculationDiagnosticsMixin {
         aco$storageRevision = StorageRevisionTracker.refreshAndCapture(grid);
         aco$patternGeneration = ProviderPatternGenerationTracker.generation();
         aco$recipeGeneration = RecipeGenerationTracker.generation();
+        return storageService;
     }
 
     @Inject(method = "<init>", at = @At("RETURN"))
