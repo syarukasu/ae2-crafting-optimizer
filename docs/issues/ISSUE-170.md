@@ -53,3 +53,10 @@ revisionを証明できない要求だけactive calculation deduplicationを使�
 - `clean build --no-build-cache`成功。
 - `verifyIssueRegressionManifest`成功。
 - `git diff --check`成功。
+
+## 完了
+
+- PR: #171
+- マージコミット: `96bf480a7c14f4b09267b58d997d1e39283c12a7`
+- 修正版: 1.5.32
+- リリース: 未リリース
