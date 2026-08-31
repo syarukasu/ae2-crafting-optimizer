@@ -247,10 +247,11 @@ class WideArithmeticPreflightTest {
     }
 
     @Test
-    void longSafetyCertificateNeverHidesAnExactWidePlan() {
-        // 固定seedで200通りの分岐・合流DAGを生成し、証明器にfalse negativeが無いことを検証する。
+    void strictTreeLongSafetyCertificateNeverHidesAnExactWidePlan() {
+        // 固定seedで200通り生成し、Strict Topology採用領域でfalse negativeが無いことを検証する。
         Random random = new Random(0xA_C0_156L);
         int certifiedSamples = 0;
+        int unsupportedSamples = 0;
         for (int sample = 0; sample < 200; sample++) {
             int depth = 1 + random.nextInt(8);
             List<CompiledPattern<String>> patterns = new ArrayList<>();
@@ -286,6 +287,11 @@ class WideArithmeticPreflightTest {
                             root,
                             Set.of()::contains)
                     .orElseThrow();
+            // 合流DAG・代替候補は正確なAE2 byte式を証明できず、本番では証明器作成前にAE2へ返す。
+            if (!program.hasUniqueInputOccurrencePerKey()) {
+                unsupportedSamples++;
+                continue;
+            }
             BigInteger request = BigInteger.valueOf(1L + random.nextLong(1_000_000_000L));
             WideArithmeticPreflight.LongSafetyCertificate<String> certificate =
                     WideArithmeticPreflight.longSafetyCertificate(program, ignored -> 8L, 1_024);
@@ -303,7 +309,8 @@ class WideArithmeticPreflightTest {
                         "certificate hid a wide plan at sample " + sample);
             }
         }
-        assertTrue(certifiedSamples > 0, "fixed-seed DAG set must exercise the safe certificate path");
+        assertTrue(certifiedSamples > 0, "fixed-seed trees must exercise the safe certificate path");
+        assertTrue(unsupportedSamples > 0, "fixed-seed set must also exercise the AE2 fallback domain");
     }
 
     @Test

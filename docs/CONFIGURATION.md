@@ -32,11 +32,21 @@ The active planning settings control:
 
 - running-calculation deduplication;
 - short-lived completed simulation-plan caching;
-- generation-keyed pattern lookup caching;
-- structural candidate pruning and per-calculation memoization;
+- root-reachable immutable graph capture and generation-keyed compiled programs;
+- per-calculation memoization that preserves AE2's complete candidate list and order;
 - provider refresh coalescing and generation tracking;
 - long root amounts, compiled graphs, checked arithmetic, strict authoritative planning;
-- Shadow comparison and bounded incomplete-snapshot retry.
+- Shadow comparison against AE2's authoritative result.
+
+ACO does not prune, reorder, or replay AE2's global Pattern candidate list. Issue #167 removed the
+old global Pattern lookup cache and structural candidate pruning because they could publish a stale
+list under a new generation or alter AE2 recipe selection. A stale ordinary request returns to AE2
+before ACO owns the plan; an exact wide request fails with its original diagnostic instead of
+silently entering an overflowing long path.
+
+The in-flight calculation index is bounded per AE2 crafting service by
+`activeCalculationMaximumEntries` (default `4096`). Eviction removes only ACO's lookup entry; it
+does not cancel the AE2 calculation or any caller-owned Future.
 
 Successful completed-plan caching remains disabled by default. It must never reuse a plan after a
 storage or provider generation change.
@@ -90,6 +100,10 @@ collections, or every decimal digit of huge `BigInteger` values. Disabling it ch
 diagnostic output and never changes planning, ownership, accounting, or fallback decisions.
 The former `logBigIntegerPlanDeclines` key was removed; its narrower output is covered by this
 single structured diagnostic contract.
+
+`/aco stats` reports immutable capture time separately from worker-side authoritative Planner time.
+When decision-flow logging is disabled, ACO does not allocate correlation IDs for each calculation;
+metrics remain bounded counters and do not serialize inventories or complete BigInteger values.
 
 ## Removed settings
 

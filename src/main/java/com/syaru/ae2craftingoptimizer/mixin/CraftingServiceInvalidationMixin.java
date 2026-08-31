@@ -2,9 +2,7 @@ package com.syaru.ae2craftingoptimizer.mixin;
 
 import appeng.api.networking.IGridNode;
 import appeng.me.service.CraftingService;
-import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDeduplicator;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget;
-import com.syaru.ae2craftingoptimizer.optimization.PatternLookupCache;
 import net.minecraft.nbt.CompoundTag;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -29,8 +27,10 @@ public abstract class CraftingServiceInvalidationMixin {
     }
 
     private static void ae2CraftingOptimizer$clearAdaptiveBudget(String reason) {
-        CraftingCalculationDeduplicator.clear(reason);
+        /*
+         * 計算共有キーにはPattern世代が含まれるため、Provider更新時に全Gridのdedupを
+         * 消去する必要はない。旧世代Entryは一致せず、bounded cacheから自然に退避される。
+         */
         CraftingExecutionBudget.clearAdaptiveState(reason);
-        PatternLookupCache.clear(reason);
     }
 }

@@ -75,8 +75,12 @@ public abstract class CraftingSimulationStateCheckedMathMixin
             return;
         }
         double next = bytes + amount;
-        if (!Double.isFinite(amount) || amount < 0.0D || !Double.isFinite(next) || next >= Long.MAX_VALUE) {
-            throw new ArithmeticException("AE2 crafting bytes exceed the supported long range");
+        /*
+         * Issue #167: AE2は有限doubleを最終的なlong castでLong.MAX_VALUEへ飽和する。
+         * ACOだけが有限値を拒否するとCPU容量判定の意味を変えるため、非有限値だけを止める。
+         */
+        if (!Double.isFinite(amount) || amount < 0.0D || !Double.isFinite(next)) {
+            throw new ArithmeticException("AE2 crafting bytes are not finite");
         }
     }
 }

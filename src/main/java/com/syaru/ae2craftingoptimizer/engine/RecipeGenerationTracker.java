@@ -13,6 +13,12 @@ public final class RecipeGenerationTracker {
     }
 
     public static void invalidate() {
-        GENERATION.updateAndGet(value -> value == Long.MAX_VALUE ? 1L : value + 1L);
+        GENERATION.updateAndGet(value -> {
+            // Issue #167: recipe世代をwrapすると古いGraphとのABA一致を作るため明示失敗する。
+            if (value == Long.MAX_VALUE) {
+                throw new IllegalStateException("recipe generation exhausted");
+            }
+            return value + 1L;
+        });
     }
 }

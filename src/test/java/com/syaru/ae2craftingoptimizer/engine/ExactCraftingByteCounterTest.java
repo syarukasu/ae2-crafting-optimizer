@@ -50,6 +50,19 @@ class ExactCraftingByteCounterTest {
                 ignored -> 8L));
     }
 
+    @Test
+    void preservesAe2SaturatingDoubleToLongConversion() {
+        long bytes = ExactCraftingByteCounter.calculate(
+                "result",
+                Long.MAX_VALUE,
+                Map.of(),
+                Map.of(),
+                ignored -> 8L);
+
+        // AE2 15.4.10の(double -> long) castと同じく、有限の範囲超過値は最大値へ飽和する。
+        assertEquals(Long.MAX_VALUE, bytes);
+    }
+
     private static CompiledPattern<String> pattern(
             String id,
             String input,
