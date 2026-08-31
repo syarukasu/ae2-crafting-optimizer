@@ -49,12 +49,10 @@ class CraftingCalculationSnapshotContextTest {
     }
 
     @Test
-    void missingConstructorCaptureFailsClosedAndCleansTheFrame() {
+    void missingConstructorCaptureFallsBackAndCleansTheFrame() {
         CraftingCalculationSnapshotContext.begin();
 
-        assertThrows(
-                IllegalStateException.class,
-                CraftingCalculationSnapshotContext::finish);
+        assertNull(CraftingCalculationSnapshotContext.finish());
         assertEquals(0, CraftingCalculationSnapshotContext.depth());
     }
 
@@ -87,9 +85,7 @@ class CraftingCalculationSnapshotContextTest {
         assertTrue(CraftingCalculationSnapshotContext.matches(originalRequester));
         assertNull(CraftingCalculationSnapshotContext.actionSource(unrelatedRequester));
         assertFalse(CraftingCalculationSnapshotContext.matches(unrelatedRequester));
-        assertThrows(
-                IllegalStateException.class,
-                CraftingCalculationSnapshotContext::finish);
+        assertNull(CraftingCalculationSnapshotContext.finish());
     }
 
     @Test

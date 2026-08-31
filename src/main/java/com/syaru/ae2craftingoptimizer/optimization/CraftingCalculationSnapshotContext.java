@@ -82,9 +82,9 @@ public final class CraftingCalculationSnapshotContext {
         if (frames.isEmpty()) {
             FRAMES.remove();
         }
-        // Issue #167: revision不明のFutureを現在世代へ付け替えない。
+        // Issue #170: revision不明のFutureはdedupへ登録せず、AE2本来のFutureへ戻す。
         if (frame.revision == null) {
-            throw new IllegalStateException("CraftingCalculation revisions were not captured");
+            return null;
         }
         return frame.revision;
     }
