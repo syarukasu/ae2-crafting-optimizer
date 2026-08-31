@@ -119,6 +119,19 @@ class Issue167PlannerSnapshotBoundaryTest {
     }
 
     @Test
+    void craftingCalculationCaptureUsesAConstructorSafeRedirect() throws IOException {
+        String mixin = readMain(
+                "com/syaru/ae2craftingoptimizer/mixin/CraftingCalculationDiagnosticsMixin.java");
+
+        assertFalse(mixin.contains("@Inject(method = \"<init>\", at = @At(\"HEAD\"))"));
+        assertTrue(mixin.contains(
+                "Lappeng/api/networking/IGrid;getStorageService()"
+                        + "Lappeng/api/networking/storage/IStorageService;"));
+        assertTrue(mixin.contains(
+                "private IStorageService aco$captureStorageGenerationBeforeSnapshot(IGrid grid)"));
+    }
+
+    @Test
     void shadowQualificationChecksAllRevisionsBeforeAndAfterComparison() throws IOException {
         String shadow = readMain(
                 "com/syaru/ae2craftingoptimizer/engine/Ae2CraftingShadowValidator.java");
