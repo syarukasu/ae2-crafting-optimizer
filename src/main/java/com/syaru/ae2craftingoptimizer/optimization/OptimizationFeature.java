@@ -11,11 +11,10 @@ import java.util.Set;
 public enum OptimizationFeature {
     ACTIVE_CALCULATION_DEDUPLICATION("active-calculation-deduplication", OptimizationDomain.CRAFTING_PLANNING, OptimizationRisk.MEDIUM, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_MUTATION, Set.of(79, 103)),
     COMPLETED_PLAN_CACHE("completed-plan-cache", OptimizationDomain.CRAFTING_PLANNING, OptimizationRisk.HIGH, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_OWNERSHIP, Set.of(79, 90, 103)),
-    PATTERN_LOOKUP_CACHE("pattern-lookup-cache", OptimizationDomain.PATTERN_PROVIDER, OptimizationRisk.LOW, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_MUTATION, Set.of(74, 90)),
+    PLANNING_REVISION_TRACKING("planning-revision-tracking", OptimizationDomain.CRAFTING_PLANNING, OptimizationRisk.LOW, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_MUTATION, Set.of(79, 103, 167)),
     PROVIDER_GENERATION_TRACKING("provider-generation-tracking", OptimizationDomain.PATTERN_PROVIDER, OptimizationRisk.LOW, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_MUTATION, Set.of(79, 90, 103)),
     PROVIDER_REFRESH_COALESCING("provider-refresh-coalescing", OptimizationDomain.PATTERN_PROVIDER, OptimizationRisk.MEDIUM, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_MUTATION, Set.of(74, 90)),
     CRAFTING_QUERY_MEMOIZATION("crafting-query-memoization", OptimizationDomain.CRAFTING_PLANNING, OptimizationRisk.LOW, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_MUTATION, Set.of(79, 103)),
-    CANDIDATE_PRUNING("candidate-pruning", OptimizationDomain.CRAFTING_PLANNING, OptimizationRisk.MEDIUM, StateOwnership.AE2, FallbackBoundary.BEFORE_MUTATION, Set.of(79, 103)),
     COMPILED_CRAFTING_GRAPH("compiled-crafting-graph", OptimizationDomain.CRAFTING_PLANNING, OptimizationRisk.HIGH, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_OWNERSHIP, Set.of(79, 90, 103, 156)),
     AUTHORITATIVE_COMPILED_PLANNER("authoritative-compiled-planner", OptimizationDomain.CRAFTING_PLANNING, OptimizationRisk.HIGH, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_OWNERSHIP, Set.of(79, 90, 103, 156)),
     CHECKED_CRAFTING_ARITHMETIC("checked-crafting-arithmetic", OptimizationDomain.CRAFTING_PLANNING, OptimizationRisk.MEDIUM, StateOwnership.AE2, FallbackBoundary.BEFORE_OWNERSHIP, Set.of(79, 98)),
@@ -87,8 +86,12 @@ public enum OptimizationFeature {
                     OptimizationInvalidation.STORAGE_GENERATION,
                     OptimizationInvalidation.PLANNING_COMPLETION,
                     OptimizationInvalidation.SERVER_LIFECYCLE);
-            case PATTERN_LOOKUP_CACHE,
-                    PROVIDER_GENERATION_TRACKING,
+            case PLANNING_REVISION_TRACKING -> Set.of(
+                    OptimizationInvalidation.STORAGE_GENERATION,
+                    OptimizationInvalidation.PROVIDER_GENERATION,
+                    OptimizationInvalidation.RESOURCE_RELOAD,
+                    OptimizationInvalidation.SERVER_LIFECYCLE);
+            case PROVIDER_GENERATION_TRACKING,
                     PROVIDER_REFRESH_COALESCING,
                     COMPILED_CRAFTING_GRAPH,
                     AUTHORITATIVE_COMPILED_PLANNER -> Set.of(

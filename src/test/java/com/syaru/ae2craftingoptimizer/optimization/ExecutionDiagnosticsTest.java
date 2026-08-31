@@ -41,4 +41,17 @@ class ExecutionDiagnosticsTest {
         assertTrue(lines.stream().anyMatch(line -> line.equals(
                 "Transactional V2 pattern metadata: 1 cache hit(s), 1 miss(es), 1 unstable compile(s)")));
     }
+
+    @Test
+    void reportsServerCaptureAndWorkerPlannerTimingSeparately() {
+        OptimizationMetrics.recordPlanningCapture(true, 2_000L);
+        OptimizationMetrics.recordPlanningCapture(false, 3_000L);
+        OptimizationMetrics.recordAuthoritativePlanner(true, 4_000L);
+        OptimizationMetrics.recordAuthoritativePlanner(false, 5_000L);
+
+        var lines = OptimizationMetrics.summaryLines();
+        assertTrue(lines.stream().anyMatch(line -> line.equals(
+                "Planning boundary: immutable capture 1/2 accepted, total/max 5/3 us; "
+                        + "authoritative planner 1/2 adopted, total/max 9/5 us")));
+    }
 }

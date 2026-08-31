@@ -16,42 +16,53 @@ class Ae2CompiledCraftingGraphCacheContractTest {
                     + "Ae2AuthoritativeCraftingPlanner.java");
 
     @Test
-    void rootProgramCacheStoresOnlySuccessfulPrograms() throws Exception {
+    void rootProgramCacheIsBoundedAndRetainsTheExactOutcome() throws Exception {
         String source = Files.readString(CACHE_SOURCE);
 
         assertTrue(source.contains(
-                "Map<AEKey, CompiledRootProgram<AEKey>> rootPrograms"));
+                "WeightedLruMap<AEKey, CompiledRootProgram.Outcome<AEKey>> rootPrograms"));
         assertFalse(source.contains(
                 "Map<AEKey, Optional<CompiledRootProgram<AEKey>>> rootPrograms"));
-        assertTrue(source.contains("if (compiled.program().isEmpty())"));
-        assertTrue(source.contains("rootPrograms.put(root, candidate);"));
-        assertFalse(source.contains("rootPrograms.put(root, compiled);"));
+        assertTrue(source.contains("MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT"));
+        assertTrue(source.contains("MAXIMUM_ROOT_PROGRAM_NODES_PER_SNAPSHOT"));
+        assertTrue(source.contains("return rootPrograms.putIfAbsent("));
+        assertTrue(source.contains("Snapshot::rootProgramWeight"));
     }
 
     @Test
-    void lazyCompilationRejectsAStaleGeneration() throws Exception {
+    void immutableSnapshotIsValidatedBeforePublicationAndNotRelabeledLater() throws Exception {
         String source = Files.readString(CACHE_SOURCE);
 
-        assertTrue(source.contains("private void requireCurrentGenerations()"));
         assertTrue(source.contains(
-                "long currentPatternGeneration = ProviderPatternGenerationTracker.generation();"));
+                "long generation = ProviderPatternGenerationTracker.generation();"));
         assertTrue(source.contains(
-                "long currentRecipeGeneration = RecipeGenerationTracker.generation();"));
+                "long recipeGeneration = RecipeGenerationTracker.generation();"));
+        assertTrue(source.contains(
+                "long configurationRevision = PlanningConfigurationRevisionTracker.current();"));
+        assertTrue(source.contains(
+                "ProviderPatternGenerationTracker.generation() != generation"));
+        assertTrue(source.contains(
+                "RecipeGenerationTracker.generation() != recipeGeneration"));
+        assertTrue(source.contains(
+                "!PlanningConfigurationRevisionTracker.isCurrent("));
 
         int rootMethod = source.indexOf(
                 "public CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(AEKey root)");
-        int compile = source.indexOf("CompiledRootProgram.compile(", rootMethod);
-        int firstGuard = source.indexOf("requireCurrentGenerations();", rootMethod);
-        int secondGuard = source.indexOf("requireCurrentGenerations();", firstGuard + 1);
-        assertTrue(rootMethod >= 0 && firstGuard < compile && secondGuard > compile);
+        int nextMethod = source.indexOf(
+                "public Optional<CompiledRootProgram.Outcome<AEKey>> cachedRootProgramOutcome",
+                rootMethod);
+        String rootBody = source.substring(rootMethod, nextMethod);
+        assertTrue(rootBody.contains("CompiledRootProgram.compile("));
+        assertFalse(rootBody.contains("ProviderPatternGenerationTracker.generation()"));
+        assertFalse(rootBody.contains("RecipeGenerationTracker.generation()"));
     }
 
     @Test
     void missingProgramHasItsOwnDiagnostic() throws Exception {
         String planner = Files.readString(PLANNER_SOURCE);
 
-        assertTrue(planner.contains("FallbackReasonCode.INCOMPLETE_GRAPH_SNAPSHOT"));
         assertTrue(planner.contains("BigIntegerPlanDeclineReason.INCOMPLETE_GRAPH_SNAPSHOT"));
+        assertTrue(planner.contains("classifyRootProgramFailure(rootOutcome.failure())"));
         assertTrue(planner.contains("\"root program unavailable: \""));
     }
 }

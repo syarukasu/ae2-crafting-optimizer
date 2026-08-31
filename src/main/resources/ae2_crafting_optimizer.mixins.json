@@ -26,8 +26,10 @@
     "ListCraftingInventoryExactCountsMixin",
     "MEStorageMenuDisplaySaturationMixin",
     "NetworkCraftingSimulationStateAccessor",
+    "NetworkStorageCraftingPlanGenerationMixin",
     "NetworkStorageMountsAccessor",
     "PatternProviderLogicTargetAccessMixin",
+    "StorageServiceCraftingPlanGenerationMixin",
     "TaskProgressTransactionAccessMixin"
   ],
   "client": [

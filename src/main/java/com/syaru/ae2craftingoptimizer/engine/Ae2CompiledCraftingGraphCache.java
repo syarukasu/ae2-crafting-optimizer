@@ -9,7 +9,9 @@ import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
+import com.syaru.ae2craftingoptimizer.optimization.PlanningConfigurationRevisionTracker;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
+import com.syaru.ae2craftingoptimizer.optimization.WeightedLruMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -21,13 +23,18 @@ import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.WeakHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
 public final class Ae2CompiledCraftingGraphCache {
-    /** 一世代で保持するルート別Program数の上限。異常な連続要求でも無制限に増やさない。 */
-    private static final int MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT = 262_144;
+    /** 連続した世代変更で部分Graphを公開しないための、有界な再取得回数。 */
+    private static final int MAXIMUM_STALE_REBUILD_ATTEMPTS = 3;
+    /** 一つの実行Snapshotへ保持できるCompiled Pattern数の固定上限。 */
+    private static final int MAXIMUM_COMPILED_PATTERNS = 1_048_576;
+    /** 一世代で保持するルート別Program数。通常の端末利用を覆いつつ、長期常駐量を固定する。 */
+    private static final int MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT = 256;
+    /** 一世代のRoot Program配列へ保持する合計ノード数。約100万ノードで常駐量を制限する。 */
+    private static final int MAXIMUM_ROOT_PROGRAM_NODES_PER_SNAPSHOT = 1_048_576;
     private static final Map<ICraftingService, Map<ResourceKey<Level>, Snapshot>> CACHE =
             Collections.synchronizedMap(new WeakHashMap<>());
     private static final AEKeyFilter ALL_KEYS = key -> true;
@@ -35,47 +42,34 @@ public final class Ae2CompiledCraftingGraphCache {
     private Ae2CompiledCraftingGraphCache() {
     }
 
-    /**
-     * 現在世代のSnapshotが既に存在する場合だけ返す。
-     * CraftingCalculation生成側ではコンパイルを開始せず、warm cacheの証明だけを参照する。
-     */
-    static Optional<Snapshot> currentSnapshot(
-            IGrid grid,
-            Level level,
-            long generation,
-            long recipeGeneration) {
-        ICraftingService service = grid.getCraftingService();
-        synchronized (CACHE) {
-            Map<ResourceKey<Level>, Snapshot> byDimension = CACHE.get(service);
-            Snapshot current = byDimension == null ? null : byDimension.get(level.dimension());
-            // Snapshotが無い、または要求世代と一致しない場合はcold pathへ戻す。
-            if (current == null
-                    || current.graph().generation() != generation
-                    || current.recipeGeneration() != recipeGeneration) {
-                return Optional.empty();
-            }
-            return Optional.of(current);
-        }
-    }
-
     public static Snapshot getOrCompile(IGrid grid, Level level) {
         ICraftingService service = grid.getCraftingService();
-        for (int attempt = 0; attempt < 3; attempt++) {
+        // 世代が静止した一回だけを公開し、上限後は古いGraphへfallbackせず明示失敗する。
+        for (int attempt = 0; attempt < MAXIMUM_STALE_REBUILD_ATTEMPTS; attempt++) {
             long generation = ProviderPatternGenerationTracker.generation();
             long recipeGeneration = RecipeGenerationTracker.generation();
+            long configurationRevision = PlanningConfigurationRevisionTracker.current();
             synchronized (CACHE) {
                 Map<ResourceKey<Level>, Snapshot> byDimension = CACHE.get(service);
                 Snapshot current = byDimension == null ? null : byDimension.get(level.dimension());
                 if (current != null
                         && current.graph().generation() == generation
-                        && current.recipeGeneration() == recipeGeneration) {
+                        && current.recipeGeneration() == recipeGeneration
+                        && current.configurationRevision() == configurationRevision) {
                     return current;
                 }
             }
 
-            Snapshot rebuilt = compile(service, level, generation, recipeGeneration);
+            Snapshot rebuilt = compile(
+                    service,
+                    level,
+                    generation,
+                    recipeGeneration,
+                    configurationRevision);
             if (ProviderPatternGenerationTracker.generation() != generation
-                    || RecipeGenerationTracker.generation() != recipeGeneration) {
+                    || RecipeGenerationTracker.generation() != recipeGeneration
+                    || !PlanningConfigurationRevisionTracker.isCurrent(
+                            configurationRevision)) {
                 continue;
             }
             synchronized (CACHE) {
@@ -84,7 +78,8 @@ public final class Ae2CompiledCraftingGraphCache {
                 Snapshot raced = byDimension.get(level.dimension());
                 if (raced != null
                         && raced.graph().generation() == generation
-                        && raced.recipeGeneration() == recipeGeneration) {
+                        && raced.recipeGeneration() == recipeGeneration
+                        && raced.configurationRevision() == configurationRevision) {
                     return raced;
                 }
                 byDimension.put(level.dimension(), rebuilt);
@@ -99,41 +94,11 @@ public final class Ae2CompiledCraftingGraphCache {
                 0);
     }
 
-    /** 不完全なSnapshotを同じ注文中に一度だけ破棄し、現在世代から再構築する。 */
-    public static Snapshot recompile(IGrid grid, Level level, Snapshot stale) {
-        // 同じSnapshotに対する再構築権は一度だけ与える。
-        if (!stale.claimRetryRebuild()) {
-            return stale;
-        }
-        ICraftingService service = grid.getCraftingService();
-        synchronized (CACHE) {
-            Map<ResourceKey<Level>, Snapshot> byDimension = CACHE.get(service);
-            Snapshot current = byDimension == null ? null : byDimension.get(level.dimension());
-            // 別スレッドが新しいSnapshotへ交換済みなら、その結果を破棄しない。
-            if (current == stale && byDimension != null) {
-                byDimension.remove(level.dimension());
-            }
-        }
-        Snapshot rebuilt = getOrCompile(grid, level);
-        // 再構築後も不完全なら、世代変更まで追加の再構築を禁止する。
-        rebuilt.claimRetryRebuild();
-        if (ACOConfig.logCraftingDecisionFlow()) {
-            AE2CraftingOptimizer.LOGGER.debug(
-                    "ACO-DIAG event=graph_recompiled dimension={} oldPatternGeneration={} "
-                            + "oldRecipeGeneration={} newPatternGeneration={} newRecipeGeneration={}",
-                    level.dimension().location(),
-                    stale.graph().generation(),
-                    stale.recipeGeneration(),
-                    rebuilt.graph().generation(),
-                    rebuilt.recipeGeneration());
-        }
-        return rebuilt;
-    }
-
     public static void clear() {
         synchronized (CACHE) {
             CACHE.clear();
         }
+        Ae2ImmutablePlanningGraphCache.clear();
         SymbolicCraftingPlanner.clearTopologyCache();
         CompiledRootQualificationRegistry.clear();
     }
@@ -142,7 +107,8 @@ public final class Ae2CompiledCraftingGraphCache {
             ICraftingService service,
             Level level,
             long generation,
-            long recipeGeneration) {
+            long recipeGeneration,
+            long configurationRevision) {
         long startedNanos = System.nanoTime();
         Set<AEKey> craftables = Set.copyOf(service.getCraftables(ALL_KEYS));
         Set<IPatternDetails> seen = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -150,8 +116,14 @@ public final class Ae2CompiledCraftingGraphCache {
         Map<String, IPatternDetails> patternById = new LinkedHashMap<>();
         Map<AEKey, Integer> registeredPatternsByOutput = new LinkedHashMap<>();
         Set<AEKey> incompletelyCompiledOutputs = new LinkedHashSet<>();
+        Set<AEKey> emittableKeys = new LinkedHashSet<>();
+        Set<String> exactInputDomains = new LinkedHashSet<>();
         Map<String, CompiledPattern<AEKey>> compiledById = new LinkedHashMap<>();
         for (AEKey key : craftables) {
+            // Full execution snapshotでもEmitter判定を固定し、後段workerからserviceを再読込しない。
+            if (service.canEmitFor(key)) {
+                emittableKeys.add(key);
+            }
             var registered = service.getCraftingFor(key);
             registeredPatternsByOutput.put(key, registered.size());
             for (IPatternDetails details : registered) {
@@ -169,18 +141,22 @@ public final class Ae2CompiledCraftingGraphCache {
                     OptimizationMetrics.recordAppliedEPatternFallback();
                     continue;
                 }
-                String id = Ae2CompiledPatternFactory.fingerprint(details);
+                Ae2CompiledPatternFactory.Captured captured =
+                        Ae2CompiledPatternFactory.capture(details, level);
+                if (captured == null) {
+                    incompletelyCompiledOutputs.add(key);
+                    continue;
+                }
+                String id = captured.fingerprint();
                 idByPattern.put(details, id);
                 if (!compiledById.containsKey(id)) {
-                    CompiledPattern<AEKey> pattern = Ae2CompiledPatternFactory.compile(details, id, level);
-                    if (pattern != null) {
-                        compiledById.put(id, pattern);
-                        patternById.put(id, details);
-                        if (compiledById.size() > 1_048_576) {
-                            throw new IllegalStateException("compiled crafting graph exceeds its hard pattern bound");
-                        }
-                    } else {
-                        incompletelyCompiledOutputs.add(key);
+                    compiledById.put(id, captured.compile(id));
+                    patternById.put(id, details);
+                    if (captured.exactInputDomain()) {
+                        exactInputDomains.add(id);
+                    }
+                    if (compiledById.size() > MAXIMUM_COMPILED_PATTERNS) {
+                        throw new IllegalStateException("compiled crafting graph exceeds its hard pattern bound");
                     }
                 }
                 if (!compiledById.containsKey(id)
@@ -190,7 +166,6 @@ public final class Ae2CompiledCraftingGraphCache {
             }
         }
         Snapshot snapshot = new Snapshot(
-                service,
                 CompiledCraftingGraph.compile(generation, compiledById.values()),
                 idByPattern,
                 patternById,
@@ -198,14 +173,19 @@ public final class Ae2CompiledCraftingGraphCache {
                 registeredPatternsByOutput,
                 incompletelyCompiledOutputs,
                 craftables,
-                recipeGeneration);
+                emittableKeys,
+                exactInputDomains,
+                recipeGeneration,
+                configurationRevision);
         if (ACOConfig.logCraftingDecisionFlow()) {
             AE2CraftingOptimizer.LOGGER.debug(
                     "ACO-DIAG event=graph_compiled dimension={} patternGeneration={} recipeGeneration={} "
+                            + "configurationRevision={} "
                             + "craftableKeys={} registeredPatterns={} compiledPatterns={} incompleteOutputs={} elapsedMs={}",
                     level.dimension().location(),
                     generation,
                     recipeGeneration,
+                    configurationRevision,
                     craftables.size(),
                     seen.size(),
                     compiledById.size(),
@@ -215,8 +195,7 @@ public final class Ae2CompiledCraftingGraphCache {
         return snapshot;
     }
 
-    public static final class Snapshot {
-        private final ICraftingService service;
+    public static final class Snapshot implements Ae2PlanningGraphSnapshot {
         private final CompiledCraftingGraph<AEKey> graph;
         private final IdentityHashMap<IPatternDetails, String> idByPattern;
         private final Map<String, IPatternDetails> patternById;
@@ -224,15 +203,19 @@ public final class Ae2CompiledCraftingGraphCache {
         private final Map<AEKey, Integer> registeredPatternsByOutput;
         private final Set<AEKey> incompletelyCompiledOutputs;
         private final Set<AEKey> craftables;
+        private final Set<AEKey> emittableKeys;
+        private final Set<String> exactInputDomains;
         private final long recipeGeneration;
-        private final Map<AEKey, CompiledRootProgram<AEKey>> rootPrograms =
-                new LinkedHashMap<>();
+        private final long configurationRevision;
+        private final WeightedLruMap<AEKey, CompiledRootProgram.Outcome<AEKey>> rootPrograms =
+                new WeightedLruMap<>(
+                        MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT,
+                        MAXIMUM_ROOT_PROGRAM_NODES_PER_SNAPSHOT,
+                        Snapshot::rootProgramWeight);
         private final Map<AEKey, Optional<Ae2StrictCraftingTopology>> strictTopologies =
                 new LinkedHashMap<>();
-        private final AtomicBoolean retryRebuildClaimed = new AtomicBoolean();
 
         private Snapshot(
-                ICraftingService service,
                 CompiledCraftingGraph<AEKey> graph,
                 IdentityHashMap<IPatternDetails, String> idByPattern,
                 Map<String, IPatternDetails> patternById,
@@ -240,8 +223,10 @@ public final class Ae2CompiledCraftingGraphCache {
                 Map<AEKey, Integer> registeredPatternsByOutput,
                 Set<AEKey> incompletelyCompiledOutputs,
                 Set<AEKey> craftables,
-                long recipeGeneration) {
-            this.service = service;
+                Set<AEKey> emittableKeys,
+                Set<String> exactInputDomains,
+                long recipeGeneration,
+                long configurationRevision) {
             this.graph = graph;
             this.idByPattern = new IdentityHashMap<>(idByPattern);
             this.patternById = Map.copyOf(patternById);
@@ -249,22 +234,23 @@ public final class Ae2CompiledCraftingGraphCache {
             this.registeredPatternsByOutput = Map.copyOf(registeredPatternsByOutput);
             this.incompletelyCompiledOutputs = Set.copyOf(incompletelyCompiledOutputs);
             this.craftables = Set.copyOf(craftables);
+            this.emittableKeys = Set.copyOf(emittableKeys);
+            this.exactInputDomains = Set.copyOf(exactInputDomains);
             this.recipeGeneration = recipeGeneration;
+            this.configurationRevision = configurationRevision;
         }
 
+        @Override
         public CompiledCraftingGraph<AEKey> graph() {
             return graph;
         }
 
-        /** このSnapshotに対する一度限りの再構築権を取得する。 */
-        private boolean claimRetryRebuild() {
-            return retryRebuildClaimed.compareAndSet(false, true);
-        }
-
+        @Override
         public String id(IPatternDetails pattern) {
             return idByPattern.get(pattern);
         }
 
+        @Override
         public IPatternDetails pattern(String id) {
             return patternById.get(id);
         }
@@ -275,16 +261,19 @@ public final class Ae2CompiledCraftingGraphCache {
         }
 
         /** 標準AE2側にも高速Graph側にも、その出力のPatternが一つだけ存在することを証明する。 */
+        @Override
         public boolean hasExactlyOneFullyCompiledPattern(AEKey output) {
             return registeredPatternsByOutput.getOrDefault(output, 0) == 1
                     && !incompletelyCompiledOutputs.contains(output)
                     && graph.patternsFor(output).size() == 1;
         }
 
+        @Override
         public int registeredPatternCount(AEKey output) {
             return registeredPatternsByOutput.getOrDefault(output, 0);
         }
 
+        @Override
         public boolean isIncompletelyCompiled(AEKey output) {
             return incompletelyCompiledOutputs.contains(output);
         }
@@ -293,86 +282,72 @@ public final class Ae2CompiledCraftingGraphCache {
             return craftables;
         }
 
+        @Override
         public long recipeGeneration() {
             return recipeGeneration;
         }
 
+        public long configurationRevision() {
+            return configurationRevision;
+        }
+
+        @Override
+        public boolean isEmittable(AEKey key) {
+            return emittableKeys.contains(key);
+        }
+
+        @Override
+        public boolean hasExactInputDomain(String patternId) {
+            return exactInputDomains.contains(patternId);
+        }
+
         /**
-         * 同じProvider/recipe世代では、正常にコンパイルできたルートProgramだけを再利用する。
-         * 一時的なcanEmitFor不一致や更新途中の失敗は固定せず、次の要求で再評価する。
+         * 同じProvider/recipe世代ではルートごとの数式Programを再利用する。
+         * 世代変更時はSnapshotごと破棄されるため、古いPattern参照は残らない。
          */
         public Optional<CompiledRootProgram<AEKey>> rootProgram(AEKey root) {
             return rootProgramOutcome(root).program();
         }
 
-        /** Root Programと失敗理由を返す。成功Programだけを世代内キャッシュへ保存する。 */
+        /** Root Programと、作れなかった場合の正確な理由を同じ世代でキャッシュする。 */
+        @Override
         public CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(AEKey root) {
-            requireCurrentGenerations();
             synchronized (rootPrograms) {
-                CompiledRootProgram<AEKey> cached = rootPrograms.get(root);
+                CompiledRootProgram.Outcome<AEKey> cached = rootPrograms.get(root);
+                // 既に成功またはFallbackが確定したルートは、同じ世代中に再探索しない。
                 if (cached != null) {
-                    return CompiledRootProgram.Outcome.compiled(cached);
+                    return cached;
                 }
             }
 
             CompiledRootProgram.Outcome<AEKey> compiled = CompiledRootProgram.compile(
                     graph,
                     root,
-                    service::canEmitFor);
+                    emittableKeys::contains);
             if (compiled.program().isPresent()
                     && touchesIncompletePattern(compiled.program().get())) {
                 // 未コンパイルPatternを終端素材と誤認したShadow計算も作らず、直ちにAE2へ戻す。
                 compiled = compiled.withFailure(RootProgramFailure.INCOMPLETE_PATTERN_SNAPSHOT);
-            } else if (compiled.program().isPresent()
-                    && graph.patternsFor(root).isEmpty()
-                    && registeredPatternsByOutput.getOrDefault(root, 0) == 0
-                    && !service.getCraftingFor(root).isEmpty()) {
-                // AE2にはPatternがあるのにGraphへ無い場合は、終端Programとして誤採用しない。
-                compiled = CompiledRootProgram.Outcome.failed(
-                        RootProgramFailure.MISSING_FROM_SNAPSHOT);
             }
-
-            // Lazy compileの途中にprovider/recipe世代が変わった結果は、Fallbackとして固定しない。
-            requireCurrentGenerations();
-            if (compiled.program().isEmpty()) {
-                return compiled;
-            }
-
-            CompiledRootProgram<AEKey> candidate = compiled.program().orElseThrow();
             synchronized (rootPrograms) {
-                CompiledRootProgram<AEKey> raced = rootPrograms.get(root);
+                CompiledRootProgram.Outcome<AEKey> raced = rootPrograms.get(root);
                 // 別計算スレッドが先に登録した場合は、その同一世代Programを採用する。
                 if (raced != null) {
-                    return CompiledRootProgram.Outcome.compiled(raced);
+                    return raced;
                 }
-                // 固定上限へ達した場合は古いルートを一括破棄し、無制限な常駐を防ぐ。
-                if (rootPrograms.size() >= MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT) {
-                    rootPrograms.clear();
-                    strictTopologies.clear();
-                }
-                rootPrograms.put(root, candidate);
-                return CompiledRootProgram.Outcome.compiled(candidate);
+                // LRU退避と同時に対応Topologyも除き、異なるProgramの証明を再利用しない。
+                return rootPrograms.putIfAbsent(
+                        root,
+                        compiled,
+                        strictTopologies::remove);
             }
         }
 
         /** Root Programを新規コンパイルせず、既存の世代内結果だけを返す。 */
-        Optional<CompiledRootProgram<AEKey>> cachedRootProgram(AEKey root) {
+        @Override
+        public Optional<CompiledRootProgram.Outcome<AEKey>> cachedRootProgramOutcome(AEKey root) {
             synchronized (rootPrograms) {
                 return Optional.ofNullable(rootPrograms.get(root));
-            }
-        }
-
-        private void requireCurrentGenerations() {
-            long currentPatternGeneration = ProviderPatternGenerationTracker.generation();
-            long currentRecipeGeneration = RecipeGenerationTracker.generation();
-            if (graph.generation() != currentPatternGeneration
-                    || recipeGeneration != currentRecipeGeneration) {
-                throw new StalePlanningSnapshotException(
-                        new PlanningGenerationSnapshot(
-                                graph.generation(),
-                                0L,
-                                recipeGeneration),
-                        0);
             }
         }
 
@@ -386,24 +361,51 @@ public final class Ae2CompiledCraftingGraphCache {
             return false;
         }
 
+        private static int rootProgramWeight(CompiledRootProgram.Outcome<AEKey> outcome) {
+            // 失敗結果も一件分として数え、成功Programは保持するprimitive配列のノード数で量る。
+            return outcome.program()
+                    .map(program -> Math.max(1, program.nodeCount()))
+                    .orElse(1);
+        }
+
         /** Pattern APIの静的証明も同じ世代中は再利用し、注文ごとは在庫候補だけを再検証する。 */
         Optional<Ae2StrictCraftingTopology> strictTopology(
                 Level level,
                 IGrid grid,
                 CompiledRootProgram<AEKey> program) {
-            requireCurrentGenerations();
+            return strictTopology(program);
+        }
+
+        @Override
+        public Optional<Ae2StrictCraftingTopology> strictTopology(
+                CompiledRootProgram<AEKey> program) {
             AEKey root = program.root();
+            boolean cacheable;
             synchronized (rootPrograms) {
-                Optional<Ae2StrictCraftingTopology> cached = strictTopologies.get(root);
-                // 同じ世代で静的証明済みまたは証明不能なルートは再びPattern APIを走査しない。
-                if (cached != null) {
-                    return cached;
+                CompiledRootProgram.Outcome<AEKey> current = rootPrograms.get(root);
+                cacheable = current != null
+                        && current.program().orElse(null) == program;
+                // 保持中Programだけは、同じ世代の静的証明または証明不能結果を再利用する。
+                if (cacheable) {
+                    Optional<Ae2StrictCraftingTopology> cached = strictTopologies.get(root);
+                    if (cached != null) {
+                        return cached;
+                    }
                 }
             }
             Optional<Ae2StrictCraftingTopology> compiled = Optional.ofNullable(
-                    Ae2StrictCraftingTopology.compile(level, grid, this, program));
-            requireCurrentGenerations();
+                    Ae2StrictCraftingTopology.compile(this, program));
+            // 大きすぎて非保持、または既に退避されたProgramのTopologyは常駐させない。
+            if (!cacheable) {
+                return compiled;
+            }
             synchronized (rootPrograms) {
+                CompiledRootProgram.Outcome<AEKey> current = rootPrograms.get(root);
+                // 検証中にLRU退避された場合は結果を返すだけにし、孤立したTopologyを保存しない。
+                if (current == null
+                        || current.program().orElse(null) != program) {
+                    return compiled;
+                }
                 Optional<Ae2StrictCraftingTopology> raced = strictTopologies.get(root);
                 // 別計算スレッドが先に証明を登録した場合は、その結果を使う。
                 if (raced != null) {
@@ -415,7 +417,8 @@ public final class Ae2CompiledCraftingGraphCache {
         }
 
         /** 厳密Topologyを新規検証せず、証明済みの世代内結果だけを返す。 */
-        Optional<Ae2StrictCraftingTopology> cachedStrictTopology(AEKey root) {
+        @Override
+        public Optional<Ae2StrictCraftingTopology> cachedStrictTopology(AEKey root) {
             synchronized (rootPrograms) {
                 Optional<Ae2StrictCraftingTopology> cached = strictTopologies.get(root);
                 // 未検証または検証不能のRootは、軽量Captureから安全証明として利用しない。

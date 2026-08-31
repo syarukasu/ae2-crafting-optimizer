@@ -16,7 +16,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Tracks exact provider content generations so identical refresh notifications do not rebuild AE2 indexes. */
+/** AE2のProvider索引更新後に内容世代を確定し、Compiled Graphの再利用境界を管理する。 */
 public final class ProviderPatternGenerationTracker {
     /** ACOが同一tick通知を安全に畳み込める、AE2本体所有クラスのパッケージ接頭辞。 */
     private static final String AE2_IMPLEMENTATION_PREFIX = "appeng.";
@@ -100,7 +100,13 @@ public final class ProviderPatternGenerationTracker {
     }
 
     private static void advanceGeneration() {
-        GENERATION.updateAndGet(value -> value == Long.MAX_VALUE ? 1L : value + 1L);
+        GENERATION.updateAndGet(value -> {
+            // Issue #167: 1へwrapすると古いCompiled GraphとのABA一致を作るため明示失敗する。
+            if (value == Long.MAX_VALUE) {
+                throw new IllegalStateException("provider pattern generation exhausted");
+            }
+            return value + 1L;
+        });
     }
 
     private static Snapshot snapshot(ICraftingProvider provider) {

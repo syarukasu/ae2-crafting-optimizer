@@ -9,12 +9,15 @@ import com.syaru.ae2craftingoptimizer.command.ACOIntentCommands;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.lifecycle.ACOServerLifecycle;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
+import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDeduplicator;
+import com.syaru.ae2craftingoptimizer.optimization.PlanningConfigurationRevisionTracker;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.fml.event.config.ModConfigEvent;
 import org.slf4j.Logger;
 
 /**
@@ -34,8 +37,23 @@ public final class AE2CraftingOptimizer {
         PatternBatchV2Api.registerBuiltIns();
         modBus.addListener(BigCraftingNetwork::register);
         modBus.addListener(this::commonSetup);
+        modBus.addListener(this::onConfigEvent);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         ACOServerLifecycle.register();
+    }
+
+    private void onConfigEvent(ModConfigEvent event) {
+        // 同じmod event busへ届く他modのConfigでは、ACO計算revisionを進めない。
+        if (!MODID.equals(event.getConfig().getModId())) {
+            return;
+        }
+        PlanningConfigurationRevisionTracker.invalidate();
+        /*
+         * Issue #167: Config変更前のFutureを新設定の要求へ共有しない。
+         * clearは索引だけを破棄し、既存subscriberや計算本体をcancelしない。
+         */
+        CraftingCalculationDeduplicator.clear(
+                "ACO configuration " + event.getClass().getSimpleName());
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {

@@ -70,6 +70,30 @@ class LongCraftingPlannerTest {
     }
 
     @Test
+    void completeShadowComparisonIncludesCraftingCpuBytes() {
+        var pattern = pattern("p", "raw", 1L, "out", 1L);
+        var graph = CompiledCraftingGraph.compile(1L, List.of(pattern));
+        LongCraftingPlan<String> plan = planner.plan(graph, "out", 2L, Map.of("raw", 2L));
+
+        assertTrue(CraftingPlanShadowComparator.compareComplete(
+                plan,
+                42L,
+                Map.of("p", 2L),
+                Map.of("raw", 2L),
+                Map.of(),
+                Map.of(),
+                42L).matches());
+        assertFalse(CraftingPlanShadowComparator.compareComplete(
+                plan,
+                41L,
+                Map.of("p", 2L),
+                Map.of("raw", 2L),
+                Map.of(),
+                Map.of(),
+                42L).matches());
+    }
+
+    @Test
     void plansDeepDependencyChainsWithoutRecursiveCalls() {
         int depth = 5_000;
         List<CompiledPattern<String>> patterns = new ArrayList<>(depth);

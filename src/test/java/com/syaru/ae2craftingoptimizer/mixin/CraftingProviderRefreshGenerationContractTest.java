@@ -17,26 +17,26 @@ class CraftingProviderRefreshGenerationContractTest {
         String source = Files.readString(SOURCE);
 
         assertTrue(source.contains(
-                "@Inject(method = \"refreshNodeCraftingProvider\", at = @At(\"TAIL\"))"));
+                "@Inject(method = \"refreshNodeCraftingProvider\", at = @At(\"TAIL\"), require = 1)"));
         assertTrue(source.contains(
-                "private void aco$publishProviderRefresh(IGridNode node, CallbackInfo ci)"));
+                "private void aco$commitProviderGenerationAfterRefresh(IGridNode node, CallbackInfo ci)"));
 
         int queueStart = source.indexOf("private void aco$queueProviderRefresh");
         int queueEnd = source.indexOf(
-                "@Inject(method = \"refreshNodeCraftingProvider\", at = @At(\"TAIL\"))");
+                "@Inject(method = \"refreshNodeCraftingProvider\", at = @At(\"TAIL\"), require = 1)");
         assertTrue(queueStart >= 0 && queueEnd > queueStart);
         assertFalse(
                 source.substring(queueStart, queueEnd)
                         .contains("ProviderPatternGenerationTracker.shouldRefresh(node)"),
                 "refresh HEAD must not publish a generation before AE2 updates its index");
 
-        int flushStart = source.indexOf("private void aco$flushProviderRefreshes()");
+        int flushStart = source.indexOf("public void aco$flushPendingProviderRefreshes()");
         assertTrue(flushStart >= 0);
+        assertTrue(source.substring(flushStart).contains(
+                "service.refreshNodeCraftingProvider(node);"));
         assertFalse(
                 source.substring(flushStart)
-                        .contains(
-                                "ProviderPatternGenerationTracker.shouldRefresh(node);\n"
-                                        + "                service.refreshNodeCraftingProvider(node);"),
+                        .contains("ProviderPatternGenerationTracker.shouldRefresh(node)"),
                 "coalesced refresh must not publish before calling AE2");
     }
 
@@ -48,14 +48,14 @@ class CraftingProviderRefreshGenerationContractTest {
         assertTrue(source.contains("@Inject(method = \"removeNode\", at = @At(\"RETURN\"))"));
 
         int addHead = source.indexOf("private void aco$dropPendingRefreshOnNodeAdd");
-        int addReturn = source.indexOf("private void aco$publishProviderAfterNodeAdd");
+        int addReturn = source.indexOf("private void aco$rememberProviderAfterNodeAdd");
         assertTrue(addHead >= 0 && addReturn > addHead);
         assertFalse(
                 source.substring(addHead, addReturn)
                         .contains("ProviderPatternGenerationTracker.forget(node)"));
 
         int removeHead = source.indexOf("private void aco$dropPendingRefreshOnNodeRemove");
-        int removeReturn = source.indexOf("private void aco$publishProviderAfterNodeRemove");
+        int removeReturn = source.indexOf("private void aco$forgetProviderAfterNodeRemove");
         assertTrue(removeHead >= 0 && removeReturn > removeHead);
         assertFalse(
                 source.substring(removeHead, removeReturn)

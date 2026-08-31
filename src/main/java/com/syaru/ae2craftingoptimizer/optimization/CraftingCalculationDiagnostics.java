@@ -26,35 +26,44 @@ public final class CraftingCalculationDiagnostics {
     /** CraftingCalculation.runの入口を一件一行で記録し、結果ログと相関できるようにする。 */
     public static void logStarted(
             long calculationId,
+            int gridIdentity,
             AEKey output,
             long requestedAmount,
+            long storageGeneration,
             long patternGeneration,
-            long recipeGeneration) {
+            long recipeGeneration,
+            long configurationRevision) {
         if (!ACOConfig.logCraftingDecisionFlow()) {
             return;
         }
         AE2CraftingOptimizer.LOGGER.debug(
-                "ACO-DIAG event=planning_started calculationId={} output={} requested={} "
-                        + "patternGeneration={} recipeGeneration={} thread={}",
+                "ACO-DIAG event=planning_started calculationId={} gridIdentity={} output={} requested={} "
+                        + "storageGeneration={} patternGeneration={} recipeGeneration={} "
+                        + "configurationRevision={} thread={}",
                 calculationId,
+                Integer.toUnsignedString(gridIdentity),
                 output == null ? "<unknown>" : output.getId(),
                 requestedAmount,
+                storageGeneration < 0L ? "<unknown>" : storageGeneration,
                 patternGeneration < 0L ? "<unknown>" : patternGeneration,
                 recipeGeneration < 0L ? "<unknown>" : recipeGeneration,
+                configurationRevision < 0L ? "<unknown>" : configurationRevision,
                 Thread.currentThread().getName());
     }
 
     /** 計算結果を一件一行で記録し、AE2標準経路とACO採用経路を区別可能にする。 */
     public static void logDecision(
             long calculationId,
+            int gridIdentity,
             AEKey output,
             long requestedAmount,
             ICraftingPlan plan,
             long elapsedNanos,
             String plannerRoute,
+            long storageGeneration,
             long patternGeneration,
             long recipeGeneration,
-            CraftingFallbackDiagnostics.Observation fallback) {
+            long configurationRevision) {
         if (!ACOConfig.logCraftingDecisionFlow()) {
             return;
         }
@@ -62,11 +71,12 @@ public final class CraftingCalculationDiagnostics {
                 ? null
                 : Ae2CraftingPlanSidecars.metadata(plan).orElse(null);
         AE2CraftingOptimizer.LOGGER.debug(
-                "ACO-DIAG event=planning_complete calculationId={} route={} output={} requested={} "
+                "ACO-DIAG event=planning_complete calculationId={} gridIdentity={} route={} output={} requested={} "
                         + "simulation={} missingEntries={} facadeBytes={} sidecar={} exactBytes={} "
-                        + "patternGeneration={} recipeGeneration={} fallbackReason={} fallbackAggregate={} "
-                        + "elapsedMs={} thread={}",
+                        + "storageGeneration={} patternGeneration={} recipeGeneration={} "
+                        + "configurationRevision={} elapsedMs={} thread={}",
                 calculationId,
+                Integer.toUnsignedString(gridIdentity),
                 plannerRoute,
                 output == null ? "<unknown>" : output.getId(),
                 requestedAmount,
@@ -75,11 +85,41 @@ public final class CraftingCalculationDiagnostics {
                 plan == null ? -1L : plan.bytes(),
                 sidecar == null ? "none" : sidecar.getClass().getSimpleName(),
                 sidecar == null ? "none" : formatExactAmount(sidecar.exactBytes()),
+                storageGeneration < 0L ? "<unknown>" : storageGeneration,
                 patternGeneration < 0L ? "<unknown>" : patternGeneration,
                 recipeGeneration < 0L ? "<unknown>" : recipeGeneration,
-                fallback.code(),
-                fallback.aggregateCount(),
+                configurationRevision < 0L ? "<unknown>" : configurationRevision,
                 TimeUnit.NANOSECONDS.toMillis(elapsedNanos),
+                Thread.currentThread().getName());
+    }
+
+    /** server-thread snapshot境界を、worker開始前に同じcalculation IDで記録する。 */
+    public static void logCapture(
+            long calculationId,
+            int gridIdentity,
+            AEKey output,
+            long requestedAmount,
+            long storageGeneration,
+            long patternGeneration,
+            long recipeGeneration,
+            long configurationRevision,
+            boolean accepted) {
+        if (!ACOConfig.logCraftingDecisionFlow()) {
+            return;
+        }
+        AE2CraftingOptimizer.LOGGER.debug(
+                "ACO-DIAG event=planning_capture calculationId={} gridIdentity={} accepted={} "
+                        + "output={} requested={} storageGeneration={} patternGeneration={} "
+                        + "recipeGeneration={} configurationRevision={} thread={}",
+                calculationId,
+                Integer.toUnsignedString(gridIdentity),
+                accepted,
+                output == null ? "<unknown>" : output.getId(),
+                requestedAmount,
+                storageGeneration,
+                patternGeneration < 0L ? "<unknown>" : patternGeneration,
+                recipeGeneration < 0L ? "<unknown>" : recipeGeneration,
+                configurationRevision < 0L ? "<unknown>" : configurationRevision,
                 Thread.currentThread().getName());
     }
 
@@ -100,8 +140,7 @@ public final class CraftingCalculationDiagnostics {
             long requestedAmount,
             ICraftingPlan plan,
             long elapsedNanos,
-            String plannerRoute,
-            CraftingFallbackDiagnostics.Observation fallback) {
+            String plannerRoute) {
         if (!ACOConfig.logSlowCraftCalculations()) {
             return;
         }
@@ -115,18 +154,13 @@ public final class CraftingCalculationDiagnostics {
         int missingCount = plan != null ? plan.missingItems().size() : -1;
         long bytes = plan != null ? plan.bytes() : -1L;
         AE2CraftingOptimizer.LOGGER.info(
-                "ACO-DIAG event=planning_slow output={} requested={} final={} missingEntries={} facadeBytes={} "
-                        + "elapsedMs={} route={} fallbackReason={} patternGeneration={} recipeGeneration={} fallbackAggregate={}",
+                "ACO-DIAG event=planning_slow output={} requested={} final={} missingEntries={} facadeBytes={} elapsedMs={} route={}",
                 output.getId(),
                 requestedAmount,
                 finalOutput,
                 missingCount,
                 bytes,
                 elapsedMillis,
-                plannerRoute,
-                fallback.code(),
-                fallback.patternGeneration(),
-                fallback.recipeGeneration(),
-                fallback.aggregateCount());
+                plannerRoute);
     }
 }
