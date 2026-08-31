@@ -198,7 +198,7 @@ class Issue167PlannerSnapshotBoundaryTest {
 
         assertTrue(mixin.contains("CraftingCalculationSnapshotContext.finish()"));
         assertTrue(mixin.contains("CraftingCalculationSnapshotContext.begin(requester, actionSource)"));
-        assertTrue(context.contains("CraftingCalculation revisions were not captured"));
+        assertFalse(context.contains("CraftingCalculation revisions were not captured"));
         assertTrue(context.contains("patternGeneration"));
         assertTrue(context.contains("recipeGeneration"));
         assertTrue(context.contains("configurationRevision"));
