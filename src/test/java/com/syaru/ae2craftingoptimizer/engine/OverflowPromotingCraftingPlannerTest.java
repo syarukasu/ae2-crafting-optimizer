@@ -209,6 +209,11 @@ class OverflowPromotingCraftingPlannerTest {
         assertTrue(plan.craftable());
         assertEquals(exactInput, plan.usedInventory().get("input"));
         assertFalse(plan.patternExecutions().containsKey("input"));
+        assertVirtualExecutionCompletes(
+                plan,
+                Map.of("input", exactInput),
+                Map.of("output", request),
+                request);
     }
 
     @Test
@@ -235,6 +240,12 @@ class OverflowPromotingCraftingPlannerTest {
         assertEquals(requestedOutput, plan.requestedAmount());
         assertEquals(BigInteger.TWO, plan.patternExecutions().get("output"));
         assertEquals(BigInteger.TWO, plan.usedInventory().get("raw"));
+        BigInteger producedOutput = BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO);
+        assertVirtualExecutionCompletes(
+                plan,
+                Map.of("raw", BigInteger.TWO),
+                Map.of("output", producedOutput),
+                producedOutput);
     }
 
     @Test
@@ -267,6 +278,53 @@ class OverflowPromotingCraftingPlannerTest {
         assertEquals(BigInteger.TWO, plan.patternExecutions().get("output"));
         assertEquals(BigInteger.TWO, plan.patternExecutions().get("intermediate"));
         assertEquals(BigInteger.TWO, plan.usedInventory().get("raw"));
+        BigInteger producedIntermediate =
+                BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO);
+        assertVirtualExecutionCompletes(
+                plan,
+                Map.of("raw", BigInteger.TWO),
+                Map.of(
+                        "intermediate", producedIntermediate,
+                        "output", BigInteger.TWO),
+                BigInteger.TWO);
+    }
+
+    private static void assertVirtualExecutionCompletes(
+            BigCraftingPlan<String> plan,
+            Map<String, BigInteger> initialInventory,
+            Map<String, BigInteger> producedOutputs,
+            BigInteger finalOutputAmount) {
+        BigCraftingInventory<String> inventory = new BigCraftingInventory<>(initialInventory);
+        try (var transaction = inventory.beginTransaction()) {
+            // Plannerが確定した外部入力だけを正確量で一度ずつ抽出する。
+            for (var entry : plan.usedInventory().entrySet()) {
+                transaction.extractExact(entry.getKey(), entry.getValue());
+            }
+            transaction.insert(plan.requestedKey(), finalOutputAmount);
+            transaction.commit();
+        }
+
+        ExactCraftingJobLedger<String, String> ledger = ExactCraftingJobLedger.planned(
+                plan.patternExecutions(),
+                plan.emitted(),
+                plan.requestedAmount());
+        ledger.reconcile(
+                plan.patternExecutions(),
+                producedOutputs,
+                producedOutputs,
+                BigInteger.ZERO);
+
+        assertTrue(ledger.completeAndBalanced());
+        assertTrue(ledger.remainingTasks().isEmpty());
+        assertTrue(ledger.waitingFor().isEmpty());
+        assertEquals(BigInteger.ZERO, ledger.remainingOutput());
+        assertEquals(finalOutputAmount, inventory.amount(plan.requestedKey()));
+        // 入口ごとに、計画量と実抽出量が一致して残数が正確であることを確認する。
+        for (var entry : plan.usedInventory().entrySet()) {
+            assertEquals(
+                    initialInventory.get(entry.getKey()).subtract(entry.getValue()),
+                    inventory.amount(entry.getKey()));
+        }
     }
 
     private static CompiledCraftingGraph<String> graph(long inputAmount) {
