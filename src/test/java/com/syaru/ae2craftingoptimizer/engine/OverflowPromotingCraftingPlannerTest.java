@@ -196,6 +196,64 @@ class OverflowPromotingCraftingPlannerTest {
         assertFalse(plan.patternExecutions().containsKey("input"));
     }
 
+    @Test
+    void promotesWhenOnlyFinalOutputExceedsLong() {
+        BigInteger requestedOutput = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
+        CompiledPattern<String> output = new CompiledPattern<>(
+                "output",
+                List.of(new CompiledPattern.InputSlot<>(List.of(stack("raw", 1L)))),
+                Map.of("output", Long.MAX_VALUE),
+                true);
+        CompiledCraftingGraph<String> graph =
+                CompiledCraftingGraph.compile(1L, List.of(output));
+
+        var result = new OverflowPromotingCraftingPlanner<String>(256).plan(
+                graph,
+                "output",
+                requestedOutput,
+                Map.of("raw", BigInteger.TWO));
+
+        var plan = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                result).plan();
+        assertTrue(plan.craftable());
+        assertEquals(requestedOutput, plan.requestedAmount());
+        assertEquals(BigInteger.TWO, plan.patternExecutions().get("output"));
+        assertEquals(BigInteger.TWO, plan.usedInventory().get("raw"));
+    }
+
+    @Test
+    void promotesWhenOnlyIntermediateDemandExceedsLong() {
+        CompiledPattern<String> output = new CompiledPattern<>(
+                "output",
+                List.of(new CompiledPattern.InputSlot<>(List.of(stack(
+                        "intermediate",
+                        Long.MAX_VALUE)))),
+                Map.of("output", 1L),
+                true);
+        CompiledPattern<String> intermediate = new CompiledPattern<>(
+                "intermediate",
+                List.of(new CompiledPattern.InputSlot<>(List.of(stack("raw", 1L)))),
+                Map.of("intermediate", Long.MAX_VALUE),
+                true);
+        CompiledCraftingGraph<String> graph =
+                CompiledCraftingGraph.compile(1L, List.of(output, intermediate));
+
+        var result = new OverflowPromotingCraftingPlanner<String>(256).plan(
+                graph,
+                "output",
+                BigInteger.TWO,
+                Map.of("raw", BigInteger.TWO));
+
+        var plan = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                result).plan();
+        assertTrue(plan.craftable());
+        assertEquals(BigInteger.TWO, plan.patternExecutions().get("output"));
+        assertEquals(BigInteger.TWO, plan.patternExecutions().get("intermediate"));
+        assertEquals(BigInteger.TWO, plan.usedInventory().get("raw"));
+    }
+
     private static CompiledCraftingGraph<String> graph(long inputAmount) {
         CompiledPattern<String> output = new CompiledPattern<>(
                 "output",
