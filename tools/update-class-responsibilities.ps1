@@ -25,6 +25,7 @@ $packageRoles = [ordered]@{
     'com.syaru.ae2craftingoptimizer.craftingamount' = 'long注文数をAE2 Menuへ渡すserver側境界。'
     'com.syaru.ae2craftingoptimizer.engine' = 'コンパイル済みグラフ、Planner、BigInteger会計の計算核。'
     'com.syaru.ae2craftingoptimizer.engine.craftingtable' = '所有権移転後の作業台物理クラフト取引、Escrow、復旧。'
+    'com.syaru.ae2craftingoptimizer.engine.parallel' = '一件の不変クラフトGraphを固定4 workerで決定論的に構築・計算するPlanner核。'
     'com.syaru.ae2craftingoptimizer.engine.vector' = 'exact Vector計画の検証、在庫snapshot、表示投影。'
     'com.syaru.ae2craftingoptimizer.gtceu' = 'GTCEuの本来判定へ候補を渡すRecipe Intentの任意連携。'
     'com.syaru.ae2craftingoptimizer.integration' = 'AE2、Advanced AE、任意MOD、exact storageへの版別接続。'

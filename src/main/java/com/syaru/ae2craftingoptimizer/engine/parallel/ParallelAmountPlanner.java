@@ -315,7 +315,7 @@ final class ParallelAmountPlanner {
                         break;
                     }
                 }
-            } catch (Throwable thrown) {
+            } catch (RuntimeException | Error thrown) {
                 failure.compareAndSet(null, thrown);
             } finally {
                 if (remainingWorkers.decrementAndGet() == 0) {
@@ -387,7 +387,7 @@ final class ParallelAmountPlanner {
             }
             try {
                 result.complete(createResult(metrics()));
-            } catch (Throwable resultFailure) {
+            } catch (RuntimeException | Error resultFailure) {
                 result.completeExceptionally(resultFailure);
             }
         }

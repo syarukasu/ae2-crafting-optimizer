@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.LockSupport;
 
@@ -283,6 +284,8 @@ public final class ParallelPlanGraph<K> {
         private final AtomicInteger maximumActiveWorkers = new AtomicInteger();
         private final AtomicIntegerArray nodesByWorker =
                 new AtomicIntegerArray(ParallelPlannerPool.PARALLELISM);
+        private final AtomicReferenceArray<Thread> workerThreads =
+                new AtomicReferenceArray<>(ParallelPlannerPool.PARALLELISM);
         private final AtomicBoolean done = new AtomicBoolean();
         private final AtomicReference<BuildFailure> expectedFailure = new AtomicReference<>();
         private final AtomicReference<Throwable> unexpectedFailure = new AtomicReference<>();
@@ -307,6 +310,7 @@ public final class ParallelPlanGraph<K> {
         }
 
         private void runWorker(int workerId) {
+            workerThreads.set(workerId, Thread.currentThread());
             try {
                 while (!done.get()) {
                     cancellation.checkpoint(uniqueNodes.get());
@@ -327,10 +331,11 @@ public final class ParallelPlanGraph<K> {
             } catch (BuildFailure failure) {
                 expectedFailure.compareAndSet(null, failure);
                 done.set(true);
-            } catch (Throwable failure) {
+            } catch (RuntimeException | Error failure) {
                 unexpectedFailure.compareAndSet(null, failure);
                 done.set(true);
             } finally {
+                workerThreads.set(workerId, null);
                 if (remainingWorkers.decrementAndGet() == 0) {
                     finish();
                 }
@@ -421,6 +426,10 @@ public final class ParallelPlanGraph<K> {
                     dispatchCursor.getAndIncrement(),
                     ParallelPlannerPool.PARALLELISM);
             queues.get(targetWorker).addLast(key);
+            Thread targetThread = workerThreads.get(targetWorker);
+            if (targetThread != null) {
+                LockSupport.unpark(targetThread);
+            }
         }
 
         private void finish() {
@@ -442,7 +451,7 @@ public final class ParallelPlanGraph<K> {
                         canonicalFailure.reason,
                         List.of(),
                         metrics));
-            } catch (Throwable canonicalFailure) {
+            } catch (RuntimeException | Error canonicalFailure) {
                 result.completeExceptionally(canonicalFailure);
             }
         }
