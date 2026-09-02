@@ -53,7 +53,7 @@ AE2のクラフト結果とACO 1.5.33のExact Count契約を変更せず、一�
 2. 世代付きimmutable Pattern indexとSnapshot publication。
 3. fixed-4 parallel graph builder、single-flight node、cycle検査、canonical node order。
 4. edge-local contributionを使うparallel long amount passとBigInteger再実行。
-5. bounded queue、subscriber cancel、Server Thread finalize、materialize。
+5. bounded queue、subscriber cancel、AE2 calculation workerでのfinalize、materialize。
 6. Shadow比較、診断、benchmark、loader parity、GameTest fixture。
 
 各段階はForgeとNeoForgeで別のstacked Draft PRにし、既存PR #168、#169、#177、#178を上書きしない。
@@ -104,8 +104,8 @@ AE2の意味論と1.5.33のExact Count契約を維持し、一つの自動クラ
 3. 固定4本のPlanner Threadが同じsessionのGraphをsingle-flightで展開する。
 4. canonical Graphのcycle検査後、frontier単位で数量を伝播する。
 5. overflow時は同じGraph上の数量passだけをBigIntegerで再実行する。
-6. pure `PlanBlueprint`をServer Threadへ戻し、bindingとrevisionを再検証する。
-7. 一致した時だけCraftingPlanと1.5.33 sidecarをmaterializeする。
+6. pure `PlanBlueprint`をAE2 calculation workerへ戻し、固定済みbindingとrevisionを再検証する。
+7. 一致した時だけ同worker上でCraftingPlanと1.5.33 sidecarをmaterializeする。live AE2 getterやworld状態は参照しない。
 
 ## 失敗時の状態遷移
 

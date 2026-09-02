@@ -7,7 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/** Planner ThreadからServer Threadへ渡す、live Patternを含まない正確な結果。 */
+/** ACO workerからAE2計算workerへ返す、live Patternを含まない正確な結果。 */
 public record ParallelPlanBlueprint<K>(
         K requestedOutput,
         BigInteger requestedAmount,

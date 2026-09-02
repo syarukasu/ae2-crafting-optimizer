@@ -69,20 +69,27 @@ public final class ParallelPlannerEngine implements AutoCloseable {
 
     @Override
     public void close() {
-        List<QueuedSession<?>> cancelled = new ArrayList<>();
+        QueuedSession<?> running;
+        List<QueuedSession<?>> queued = new ArrayList<>();
         synchronized (lock) {
             if (!accepting) {
                 return;
             }
             accepting = false;
-            if (active != null) {
-                cancelled.add(active);
-                active = null;
-            }
-            cancelled.addAll(queue);
+            running = active;
+            active = null;
+            queued.addAll(queue);
             queue.clear();
         }
-        for (QueuedSession<?> session : cancelled) {
+        /*
+         * 実行中Sessionは単なるqueue拒否ではない。協調cancelを呼出側へ返し、
+         * wide計画がshutdown後にserial exact経路で再開されるのを防ぐ。
+         */
+        if (running != null) {
+            running.session.cancel();
+            running.future.complete(ParallelPlanResult.rejected(ParallelPlanFailure.CANCELLED));
+        }
+        for (QueuedSession<?> session : queued) {
             session.session.cancel();
             session.future.complete(ParallelPlanResult.rejected(ParallelPlanFailure.SHUTDOWN));
         }
@@ -92,6 +99,11 @@ public final class ParallelPlannerEngine implements AutoCloseable {
     private <K> void start(QueuedSession<K> queued) {
         long queueWaitNanos = Math.max(0L, System.nanoTime() - queued.enqueuedAtNanos);
         queued.session.start(pool, queueWaitNanos).whenComplete((result, failure) -> {
+            /*
+             * 完了済みSessionをactiveから外してから公開Futureを完了する。
+             * 呼出側が直後に次注文を出しても、退役途中のSessionの後ろへ入れない。
+             */
+            finish(queued);
             if (!queued.future.isCancelled()) {
                 if (failure == null) {
                     queued.future.complete(result);
@@ -101,7 +113,6 @@ public final class ParallelPlannerEngine implements AutoCloseable {
                     queued.future.completeExceptionally(failure);
                 }
             }
-            finish(queued);
         });
     }
 

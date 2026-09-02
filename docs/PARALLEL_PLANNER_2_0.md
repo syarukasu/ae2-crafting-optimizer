@@ -11,7 +11,7 @@
 - shared intermediateを一度だけ展開し、需要集約後に在庫を一度だけ消費する。
 - Thread完了順によらないcanonicalな結果を返す。
 - checked long overflow時は、同じGraphとSnapshotで数量passだけをBigIntegerとして再実行する。
-- Server Threadはcaptureとfinalizeだけを所有し、Planner完了を待たない。
+- Server Threadはlive状態のcaptureだけを所有し、Planner完了を待たない。
 
 ### 非目標
 
@@ -23,14 +23,14 @@
 
 ## Thread ownership
 
-| 状態または操作 | Server Thread | Planner Thread |
+| 状態または操作 | Server Thread | AE2計算worker / ACO worker |
 |---|---:|---:|
 | live Grid、Level、Storage、Provider、RecipeManager参照 | 所有 | 禁止 |
 | Pattern indexのcaptureとpublication | 所有 | immutable値だけ参照 |
 | Inventory snapshotのcapture | 所有 | immutable値だけ参照 |
-| Graph構築、cycle検査、数量伝播 | 禁止 | 所有 |
-| live Pattern bindingの再解決 | 所有 | 禁止 |
-| CraftingPlanとsidecarのmaterialize | 所有 | 禁止 |
+| Graph構築、cycle検査、数量伝播 | 禁止 | ACO workerが所有 |
+| capture済みPattern identityの解決 | 禁止 | AE2計算workerが所有 |
+| CraftingPlanとsidecarのmaterialize | 禁止 | AE2計算workerが所有 |
 | job提出、在庫mutation、CPU予約 | AE2または外部所有者 | 禁止 |
 
 ## Session lifecycle
@@ -80,7 +80,7 @@ captureは`revision before -> immutable capture -> revision after`の順で行�
 - `KeyToken`、`PatternToken`
 - 純粋な数量配列とGraph
 
-live `IPatternDetails`はServer Thread側の`PatternBinding`にだけ残し、finalize時にtoken、revision、fingerprintを再検証します。
+live `IPatternDetails`はServer Threadで固定したidentity mapにだけ残します。AE2計算workerはgetterを呼ばず、同じsnapshotのfingerprintから参照を引くだけです。Pattern、recipe、storage、config revisionが変わった結果はmaterialize前に破棄します。
 
 ## Immutable pattern index
 
@@ -141,15 +141,15 @@ frontier間には明示barrierを置きますが、workerが別workerのFuture�
 
 ## Finalize
 
-Plannerはlive AE2型を含まない`PlanBlueprint`を返します。Server executorへfinalizeをscheduleし、次を再検証します。
+ACO workerはlive AE2型を含まない`PlanBlueprint`を返します。呼出元のAE2計算workerで次を再検証します。AE2の`CraftingCalculation`自体が既に非同期worker上で動くため、純粋なPlan生成をServer Threadへ戻してtick負荷を増やしません。
 
 1. runtime identity
 2. Pattern、recipe、config revision
-3. Pattern tokenからlive bindingへの解決
+3. capture済みfingerprintから同一snapshotのPattern identityへの解決
 4. fingerprint一致
 5. cancel状態
 
-一致した場合だけ`CraftingPlan`を生成し、BigInteger/BigCapacity sidecarを付けてFutureを完了します。在庫はAE2の計算開始時snapshot意味論を維持し、提出時の既存再検証は変更しません。
+一致した場合だけ`CraftingPlan`を生成し、BigInteger/BigCapacity sidecarを付けてAE2のFutureを完了します。この区間ではlive getter、Grid、Level、Storageへ触れません。在庫はAE2の計算開始時snapshot意味論を維持し、提出時の既存再検証は変更しません。
 
 ## Failure and fallback table
 
