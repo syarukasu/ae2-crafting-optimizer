@@ -352,7 +352,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelAmountPlanner` | 一つのcanonical Graphの需要伝播を、edge-local contributionで最大4本に分割する。 |
 | `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelExactByteCounter` | ACOのcanonical DAG結果からAE2のstack、Pattern、node byte式を正確な有理数で評価する。 |
 | `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPatternIndex` | Server Threadで固定したPattern候補順だけをworkerへ公開するimmutable index。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanBlueprint` | Planner ThreadからServer Threadへ渡す、live Patternを含まない正確な結果。 |
+| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanBlueprint` | ACO workerからAE2計算workerへ返す、live Patternを含まない正確な結果。 |
 | `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanFailure` | MissingやCPU不足へ読み替えない、Parallel Planner自身の失敗分類。 |
 | `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanGraph` | 並列探索後にcanonicalなトポロジカル順へ固定した、一件のimmutable Pattern DAG。 |
 | `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanMetrics` | 一件のsessionで実測したGraph、数量pass、worker利用状況。 |

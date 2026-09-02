@@ -104,6 +104,35 @@ class ParallelPlannerEngineTest {
     }
 
     @Test
+    void independentBranchesKeepTheCanonicalFifoPatternOrder() throws Exception {
+        List<CompiledPattern<String>> patterns = List.of(
+                new CompiledPattern<>(
+                        "root-pattern",
+                        List.of(slot("a", 1L), slot("b", 1L)),
+                        Map.of("root", 1L),
+                        false),
+                pattern("a-pattern", "a-child", 1L, "a", 1L),
+                pattern("b-pattern", "b-child", 1L, "b", 1L),
+                pattern("a-child-pattern", "a-raw", 1L, "a-child", 1L),
+                pattern("b-child-pattern", "b-raw", 1L, "b-child", 1L));
+        try (ParallelPlannerEngine engine = new ParallelPlannerEngine()) {
+            ParallelPlanBlueprint<String> parallel = get(engine.submit(
+                            request(patterns, "root", BigInteger.ONE, Map.of())))
+                    .blueprint()
+                    .orElseThrow();
+
+            assertEquals(
+                    List.of(
+                            "root-pattern",
+                            "a-pattern",
+                            "b-pattern",
+                            "a-child-pattern",
+                            "b-child-pattern"),
+                    List.copyOf(parallel.patternExecutions().keySet()));
+        }
+    }
+
+    @Test
     void boundedQueueNeverRunsOnCallerAndQueuedCancellationDoesNotStartASecondSession()
             throws Exception {
         ParallelPlannerPool pool = new ParallelPlannerPool();
@@ -141,6 +170,37 @@ class ParallelPlannerEngineTest {
         releaseWorkers.countDown();
         assertTrue(get(active).blueprint().isPresent());
         engine.close();
+        assertTrue(pool.awaitTerminationForTest());
+    }
+
+    @Test
+    void closingAnActiveSessionReportsCancellation() throws Exception {
+        ParallelPlannerPool pool = new ParallelPlannerPool();
+        CountDownLatch workersOccupied = new CountDownLatch(ParallelPlannerPool.PARALLELISM);
+        CountDownLatch releaseWorkers = new CountDownLatch(1);
+        for (int worker = 0; worker < ParallelPlannerPool.PARALLELISM; worker++) {
+            pool.execute(() -> {
+                workersOccupied.countDown();
+                try {
+                    releaseWorkers.await(FUTURE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+        assertTrue(workersOccupied.await(FUTURE_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+
+        ParallelPlannerEngine engine = new ParallelPlannerEngine(pool);
+        Future<ParallelPlanResult<String>> active = engine.submit(request(
+                List.of(pattern("output", "raw", 1L, "output", 1L)),
+                "output",
+                BigInteger.ONE,
+                Map.of()));
+        assertFalse(active.isDone());
+
+        engine.close();
+        assertEquals(ParallelPlanFailure.CANCELLED, get(active).failure());
+        releaseWorkers.countDown();
         assertTrue(pool.awaitTerminationForTest());
     }
 

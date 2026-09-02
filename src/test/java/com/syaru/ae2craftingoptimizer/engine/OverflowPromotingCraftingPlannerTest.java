@@ -7,8 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigInteger;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class OverflowPromotingCraftingPlannerTest {
@@ -212,7 +215,7 @@ class OverflowPromotingCraftingPlannerTest {
         assertVirtualExecutionCompletes(
                 plan,
                 Map.of("input", exactInput),
-                Map.of("output", request),
+                program.patternsByOutput(),
                 request);
     }
 
@@ -239,7 +242,9 @@ class OverflowPromotingCraftingPlannerTest {
                         ignored -> false)
                 .orElseThrow();
 
-        var result = new OverflowPromotingCraftingPlanner<String>().plan(
+        OverflowPromotingCraftingPlanner<String> planner =
+                new OverflowPromotingCraftingPlanner<>(256);
+        var result = planner.plan(
                 program,
                 BigInteger.TEN,
                 program.captureLongInventory(ignored -> 0L),
@@ -252,6 +257,27 @@ class OverflowPromotingCraftingPlannerTest {
         assertEquals(stageOneExecutions.multiply(BigInteger.valueOf(5L)), plan.missing().get("seed_a"));
         assertEquals(stageOneExecutions.multiply(BigInteger.valueOf(4L)), plan.missing().get("seed_b"));
         assertTrue(plan.missing().get("seed_a").compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0);
+
+        BigInteger seedA = stageOneExecutions.multiply(BigInteger.valueOf(5L));
+        BigInteger seedB = stageOneExecutions.multiply(BigInteger.valueOf(4L));
+        var craftable = planner.plan(
+                program,
+                BigInteger.TEN,
+                program.captureBigInventory(
+                        key -> key.equals("seed_a")
+                                ? seedA
+                                : key.equals("seed_b") ? seedB : BigInteger.ZERO,
+                        256),
+                PlanningGuard.none());
+        BigCraftingPlan<String> executable = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                craftable).plan();
+        assertTrue(executable.craftable());
+        assertVirtualExecutionCompletes(
+                executable,
+                Map.of("seed_a", seedA, "seed_b", seedB),
+                program.patternsByOutput(),
+                BigInteger.TEN);
     }
 
     @Test
@@ -282,7 +308,7 @@ class OverflowPromotingCraftingPlannerTest {
         assertVirtualExecutionCompletes(
                 plan,
                 Map.of("raw", BigInteger.TWO),
-                Map.of("output", producedOutput),
+                Map.of("output", output),
                 producedOutput);
     }
 
@@ -316,29 +342,30 @@ class OverflowPromotingCraftingPlannerTest {
         assertEquals(BigInteger.TWO, plan.patternExecutions().get("output"));
         assertEquals(BigInteger.TWO, plan.patternExecutions().get("intermediate"));
         assertEquals(BigInteger.TWO, plan.usedInventory().get("raw"));
-        BigInteger producedIntermediate =
-                BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO);
         assertVirtualExecutionCompletes(
                 plan,
                 Map.of("raw", BigInteger.TWO),
                 Map.of(
-                        "intermediate", producedIntermediate,
-                        "output", BigInteger.TWO),
+                        "output", output,
+                        "intermediate", intermediate),
                 BigInteger.TWO);
     }
 
     private static void assertVirtualExecutionCompletes(
             BigCraftingPlan<String> plan,
             Map<String, BigInteger> initialInventory,
-            Map<String, BigInteger> producedOutputs,
+            Map<String, CompiledPattern<String>> patternsByOutput,
             BigInteger finalOutputAmount) {
         BigCraftingInventory<String> inventory = new BigCraftingInventory<>(initialInventory);
+        Map<String, BigInteger> producedOutputs = new LinkedHashMap<>();
         try (var transaction = inventory.beginTransaction()) {
-            // Plannerが確定した外部入力だけを正確量で一度ずつ抽出する。
-            for (var entry : plan.usedInventory().entrySet()) {
-                transaction.extractExact(entry.getKey(), entry.getValue());
-            }
-            transaction.insert(plan.requestedKey(), finalOutputAmount);
+            executePlannedPattern(
+                    plan.requestedKey(),
+                    plan,
+                    patternsByOutput,
+                    new HashSet<>(),
+                    transaction,
+                    producedOutputs);
             transaction.commit();
         }
 
@@ -362,6 +389,45 @@ class OverflowPromotingCraftingPlannerTest {
             assertEquals(
                     initialInventory.get(entry.getKey()).subtract(entry.getValue()),
                     inventory.amount(entry.getKey()));
+        }
+    }
+
+    private static void executePlannedPattern(
+            String output,
+            BigCraftingPlan<String> plan,
+            Map<String, CompiledPattern<String>> patternsByOutput,
+            Set<String> executedPatterns,
+            BigCraftingInventory.Transaction<String> transaction,
+            Map<String, BigInteger> producedOutputs) {
+        CompiledPattern<String> pattern = patternsByOutput.get(output);
+        if (pattern == null || !executedPatterns.add(pattern.id())) {
+            return;
+        }
+        BigInteger executions = plan.patternExecutions().getOrDefault(
+                pattern.id(),
+                BigInteger.ZERO);
+        if (executions.signum() == 0) {
+            return;
+        }
+        // 依存Patternを先に完了し、親Patternが実際の中間素材を消費する順で進める。
+        for (CompiledPattern.InputSlot<String> slot : pattern.inputs()) {
+            assertEquals(1, slot.alternatives().size());
+            CompiledPattern.Stack<String> input = slot.alternatives().get(0);
+            executePlannedPattern(
+                    input.key(),
+                    plan,
+                    patternsByOutput,
+                    executedPatterns,
+                    transaction,
+                    producedOutputs);
+            transaction.extractExact(
+                    input.key(),
+                    BigInteger.valueOf(input.amount()).multiply(executions));
+        }
+        for (Map.Entry<String, Long> produced : pattern.outputs().entrySet()) {
+            BigInteger amount = BigInteger.valueOf(produced.getValue()).multiply(executions);
+            transaction.insert(produced.getKey(), amount);
+            producedOutputs.merge(produced.getKey(), amount, BigInteger::add);
         }
     }
 

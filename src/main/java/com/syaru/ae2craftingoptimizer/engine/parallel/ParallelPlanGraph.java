@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -494,20 +493,24 @@ public final class ParallelPlanGraph<K> {
             }
         }
 
-        PriorityQueue<K> ready = new PriorityQueue<>(canonicalComparator);
-        for (Map.Entry<K, Integer> entry : indegree.entrySet()) {
-            if (entry.getValue() == 0) {
-                ready.add(entry.getKey());
+        Deque<K> ready = new ArrayDeque<>();
+        /*
+         * canonicalな探索順を初期値にしたFIFO Kahn順を使う。独立枝がreadyになった順を
+         * worker完了順ではなく、親Patternのslot・候補順だけで固定する。
+         */
+        for (K key : discoveryOrder.keySet()) {
+            if (indegree.getOrDefault(key, 0) == 0) {
+                ready.addLast(key);
             }
         }
         List<K> order = new ArrayList<>(records.size());
         while (!ready.isEmpty()) {
-            K key = ready.remove();
+            K key = ready.removeFirst();
             order.add(key);
             for (K child : uniqueChildrenByKey.getOrDefault(key, List.of())) {
                 int remaining = indegree.compute(child, (ignored, count) -> count - 1);
                 if (remaining == 0) {
-                    ready.add(child);
+                    ready.addLast(child);
                 }
             }
         }
