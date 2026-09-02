@@ -563,8 +563,7 @@ public final class Ae2ImmutablePlanningGraphCache {
                     capture.patternGeneration,
                     candidatesByOutput,
                     emittableKeys,
-                    incompleteOutputs,
-                    STABLE_KEY_ORDER);
+                    incompleteOutputs);
             return new Snapshot(
                     CompiledCraftingGraph.compile(
                             capture.patternGeneration,

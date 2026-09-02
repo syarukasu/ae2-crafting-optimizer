@@ -4,7 +4,6 @@ import com.syaru.ae2craftingoptimizer.engine.CompiledPattern;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -22,7 +21,6 @@ public final class ParallelPatternIndex<K> {
     private final Map<K, List<CompiledPattern<K>>> candidatesByOutput;
     private final Set<K> emittableKeys;
     private final Set<K> incompleteOutputs;
-    private final Comparator<? super K> keyOrder;
     private final LinkedHashMap<K, ParallelPlanGraph<K>> graphCache =
             new LinkedHashMap<>(16, 0.75F, true);
     private int cachedNodeCount;
@@ -31,13 +29,11 @@ public final class ParallelPatternIndex<K> {
             long generation,
             Map<K, ? extends List<CompiledPattern<K>>> candidatesByOutput,
             Set<K> emittableKeys,
-            Set<K> incompleteOutputs,
-            Comparator<? super K> keyOrder) {
+            Set<K> incompleteOutputs) {
         if (generation < 0L) {
             throw new IllegalArgumentException("pattern generation must not be negative");
         }
         this.generation = generation;
-        this.keyOrder = Objects.requireNonNull(keyOrder, "keyOrder");
         this.candidatesByOutput = immutableCandidates(candidatesByOutput);
         this.emittableKeys = immutableKeys(emittableKeys, "emittableKeys");
         this.incompleteOutputs = immutableKeys(incompleteOutputs, "incompleteOutputs");
@@ -46,8 +42,7 @@ public final class ParallelPatternIndex<K> {
     public static <K> ParallelPatternIndex<K> fromPatterns(
             long generation,
             Collection<CompiledPattern<K>> patterns,
-            Set<K> emittableKeys,
-            Comparator<? super K> keyOrder) {
+            Set<K> emittableKeys) {
         Objects.requireNonNull(patterns, "patterns");
         Map<K, List<CompiledPattern<K>>> candidates = new LinkedHashMap<>();
         for (CompiledPattern<K> pattern : patterns) {
@@ -60,8 +55,7 @@ public final class ParallelPatternIndex<K> {
                 generation,
                 candidates,
                 emittableKeys,
-                Set.of(),
-                keyOrder);
+                Set.of());
     }
 
     public long generation() {
@@ -78,10 +72,6 @@ public final class ParallelPatternIndex<K> {
 
     public boolean isIncomplete(K output) {
         return incompleteOutputs.contains(output);
-    }
-
-    public Comparator<? super K> keyOrder() {
-        return keyOrder;
     }
 
     public int indexedOutputCount() {

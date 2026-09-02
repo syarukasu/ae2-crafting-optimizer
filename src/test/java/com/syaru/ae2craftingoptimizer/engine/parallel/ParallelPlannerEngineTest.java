@@ -11,7 +11,6 @@ import com.syaru.ae2craftingoptimizer.engine.LongCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.PlanningGuard;
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -173,8 +172,7 @@ class ParallelPlannerEngineTest {
                 ParallelPatternIndex.fromPatterns(
                         1L,
                         patterns,
-                        Set.of(),
-                        Comparator.naturalOrder()),
+                        Set.of()),
                 root,
                 requested,
                 inventory,
