@@ -49,6 +49,6 @@ public record ParallelPlanResult<K>(
                 Optional.empty(),
                 failure,
                 RootProgramFailure.NONE,
-                new ParallelPlanMetrics(0, 0L, 0, 0, 0, 0, false, 0L, 0L, 0L));
+                new ParallelPlanMetrics(0, 0L, 0, 0, 0, 0, false, false, 0L, 0L, 0L));
     }
 }

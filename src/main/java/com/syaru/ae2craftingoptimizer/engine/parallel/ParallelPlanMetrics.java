@@ -8,6 +8,7 @@ public record ParallelPlanMetrics(
         int amountProcessedNodes,
         int amountWorkersUsed,
         int maximumActiveWorkers,
+        boolean graphCacheHit,
         boolean promotedFromLong,
         long graphNanos,
         long amountNanos,
@@ -23,6 +24,7 @@ public record ParallelPlanMetrics(
                 0,
                 graph.maximumActiveWorkers(),
                 false,
+                false,
                 graph.elapsedNanos(),
                 0L,
                 queueWaitNanos);
@@ -31,7 +33,8 @@ public record ParallelPlanMetrics(
     static ParallelPlanMetrics completed(
             ParallelPlanGraph.BuildMetrics graph,
             ParallelAmountPlanner.AmountOutcome<?> amount,
-            long queueWaitNanos) {
+            long queueWaitNanos,
+            boolean graphCacheHit) {
         return new ParallelPlanMetrics(
                 graph.expandedNodes(),
                 graph.duplicateDiscoveries(),
@@ -41,6 +44,7 @@ public record ParallelPlanMetrics(
                 Math.max(
                         graph.maximumActiveWorkers(),
                         amount.metrics().maximumActiveWorkers()),
+                graphCacheHit,
                 amount.promotedFromLong(),
                 graph.elapsedNanos(),
                 amount.metrics().elapsedNanos(),

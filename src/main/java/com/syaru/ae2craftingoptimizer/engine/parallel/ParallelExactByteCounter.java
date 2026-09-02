@@ -3,7 +3,6 @@ package com.syaru.ae2craftingoptimizer.engine.parallel;
 import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
 import java.math.BigInteger;
 import java.util.Map;
-import java.util.Objects;
 
 /** ACOのcanonical DAG結果からAE2のstack、Pattern、node byte式を正確な有理数で評価する。 */
 final class ParallelExactByteCounter {
@@ -17,25 +16,20 @@ final class ParallelExactByteCounter {
             BigInteger[] edgeContributions,
             Map<K, Long> amountPerByte,
             int maximumBits) {
-        Fraction total = Fraction.ZERO;
-        BigInteger nodeCount = BigInteger.ONE;
+        MutableFraction total = new MutableFraction();
+        long nodeCount = 1L;
 
-        total = total.addStack(
+        total.addStack(
                 requestedAmount,
                 divisor(graph.root(), amountPerByte),
-                maximumBits,
-                "root");
+                maximumBits);
         for (int node = 0; node < graph.nodeCount(); node++) {
             BigInteger executions = zero(patternExecutions[node]);
             if (executions.signum() == 0) {
                 continue;
             }
-            total = total.addInteger(executions, maximumBits, "pattern/" + node);
-            nodeCount = BigCountMath.add(
-                    nodeCount,
-                    BigInteger.valueOf(graph.inputCountAt(node)),
-                    "parallel/bytes/nodes",
-                    maximumBits);
+            total.addInteger(executions, maximumBits);
+            nodeCount = Math.addExact(nodeCount, graph.inputCountAt(node));
         }
         for (int edge = 0; edge < graph.edgeCount(); edge++) {
             BigInteger contribution = zero(edgeContributions[edge]);
@@ -43,20 +37,18 @@ final class ParallelExactByteCounter {
                 continue;
             }
             K child = graph.keyAt(graph.childAtEdge(edge));
-            total = total.addStack(
+            total.addStack(
                     contribution,
                     divisor(child, amountPerByte),
-                    maximumBits,
-                    "edge/" + edge);
+                    maximumBits);
         }
-        total = total.addInteger(
+        total.addInteger(
                 BigCountMath.multiply(
-                        nodeCount,
+                        BigInteger.valueOf(nodeCount),
                         BigInteger.valueOf(8L),
                         "parallel/bytes/node-overhead",
                         maximumBits),
-                maximumBits,
-                "node-overhead");
+                maximumBits);
         return total.ceil(maximumBits);
     }
 
@@ -72,46 +64,56 @@ final class ParallelExactByteCounter {
         return value == null ? BigInteger.ZERO : value;
     }
 
-    private record Fraction(BigInteger numerator, BigInteger denominator) {
-        private static final Fraction ZERO = new Fraction(BigInteger.ZERO, BigInteger.ONE);
+    private static final class MutableFraction {
+        private BigInteger numerator = BigInteger.ZERO;
+        private BigInteger denominator = BigInteger.ONE;
 
-        private Fraction {
-            Objects.requireNonNull(numerator, "numerator");
-            Objects.requireNonNull(denominator, "denominator");
-            if (numerator.signum() < 0 || denominator.signum() <= 0) {
-                throw new IllegalArgumentException("invalid byte fraction");
-            }
-        }
-
-        private Fraction addStack(
+        private void addStack(
                 BigInteger amount,
                 long amountPerByte,
-                int maximumBits,
-                String context) {
+                int maximumBits) {
             BigInteger stackNumerator = BigCountMath.multiply(
                     amount,
                     BigInteger.valueOf(8L),
-                    "parallel/bytes/stack/" + context,
+                    "parallel/bytes/stack",
                     maximumBits);
-            return add(
+            add(
                     stackNumerator,
                     BigInteger.valueOf(amountPerByte),
-                    maximumBits,
-                    context);
+                    maximumBits);
         }
 
-        private Fraction addInteger(
+        private void addInteger(
                 BigInteger amount,
-                int maximumBits,
-                String context) {
-            return add(amount, BigInteger.ONE, maximumBits, context);
+                int maximumBits) {
+            if (denominator.equals(BigInteger.ONE)) {
+                numerator = BigCountMath.add(
+                        numerator,
+                        amount,
+                        "parallel/bytes/integer",
+                        maximumBits);
+                return;
+            }
+            numerator = BigCountMath.add(
+                    numerator,
+                    BigCountMath.multiply(
+                            amount,
+                            denominator,
+                            "parallel/bytes/integer-scale",
+                            maximumBits),
+                    "parallel/bytes/integer",
+                    maximumBits);
         }
 
-        private Fraction add(
+        private void add(
                 BigInteger addNumerator,
                 BigInteger addDenominator,
-                int maximumBits,
-                String context) {
+                int maximumBits) {
+            BigInteger[] integral = addNumerator.divideAndRemainder(addDenominator);
+            if (integral[1].signum() == 0) {
+                addInteger(integral[0], maximumBits);
+                return;
+            }
             BigInteger gcd = denominator.gcd(addDenominator);
             BigInteger leftMultiplier = addDenominator.divide(gcd);
             BigInteger rightMultiplier = denominator.divide(gcd);
@@ -119,24 +121,23 @@ final class ParallelExactByteCounter {
                     BigCountMath.multiply(
                             numerator,
                             leftMultiplier,
-                            "parallel/bytes/left/" + context,
+                            "parallel/bytes/left",
                             maximumBits),
                     BigCountMath.multiply(
                             addNumerator,
                             rightMultiplier,
-                            "parallel/bytes/right/" + context,
+                            "parallel/bytes/right",
                             maximumBits),
-                    "parallel/bytes/add/" + context,
+                    "parallel/bytes/add",
                     maximumBits);
             BigInteger nextDenominator = BigCountMath.multiply(
                     denominator,
                     leftMultiplier,
-                    "parallel/bytes/denominator/" + context,
+                    "parallel/bytes/denominator",
                     maximumBits);
             BigInteger reduction = nextNumerator.gcd(nextDenominator);
-            return new Fraction(
-                    nextNumerator.divide(reduction),
-                    nextDenominator.divide(reduction));
+            numerator = nextNumerator.divide(reduction);
+            denominator = nextDenominator.divide(reduction);
         }
 
         private BigInteger ceil(int maximumBits) {
