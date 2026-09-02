@@ -99,7 +99,12 @@ final class Ae2CompiledPatternFactory {
         }
         if (implementation == AECraftingPattern.class) {
             AECraftingPattern crafting = (AECraftingPattern) details;
-            return !crafting.canSubstitute() && !crafting.canSubstituteFluids();
+            /*
+             * AE2の流体代替は入力候補を増やさず、容器入力を単一の流体入力へ正規化する。
+             * capture側は残余物と各候補の有効性を個別に検査するため、候補集合を変える
+             * アイテム代替だけをexact domainの除外条件にする。
+             */
+            return !crafting.canSubstitute();
         }
         if (implementation == AEStonecuttingPattern.class) {
             return !((AEStonecuttingPattern) details).canSubstitute();
