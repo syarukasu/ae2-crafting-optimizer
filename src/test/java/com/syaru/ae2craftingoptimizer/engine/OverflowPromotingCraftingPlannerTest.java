@@ -217,6 +217,44 @@ class OverflowPromotingCraftingPlannerTest {
     }
 
     @Test
+    void promotesCraftingIslandChainWhenOnlyIntermediateDemandExceedsLong() {
+        List<CompiledPattern<String>> patterns = new java.util.ArrayList<>();
+        patterns.add(new CompiledPattern<>(
+                "stage_01",
+                List.of(
+                        new CompiledPattern.InputSlot<>(
+                                List.of(new CompiledPattern.Stack<>("seed_a", 5L))),
+                        new CompiledPattern.InputSlot<>(
+                                List.of(new CompiledPattern.Stack<>("seed_b", 4L)))),
+                Map.of("stage_01", 1L),
+                false));
+        for (int stage = 2; stage <= 20; stage++) {
+            String input = "stage_%02d".formatted(stage - 1);
+            String output = "stage_%02d".formatted(stage);
+            patterns.add(pattern(output, output, stack(input, 9L)));
+        }
+        CompiledRootProgram<String> program = CompiledRootProgram.tryCompile(
+                        CompiledCraftingGraph.compile(1L, patterns),
+                        "stage_20",
+                        ignored -> false)
+                .orElseThrow();
+
+        var result = new OverflowPromotingCraftingPlanner<String>().plan(
+                program,
+                BigInteger.TEN,
+                program.captureLongInventory(ignored -> 0L),
+                PlanningGuard.none());
+
+        BigCraftingPlan<String> plan = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                result).plan();
+        BigInteger stageOneExecutions = BigInteger.TEN.multiply(BigInteger.valueOf(9L).pow(19));
+        assertEquals(stageOneExecutions.multiply(BigInteger.valueOf(5L)), plan.missing().get("seed_a"));
+        assertEquals(stageOneExecutions.multiply(BigInteger.valueOf(4L)), plan.missing().get("seed_b"));
+        assertTrue(plan.missing().get("seed_a").compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0);
+    }
+
+    @Test
     void promotesWhenOnlyFinalOutputExceedsLong() {
         BigInteger requestedOutput = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
         CompiledPattern<String> output = new CompiledPattern<>(
