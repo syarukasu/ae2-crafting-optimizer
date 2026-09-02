@@ -46,7 +46,8 @@ public final class Ae2ImmutablePlanningGraphCache {
     private static final int CAPTURE_REVISION_CHECK_INTERVAL_MASK = 63;
     private static final AEKeyFilter ALL_KEYS = key -> true;
     private static final Comparator<AEKey> STABLE_KEY_ORDER = Comparator.comparing(
-            key -> key.toTagGeneric().toString());
+            key -> key.toTagGeneric(
+                    com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()).toString());
     private static final Map<ICraftingService, PublishedServiceState> PUBLISHED =
             Collections.synchronizedMap(new WeakHashMap<>());
     private static final AtomicLong NEXT_RUNTIME_ID = new AtomicLong(1L);
@@ -563,8 +564,7 @@ public final class Ae2ImmutablePlanningGraphCache {
                     capture.patternGeneration,
                     candidatesByOutput,
                     emittableKeys,
-                    incompleteOutputs,
-                    STABLE_KEY_ORDER);
+                    incompleteOutputs);
             return new Snapshot(
                     CompiledCraftingGraph.compile(
                             capture.patternGeneration,

@@ -13,7 +13,6 @@ import java.lang.management.ManagementFactory;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -236,8 +235,7 @@ class ParallelPlannerVirtualOrderBenchmarkTest {
         ParallelPatternIndex<String> index = ParallelPatternIndex.fromPatterns(
                 1L,
                 patterns,
-                Set.of(),
-                Comparator.naturalOrder());
+                Set.of());
         return new Fixture(program, index, Map.copyOf(divisors), List.copyOf(rawKeys));
     }
 

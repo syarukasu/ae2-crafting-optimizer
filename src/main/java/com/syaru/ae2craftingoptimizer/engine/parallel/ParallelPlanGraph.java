@@ -467,9 +467,8 @@ public final class ParallelPlanGraph<K> {
             Map<K, NodeRecord<K>> records,
             BuildMetrics metrics) {
         Map<K, Integer> discoveryOrder = canonicalDiscoveryOrder(root, records);
-        Comparator<K> canonicalComparator = Comparator
-                .comparingInt((K key) -> discoveryOrder.getOrDefault(key, Integer.MAX_VALUE))
-                .thenComparing(index.keyOrder());
+        Comparator<K> canonicalComparator = Comparator.comparingInt(
+                key -> discoveryOrder.getOrDefault(key, Integer.MAX_VALUE));
 
         Map<K, Integer> indegree = new HashMap<>();
         Map<K, List<K>> uniqueChildrenByKey = new HashMap<>();
