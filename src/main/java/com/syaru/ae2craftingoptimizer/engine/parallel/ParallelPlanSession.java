@@ -21,6 +21,22 @@ final class ParallelPlanSession<K> {
     CompletableFuture<ParallelPlanResult<K>> start(
             ParallelPlannerPool pool,
             long queueWaitNanos) {
+        ParallelPlanGraph<K> cached = request.patterns().cachedGraph(
+                request.requestedOutput());
+        if (cached != null) {
+            if (!state.compareAndSet(State.QUEUED, State.AMOUNT_RUNNING)) {
+                return failedFuture(new IllegalStateException(
+                        "parallel session was started twice"));
+            }
+            CompletableFuture<ParallelPlanResult<K>> result = startAmountPass(
+                    pool,
+                    cached,
+                    cachedGraphMetrics(),
+                    queueWaitNanos,
+                    true);
+            trackCompletion(result);
+            return result;
+        }
         if (!state.compareAndSet(State.QUEUED, State.GRAPH_BUILDING)) {
             return failedFuture(new IllegalStateException("parallel session was started twice"));
         }
@@ -42,18 +58,20 @@ final class ParallelPlanSession<K> {
                         return failedFuture(new IllegalStateException(
                                 "parallel session changed state before amount pass"));
                     }
-                    return ParallelAmountPlanner.planAsync(
-                                    pool,
-                                    graphOutcome.graph().orElseThrow(),
-                                    request,
-                                    cancellation)
-                            .thenApply(amount -> ParallelPlanResult.completed(
-                                    amount.blueprint(),
-                                    ParallelPlanMetrics.completed(
-                                            graphOutcome.metrics(),
-                                            amount,
-                                            queueWaitNanos)));
+                    ParallelPlanGraph<K> graph = graphOutcome.graph().orElseThrow();
+                    request.patterns().cacheGraph(request.requestedOutput(), graph);
+                    return startAmountPass(
+                            pool,
+                            graph,
+                            graphOutcome.metrics(),
+                            queueWaitNanos,
+                            false);
                 });
+        trackCompletion(result);
+        return result;
+    }
+
+    private void trackCompletion(CompletableFuture<ParallelPlanResult<K>> result) {
         result.whenComplete((ignored, failure) -> {
             if (failure == null) {
                 state.set(State.COMPLETED);
@@ -63,7 +81,35 @@ final class ParallelPlanSession<K> {
                 state.set(State.FAILED);
             }
         });
-        return result;
+    }
+
+    private CompletableFuture<ParallelPlanResult<K>> startAmountPass(
+            ParallelPlannerPool pool,
+            ParallelPlanGraph<K> graph,
+            ParallelPlanGraph.BuildMetrics graphMetrics,
+            long queueWaitNanos,
+            boolean graphCacheHit) {
+        return ParallelAmountPlanner.planAsync(
+                        pool,
+                        graph,
+                        request,
+                        cancellation)
+                .thenApply(amount -> ParallelPlanResult.completed(
+                        amount.blueprint(),
+                        ParallelPlanMetrics.completed(
+                                graphMetrics,
+                                amount,
+                                queueWaitNanos,
+                                graphCacheHit)));
+    }
+
+    private static ParallelPlanGraph.BuildMetrics cachedGraphMetrics() {
+        return new ParallelPlanGraph.BuildMetrics(
+                0,
+                0L,
+                0,
+                new int[ParallelPlannerPool.PARALLELISM],
+                0L);
     }
 
     void cancel() {

@@ -7,7 +7,6 @@ import com.syaru.ae2craftingoptimizer.engine.CountOverflowException;
 import com.syaru.ae2craftingoptimizer.engine.PlanningCancellationToken;
 import com.syaru.ae2craftingoptimizer.engine.PlanningCancelledException;
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -16,17 +15,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.LockSupport;
 
 /** 一つのcanonical Graphの需要伝播を、edge-local contributionで最大4本に分割する。 */
 final class ParallelAmountPlanner {
-    /** idle workerが次のready nodeを待つ50 microseconds。Server Threadは待たない。 */
-    private static final long IDLE_PARK_NANOS = 50_000L;
+    /** 既存plannerと同じ64 node単位で協調cancelを観測する。 */
+    private static final int CANCELLATION_CHECK_INTERVAL_MASK = 63;
     private static final int SIGNED_LONG_MAGNITUDE_BITS = Long.SIZE - 1;
 
     private ParallelAmountPlanner() {
@@ -282,17 +278,15 @@ final class ParallelAmountPlanner {
         final ParallelPlannerPool pool;
         final ParallelPlanGraph<K> graph;
         final PlanningCancellationToken cancellation;
-        final List<ConcurrentLinkedDeque<Integer>> queues;
-        final AtomicIntegerArray remainingParents;
-        final AtomicInteger outstanding = new AtomicInteger(1);
         final AtomicInteger remainingWorkers = new AtomicInteger(ParallelPlannerPool.PARALLELISM);
         final AtomicInteger processed = new AtomicInteger();
         final AtomicInteger activeWorkers = new AtomicInteger();
         final AtomicInteger maximumActiveWorkers = new AtomicInteger();
         final AtomicIntegerArray nodesByWorker =
                 new AtomicIntegerArray(ParallelPlannerPool.PARALLELISM);
-        final AtomicBoolean done = new AtomicBoolean();
         final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final AtomicInteger frontierPhase = new AtomicInteger();
+        final AtomicInteger frontierArrivals = new AtomicInteger();
         final CompletableFuture<R> result = new CompletableFuture<>();
         final long startedNanos = System.nanoTime();
 
@@ -303,15 +297,6 @@ final class ParallelAmountPlanner {
             this.pool = pool;
             this.graph = graph;
             this.cancellation = cancellation;
-            int[] parentCounts = graph.parentCountsCopy();
-            this.remainingParents = new AtomicIntegerArray(parentCounts);
-            List<ConcurrentLinkedDeque<Integer>> mutableQueues = new ArrayList<>(
-                    ParallelPlannerPool.PARALLELISM);
-            for (int worker = 0; worker < ParallelPlannerPool.PARALLELISM; worker++) {
-                mutableQueues.add(new ConcurrentLinkedDeque<>());
-            }
-            this.queues = List.copyOf(mutableQueues);
-            this.queues.get(0).addLast(graph.rootIndex());
         }
 
         final CompletableFuture<R> start() {
@@ -321,34 +306,17 @@ final class ParallelAmountPlanner {
 
         private void runWorker(int workerId) {
             try {
-                while (!done.get()) {
-                    cancellation.checkpoint(processed.get());
-                    Integer node = pollWork(workerId);
-                    if (node == null) {
-                        if (outstanding.get() == 0) {
-                            done.set(true);
-                            break;
-                        }
-                        LockSupport.parkNanos(IDLE_PARK_NANOS);
-                        continue;
+                for (int frontier = 0; frontier < graph.frontierCount(); frontier++) {
+                    if (failure.get() != null) {
+                        break;
                     }
-                    int active = activeWorkers.incrementAndGet();
-                    maximumActiveWorkers.accumulateAndGet(active, Math::max);
-                    try {
-                        processNode(node);
-                        nodesByWorker.incrementAndGet(workerId);
-                        processed.incrementAndGet();
-                        unlockChildren(node);
-                    } finally {
-                        activeWorkers.decrementAndGet();
-                        if (outstanding.decrementAndGet() == 0) {
-                            done.set(true);
-                        }
+                    processFrontier(workerId, graph.frontierAt(frontier));
+                    if (!awaitFrontier(frontier)) {
+                        break;
                     }
                 }
             } catch (Throwable thrown) {
                 failure.compareAndSet(null, thrown);
-                done.set(true);
             } finally {
                 if (remainingWorkers.decrementAndGet() == 0) {
                     finish();
@@ -356,33 +324,54 @@ final class ParallelAmountPlanner {
             }
         }
 
-        private Integer pollWork(int workerId) {
-            Integer own = queues.get(workerId).pollLast();
-            if (own != null) {
-                return own;
+        private void processFrontier(int workerId, int[] frontier) {
+            int localProcessed = 0;
+            int first = (int) ((long) frontier.length * workerId
+                    / ParallelPlannerPool.PARALLELISM);
+            int limit = (int) ((long) frontier.length * (workerId + 1)
+                    / ParallelPlannerPool.PARALLELISM);
+            boolean active = first < limit;
+            if (active) {
+                int activeCount = activeWorkers.incrementAndGet();
+                maximumActiveWorkers.accumulateAndGet(activeCount, Math::max);
             }
-            for (int offset = 1; offset < ParallelPlannerPool.PARALLELISM; offset++) {
-                int victim = (workerId + offset) % ParallelPlannerPool.PARALLELISM;
-                Integer stolen = queues.get(victim).pollFirst();
-                if (stolen != null) {
-                    return stolen;
+            try {
+                for (int offset = first; offset < limit; offset++) {
+                    if ((localProcessed & CANCELLATION_CHECK_INTERVAL_MASK) == 0) {
+                        cancellation.checkpoint(processed.get() + localProcessed);
+                    }
+                    processNode(frontier[offset]);
+                    localProcessed++;
+                }
+            } finally {
+                if (localProcessed != 0) {
+                    nodesByWorker.addAndGet(workerId, localProcessed);
+                    processed.addAndGet(localProcessed);
+                }
+                if (active) {
+                    activeWorkers.decrementAndGet();
                 }
             }
-            return null;
         }
 
-        private void unlockChildren(int node) {
-            for (int child : graph.uniqueChildrenAt(node)) {
-                int remaining = remainingParents.decrementAndGet(child);
-                if (remaining < 0) {
-                    throw new IllegalStateException("parallel amount parent count became negative");
-                }
-                if (remaining == 0) {
-                    outstanding.incrementAndGet();
-                    queues.get(Math.floorMod(child, ParallelPlannerPool.PARALLELISM))
-                            .addLast(child);
-                }
+        private boolean awaitFrontier(int expectedPhase) {
+            if (failure.get() != null) {
+                return false;
             }
+            int arrivals = frontierArrivals.incrementAndGet();
+            if (arrivals == ParallelPlannerPool.PARALLELISM) {
+                frontierArrivals.set(0);
+                frontierPhase.incrementAndGet();
+                return true;
+            }
+            while (frontierPhase.get() == expectedPhase) {
+                if (failure.get() != null) {
+                    return false;
+                }
+                cancellation.checkpoint(processed.get());
+                Thread.onSpinWait();
+            }
+            return failure.get() == null;
         }
 
         private void finish() {

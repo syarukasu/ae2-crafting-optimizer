@@ -14,11 +14,18 @@ import java.util.Set;
 
 /** Server Threadで固定したPattern候補順だけをworkerへ公開するimmutable index。 */
 public final class ParallelPatternIndex<K> {
+    /** 一世代で保持するroot Graph数。 */
+    private static final int MAXIMUM_CACHED_ROOTS = 256;
+    /** 一世代で保持するGraphの合計Node数。 */
+    private static final int MAXIMUM_CACHED_NODES = 1_048_576;
     private final long generation;
     private final Map<K, List<CompiledPattern<K>>> candidatesByOutput;
     private final Set<K> emittableKeys;
     private final Set<K> incompleteOutputs;
     private final Comparator<? super K> keyOrder;
+    private final LinkedHashMap<K, ParallelPlanGraph<K>> graphCache =
+            new LinkedHashMap<>(16, 0.75F, true);
+    private int cachedNodeCount;
 
     public ParallelPatternIndex(
             long generation,
@@ -79,6 +86,26 @@ public final class ParallelPatternIndex<K> {
 
     public int indexedOutputCount() {
         return candidatesByOutput.size();
+    }
+
+    synchronized ParallelPlanGraph<K> cachedGraph(K root) {
+        return graphCache.get(root);
+    }
+
+    synchronized void cacheGraph(K root, ParallelPlanGraph<K> graph) {
+        ParallelPlanGraph<K> previous = graphCache.put(root, graph);
+        if (previous != null) {
+            cachedNodeCount -= previous.nodeCount();
+        }
+        cachedNodeCount += graph.nodeCount();
+        // root件数または総Node数を超えた間だけaccess-order最古を除く。
+        while (graphCache.size() > MAXIMUM_CACHED_ROOTS
+                || cachedNodeCount > MAXIMUM_CACHED_NODES) {
+            Map.Entry<K, ParallelPlanGraph<K>> eldest =
+                    graphCache.entrySet().iterator().next();
+            cachedNodeCount -= eldest.getValue().nodeCount();
+            graphCache.remove(eldest.getKey());
+        }
     }
 
     private static <K> Map<K, List<CompiledPattern<K>>> immutableCandidates(

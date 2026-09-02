@@ -51,9 +51,8 @@ public final class ParallelPlanGraph<K> {
     private final int[] alternativeOffsets;
     private final int[] childByEdge;
     private final long[] amountByEdge;
-    private final int[][] uniqueChildren;
     private final int[][] incomingEdges;
-    private final int[] parentCounts;
+    private final int[][] frontiers;
     private final Map<K, CompiledPattern<K>> patternsByOutput;
 
     private ParallelPlanGraph(
@@ -69,9 +68,8 @@ public final class ParallelPlanGraph<K> {
             int[] alternativeOffsets,
             int[] childByEdge,
             long[] amountByEdge,
-            int[][] uniqueChildren,
             int[][] incomingEdges,
-            int[] parentCounts,
+            int[][] frontiers,
             Map<K, CompiledPattern<K>> patternsByOutput) {
         this.generation = generation;
         this.root = root;
@@ -85,9 +83,8 @@ public final class ParallelPlanGraph<K> {
         this.alternativeOffsets = alternativeOffsets;
         this.childByEdge = childByEdge;
         this.amountByEdge = amountByEdge;
-        this.uniqueChildren = uniqueChildren;
         this.incomingEdges = incomingEdges;
-        this.parentCounts = parentCounts;
+        this.frontiers = frontiers;
         this.patternsByOutput = Collections.unmodifiableMap(new LinkedHashMap<>(patternsByOutput));
     }
 
@@ -169,16 +166,16 @@ public final class ParallelPlanGraph<K> {
         return amountByEdge[edge];
     }
 
-    int[] uniqueChildrenAt(int node) {
-        return uniqueChildren[node];
-    }
-
     int[] incomingEdgesAt(int node) {
         return incomingEdges[node];
     }
 
-    int[] parentCountsCopy() {
-        return parentCounts.clone();
+    int frontierCount() {
+        return frontiers.length;
+    }
+
+    int[] frontierAt(int frontier) {
+        return frontiers[frontier];
     }
 
     int edgeCount() {
@@ -628,8 +625,9 @@ public final class ParallelPlanGraph<K> {
         int[] alternativeOffsets = new int[slotCount + 1];
         int[] childByEdge = new int[edgeCount];
         long[] amountByEdge = new long[edgeCount];
-        int[][] uniqueChildren = new int[nodeCount][];
         int[] parentCounts = new int[nodeCount];
+        int[] depths = new int[nodeCount];
+        int maximumDepth = 0;
         Map<K, CompiledPattern<K>> selected = new LinkedHashMap<>();
         int slotCursor = 0;
         int edgeCursor = 0;
@@ -653,19 +651,18 @@ public final class ParallelPlanGraph<K> {
                         }
                         childByEdge[edgeCursor] = child;
                         amountByEdge[edgeCursor] = alternative.amount();
+                        depths[child] = Math.max(depths[child], Math.addExact(depths[node], 1));
+                        maximumDepth = Math.max(maximumDepth, depths[child]);
                         edgeCursor++;
                     }
                     slotCursor++;
                 }
             }
             List<K> childKeys = uniqueChildrenByKey.getOrDefault(key, List.of());
-            int[] children = new int[childKeys.size()];
             for (int childIndex = 0; childIndex < childKeys.size(); childIndex++) {
                 int child = indexByKey.get(childKeys.get(childIndex));
-                children[childIndex] = child;
                 parentCounts[child] = Math.addExact(parentCounts[child], 1);
             }
-            uniqueChildren[node] = children;
         }
         inputOffsets[nodeCount] = slotCursor;
         alternativeOffsets[slotCount] = edgeCursor;
@@ -685,6 +682,21 @@ public final class ParallelPlanGraph<K> {
             incomingEdges[child][incomingCursor[child]++] = edge;
         }
 
+        int[] frontierSizes = new int[maximumDepth + 1];
+        for (int depth : depths) {
+            frontierSizes[depth] = Math.addExact(frontierSizes[depth], 1);
+        }
+        int[][] frontiers = new int[frontierSizes.length][];
+        for (int frontier = 0; frontier < frontiers.length; frontier++) {
+            frontiers[frontier] = new int[frontierSizes[frontier]];
+        }
+        int[] frontierCursors = new int[frontiers.length];
+        // nodeはcanonical順なので、各frontier内も同じ決定順を保つ。
+        for (int node = 0; node < nodeCount; node++) {
+            int frontier = depths[node];
+            frontiers[frontier][frontierCursors[frontier]++] = node;
+        }
+
         Integer rootIndex = indexByKey.get(root);
         if (rootIndex == null || parentCounts[rootIndex] != 0) {
             throw new BuildFailure(RootProgramFailure.CYCLE);
@@ -702,9 +714,8 @@ public final class ParallelPlanGraph<K> {
                 alternativeOffsets,
                 childByEdge,
                 amountByEdge,
-                uniqueChildren,
                 incomingEdges,
-                parentCounts,
+                frontiers,
                 selected);
     }
 
