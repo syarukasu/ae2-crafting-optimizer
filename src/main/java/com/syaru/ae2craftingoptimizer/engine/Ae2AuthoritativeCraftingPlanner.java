@@ -336,7 +336,25 @@ public final class Ae2AuthoritativeCraftingPlanner {
             AEKey output,
             long requestedAmount,
             CalculationStrategy strategy) {
-        return tryPlanAttempt(capture, output, requestedAmount, strategy);
+        return tryPlanAttempt(capture, output, requestedAmount, strategy, null);
+    }
+
+    /**
+     * AE2の計算workerから呼ぶ入口。並列SessionまたはServer Thread上のexact取得を
+     * 待つ間は、AE2本来のCraftingCalculation pause handshakeへ制御を返す。
+     */
+    public static ICraftingPlan tryPlan(
+            @Nullable Capture capture,
+            AEKey output,
+            long requestedAmount,
+            CalculationStrategy strategy,
+            PlanningWorkerYield workerYield) {
+        return tryPlanAttempt(
+                capture,
+                output,
+                requestedAmount,
+                strategy,
+                Objects.requireNonNull(workerYield, "workerYield"));
     }
 
     @Nullable
@@ -344,7 +362,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
             @Nullable Capture capture,
             AEKey output,
             long requestedAmount,
-            CalculationStrategy strategy) {
+            CalculationStrategy strategy,
+            @Nullable PlanningWorkerYield workerYield) {
         // 無効設定、参照欠落、不正注文はACO計画を作らず呼出側へ戻す。
         if (!planningEnabled()
                 || capture == null
@@ -461,7 +480,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
             if (capture.arithmeticCaptureMode()
                     .requiresDeferredExactInventory(wideArithmeticRequired)) {
                 capture = capture.withExactInventorySnapshot(
-                        captureExactInventorySnapshot(capture));
+                        captureExactInventorySnapshot(capture, workerYield));
             }
 
             BigKeyCounterSidecars.Snapshot inventoryMetadata =
@@ -531,7 +550,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                                 capture.recipeGeneration(),
                                 capture.configurationRevision(),
                                 immutableCapture.runtimeIdentity()));
-                parallelResult = awaitParallelPlan(parallelRequest);
+                parallelResult = awaitParallelPlan(parallelRequest, workerYield);
                 if (parallelResult == null) {
                     logParallelBypass(
                             output,
@@ -807,12 +826,14 @@ public final class Ae2AuthoritativeCraftingPlanner {
 
     @Nullable
     private static ParallelPlanResult<AEKey> awaitParallelPlan(
-            ParallelPlanRequest<AEKey> request) {
+            ParallelPlanRequest<AEKey> request,
+            @Nullable PlanningWorkerYield workerYield) {
         Future<ParallelPlanResult<AEKey>> pending = submitParallelPlan(request);
         // Server停止後の遅着計算はpoolを再生成せず、既存serial経路で完了させる。
         if (pending == null) {
             return null;
         }
+        cooperativelyAwait(pending, workerYield, false);
         try {
             return pending.get();
         } catch (InterruptedException interrupted) {
@@ -1406,7 +1427,9 @@ public final class Ae2AuthoritativeCraftingPlanner {
         return Map.copyOf(result);
     }
 
-    private static KeyCounter captureExactInventorySnapshot(Capture capture) {
+    private static KeyCounter captureExactInventorySnapshot(
+            Capture capture,
+            @Nullable PlanningWorkerYield workerYield) {
         MinecraftServer server = capture.server();
         // サーバーを持たないLevelではexact正本を安全なスレッドへ委譲できないため失敗させる。
         if (server == null) {
@@ -1416,9 +1439,25 @@ public final class Ae2AuthoritativeCraftingPlanner {
         if (Thread.currentThread() == capture.serverThread()) {
             return captureExactInventoryOnServer(capture);
         }
+        long waitStartedAt = System.nanoTime();
+        if (ACOConfig.logCraftingDecisionFlow()) {
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event=exact_inventory_capture phase=scheduled storageGeneration={} thread={}",
+                    capture.storageGeneration(),
+                    Thread.currentThread().getName());
+        }
         CompletableFuture<KeyCounter> pending = CompletableFuture.supplyAsync(
                 () -> captureExactInventoryOnServer(capture),
                 server);
+        cooperativelyAwait(pending, workerYield, true);
+        if (ACOConfig.logCraftingDecisionFlow()) {
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event=exact_inventory_capture phase=ready storageGeneration={} elapsedMicros={} thread={}",
+                    capture.storageGeneration(),
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toMicros(
+                            System.nanoTime() - waitStartedAt),
+                    Thread.currentThread().getName());
+        }
         try {
             return pending.get();
         } catch (InterruptedException interrupted) {
@@ -1436,6 +1475,40 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 throw fatalFailure;
             }
             throw new IllegalStateException("exact inventory capture failed", cause);
+        }
+    }
+
+    static void cooperativelyAwait(
+            Future<?> pending,
+            @Nullable PlanningWorkerYield workerYield,
+            boolean workerYieldRequired) {
+        Objects.requireNonNull(pending, "pending");
+        // AE2 worker外のpure呼出しは、Server Thread処理を待たない場合だけ通常のgetへ進める。
+        if (workerYield == null) {
+            if (!workerYieldRequired || pending.isDone()) {
+                return;
+            }
+            pending.cancel(false);
+            throw new IllegalStateException(
+                    "off-thread exact inventory capture requires AE2 cooperative yielding");
+        }
+        // 完了済みならpause handshakeは不要で、そのまま結果の取得へ進める。
+        while (!pending.isDone()) {
+            try {
+                /*
+                 * AE2 Server ThreadはsimulateFor()内でこのworkerのpauseを待つため、
+                 * 別poolまたはServer executorのFutureを同期getする前に、同じ
+                 * handlePausing() handshakeでtickへ制御を返す。
+                 */
+                workerYield.yieldToServerThread();
+            } catch (InterruptedException interrupted) {
+                pending.cancel(false);
+                Thread.currentThread().interrupt();
+                throw new PlanningCancelledException(0);
+            } catch (RuntimeException | Error failure) {
+                pending.cancel(false);
+                throw failure;
+            }
         }
     }
 
@@ -1475,6 +1548,11 @@ public final class Ae2AuthoritativeCraftingPlanner {
             // exact正本を既に持つCaptureだけは、同じ在庫を二重取得しない。
             return this != EXACT_AVAILABLE;
         }
+    }
+
+    @FunctionalInterface
+    public interface PlanningWorkerYield {
+        void yieldToServerThread() throws InterruptedException;
     }
 
     public record Capture(

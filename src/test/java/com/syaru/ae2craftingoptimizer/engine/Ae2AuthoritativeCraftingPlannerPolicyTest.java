@@ -2,9 +2,12 @@ package com.syaru.ae2craftingoptimizer.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class Ae2AuthoritativeCraftingPlannerPolicyTest {
@@ -117,5 +120,35 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
                 Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
                         true,
                         false));
+    }
+
+    @Test
+    void yieldsToAe2BeforeWaitingForServerThreadExactCapture() {
+        CompletableFuture<String> exactCapture = new CompletableFuture<>();
+        AtomicInteger yields = new AtomicInteger();
+
+        Ae2AuthoritativeCraftingPlanner.cooperativelyAwait(
+                exactCapture,
+                () -> {
+                    yields.incrementAndGet();
+                    exactCapture.complete("captured");
+                },
+                true);
+
+        assertEquals(1, yields.get());
+        assertEquals("captured", exactCapture.join());
+    }
+
+    @Test
+    void refusesPendingServerCaptureWithoutAe2YieldHandshake() {
+        CompletableFuture<String> exactCapture = new CompletableFuture<>();
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> Ae2AuthoritativeCraftingPlanner.cooperativelyAwait(
+                        exactCapture,
+                        null,
+                        true));
+        assertTrue(exactCapture.isCancelled());
     }
 }

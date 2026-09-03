@@ -34,9 +34,13 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.gen.Invoker;
 
 @Mixin(value = CraftingCalculation.class, remap = false)
 public abstract class CraftingCalculationDiagnosticsMixin {
+    @Invoker("handlePausing")
+    protected abstract void aco$invokeHandlePausing() throws InterruptedException;
+
     @Shadow
     @Final
     private AEKey output;
@@ -297,7 +301,11 @@ public abstract class CraftingCalculationDiagnosticsMixin {
         boolean adopted = false;
         try {
             ICraftingPlan accelerated = Ae2AuthoritativeCraftingPlanner.tryPlan(
-                    aco$authoritativeCapture, output, requestedAmount, strategy);
+                    aco$authoritativeCapture,
+                    output,
+                    requestedAmount,
+                    strategy,
+                    this::aco$invokeHandlePausing);
             // Shadow認定済みProgramが結果を返した場合だけAE2計画本体を置き換える。
             if (accelerated == null) {
                 return;

@@ -114,6 +114,19 @@ AE2の意味論と1.5.33のExact Count契約を維持し、一つの自動クラ
 - wide計画はAE2 long経路へ落とさず、既存serial exact経路または明示failureを使う。
 - queue満杯、cancel、shutdown、内部invariant違反をMissingやCPU不足へ変換しない。
 
+## AE2計算workerの待機契約
+
+2.0.0の初期実装は、並列Sessionと遅延exact在庫取得を`Future.get()`で待つ間、
+AE2の`CraftingCalculation.handlePausing()`を呼ばなかった。AE2のServer Threadは
+`TickHandler.simulateCraftingJobs()`から`simulateFor()`を呼び、同じ計算workerがpause
+するまで同期的に待つため、重い並列計算ではServer Threadが停止し、exact取得では
+server executor待ちとの循環待ちが成立した。
+
+計算workerから別poolまたはserver executorのFutureを待つ区間は、AE2本来の
+`handlePausing()`へ協調yieldしてから結果を取得する。Server Thread上でPlannerを代行せず、
+wide値をlongへ落とさず、計画結果も変更しない。外部Advanced AE CPUのtick予算は外部
+アドオンが所有するため、ACOのAdvanced AE実行予算Mixinは登録しない。
+
 ## 試験計画
 
 - pure planner: chain、wide tree、diamond、shared intermediate、cycle、missing、checked-long overflow、位置独立BigInteger。
