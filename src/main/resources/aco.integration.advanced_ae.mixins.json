@@ -5,7 +5,6 @@
   "plugin": "com.syaru.ae2craftingoptimizer.mixin.AdvancedAeMixinConfigPlugin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "AdvancedAeCraftingCpuLogicExecutionBudgetMixin",
     "AdvancedAePatternProviderIntentCaptureMixin",
     "AdvancedAeReactionChamberRecipeCacheMixin",
     "AdvancedAePatternProviderLogicTargetAccessMixin"

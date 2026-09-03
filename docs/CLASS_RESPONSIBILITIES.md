@@ -430,7 +430,6 @@ mixin + access  ->  integration  ->  optimization
 | クラス | 仕事 |
 |---|---|
 | `com.syaru.ae2craftingoptimizer.mixin.AbstractMonitorPartDisplaySaturationMixin` | AbstractMonitorPartDisplaySaturationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
-| `com.syaru.ae2craftingoptimizer.mixin.AdvancedAeCraftingCpuLogicExecutionBudgetMixin` | AdvancedAeCraftingCpuLogicExecutionBudgetMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.AdvancedAeMixinConfigPlugin` | AdvancedAeMixinConfigPluginが担当するMixin群の適用可否を、対象MODと対応版から決定する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.AdvancedAePatternProviderIntentCaptureMixin` | AdvancedAePatternProviderIntentCaptureMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.AdvancedAePatternProviderLogicTargetAccessMixin` | AdvancedAePatternProviderLogicTargetAccessMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
