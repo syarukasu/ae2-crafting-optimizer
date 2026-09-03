@@ -69,7 +69,7 @@ public final class ACOServerLifecycle {
     }
 
     private static void onServerStarted(ServerStartedEvent event) {
-        Ae2AuthoritativeCraftingPlanner.startParallelPlanner();
+        Ae2AuthoritativeCraftingPlanner.startPlanningExecutor();
         OptimizationFeatureGate.resetDiagnostics();
         ExperimentalCompatibilityValidator.validateEnabledFeatures();
         ServerTickClock.reset();
@@ -108,7 +108,7 @@ public final class ACOServerLifecycle {
     }
 
     private static void onServerStopping(ServerStoppingEvent event) {
-        Ae2AuthoritativeCraftingPlanner.stopParallelPlanner();
+        Ae2AuthoritativeCraftingPlanner.stopPlanningExecutor();
         // 診断を要求された時だけ停止直前の集計値を出力する。
         if (ACOConfig.logCacheStatistics()) {
             // 集計項目を一行ずつ出し、巨大な単一Log entryを作らない。

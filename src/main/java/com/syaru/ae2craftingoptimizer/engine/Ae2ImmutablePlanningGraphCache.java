@@ -7,7 +7,6 @@ import appeng.api.stacks.AEKey;
 import appeng.api.storage.AEKeyFilter;
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
-import com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPatternIndex;
 import com.syaru.ae2craftingoptimizer.integration.AppliedECompatibility;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import com.syaru.ae2craftingoptimizer.optimization.PlanningConfigurationRevisionTracker;
@@ -321,7 +320,7 @@ public final class Ae2ImmutablePlanningGraphCache {
     private static long nextRuntimeIdentity() {
         return NEXT_RUNTIME_ID.getAndUpdate(current -> {
             if (current == Long.MAX_VALUE) {
-                throw new IllegalStateException("parallel planner runtime identity exhausted");
+                throw new IllegalStateException("planning runtime identity exhausted");
             }
             return current + 1L;
         });
@@ -434,14 +433,6 @@ public final class Ae2ImmutablePlanningGraphCache {
             return published.nodes.keySet();
         }
 
-        ParallelPatternIndex<AEKey> parallelPatternIndex() {
-            return published.compile().parallelPatternIndex;
-        }
-
-        Map<AEKey, Long> amountPerByte() {
-            return published.compile().amountPerByte;
-        }
-
         /** fingerprint、SCC、配列Programをworker側で初回だけ生成する。 */
         Ae2PlanningGraphSnapshot compile() {
             return published.compile();
@@ -478,8 +469,6 @@ public final class Ae2ImmutablePlanningGraphCache {
         private final Set<AEKey> emittableKeys;
         private final Set<String> exactInputDomains;
         private final long recipeGeneration;
-        private final ParallelPatternIndex<AEKey> parallelPatternIndex;
-        private final Map<AEKey, Long> amountPerByte;
         private final WeightedLruMap<AEKey, CompiledRootProgram.Outcome<AEKey>> rootOutcomes =
                 new WeightedLruMap<>(
                         MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT,
@@ -496,9 +485,7 @@ public final class Ae2ImmutablePlanningGraphCache {
                 Set<AEKey> incompleteOutputs,
                 Set<AEKey> emittableKeys,
                 Set<String> exactInputDomains,
-                long recipeGeneration,
-                ParallelPatternIndex<AEKey> parallelPatternIndex,
-                Map<AEKey, Long> amountPerByte) {
+                long recipeGeneration) {
             this.graph = graph;
             this.idByPattern = new IdentityHashMap<>(idByPattern);
             this.patternById = Map.copyOf(patternById);
@@ -507,8 +494,6 @@ public final class Ae2ImmutablePlanningGraphCache {
             this.emittableKeys = Set.copyOf(emittableKeys);
             this.exactInputDomains = Set.copyOf(exactInputDomains);
             this.recipeGeneration = recipeGeneration;
-            this.parallelPatternIndex = parallelPatternIndex;
-            this.amountPerByte = Map.copyOf(amountPerByte);
         }
 
         private static Snapshot compile(PublishedCapture capture) {
@@ -535,13 +520,11 @@ public final class Ae2ImmutablePlanningGraphCache {
             Map<AEKey, List<CompiledPattern<AEKey>>> candidatesByOutput = new LinkedHashMap<>();
             Set<AEKey> incompleteOutputs = new LinkedHashSet<>();
             Set<AEKey> emittableKeys = new LinkedHashSet<>();
-            Map<AEKey, Long> amountPerByte = new LinkedHashMap<>();
             // nodeごとのAE2候補順を、対応するpure Pattern配列へ変換する。
             for (Map.Entry<AEKey, NodeCapture> entry : capture.nodes.entrySet()) {
                 AEKey key = entry.getKey();
                 NodeCapture node = entry.getValue();
                 registeredPatternCounts.put(key, node.candidates().size());
-                amountPerByte.put(key, (long) key.getType().getAmountPerByte());
                 if (node.emittable()) {
                     emittableKeys.add(key);
                 }
@@ -560,11 +543,6 @@ public final class Ae2ImmutablePlanningGraphCache {
                 }
                 candidatesByOutput.put(key, List.copyOf(candidates));
             }
-            ParallelPatternIndex<AEKey> parallelIndex = new ParallelPatternIndex<>(
-                    capture.patternGeneration,
-                    candidatesByOutput,
-                    emittableKeys,
-                    incompleteOutputs);
             return new Snapshot(
                     CompiledCraftingGraph.compile(
                             capture.patternGeneration,
@@ -575,9 +553,7 @@ public final class Ae2ImmutablePlanningGraphCache {
                     incompleteOutputs,
                     emittableKeys,
                     exactInputDomains,
-                    capture.recipeGeneration,
-                    parallelIndex,
-                    amountPerByte);
+                    capture.recipeGeneration);
         }
 
         @Override

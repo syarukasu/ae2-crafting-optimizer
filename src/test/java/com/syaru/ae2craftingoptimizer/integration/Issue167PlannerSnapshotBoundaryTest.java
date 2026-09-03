@@ -378,11 +378,13 @@ class Issue167PlannerSnapshotBoundaryTest {
                 planner,
                 "private static ICraftingPlan tryPlanAttempt(",
                 "private static ICraftingPlan createBigIntegerSimulationPlan(");
-        int wideClassification = attempt.indexOf("topology.mightRequireWideArithmetic(");
+        int preparation = attempt.indexOf("preparePlanning(");
         int staleCheck = attempt.indexOf("capture.requireCurrentGenerations();");
 
-        assertTrue(wideClassification >= 0, "wide arithmetic classification must remain present");
-        assertTrue(staleCheck > wideClassification,
+        assertTrue(preparation >= 0, "wide arithmetic preparation must remain present");
+        assertTrue(attempt.contains("topology.mightRequireWideArithmetic("),
+                "the dedicated worker must classify wide arithmetic exactly");
+        assertTrue(staleCheck > preparation,
                 "a cold wide request must not fall back to AE2 long arithmetic before classification");
     }
 

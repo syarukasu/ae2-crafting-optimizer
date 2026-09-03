@@ -20,7 +20,7 @@
 | [#140](https://github.com/syarukasu/ae2-crafting-optimizer/issues/140) | Mekanism入力探索がDedicated Serverでclient-only音声型を毎tick解決する | 1.5.25 | 1.5.26 | [ISSUE-140.md](issues/ISSUE-140.md) |
 | [#148](https://github.com/syarukasu/ae2-crafting-optimizer/issues/148) | 同一キーのmounted storage合計がlong境界を超えると端末表示が消える | 1.5.27以前 | 1.5.28 | [ISSUE-148.md](issues/ISSUE-148.md) |
 | [#153](https://github.com/syarukasu/ae2-crafting-optimizer/issues/153) | 同一キーのmounted storage合計がlong境界を超えるとストレージモニターが負数化する | 1.5.28以前 | 1.5.29 | [ISSUE-153.md](issues/ISSUE-153.md) |
-| [#179](https://github.com/syarukasu/ae2-crafting-optimizer/issues/179) | 一件の巨大クラフト計算が直列実行され、独立枝のCPU負荷を分散できない | 1.5.33 | 2.0.0 | [ACO 2.0設計](PARALLEL_PLANNER_2_0.md) |
+| [#179](https://github.com/syarukasu/ae2-crafting-optimizer/issues/179) | 4-thread専用計算がserial経路を重複し、実経路のTPS非占有を証明できない | 1.5.33 | 2.0.0 | [ACO 2.0設計](PARALLEL_PLANNER_2_0.md) |
 
 ## 運用
 

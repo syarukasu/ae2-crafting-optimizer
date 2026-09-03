@@ -44,15 +44,15 @@ mixin + access  ->  integration  ->  optimization
 | クラス | 行数 | 判断 |
 |---|---:|---|
 | `PhysicalCraftingTreeTransaction` | 3754 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
-| `Ae2AuthoritativeCraftingPlanner` | 1686 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
+| `Ae2AuthoritativeCraftingPlanner` | 1692 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
 | `CompiledRootProgram` | 1458 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
 | `BigCraftingJob` | 1266 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
 | `ExactNetworkStorageBridge` | 1184 | 高。実在庫境界。snapshotとmutationの分離候補だが原子性試験が先。 |
 | `TransactionalCraftingExecutorV2` | 960 | 高。所有権移転後の処理。見た目の短縮目的では分割せず、phase単位の試験を先に増やす。 |
 | `BigCraftingHostRuntime` | 920 | 高。外部Host容量と予約を所有。複数Job仕様を勝手に導入しない。 |
 | `BigCraftingRuntime` | 875 | 中。公開API側のruntime registry。Host runtimeとの責務重複を監視する。 |
-| `ParallelPlanGraph` | 795 | 中。責務一覧を基準に、挙動固定試験を追加してから分割可否を別Issueで判断する。 |
-| `Ae2ImmutablePlanningGraphCache` | 719 | 中。責務一覧を基準に、挙動固定試験を追加してから分割可否を別Issueで判断する。 |
+| `MekanismRecipeIntentFastPath` | 703 | 中。責務一覧を基準に、挙動固定試験を追加してから分割可否を別Issueで判断する。 |
+| `Ae2ImmutablePlanningGraphCache` | 695 | 中。責務一覧を基準に、挙動固定試験を追加してから分割可否を別Issueで判断する。 |
 
 ## パッケージ責務
 
@@ -74,7 +74,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.craftingamount` | long注文数をAE2 Menuへ渡すserver側境界。 |
 | `com.syaru.ae2craftingoptimizer.engine` | コンパイル済みグラフ、Planner、BigInteger会計の計算核。 |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable` | 所有権移転後の作業台物理クラフト取引、Escrow、復旧。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel` | 一件の不変クラフトGraphを固定4 workerで決定論的に構築・計算するPlanner核。 |
 | `com.syaru.ae2craftingoptimizer.engine.vector` | exact Vector計画の検証、在庫snapshot、表示投影。 |
 | `com.syaru.ae2craftingoptimizer.gtceu` | GTCEuの本来判定へ候補を渡すRecipe Intentの任意連携。 |
 | `com.syaru.ae2craftingoptimizer.integration` | AE2、Advanced AE、任意MOD、exact storageへの版別接続。 |
@@ -90,7 +89,7 @@ mixin + access  ->  integration  ->  optimization
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **335件**
+本版の本番トップレベル型: **322件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -289,6 +288,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.Ae2PlanningInventorySnapshot` | AE2がserver threadで取得したlong在庫値を、workerへ渡せる不変値へ固定する。 |
 | `com.syaru.ae2craftingoptimizer.engine.Ae2ReferencedInventory` | AE2の全在庫をMap化せず、Compiled Root Programが参照するキーだけを取得する。 |
 | `com.syaru.ae2craftingoptimizer.engine.Ae2StrictCraftingTopology` | 代替、循環、返却物などを検査し、数式計画へ安全に変換できるPattern DAGだけを認定する。 |
+| `com.syaru.ae2craftingoptimizer.engine.AsyncPlanningExecutor` | 正確な純粋Plannerを単一の専用workerで実行し、Server Threadや呼出threadで代行しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan` | 各AEKey量とPattern回数はlongに収まるが、合計CPU容量だけがlongを超える厳密計画。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigCountMath` | BigInteger数量Mapの加算・乗算・ceilDivを正確に行う副作用なし算術。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigCraftingCapacityLedger` | BigCraftingCapacityLedgerが示す所有量、Receipt、収支をexact値で記録・検証する。 |
@@ -344,24 +344,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactCraftingEscrow` | 一注文が所有する境界素材、中間素材、最終成果物をBigIntegerのまま原子的に増減する。 |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactMutationReconciler` | 保存済みbefore/afterと現在値を照合し、まだ適用していないキーだけを返す。 |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.PhysicalCraftingTreeTransaction` | 作業台ツリーの所有権移転後state machine。予約、Worker Receipt、取消、返却、隔離、NBT復元を統括する。 |
-
-### `com.syaru.ae2craftingoptimizer.engine.parallel`
-
-| クラス | 仕事 |
-|---|---|
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelAmountPlanner` | 一つのcanonical Graphの需要伝播を、edge-local contributionで最大4本に分割する。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelExactByteCounter` | ACOのcanonical DAG結果からAE2のstack、Pattern、node byte式を正確な有理数で評価する。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPatternIndex` | Server Threadで固定したPattern候補順だけをworkerへ公開するimmutable index。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanBlueprint` | ACO workerからAE2計算workerへ返す、live Patternを含まない正確な結果。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanFailure` | MissingやCPU不足へ読み替えない、Parallel Planner自身の失敗分類。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanGraph` | 並列探索後にcanonicalなトポロジカル順へ固定した、一件のimmutable Pattern DAG。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanMetrics` | 一件のsessionで実測したGraph、数量pass、worker利用状況。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlannerEngine` | active sessionを一件に限定し、後続をbounded FIFOで保持するPlanner入口。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlannerPool` | 一件のクラフトツリー内だけで共有する、固定4本のACO専用work-stealing pool。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanRequest` | live AE2参照を含まない、一件のParallel Plan Session入力。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanResult` | 成功blueprintまたは正確な辞退理由のどちらか一方を返すsession結果。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelPlanSession` | 一件のGraph buildとamount passを同じpool、snapshot、cancel tokenで結ぶ。 |
-| `com.syaru.ae2craftingoptimizer.engine.parallel.ParallelRevisionVector` | 一件のPlanner Sessionが固定した、相互に混在させてはならない世代値。 |
 
 ### `com.syaru.ae2craftingoptimizer.engine.vector`
 
