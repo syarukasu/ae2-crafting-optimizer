@@ -1,140 +1,56 @@
-# ACO 2.0.0 Parallel Crafting Planner
+# Issue #179: ACO 2.0 Async Crafting Planner
 
-- GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/179
-- 状態: Ready
-- 対象版: 2.0.0
-- 対象ローダー: Forge 1.20.1 / NeoForge 1.21.1
-- 基準: v1.5.33、#167、#168、#169、#176、#177、#178
+## 問題
 
-## 目的
+初期2.0実装は「Server ThreadのTPSを守る」という目的を、1注文を固定4 threadで分割する
+要件として扱っていました。その結果、次の不要な構造が入りました。
 
-AE2のクラフト結果とACO 1.5.33のExact Count契約を変更せず、一件の自動クラフト計算に含まれるGraph構築と数量伝播を、ACO専用の固定4 Planner Threadで決定論的に共同実行する。
+- serial Root Programを構築した後にparallel Graphを再構築する二重計算
+- node数1024以上だけを選ぶ推測閾値
+- work stealing、frontier barrier、worker間spin
+- serial oracleとは別の数量計算実装
+- 純粋Plannerだけを測る合成ベンチによる過大な性能評価
 
-4本のThreadを4件の別注文へ割り当てる設計ではない。一つの`ParallelPlanSession`だけをactiveにし、後続注文は有限FIFOへ置く。
+これは高速化、軽量化、正確性のどれも実経路では証明しません。
 
-## 基準
+## 修正方針
 
-- Forge 1.20.1: `test/issue176-bigint-position-boundaries-1.20.1`（PR #177）のHEADを開始点とする。
-- NeoForge 1.21.1: `test/issue176-bigint-position-boundaries-1.21.1`（PR #178）のHEADを開始点とする。
-- v1.5.33 / PR #168・#169のSnapshot、世代、cache不変条件を維持する。
-- Issue #176の入力・中間・出力・bytes・Pattern回数の位置独立BigInteger境界を維持する。
+固定4-thread Plannerを削除し、既存の正確なserial計算器を`ACO Planner`という専用workerで
+実行します。目的は計算内並列性ではなく、Server Threadから重い純粋計算を分離することです。
 
-## 現行経路で確認した制約
+実行順序:
 
-1. `CraftingService.beginCraftingCalculation`は`CraftingCalculation`をServer Threadで構築し、AE2のcached poolへ一件単位でsubmitする。
-2. `Ae2ImmutablePlanningGraphCache.captureRoot`は発注時にrootから`ICraftingService#getCraftingFor`を同期走査する。
-3. `RootCapture.compile`と`CompiledRootProgram.compile`はcold graphを単一workerで構築する。
-4. `CompiledRootProgram.planLong` / `planBig`は親から子のトポロジカル順を単一workerで一巡する。
-5. wide判定後のexact在庫取得は、planner workerがServer executorへ処理を投げて`Future#get`で待つ。
+1. Server Threadでlive AE2状態をimmutable Snapshotへ固定する
+2. AE2計算workerからGraph compileと数量計算を専用workerへ渡す
+3. AE2計算workerは`handlePausing()`でserver tickへ制御を返す
+4. 専用workerは`OverflowPromotingCraftingPlanner`でlong優先・overflow時BigInteger再計算を行う
+5. 現在revisionを再検証してからAE2 Planとexact sidecarを作る
 
 ## 不変条件
 
-- AE2の候補集合、候補順、具体入力選択、Pattern回数、使用在庫、余剰、Missing、simulation、CRAFT_LESS、CPU bytesを変えない。
-- workerはlive `Level`、`IGrid`、Crafting/Storage service、BlockEntity、Provider、RecipeManager、在庫へ触れない。
-- Server ThreadはPlanner完了を`get`、`join`、busy waitしない。
-- graph nodeはsingle-flightで一度だけ展開する。
-- shared intermediateの需要は全親から集約してから在庫を一度だけ消費する。
-- Thread完了順を候補選択、Node ID、Map順へ使わない。
-- checked longが一箇所でもoverflowしたらGraphを再構築せず、同じSnapshot上で数量passだけBigIntegerとして最初から実行する。
-- wide計画をAE2標準long経路へfallbackしない。
-- 公開Exact Count / BigInteger / BigCapacity / Pattern Batch APIの既存バイナリシグネチャを変更しない。
+- Server ThreadはPlannerを実行せず、Planner Futureを待たない
+- workerはlive Level、Grid、Storage、Block Entityを読まない
+- longとBigIntegerで同じGraphとSnapshotを使う
+- 結果を`Long.MAX_VALUE`へ飽和、切り捨て、近似しない
+- 対応外の通常計画は状態変更前にAE2へ返す
+- wide計画はoverflowするAE2 long経路へ戻さない
+- 外部CPUの実行、電力、進捗、完了へ介入しない
 
-## Thread model
+## 削除対象
 
-- ACO専用`ForkJoinPool`、parallelism固定4。
-- Thread名は`ACO Tree Planner #1`から`#4`。
-- active Sessionは原則一件。後続は有限FIFO。
-- queue満杯時にServer ThreadでPlannerを実行しない。
-- NodeごとのFuture生成、worker間の`Future#get` / `join`、common pool、`parallelStream`、`CallerRunsPolicy`は禁止する。
+- `engine.parallel`一式
+- 4-thread専用Graphと数量Planner
+- node数による並列化閾値
+- parallel専用Graph cache
+- parallel-only合成benchmark
 
-## 導入段階
+## 最小検証
 
-1. 設計、不変条件、pure model、serial oracle、Golden fixture。
-2. 世代付きimmutable Pattern indexとSnapshot publication。
-3. fixed-4 parallel graph builder、single-flight node、cycle検査、canonical node order。
-4. edge-local contributionを使うparallel long amount passとBigInteger再実行。
-5. bounded queue、subscriber cancel、AE2 calculation workerでのfinalize、materialize。
-6. Shadow比較、診断、benchmark、loader parity、GameTest fixture。
+- 専用workerが呼出thread以外で動作すること
+- 既存のlong、BigInteger、位置独立overflow試験が通ること
+- exact sidecarと公開APIの既存試験が通ること
+- Forge 1.20.1 / NeoForge 1.21.1のclean buildが通ること
 
-各段階はForgeとNeoForgeで別のstacked Draft PRにし、既存PR #168、#169、#177、#178を上書きしない。
+実際のTPS改善は、実AE2発注経路全体を未導入・1.5.22・2.0で比較するまで達成扱いにしません。
 
-## Fail closed / fallback
-
-- 通常long計画は、ACOが所有権を取る前で、Snapshotまたは構造を証明できない場合だけAE2標準計算へ戻す。
-- wide計画は既存serial BigInteger経路を維持する。正確な計算を継続できなければ具体的なfailure codeで失敗し、longへ落とさない。
-- timeout、cancel、stale、内部不整合をMissingや`CPU_TOO_SMALL`へ読み替えない。
-- Parallelとserial/AE2の結果が一致しない場合、Parallel結果を採用せず有限診断を残す。
-
-## 必須証拠
-
-- fixed poolが4本を超えず、一件の広いTreeで複数workerを使用する。
-- 深い一本道では余計な分割をせず、並列性が低いことを記録する。
-- single-flight、shared inventory一度消費、canonical result、cancel、queue満杯、shutdownでdeadlock/leakがない。
-- longとBigIntegerの各位置境界がserial oracleと一致する。
-- Forge 1.20.1 / NeoForge 1.21.1の結果と公開API signatureが一致する。
-- clean build、JUnit、回帰manifest、`git diff --check`。
-- GameTest fixtureを整備する。実ゲーム起動はこのIssueの自動検証範囲外とする。
-
-## 非目標
-
-- 外部CPUの実行、電力、進捗、Receipt、完了、GUI、構造をACOが所有すること。
-- レシピ、クラフト成立条件、Pattern優先順位を変更すること。
-- 4件の注文を4workerへ割り当てるthroughput最適化。
-- 1.5.33 Exact Count APIの再設計。
-
-## 完了条件
-
-AE2の意味論と1.5.33のExact Count契約を維持し、一つの自動クラフトツリーの構築と正確な数量計算を、固定4本の専用Planner Threadで決定論的に並列実行できる。検証できない構造では既存の正しい経路を選び、途中結果を成功扱いしない。
-
-## 実装前チェック
-
-- [x] `docs/PROJECT_CHARTER.md`を読んだ
-- [x] `docs/REGRESSION_HISTORY.md`を読んだ
-- [x] `docs/CLASS_RESPONSIBILITIES.md`で既存Planner、Snapshot、世代、APIの責務を確認した
-- [x] Issue #167 / #176とPR #168 / #169 / #177 / #178を確認した
-- [x] v1.5.33と両`mc/*`のHEADおよびstacked branch関係を確認した
-- [x] 現行AE2 15.4.10の`CraftingService`、`CraftingCalculation`、`CraftingTreeNode`を確認した
-- [x] 所有権、fallback、Exact Count互換、Thread境界を確定した
-- [x] 既存Draft PRを変更しない新規stacked branchを用意した
-
-## 正常時の状態遷移
-
-1. Server Threadがrevisionを固定してPattern/Inventory snapshotをpinする。
-2. 一件のsessionを有限FIFOへ渡し、呼出元へFutureを直ちに返す。
-3. 固定4本のPlanner Threadが同じsessionのGraphをsingle-flightで展開する。
-4. canonical Graphのcycle検査後、frontier単位で数量を伝播する。
-5. overflow時は同じGraph上の数量passだけをBigIntegerで再実行する。
-6. pure `PlanBlueprint`をAE2 calculation workerへ戻し、固定済みbindingとrevisionを再検証する。
-7. 一致した時だけ同worker上でCraftingPlanと1.5.33 sidecarをmaterializeする。live AE2 getterやworld状態は参照しない。
-
-## 失敗時の状態遷移
-
-- snapshot、binding、revisionが一致しない結果はmaterializeしない。
-- 通常longかつ所有権取得前だけAE2標準経路へ辞退する。
-- wide計画はAE2 long経路へ落とさず、既存serial exact経路または明示failureを使う。
-- queue満杯、cancel、shutdown、内部invariant違反をMissingやCPU不足へ変換しない。
-
-## AE2計算workerの待機契約
-
-2.0.0の初期実装は、並列Sessionと遅延exact在庫取得を`Future.get()`で待つ間、
-AE2の`CraftingCalculation.handlePausing()`を呼ばなかった。AE2のServer Threadは
-`TickHandler.simulateCraftingJobs()`から`simulateFor()`を呼び、同じ計算workerがpause
-するまで同期的に待つため、重い並列計算ではServer Threadが停止し、exact取得では
-server executor待ちとの循環待ちが成立した。
-
-計算workerから別poolまたはserver executorのFutureを待つ区間は、AE2本来の
-`handlePausing()`へ協調yieldしてから結果を取得する。Server Thread上でPlannerを代行せず、
-wide値をlongへ落とさず、計画結果も変更しない。外部Advanced AE CPUのtick予算は外部
-アドオンが所有するため、ACOのAdvanced AE実行予算Mixinは登録しない。
-
-## 試験計画
-
-- pure planner: chain、wide tree、diamond、shared intermediate、cycle、missing、checked-long overflow、位置独立BigInteger。
-- concurrency: single-flight、完了順撹乱1000回、固定4 thread、queue full、cancel、shutdown、参照解放。
-- parity: serial oracle、Forge/NeoForge fixture、1.5.33公開API signature。
-- AE2境界: immutable capture、stale finalize拒否、通常long辞退、wide serial exact維持。
-- performance: server受付、snapshot pin、queue wait、graph/amount wall time、worker利用数、重複展開防止数、allocation。
-- build: 両版`clean build --no-build-cache`、回帰manifest、`git diff --check`。
-- GameTest: fixtureを整備する。Minecraft起動は行わない。
-
-詳細設計は`docs/PARALLEL_PLANNER_2_0.md`を正本とする。
+詳細なThread境界は`docs/PARALLEL_PLANNER_2_0.md`を正本とします。
