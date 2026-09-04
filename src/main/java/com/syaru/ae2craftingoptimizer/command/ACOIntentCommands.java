@@ -5,7 +5,6 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntent;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
-import com.syaru.ae2craftingoptimizer.mekanism.MekanismRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import java.util.List;
 import net.minecraft.commands.CommandSourceStack;
@@ -89,7 +88,6 @@ public final class ACOIntentCommands {
         int count = RecipeIntentRegistry.size();
         RecipeIntentRegistry.clear("command");
         GTCEuRecipeIntentFastPath.clearIndexes("command");
-        MekanismRecipeIntentFastPath.clearIndexes("command");
         source.sendSuccess(() -> Component.literal("Cleared " + count + " ACO recipe intents."), true);
         return count;
     }

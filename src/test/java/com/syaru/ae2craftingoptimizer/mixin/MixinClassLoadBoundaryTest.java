@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.syaru.ae2craftingoptimizer.access.DelegatingMEInventoryAccess;
 import com.syaru.ae2craftingoptimizer.access.ExtendedAePlusBigIntegerCellInventoryAccess;
-import com.syaru.ae2craftingoptimizer.access.MekanismCachedRecipeAccess;
 import com.syaru.ae2craftingoptimizer.access.NetworkStorageMountsAccess;
 import com.syaru.ae2craftingoptimizer.client.NumberEntryWidgetAccess;
 import java.io.IOException;
@@ -24,8 +23,6 @@ class MixinClassLoadBoundaryTest {
                 .isAssignableFrom(ExtendedAePlusBigIntegerCellInventoryAccessor.class));
         assertTrue(NetworkStorageMountsAccess.class
                 .isAssignableFrom(NetworkStorageMountsAccessor.class));
-        assertTrue(MekanismCachedRecipeAccess.class
-                .isAssignableFrom(MekanismCachedRecipeAccessor.class));
         assertTrue(NumberEntryWidgetAccess.class
                 .isAssignableFrom(NumberEntryWidgetAccessor.class));
     }

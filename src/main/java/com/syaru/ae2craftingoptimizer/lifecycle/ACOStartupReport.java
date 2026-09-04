@@ -34,10 +34,9 @@ final class ACOStartupReport {
                 ACOConfig.enableInstantPatternDispatch(),
                 PatternBatchV2Api.registeredAdapterIds());
         AE2CraftingOptimizer.LOGGER.info(
-                "ACO recipe intent: bridge {}, GTCEu {}, Mekanism {}",
+                "ACO recipe intent: bridge {}, GTCEu {}",
                 ACOConfig.enableRecipeIntentBridge(),
-                ACOConfig.enableGtceuRecipeIntentFastPath(),
-                ACOConfig.enableMekanismRecipeIntentFastPath());
+                ACOConfig.enableGtceuRecipeIntentFastPath());
         AE2CraftingOptimizer.LOGGER.info(
                 "ACO exact-count backend: enabled {}, atomic standard-AE2 submission {}, standard-AE2 execution {}, API {}, protocol {}, max {} bits, window {}, runtime budget {} MiB",
                 ACOConfig.enableBigIntegerCraftingBackend(),

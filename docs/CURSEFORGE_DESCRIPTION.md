@@ -44,8 +44,8 @@ and retired no-op configuration. They are not compatibility fallbacks.
 - NeoForge 21.1.x
 - Java 21
 - Applied Energistics 2 19.2.17
-- optional Advanced AE 1.6.x-1.21.1, Neo ECO AE Extension 21.x, GTCEu,
-  Mekanism, and Applied Mekanistics integrations
+- optional Advanced AE 1.6.x-1.21.1, Neo ECO AE Extension 21.x, and GTCEu
+  integrations; Mekanism recipe lookup remains unmodified
 - dedicated server and singleplayer as a normal NeoForge mod
 
 Install the same ACO version on the server and every client. Report ACO-only

@@ -37,7 +37,7 @@ are not shared between the branches.
 - Applied Energistics 2 `19.2.17`
 - Optional Advanced AE `1.6.x-1.21.1` (NeoForge)
 - Optional Neo ECO AE Extension `21.1.1`
-- Optional 1.21.1 GTCEu, Mekanism, and Applied Mekanistics integrations
+- Optional 1.21.1 GTCEu integration
 - Dedicated server and singleplayer
 
 Install the same ACO JAR on the server and every client. The common config is:
@@ -78,10 +78,11 @@ how much work may be started in one server tick.
 
 ### Machine Intent
 
-ACO can retain the Pattern Provider's recipe intent so compatible GTCEu and
-Mekanism machines do not rediscover the same recipe from all candidates every
-tick. The machine mod still validates its live inputs, voltage, conditions,
-energy, tanks, and outputs.
+ACO can retain the Pattern Provider's recipe intent so compatible GTCEu
+machines do not rediscover the same recipe from all candidates every tick.
+GTCEu still validates its live inputs, voltage, conditions, energy, tanks, and
+outputs. Mekanism keeps its own `RecipeCacheLookupMonitor` and machine recipe
+lookup; ACO does not add a second cache or intercept `getRecipe`.
 
 ## Physical Crafting Tree
 

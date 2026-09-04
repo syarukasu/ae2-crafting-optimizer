@@ -12,7 +12,6 @@ import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
 import com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
-import com.syaru.ae2craftingoptimizer.mekanism.MekanismRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.optimization.Ae2OverclockUpgradeCountCache;
 import com.syaru.ae2craftingoptimizer.optimization.AssemblerMatrixBusyCountCache;
 import com.syaru.ae2craftingoptimizer.optimization.CircuitCutterRecipeCache;
@@ -142,7 +141,6 @@ public final class ACOServerLifecycle {
         CraftingCalculationDeduplicator.clear(reason);
         RecipeIntentRegistry.clear(reason);
         GTCEuRecipeIntentFastPath.clearIndexes(reason);
-        MekanismRecipeIntentFastPath.clearIndexes(reason);
         CircuitCutterRecipeCache.clear();
         ProviderPatternGenerationTracker.clear();
         Ae2CompiledCraftingGraphCache.clear();

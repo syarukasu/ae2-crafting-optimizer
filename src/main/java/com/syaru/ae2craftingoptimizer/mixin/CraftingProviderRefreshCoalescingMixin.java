@@ -8,6 +8,7 @@ import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.access.CraftingProviderRefreshAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.engine.Ae2ImmutablePlanningGraphCache;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -57,6 +58,8 @@ public abstract class CraftingProviderRefreshCoalescingMixin
     @Inject(method = "onServerEndTick", at = @At("HEAD"))
     private void aco$flushProviderRefreshesAtTickEnd(CallbackInfo ci) {
         aco$flushPendingProviderRefreshes();
+        Ae2ImmutablePlanningGraphCache.refreshPublishedIndexes(
+                (CraftingService) (Object) this);
     }
 
     @Inject(method = "beginCraftingCalculation", at = @At("HEAD"))
@@ -72,6 +75,12 @@ public abstract class CraftingProviderRefreshCoalescingMixin
             return;
         }
         aco$flushPendingProviderRefreshes();
+        /*
+         * Pattern更新と同じtickの注文でも旧indexをAE2 long経路へ落とさない。
+         * clean時は定数時間で戻り、dirty時だけ現在のAE2候補順を公開する。
+         */
+        Ae2ImmutablePlanningGraphCache.refreshPublishedIndexes(
+                (CraftingService) (Object) this);
     }
 
     @Inject(method = "refreshNodeCraftingProvider", at = @At("TAIL"), require = 1)
@@ -81,6 +90,9 @@ public abstract class CraftingProviderRefreshCoalescingMixin
          * refresh通知自体は止めず、Trackerは世代を進める必要がある時だけ進める。
          */
         ProviderPatternGenerationTracker.shouldRefresh(node);
+        Ae2ImmutablePlanningGraphCache.invalidate(
+                (CraftingService) (Object) this,
+                node.getLevel());
     }
 
     @Inject(method = "addNode", at = @At("HEAD"))
@@ -93,11 +105,18 @@ public abstract class CraftingProviderRefreshCoalescingMixin
         // AE2がnodeを索引へ追加した後に旧snapshotを破棄し、新しい内容を正本として記録する。
         ProviderPatternGenerationTracker.forget(node);
         ProviderPatternGenerationTracker.remember(node);
+        Ae2ImmutablePlanningGraphCache.invalidate(
+                (CraftingService) (Object) this,
+                node.getLevel());
     }
 
     @Inject(method = "removeNode", at = @At("HEAD"))
     private void aco$dropPendingRefreshOnNodeRemove(IGridNode node, CallbackInfo ci) {
         aco$pendingProviderRefreshes.remove(node);
+        // remove完了後はLevel参照が失われ得るため、変更前に公開Snapshotを失効させる。
+        Ae2ImmutablePlanningGraphCache.invalidate(
+                (CraftingService) (Object) this,
+                node.getLevel());
     }
 
     @Inject(method = "removeNode", at = @At("RETURN"))

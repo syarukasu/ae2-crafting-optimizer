@@ -13,7 +13,6 @@ import java.util.Optional;
 public final class MixinFeatureCatalog {
     private static final Map<String, OptimizationFeature> FEATURES = Map.ofEntries(
             entry("AbstractMonitorPartDisplaySaturationMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
-            entry("AdvancedAeCraftingCpuLogicExecutionBudgetMixin", OptimizationFeature.CRAFTING_EXECUTION_BUDGET),
             entry("AdvancedAePatternProviderIntentCaptureMixin", OptimizationFeature.RECIPE_INTENT_BRIDGE),
             entry("AdvancedAePatternProviderLogicTargetAccessMixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
             entry("AdvancedAeReactionChamberRecipeCacheMixin", OptimizationFeature.ADDON_MACHINE_CACHE),
@@ -52,8 +51,6 @@ public final class MixinFeatureCatalog {
             entry("GTCEuRecipeLogicIntentFastPathMixin", OptimizationFeature.RECIPE_INTENT_BRIDGE),
             entry("KeyCounterBigIntegerSidecarLifecycleMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("ListCraftingInventoryExactCountsMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
-            entry("MekanismCachedRecipeAccessor", OptimizationFeature.RECIPE_INTENT_BRIDGE),
-            entry("MekanismRecipeIntentFastPathMixin", OptimizationFeature.RECIPE_INTENT_BRIDGE),
             entry("MEStorageMenuDisplaySaturationMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("NeoEcoCraftingCpuExecutionBudgetMixin", OptimizationFeature.CRAFTING_EXECUTION_BUDGET),
             entry("NetworkCraftingSimulationStateAccessor", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),

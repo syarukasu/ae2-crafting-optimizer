@@ -9,7 +9,7 @@ ConfigまたはMixinの実入口を必ず持ちます。削除済み機能の互
 | `CRAFTING_PLANNING` | 計算内memo、構造的候補剪定、世代付きcompiled graph、checked算術、Shadow比較 | 証明不能なレシピの近似、欠品の早期打切り、AE2のPattern選択変更 |
 | `CRAFTING_EXECUTION` | 標準AE2 CPUの時間・操作予算、AE2本来の逐次投入を波単位で実行、公開V2取引契約 | 外部CPUのJob、進捗、電力、取消、完了を所有すること |
 | `BIG_INTEGER` | exact在庫snapshot、wide plan sidecar、標準AE2 exact取引、公開Host/Plan API | exact値をlongへ切り捨てた判定、外部CPUの実行台帳 |
-| `OPTIONAL_INTEGRATION` | AppliedE境界、GTCEu/Mekanism Recipe Intent、検証済みadd-on lookup cache | 外部機械のレシピ可否、速度、入出力、構造を変更すること |
+| `OPTIONAL_INTEGRATION` | AppliedE境界、GTCEu Recipe Intent、検証済みadd-on lookup cache | 外部機械のレシピ可否、速度、入出力、構造を変更すること |
 
 ## 共通gate
 
