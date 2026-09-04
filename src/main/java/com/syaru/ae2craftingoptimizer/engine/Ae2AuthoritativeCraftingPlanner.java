@@ -24,8 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -43,32 +41,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
     /** Snapshot診断の重複除去表を固定長に保つ上限。 */
     private static final int MAXIMUM_LOGGED_SNAPSHOT_FALLBACKS = 4096;
     private static final Set<String> LOGGED_SNAPSHOT_FALLBACKS = ConcurrentHashMap.newKeySet();
-    private static final Object PLANNING_EXECUTOR_LOCK = new Object();
-    @Nullable
-    private static AsyncPlanningExecutor planningExecutor;
-
     private Ae2AuthoritativeCraftingPlanner() {
-    }
-
-    /** Server開始時に、純粋計算をServer Threadから分離する専用workerを開始する。 */
-    public static void startPlanningExecutor() {
-        synchronized (PLANNING_EXECUTOR_LOCK) {
-            if (planningExecutor == null) {
-                planningExecutor = new AsyncPlanningExecutor();
-            }
-        }
-    }
-
-    /** Server停止時に待機中の純粋計算をcancelし、専用workerを終了する。 */
-    public static void stopPlanningExecutor() {
-        AsyncPlanningExecutor closing;
-        synchronized (PLANNING_EXECUTOR_LOCK) {
-            closing = planningExecutor;
-            planningExecutor = null;
-        }
-        if (closing != null) {
-            closing.close();
-        }
     }
 
     @Nullable
@@ -332,8 +305,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
     }
 
     /**
-     * AE2の計算workerから呼ぶ入口。専用workerまたはServer Thread上のexact取得を
-     * 待つ間は、AE2本来のCraftingCalculation pause handshakeへ制御を返す。
+     * AE2の計算workerから呼ぶ入口。Graphと数量の既存checkpoint、および
+     * Server Thread上のexact取得待機からCraftingCalculation pause handshakeへ制御を返す。
      */
     public static ICraftingPlan tryPlan(
             @Nullable Capture capture,
@@ -399,18 +372,19 @@ public final class Ae2AuthoritativeCraftingPlanner {
             if (immutableCapture == null) {
                 return null;
             }
-            PlanningPreparation preparation = awaitPlanningTask(
-                    "prepare",
-                    () -> preparePlanning(
-                            immutableCapture,
-                            output,
-                            requestedAmount,
-                            longSafetyCertified),
-                    workerYield);
-            // 専用worker停止時にServer ThreadやAE2 workerで計画を代行しない。
-            if (preparation == null) {
-                throw new IllegalStateException("ACO dedicated planning worker is unavailable");
-            }
+            PlanningGuard guard = planningGuard(workerYield);
+            /*
+             * Issue #179: CraftingCalculationはAE2自身のCRAFTING_POOL上で動作する。
+             * 第二executorへ再投入すると全Gridを直列化するため、不変Snapshotの純粋計算は
+             * 現在のAE2計算workerで直接実行し、既存checkpointからAE2の
+             * handlePausing()へ制御を返す。
+             */
+            PlanningPreparation preparation = preparePlanning(
+                    immutableCapture,
+                    output,
+                    requestedAmount,
+                    longSafetyCertified,
+                    guard);
             wideArithmeticRequired = preparation.wideArithmeticRequired();
             // 構造上コンパイル不能なルートは、理由を保持してAE2へ戻す。
             if (!preparation.ready()) {
@@ -477,7 +451,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                             : Ae2ReferencedInventory.captureExactNetworkSnapshot(
                                     program,
                                     capture.exactInventorySnapshot(),
-                                    output);
+                                    output,
+                                    guard);
             CompiledRootProgram.InventorySnapshot<AEKey> planningInventory = null;
             // 参照キーを個別に証明できない場合だけ、通常AE2のlong Snapshotへ戻す。
             if (exactPlanningInventory == null) {
@@ -494,22 +469,16 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 planningInventory = Ae2ReferencedInventory.captureNetworkSnapshot(
                         program,
                         capture.inventorySnapshot(),
-                        output);
+                        output,
+                        guard);
             }
-            PlanningGuard guard = expanded -> {
-                // 不変Snapshotの世代は結果適用前に検証し、worker中はキャンセルだけを扱う。
-                if (Thread.currentThread().isInterrupted()) {
-                    throw new PlanningCancelledException(expanded);
-                }
-            };
             OverflowPromotingCraftingPlanner<AEKey> planner =
                     new OverflowPromotingCraftingPlanner<>(
                             ACOConfig.getBigIntegerMaximumBits());
             final CompiledRootProgram.BigInventorySnapshot<AEKey> exactInventorySnapshot = exactPlanningInventory;
             final CompiledRootProgram.InventorySnapshot<AEKey> longInventorySnapshot = planningInventory;
-            OverflowPromotingCraftingPlanner.Result<AEKey> promoted = awaitPlanningTask(
-                    "amount",
-                    () -> exactInventorySnapshot != null
+            OverflowPromotingCraftingPlanner.Result<AEKey> promoted =
+                    exactInventorySnapshot != null
                             ? planner.plan(
                                     program,
                                     BigInteger.valueOf(requestedAmount),
@@ -519,12 +488,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                                     program,
                                     BigInteger.valueOf(requestedAmount),
                                     longInventorySnapshot,
-                                    guard),
-                    workerYield);
-            // 実計算を呼出threadへ戻すfallbackは、TPS非占有契約に反するため行わない。
-            if (promoted == null) {
-                throw new IllegalStateException("ACO dedicated planning worker is unavailable");
-            }
+                                    guard);
             capture.requireCurrentGenerations();
             // 実際にlong計算からBigへ昇格した場合、exact在庫なしの結果は正本にならない。
             if (promoted.usesBigInteger() && exactPlanningInventory == null) {
@@ -555,36 +519,25 @@ public final class Ae2AuthoritativeCraftingPlanner {
             // wide不足はAE2のlong計算へ戻さず、正確なsimulationまたは部分探索へ進める。
             if (!exactPlan.craftable() && widePlan) {
                 if (strategy == CalculationStrategy.CRAFT_LESS) {
-                    PartialPlanningResult partialResult = awaitPlanningTask(
-                            "craft_less",
-                            () -> {
-                                BigInteger amount = largestCraftableAmount(
-                                        BigInteger.valueOf(requestedAmount),
-                                        candidate -> exactPlanAt(
-                                                planner,
-                                                program,
-                                                candidate,
-                                                exactInventorySnapshot,
-                                                longInventorySnapshot,
-                                                guard));
-                                OverflowPromotingCraftingPlanner.Result<AEKey> partial =
-                                        amount.signum() <= 0
-                                                ? null
-                                                : exactPlanAt(
-                                                        planner,
-                                                        program,
-                                                        amount,
-                                                        exactInventorySnapshot,
-                                                        longInventorySnapshot,
-                                                        guard);
-                                return new PartialPlanningResult(amount, partial);
-                            },
-                            workerYield);
-                    if (partialResult == null) {
-                        throw new IllegalStateException(
-                                "ACO dedicated planning worker is unavailable");
-                    }
-                    BigInteger partialAmount = partialResult.amount();
+                    BigInteger partialAmount = largestCraftableAmount(
+                            BigInteger.valueOf(requestedAmount),
+                            candidate -> exactPlanAt(
+                                    planner,
+                                    program,
+                                    candidate,
+                                    exactInventorySnapshot,
+                                    longInventorySnapshot,
+                                    guard));
+                    OverflowPromotingCraftingPlanner.Result<AEKey> partialPlan =
+                            partialAmount.signum() <= 0
+                                    ? null
+                                    : exactPlanAt(
+                                            planner,
+                                            program,
+                                            partialAmount,
+                                            exactInventorySnapshot,
+                                            longInventorySnapshot,
+                                            guard);
                     if (partialAmount.signum() <= 0) {
                         result = createBigIntegerSimulationPlan(
                                 graphSnapshot,
@@ -602,7 +555,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                                 output,
                                 partialAmount,
                                 strategy,
-                                partialResult.plan(),
+                                partialPlan,
                                 true,
                                 null);
                     }
@@ -754,10 +707,11 @@ public final class Ae2AuthoritativeCraftingPlanner {
             Ae2ImmutablePlanningGraphCache.RootCapture immutableCapture,
             AEKey output,
             long requestedAmount,
-            boolean longSafetyCertified) {
-        Ae2PlanningGraphSnapshot graphSnapshot = immutableCapture.compile();
+            boolean longSafetyCertified,
+            PlanningGuard guard) {
+        Ae2PlanningGraphSnapshot graphSnapshot = immutableCapture.compile(guard);
         CompiledRootProgram.Outcome<AEKey> rootOutcome =
-                graphSnapshot.rootProgramOutcome(output);
+                graphSnapshot.rootProgramOutcome(output, guard);
         var optionalProgram = rootOutcome.program();
         // Rootが決定的な配列Programにならない場合は、理由だけを呼出側へ返す。
         if (optionalProgram.isEmpty()) {
@@ -768,7 +722,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
         }
         CompiledRootProgram<AEKey> program = optionalProgram.get();
         Ae2StrictCraftingTopology topology = graphSnapshot
-                .strictTopology(program)
+                .strictTopology(program, guard)
                 .orElse(null);
         // AE2と同じ候補・入力を証明できない構造は、高速経路で計算しない。
         if (topology == null || !topology.acceptsInventory()) {
@@ -781,7 +735,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 && topology.mightRequireWideArithmetic(
                         output,
                         BigInteger.valueOf(requestedAmount),
-                        ACOConfig.getBigIntegerMaximumBits());
+                        ACOConfig.getBigIntegerMaximumBits(),
+                        guard);
         return PlanningPreparation.ready(
                 graphSnapshot,
                 program,
@@ -789,58 +744,24 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 wideArithmeticRequired);
     }
 
-    @Nullable
-    private static <T> T awaitPlanningTask(
-            String phase,
-            Callable<T> task,
+    private static PlanningGuard planningGuard(
             @Nullable PlanningWorkerYield workerYield) {
-        Future<T> pending;
-        long startedAt = System.nanoTime();
-        synchronized (PLANNING_EXECUTOR_LOCK) {
-            AsyncPlanningExecutor current = planningExecutor;
-            pending = current == null ? null : current.submit(task);
-        }
-        // 停止済みのexecutorで、呼出threadへ計算を戻さない。
-        if (pending == null) {
-            if (ACOConfig.logCraftingDecisionFlow()) {
-                AE2CraftingOptimizer.LOGGER.debug(
-                        "ACO-DIAG event=async_planning phase={} state=rejected",
-                        phase);
+        return expanded -> {
+            // 不変Snapshotの世代は結果適用前に検証し、worker中はキャンセルとAE2のpauseだけを扱う。
+            if (Thread.currentThread().isInterrupted()) {
+                throw new PlanningCancelledException(expanded);
             }
-            return null;
-        }
-        if (ACOConfig.logCraftingDecisionFlow()) {
-            AE2CraftingOptimizer.LOGGER.debug(
-                    "ACO-DIAG event=async_planning phase={} state=submitted",
-                    phase);
-        }
-        cooperativelyAwait(pending, workerYield, false);
-        try {
-            T result = pending.get();
-            if (ACOConfig.logCraftingDecisionFlow()) {
-                AE2CraftingOptimizer.LOGGER.debug(
-                        "ACO-DIAG event=async_planning phase={} state=completed elapsedMicros={}",
-                        phase,
-                        java.util.concurrent.TimeUnit.NANOSECONDS.toMicros(
-                                System.nanoTime() - startedAt));
+            // API直接呼出しではAE2 CraftingCalculationのpause実装が存在しない。
+            if (workerYield == null) {
+                return;
             }
-            return result;
-        } catch (InterruptedException interrupted) {
-            pending.cancel(true);
-            Thread.currentThread().interrupt();
-            throw new PlanningCancelledException(0);
-        } catch (CancellationException cancelled) {
-            throw new PlanningCancelledException(0);
-        } catch (ExecutionException failedPlan) {
-            Throwable cause = failedPlan.getCause();
-            if (cause instanceof RuntimeException runtimeFailure) {
-                throw runtimeFailure;
+            try {
+                workerYield.yieldToServerThread();
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new PlanningCancelledException(expanded);
             }
-            if (cause instanceof Error fatalFailure) {
-                throw fatalFailure;
-            }
-            throw new IllegalStateException("asynchronous crafting plan failed", cause);
-        }
+        };
     }
 
     @Nullable
@@ -1649,11 +1570,6 @@ public final class Ae2AuthoritativeCraftingPlanner {
         private boolean ready() {
             return graphSnapshot != null && program != null && topology != null;
         }
-    }
-
-    private record PartialPlanningResult(
-            BigInteger amount,
-            @Nullable OverflowPromotingCraftingPlanner.Result<AEKey> plan) {
     }
 
     private record NormalizedPlan(

@@ -38,8 +38,6 @@ uses `aco<version>_1.20.1.jar`; the NeoForge line is maintained separately on
 - Optional Advanced AE `1.3.x-1.20.1` (Forge)
 - Optional Neo ECO AE Extension `20.3.x` or `20.4.x`
 - Optional GTCEu Modern `7.5.3`
-- Optional Mekanism `10.4.16`
-- Optional Applied Mekanistics `1.4.3`
 - Dedicated server, singleplayer, and Arclight as a normal Forge mod
 
 Install the same ACO JAR on the server and every client. The common config is:
@@ -96,10 +94,11 @@ how much work may be started in one server tick.
 
 ### Machine Intent
 
-ACO can retain the Pattern Provider's recipe intent so compatible GTCEu and
-Mekanism machines do not rediscover the same recipe from all candidates every
-tick. The machine mod still validates its live inputs, voltage, conditions,
-energy, tanks, and outputs.
+ACO can retain the Pattern Provider's recipe intent so compatible GTCEu
+machines do not rediscover the same recipe from all candidates every tick.
+GTCEu still validates its live inputs, voltage, conditions, energy, tanks, and
+outputs. Mekanism keeps its own `RecipeCacheLookupMonitor` and machine recipe
+lookup; ACO does not add a second cache or intercept `getRecipe`.
 
 ## Physical Crafting Tree
 

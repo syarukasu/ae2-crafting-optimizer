@@ -106,12 +106,8 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue GTCEU_RECIPE_INTENT_SEARCH_RADIUS;
     private static final ForgeConfigSpec.IntValue GTCEU_RECIPE_INTENT_NEARBY_MAXIMUM_ENTRIES;
     private static final ForgeConfigSpec.BooleanValue LOG_GTCEU_RECIPE_INTENT_FAST_PATH;
-    private static final ForgeConfigSpec.BooleanValue ENABLE_MEKANISM_RECIPE_INTENT_FAST_PATH;
-    private static final ForgeConfigSpec.IntValue MEKANISM_RECIPE_INTENT_MAXIMUM_CANDIDATES;
-    private static final ForgeConfigSpec.IntValue MEKANISM_RECIPE_INTENT_INDEX_CACHE_SIZE;
     private static final ForgeConfigSpec.BooleanValue CACHE_RESOLVED_RECIPE_INTENTS;
     private static final ForgeConfigSpec.IntValue RESOLVED_RECIPE_INTENT_CACHE_SIZE;
-    private static final ForgeConfigSpec.BooleanValue LOG_MEKANISM_RECIPE_INTENT_FAST_PATH;
     private static final ForgeConfigSpec.BooleanValue LOG_CAPTURED_RECIPE_INTENTS;
     private static final ForgeConfigSpec.BooleanValue LOG_RECIPE_INTENT_REGISTRY_EVICTIONS;
 
@@ -461,24 +457,12 @@ public final class ACOConfig {
         LOG_GTCEU_RECIPE_INTENT_FAST_PATH = builder
                 .comment("Log GTCEu intent hits and bounded candidate counts.")
                 .define("logGtceuRecipeIntentFastPath", false);
-        ENABLE_MEKANISM_RECIPE_INTENT_FAST_PATH = builder
-                .comment("Try output-indexed Mekanism candidates first, then run Mekanism's own recipe test.")
-                .define("enableMekanismRecipeIntentFastPath", true);
-        MEKANISM_RECIPE_INTENT_MAXIMUM_CANDIDATES = builder
-                .comment("Maximum intent-matched Mekanism candidates tested before its original lookup.")
-                .defineInRange("mekanismMaximumCandidates", 16, 1, 1024);
-        MEKANISM_RECIPE_INTENT_INDEX_CACHE_SIZE = builder
-                .comment("Maximum output indexes retained for Mekanism recipe types.")
-                .defineInRange("mekanismIndexCacheSize", 128, 1, 1024);
         CACHE_RESOLVED_RECIPE_INTENTS = builder
                 .comment("Reuse a validated candidate only while the originating intent remains current.")
                 .define("cacheResolvedRecipeIntents", true);
         RESOLVED_RECIPE_INTENT_CACHE_SIZE = builder
                 .comment("Maximum resolved intent entries per optional integration.")
                 .defineInRange("resolvedIntentCacheSize", 8192, 16, MAXIMUM_BOUNDED_ENTRIES);
-        LOG_MEKANISM_RECIPE_INTENT_FAST_PATH = builder
-                .comment("Log Mekanism intent hits and bounded candidate counts.")
-                .define("logMekanismRecipeIntentFastPath", false);
         LOG_CAPTURED_RECIPE_INTENTS = builder
                 .comment("Log each captured recipe intent. Intended only for targeted diagnostics.")
                 .define("logCapturedRecipeIntents", false);
@@ -626,12 +610,8 @@ public final class ACOConfig {
     public static int getGtceuRecipeIntentSearchRadius() { return GTCEU_RECIPE_INTENT_SEARCH_RADIUS.get(); }
     public static int getGtceuRecipeIntentNearbyMaximumEntries() { return GTCEU_RECIPE_INTENT_NEARBY_MAXIMUM_ENTRIES.get(); }
     public static boolean logGtceuRecipeIntentFastPath() { return enableGtceuRecipeIntentFastPath() && LOG_GTCEU_RECIPE_INTENT_FAST_PATH.get(); }
-    public static boolean enableMekanismRecipeIntentFastPath() { return enableRecipeIntentBridge() && ENABLE_MEKANISM_RECIPE_INTENT_FAST_PATH.get(); }
-    public static int getMekanismRecipeIntentMaximumCandidates() { return MEKANISM_RECIPE_INTENT_MAXIMUM_CANDIDATES.get(); }
-    public static int getMekanismRecipeIntentIndexCacheSize() { return MEKANISM_RECIPE_INTENT_INDEX_CACHE_SIZE.get(); }
     public static boolean cacheResolvedRecipeIntents() { return enableRecipeIntentBridge() && CACHE_RESOLVED_RECIPE_INTENTS.get(); }
     public static int getResolvedRecipeIntentCacheSize() { return RESOLVED_RECIPE_INTENT_CACHE_SIZE.get(); }
-    public static boolean logMekanismRecipeIntentFastPath() { return enableMekanismRecipeIntentFastPath() && LOG_MEKANISM_RECIPE_INTENT_FAST_PATH.get(); }
     public static boolean logCapturedRecipeIntents() { return enableRecipeIntentBridge() && LOG_CAPTURED_RECIPE_INTENTS.get(); }
     public static boolean logRecipeIntentRegistryEvictions() { return enableRecipeIntentBridge() && LOG_RECIPE_INTENT_REGISTRY_EVICTIONS.get(); }
 

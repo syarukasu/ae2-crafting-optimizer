@@ -6,14 +6,12 @@ import com.syaru.ae2craftingoptimizer.batch.PatternTaskFingerprint;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
 import com.syaru.ae2craftingoptimizer.engine.Ae2ImmutablePlanningGraphCache;
-import com.syaru.ae2craftingoptimizer.engine.Ae2AuthoritativeCraftingPlanner;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
 import com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
-import com.syaru.ae2craftingoptimizer.mekanism.MekanismRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.optimization.Ae2OverclockUpgradeCountCache;
 import com.syaru.ae2craftingoptimizer.optimization.AssemblerMatrixBusyCountCache;
 import com.syaru.ae2craftingoptimizer.optimization.CircuitCutterRecipeCache;
@@ -56,7 +54,6 @@ public final class ACOServerLifecycle {
     }
 
     private static void onServerStarted(ServerStartedEvent event) {
-        Ae2AuthoritativeCraftingPlanner.startPlanningExecutor();
         OptimizationFeatureGate.resetDiagnostics();
         ExperimentalCompatibilityValidator.validateEnabledFeatures();
         ServerTickClock.reset();
@@ -98,7 +95,6 @@ public final class ACOServerLifecycle {
     }
 
     private static void onServerStopping(ServerStoppingEvent event) {
-        Ae2AuthoritativeCraftingPlanner.stopPlanningExecutor();
         // 診断を要求された時だけ停止直前の集計値を出力する。
         if (ACOConfig.logCacheStatistics()) {
             // 集計項目を一行ずつ出し、巨大な単一Log entryを作らない。
@@ -127,7 +123,6 @@ public final class ACOServerLifecycle {
         CraftingCalculationDeduplicator.clear(reason);
         RecipeIntentRegistry.clear(reason);
         GTCEuRecipeIntentFastPath.clearIndexes(reason);
-        MekanismRecipeIntentFastPath.clearIndexes(reason);
         CircuitCutterRecipeCache.clear();
         ProviderPatternGenerationTracker.clear();
         Ae2CompiledCraftingGraphCache.clear();

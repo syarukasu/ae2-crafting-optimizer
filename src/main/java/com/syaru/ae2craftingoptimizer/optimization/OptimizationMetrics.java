@@ -13,9 +13,6 @@ public final class OptimizationMetrics {
     private static final LongAdder SHARED_DEFERRED_OPERATIONS = new LongAdder();
     private static final LongAdder GT_CANDIDATE_CACHE_HITS = new LongAdder();
     private static final LongAdder GT_CANDIDATE_CACHE_MISSES = new LongAdder();
-    private static final LongAdder MEKANISM_RECIPE_CACHE_HITS = new LongAdder();
-    private static final LongAdder MEKANISM_RECIPE_CACHE_MISSES = new LongAdder();
-    private static final LongAdder MEKANISM_RECIPE_VALIDATIONS = new LongAdder();
     private static final LongAdder REFLECTION_LOOKUP_HITS = new LongAdder();
     private static final LongAdder REFLECTION_LOOKUP_MISSES = new LongAdder();
     private static final LongAdder AE2_OVERCLOCK_UPGRADE_COUNT_HITS = new LongAdder();
@@ -115,14 +112,6 @@ public final class OptimizationMetrics {
 
     public static void recordGtCandidateCache(boolean hit) {
         (hit ? GT_CANDIDATE_CACHE_HITS : GT_CANDIDATE_CACHE_MISSES).increment();
-    }
-
-    public static void recordMekanismRecipeCache(boolean hit) {
-        (hit ? MEKANISM_RECIPE_CACHE_HITS : MEKANISM_RECIPE_CACHE_MISSES).increment();
-    }
-
-    public static void recordMekanismRecipeValidation() {
-        MEKANISM_RECIPE_VALIDATIONS.increment();
     }
 
     public static void recordReflectionLookup(boolean hit) {
@@ -399,8 +388,6 @@ public final class OptimizationMetrics {
     public static List<String> summaryLines() {
         long gtHits = GT_CANDIDATE_CACHE_HITS.sum();
         long gtMisses = GT_CANDIDATE_CACHE_MISSES.sum();
-        long mekHits = MEKANISM_RECIPE_CACHE_HITS.sum();
-        long mekMisses = MEKANISM_RECIPE_CACHE_MISSES.sum();
         long reflectionHits = REFLECTION_LOOKUP_HITS.sum();
         long reflectionMisses = REFLECTION_LOOKUP_MISSES.sum();
         long upgradeHits = AE2_OVERCLOCK_UPGRADE_COUNT_HITS.sum();
@@ -410,9 +397,6 @@ public final class OptimizationMetrics {
                         + " limit(s), " + SHARED_DEFERRED_OPERATIONS.sum() + " operation(s) deferred",
                 "GTCEu intent candidate cache: " + gtHits + " hit(s), " + gtMisses
                         + " miss(es), " + percent(gtHits, gtMisses) + "% hit rate",
-                "Mekanism resolved recipe cache: " + mekHits + " hit(s), " + mekMisses
-                        + " miss(es), " + percent(mekHits, mekMisses) + "% hit rate",
-                "Mekanism recipe validations: " + MEKANISM_RECIPE_VALIDATIONS.sum(),
                 "Experimental planner Shadow Mode: " + CRAFTING_ENGINE_SHADOW_MATCHES.sum()
                         + " match(es), " + CRAFTING_ENGINE_SHADOW_MISMATCHES.sum()
                         + " mismatch(es), " + CRAFTING_ENGINE_SHADOW_SKIPS.sum()
@@ -515,9 +499,6 @@ public final class OptimizationMetrics {
         SHARED_DEFERRED_OPERATIONS.reset();
         GT_CANDIDATE_CACHE_HITS.reset();
         GT_CANDIDATE_CACHE_MISSES.reset();
-        MEKANISM_RECIPE_CACHE_HITS.reset();
-        MEKANISM_RECIPE_CACHE_MISSES.reset();
-        MEKANISM_RECIPE_VALIDATIONS.reset();
         REFLECTION_LOOKUP_HITS.reset();
         REFLECTION_LOOKUP_MISSES.reset();
         AE2_OVERCLOCK_UPGRADE_COUNT_HITS.reset();

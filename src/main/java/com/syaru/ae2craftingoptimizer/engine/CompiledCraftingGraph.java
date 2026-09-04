@@ -22,7 +22,10 @@ public final class CompiledCraftingGraph<K> {
     private final Map<K, Integer> componentByKey;
     private final Set<Integer> cyclicComponents;
 
-    private CompiledCraftingGraph(long generation, Collection<CompiledPattern<K>> source) {
+    private CompiledCraftingGraph(
+            long generation,
+            Collection<CompiledPattern<K>> source,
+            PlanningGuard guard) {
         if (generation < 0L) {
             throw new IllegalArgumentException("generation must not be negative");
         }
@@ -30,7 +33,9 @@ public final class CompiledCraftingGraph<K> {
         this.patterns = List.copyOf(Objects.requireNonNull(source, "source"));
         Map<K, List<CompiledPattern<K>>> mutableIndex = new LinkedHashMap<>();
         Map<K, Set<K>> edges = new LinkedHashMap<>();
+        int indexedPatterns = 0;
         for (CompiledPattern<K> pattern : patterns) {
+            guard.checkpoint(++indexedPatterns);
             Objects.requireNonNull(pattern, "pattern");
             for (K output : pattern.outputs().keySet()) {
                 mutableIndex.computeIfAbsent(output, ignored -> new ArrayList<>()).add(pattern);
@@ -47,14 +52,21 @@ public final class CompiledCraftingGraph<K> {
         mutableIndex.forEach((key, value) -> frozenIndex.put(key, List.copyOf(value)));
         this.byOutput = Collections.unmodifiableMap(frozenIndex);
 
-        Components<K> components = Components.find(edges);
+        Components<K> components = Components.find(edges, guard);
         this.componentByKey = components.componentByKey();
         this.cyclicComponents = components.cyclicComponents();
     }
 
     public static <K> CompiledCraftingGraph<K> compile(
             long generation, Collection<CompiledPattern<K>> patterns) {
-        return new CompiledCraftingGraph<>(generation, patterns);
+        return compile(generation, patterns, PlanningGuard.none());
+    }
+
+    static <K> CompiledCraftingGraph<K> compile(
+            long generation,
+            Collection<CompiledPattern<K>> patterns,
+            PlanningGuard guard) {
+        return new CompiledCraftingGraph<>(generation, patterns, guard);
     }
 
     public long generation() {
@@ -86,14 +98,17 @@ public final class CompiledCraftingGraph<K> {
     }
 
     private record Components<K>(Map<K, Integer> componentByKey, Set<Integer> cyclicComponents) {
-        private static <K> Components<K> find(Map<K, Set<K>> edges) {
-            List<K> finishOrder = finishingOrder(edges);
-            Map<K, Set<K>> reversed = reverse(edges);
+        private static <K> Components<K> find(
+                Map<K, Set<K>> edges,
+                PlanningGuard guard) {
+            List<K> finishOrder = finishingOrder(edges, guard);
+            Map<K, Set<K>> reversed = reverse(edges, guard);
             Map<K, Integer> componentByKey = new HashMap<>();
             Set<Integer> cyclicComponents = new HashSet<>();
             int component = 0;
 
             for (int index = finishOrder.size() - 1; index >= 0; index--) {
+                guard.checkpoint(finishOrder.size() - index);
                 K start = finishOrder.get(index);
                 if (componentByKey.containsKey(start)) {
                     continue;
@@ -103,6 +118,7 @@ public final class CompiledCraftingGraph<K> {
                 pending.push(start);
                 componentByKey.put(start, component);
                 while (!pending.isEmpty()) {
+                    guard.checkpoint(componentByKey.size());
                     K key = pending.pop();
                     members.add(key);
                     for (K dependency : reversed.getOrDefault(key, Set.of())) {
@@ -121,7 +137,9 @@ public final class CompiledCraftingGraph<K> {
             return new Components<>(Map.copyOf(componentByKey), Set.copyOf(cyclicComponents));
         }
 
-        private static <K> List<K> finishingOrder(Map<K, Set<K>> edges) {
+        private static <K> List<K> finishingOrder(
+                Map<K, Set<K>> edges,
+                PlanningGuard guard) {
             List<K> order = new ArrayList<>(edges.size());
             Set<K> visited = new HashSet<>();
             for (K start : edges.keySet()) {
@@ -131,6 +149,7 @@ public final class CompiledCraftingGraph<K> {
                 Deque<Frame<K>> stack = new ArrayDeque<>();
                 stack.push(new Frame<>(start, edges.getOrDefault(start, Set.of()).iterator()));
                 while (!stack.isEmpty()) {
+                    guard.checkpoint(visited.size());
                     Frame<K> frame = stack.peek();
                     if (frame.dependencies().hasNext()) {
                         K dependency = frame.dependencies().next();
@@ -148,9 +167,13 @@ public final class CompiledCraftingGraph<K> {
             return order;
         }
 
-        private static <K> Map<K, Set<K>> reverse(Map<K, Set<K>> edges) {
+        private static <K> Map<K, Set<K>> reverse(
+                Map<K, Set<K>> edges,
+                PlanningGuard guard) {
             Map<K, Set<K>> reversed = new LinkedHashMap<>();
+            int reversedKeys = 0;
             for (K key : edges.keySet()) {
+                guard.checkpoint(++reversedKeys);
                 reversed.computeIfAbsent(key, ignored -> new LinkedHashSet<>());
                 for (K dependency : edges.getOrDefault(key, Set.of())) {
                     reversed.computeIfAbsent(dependency, ignored -> new LinkedHashSet<>()).add(key);
