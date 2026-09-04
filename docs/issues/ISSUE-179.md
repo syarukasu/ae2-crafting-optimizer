@@ -90,4 +90,11 @@
 
 上記probeはACO内部の純粋Planner比較であり、実serverのTPS改善値ではありません。
 
+同じ端末で各版を一回ずつ別Gradle test JVMから測った補助値では、1.5.33から2.0への
+Compiled Planner時間はForgeが`40.830 ms -> 35.329 ms`、NeoForgeが
+`31.480 ms -> 26.887 ms`だった。割当量はForgeが両版`15.262 MiB`、NeoForgeが
+両版`15.252 MiB`で変化しなかった。単発のmicroprobeなので速度差を合否条件や
+実経路改善率には使わない。ACO未導入、Server Thread時間、MSPT、GC、TPSの比較は
+実環境計測まで未証明のままとする。
+
 詳細なThread境界は`docs/PARALLEL_PLANNER_2_0.md`を正本とします。

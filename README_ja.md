@@ -66,9 +66,10 @@ config/ae2_crafting_optimizer-common.toml
 
 ### 機械Recipe Intent
 
-Pattern Providerが指定したレシピ意図を保持し、GTCEuが毎tick同じレシピを
+Pattern Providerが指定したレシピ意図を保持し、対応GTCEu機械が毎tick同じレシピを
 総当たりする回数を減らします。電圧、条件、電力、Tank、出力容量などの最終判定は
-GTCEuが行います。MekanismのRecipe Cacheと機械tickはMekanism本体へ完全に任せます。
+GTCEuが行います。Mekanismの`RecipeCacheLookupMonitor`と機械レシピ探索はMekanism自身が
+所有し、ACOは第二のcacheを追加せず`getRecipe`も横取りしません。
 
 ## 物理クラフトツリー
 
