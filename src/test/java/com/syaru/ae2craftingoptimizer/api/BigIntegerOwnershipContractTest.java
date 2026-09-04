@@ -24,6 +24,11 @@ class BigIntegerOwnershipContractTest {
 
         // Issue #109: API利用宣言だけで標準AE2 CPUの提出結果を変更しない。
         assertFalse(mixins.contains("CraftingCpuClusterBigCapacityGuardMixin"));
+        // 外部CPUの実行予算はアドオンが所有し、ACOはBigInteger APIだけを提供する。
+        assertFalse(mixins.contains("AdvancedAeCraftingCpuLogicExecutionBudgetMixin"));
+        assertFalse(Files.exists(Path.of(
+                "src/main/java/com/syaru/ae2craftingoptimizer/mixin/"
+                        + "AdvancedAeCraftingCpuLogicExecutionBudgetMixin.java")));
     }
 
     @Test

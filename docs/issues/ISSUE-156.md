@@ -58,7 +58,16 @@ wideが確定した注文だけ、AE2計算Futureのworkerからserver executor�
 mounted storageを直接走査しない。往復後にはPattern/recipe世代も再確認する。
 AE2 15.4.10本体は`CraftingCalculation`を生成した後に専用`CRAFTING_POOL`へsubmitしており、
 ACO、AQE、InsaneAEの確認済み利用箇所はFutureをtick間でpollするため、server threadを
-同期`get()`で塞ぐ経路にはならない。
+同期`get()`で塞ぐ経路にはならない、という当初の判断は不完全だった。
+
+2.0.0で、呼出側がFutureをpollしていてもこの往復が停止することが判明した。
+AE2自身が`TickHandler.simulateCraftingJobs()`から`CraftingCalculation.simulateFor()`を呼び、
+Server Thread上で計算workerのpauseを同期的に待つためである。workerがその区間でserver
+executorへexact取得を投入して`Future.get()`すると、両threadが相互待機になる。
+ACOはexact取得の完了待ち中に、AE2本来の`handlePausing()` handshakeへ協調yieldする。
+これにより全注文のeager exact走査へ戻さず、Server Threadがexact取得を実行できる。
+2.0.0の並列Session待ちにも同じhandshakeを使い、別poolの完了待ちでServer Threadを
+塞がない。
 
 ### wide判定
 
@@ -158,5 +167,5 @@ unused Shadow計算を対象とする。wide注文では正確性のためserver
 一度行うため、その費用自体は残る。
 
 Authoritative plan採用前のlive inventory/topology再検証には既存のGrid参照が残る。
-また、Futureをserver thread上で同期的に待つ外部アドオンはAE2の非同期契約にも反するため、
-今回確認した利用箇所以外がその呼出し方をする場合は別途adapterが必要になる。
+外部アドオンが返却FutureをServer Thread上で直接`get()`する独自経路は、AE2の通常契約外で
+あるため対象外とする。AE2自身の`simulateFor()` pause handshakeは今回の修正で維持する。

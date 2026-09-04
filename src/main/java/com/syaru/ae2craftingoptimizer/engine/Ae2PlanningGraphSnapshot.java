@@ -26,9 +26,23 @@ interface Ae2PlanningGraphSnapshot {
 
     CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(AEKey root);
 
+    default CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(
+            AEKey root,
+            PlanningGuard guard) {
+        guard.checkpoint(0);
+        return rootProgramOutcome(root);
+    }
+
     Optional<CompiledRootProgram.Outcome<AEKey>> cachedRootProgramOutcome(AEKey root);
 
     Optional<Ae2StrictCraftingTopology> strictTopology(CompiledRootProgram<AEKey> program);
+
+    default Optional<Ae2StrictCraftingTopology> strictTopology(
+            CompiledRootProgram<AEKey> program,
+            PlanningGuard guard) {
+        guard.checkpoint(0);
+        return strictTopology(program);
+    }
 
     Optional<Ae2StrictCraftingTopology> cachedStrictTopology(AEKey root);
 }

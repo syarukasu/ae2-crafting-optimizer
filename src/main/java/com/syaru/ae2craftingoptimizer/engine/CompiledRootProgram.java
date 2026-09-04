@@ -111,9 +111,18 @@ public final class CompiledRootProgram<K> {
             CompiledCraftingGraph<K> graph,
             K root,
             Predicate<? super K> canEmit) {
+        return compile(graph, root, canEmit, PlanningGuard.none());
+    }
+
+    static <K> Outcome<K> compile(
+            CompiledCraftingGraph<K> graph,
+            K root,
+            Predicate<? super K> canEmit,
+            PlanningGuard guard) {
         Objects.requireNonNull(graph, "graph");
         Objects.requireNonNull(root, "root");
         Objects.requireNonNull(canEmit, "canEmit");
+        Objects.requireNonNull(guard, "guard");
 
         Map<K, CompiledPattern<K>> selected = new LinkedHashMap<>();
         Map<K, Set<K>> dependencies = new LinkedHashMap<>();
@@ -124,6 +133,7 @@ public final class CompiledRootProgram<K> {
 
         // ルートから到達するノードだけを一度ずつ探索し、曖昧性を見つけた時点でFallbackする。
         while (!discover.isEmpty()) {
+            guard.checkpoint(reachable.size() + 1);
             K key = discover.pop();
             // 複数の親から共有される中間素材は、最初の探索でだけ構造を登録する。
             if (!reachable.add(key)) {
@@ -175,7 +185,7 @@ public final class CompiledRootProgram<K> {
             dependencies.put(key, Set.copyOf(children));
         }
 
-        List<K> order = topologicalOrder(reachable, dependencies);
+        List<K> order = topologicalOrder(reachable, dependencies, guard);
         // 全ノードを並べられなかった場合は、探索中に見えなかった循環があるためFallbackする。
         if (order.size() != reachable.size()) {
             return Outcome.failed(RootProgramFailure.CYCLE);
@@ -190,7 +200,9 @@ public final class CompiledRootProgram<K> {
         int slotCount = 0;
         int alternativeCount = 0;
         // slot配列と候補配列を一回だけ確保するため、Patternごとの件数を先に合計する。
+        int countedNodes = 0;
         for (K key : order) {
+            guard.checkpoint(++countedNodes);
             CompiledPattern<K> pattern = selected.get(key);
             // 終端ノードには入力辺がないため、Patternノードだけを数える。
             if (pattern != null) {
@@ -228,6 +240,7 @@ public final class CompiledRootProgram<K> {
 
         // Map中心のGraphを、実行時に直接添字アクセスできる不変配列へ変換する。
         for (int node = 0; node < nodeCount; node++) {
+            guard.checkpoint(node + 1);
             K key = order.get(node);
             CompiledPattern<K> pattern = selected.get(key);
             emitters[node] = emitterKeys.contains(key);
@@ -321,7 +334,8 @@ public final class CompiledRootProgram<K> {
 
     private static <K> List<K> topologicalOrder(
             Set<K> reachable,
-            Map<K, Set<K>> dependencies) {
+            Map<K, Set<K>> dependencies,
+            PlanningGuard guard) {
         Map<K, Integer> indegree = new HashMap<>();
         // 到達した全ノードをindegree 0で初期化する。
         for (K key : reachable) {
@@ -346,6 +360,7 @@ public final class CompiledRootProgram<K> {
         List<K> order = new ArrayList<>(reachable.size());
         // 親を先、共有される中間素材を全親の後に置くKahn法で一巡順を作る。
         while (!ready.isEmpty()) {
+            guard.checkpoint(order.size() + 1);
             K key = ready.remove();
             order.add(key);
             // 現在ノードを処理したので、各子の未処理親数を一つ減らす。
@@ -362,10 +377,18 @@ public final class CompiledRootProgram<K> {
 
     /** 参照対象キーだけをsigned long在庫ベクトルへ固定する。 */
     public InventorySnapshot<K> captureLongInventory(ToLongFunction<? super K> amountReader) {
+        return captureLongInventory(amountReader, PlanningGuard.none());
+    }
+
+    InventorySnapshot<K> captureLongInventory(
+            ToLongFunction<? super K> amountReader,
+            PlanningGuard guard) {
         Objects.requireNonNull(amountReader, "amountReader");
+        Objects.requireNonNull(guard, "guard");
         long[] amounts = new long[keys.size()];
         // コンパイル済みルートが参照するキーだけを一度ずつ取得する。
         for (int index = 0; index < keys.size(); index++) {
+            guard.checkpoint(index + 1);
             amounts[index] = CheckedLongMath.requireNonNegative(
                     amountReader.applyAsLong(keys.get(index)),
                     "compiled-root/inventory/" + index);
@@ -377,10 +400,19 @@ public final class CompiledRootProgram<K> {
     public BigInventorySnapshot<K> captureBigInventory(
             Function<? super K, BigInteger> amountReader,
             int maximumBits) {
+        return captureBigInventory(amountReader, maximumBits, PlanningGuard.none());
+    }
+
+    BigInventorySnapshot<K> captureBigInventory(
+            Function<? super K, BigInteger> amountReader,
+            int maximumBits,
+            PlanningGuard guard) {
         Objects.requireNonNull(amountReader, "amountReader");
+        Objects.requireNonNull(guard, "guard");
         BigInteger[] amounts = new BigInteger[keys.size()];
         // コンパイル済みルートが参照するキーだけを一度ずつ取得し、上限を検証する。
         for (int index = 0; index < keys.size(); index++) {
+            guard.checkpoint(index + 1);
             BigInteger amount = Objects.requireNonNull(
                     amountReader.apply(keys.get(index)),
                     "inventory amount");

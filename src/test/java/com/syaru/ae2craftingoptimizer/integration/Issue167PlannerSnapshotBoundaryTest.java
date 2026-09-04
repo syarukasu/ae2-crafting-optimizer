@@ -42,8 +42,9 @@ class Issue167PlannerSnapshotBoundaryTest {
         assertTrue(cache.contains("List.copyOf(orderedPatterns)"));
         assertTrue(cache.contains("generationsMatch("));
         assertTrue(cache.contains("configurationRevision"));
-        assertTrue(cache.contains("MAXIMUM_CACHED_KEYS_PER_DIMENSION"));
-        assertTrue(cache.contains("cachedKeyCount > MAXIMUM_CACHED_KEYS_PER_DIMENSION"));
+        assertTrue(cache.contains("MAXIMUM_ROOT_PROGRAMS_PER_SNAPSHOT"));
+        assertTrue(cache.contains("MAXIMUM_ROOT_PROGRAM_NODES_PER_SNAPSHOT"));
+        assertTrue(cache.contains("refreshPublishedIndexes"));
         assertFalse(cache.contains("candidates.sort"));
         assertFalse(cache.contains("candidates.remove"));
     }
@@ -56,7 +57,7 @@ class Issue167PlannerSnapshotBoundaryTest {
                 "com/syaru/ae2craftingoptimizer/engine/Ae2PlanningCaptureCoordinator.java");
 
         assertTrue(cache.contains("PlanningConfigurationRevisionTracker.current()"));
-        assertTrue(cache.contains("dimension.configurationRevision != configurationRevision"));
+        assertTrue(cache.contains("published.configurationRevision != configurationRevision"));
         assertTrue(cache.contains("PlanningConfigurationRevisionTracker.isCurrent(configurationRevision)"));
         assertTrue(cache.contains("public long configurationRevision()"));
         assertTrue(coordinator.contains(
@@ -162,6 +163,19 @@ class Issue167PlannerSnapshotBoundaryTest {
         assertFalse(capture.contains("StringBuilder"));
         assertTrue(fingerprint.contains("toTagGeneric()"));
         assertTrue(fingerprint.contains("StableFingerprint.sha256"));
+    }
+
+    @Test
+    void fluidSubstitutionDoesNotRejectAnOtherwiseExactCraftingPattern() throws IOException {
+        String factory = readMain(
+                "com/syaru/ae2craftingoptimizer/engine/Ae2CompiledPatternFactory.java");
+        String inputDomainPolicy = between(
+                factory,
+                "private static boolean hasExactInputDomain",
+                "static final class Captured");
+
+        assertTrue(inputDomainPolicy.contains("return !crafting.canSubstitute();"));
+        assertFalse(inputDomainPolicy.contains("canSubstituteFluids()"));
     }
 
     @Test
@@ -364,11 +378,13 @@ class Issue167PlannerSnapshotBoundaryTest {
                 planner,
                 "private static ICraftingPlan tryPlanAttempt(",
                 "private static ICraftingPlan createBigIntegerSimulationPlan(");
-        int wideClassification = attempt.indexOf("topology.mightRequireWideArithmetic(");
+        int preparation = attempt.indexOf("preparePlanning(");
         int staleCheck = attempt.indexOf("capture.requireCurrentGenerations();");
 
-        assertTrue(wideClassification >= 0, "wide arithmetic classification must remain present");
-        assertTrue(staleCheck > wideClassification,
+        assertTrue(preparation >= 0, "wide arithmetic preparation must remain present");
+        assertTrue(attempt.contains("topology.mightRequireWideArithmetic("),
+                "the dedicated worker must classify wide arithmetic exactly");
+        assertTrue(staleCheck > preparation,
                 "a cold wide request must not fall back to AE2 long arithmetic before classification");
     }
 

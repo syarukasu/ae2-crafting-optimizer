@@ -45,8 +45,8 @@ and retired no-op configuration. They are not compatibility fallbacks.
 - Java 17
 - Applied Energistics 2 15.4.10
 - AE2 UELM 15.5.0-uelm replacement profile supported
-- optional Advanced AE 1.3.x, Neo ECO AE Extension 20.3/20.4, GTCEu,
-  Mekanism, and Applied Mekanistics integrations
+- optional Advanced AE 1.3.x, Neo ECO AE Extension 20.3/20.4, and GTCEu
+  integrations; Mekanism recipe lookup remains unmodified
 - dedicated server, singleplayer, and Arclight as a normal Forge mod
 
 Install the same ACO version on the server and every client. Report ACO-only

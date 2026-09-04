@@ -41,7 +41,8 @@
 ### 任意連携
 
 - AppliedE temporary patternをAE2/AppliedE Plannerへ残す境界
-- GTCEuとMekanismへ短寿命Recipe Intent候補を渡し、最終判定は各MODへ委譲
+- GTCEuへ短寿命Recipe Intent候補を渡し、最終判定はGTCEuへ委譲
+- MekanismのRecipe Cacheと機械tickには介入しない
 - Circuit Cutter、Reaction Chamber、AE2 Overclock、Assembly Matrixの検証済みlookup cache
 - Advanced AEとNeoECOのCPUへ、状態を所有しない実行予算だけを適用
 

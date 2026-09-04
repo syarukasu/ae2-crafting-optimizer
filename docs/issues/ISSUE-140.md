@@ -1,5 +1,8 @@
 # Issue #140: Mekanism Recipe IntentがDedicated ServerでSoundInstanceを毎tick誤ロードする
 
+> 2.0.0ではIssue #179によりMekanismへの直接Recipe Intent Mixin自体を削除しました。
+> 以下は1.5.xで提供していた経路の履歴であり、2.0.0の現行仕様ではありません。
+
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/140
 - 状態: Fixed in 1.5.26
 - 対象版: 1.5.25

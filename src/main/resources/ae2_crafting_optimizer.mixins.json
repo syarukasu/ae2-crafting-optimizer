@@ -6,7 +6,6 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "AbstractMonitorPartDisplaySaturationMixin",
-    "AdvancedAeCraftingCpuLogicExecutionBudgetMixin",
     "AdvancedAePatternProviderIntentCaptureMixin",
     "AdvancedAePatternProviderLogicTargetAccessMixin",
     "AdvancedAeReactionChamberRecipeCacheMixin",
@@ -42,7 +41,6 @@
     "GTCEuRecipeLogicIntentFastPathMixin",
     "KeyCounterBigIntegerSidecarLifecycleMixin",
     "ListCraftingInventoryExactCountsMixin",
-    "MekanismRecipeIntentFastPathMixin",
     "MEStorageMenuDisplaySaturationMixin",
     "NeoEco20_3CraftingCpuExecutionBudgetMixin",
     "NeoEco20_4CraftingCpuExecutionBudgetMixin",
@@ -55,8 +53,7 @@
     "TaskProgressTransactionAccessMixin",
     "ExtendedAePlusBigIntegerCellInventoryAccessor",
     "ExtendedAePlusBigIntegerCellConsistencyMixin",
-    "ExtendedAePlusInfinityDataStorageConsistencyMixin",
-    "MekanismCachedRecipeAccessor"
+    "ExtendedAePlusInfinityDataStorageConsistencyMixin"
   ],
   "client": [
     "CraftAmountScreenLongAmountMixin",
