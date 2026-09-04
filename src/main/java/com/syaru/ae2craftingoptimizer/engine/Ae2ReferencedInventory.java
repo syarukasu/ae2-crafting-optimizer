@@ -16,9 +16,21 @@ final class Ae2ReferencedInventory {
             CompiledRootProgram<AEKey> program,
             Ae2PlanningInventorySnapshot networkSnapshot,
             AEKey requestedOutput) {
+        return captureNetworkSnapshot(
+                program,
+                networkSnapshot,
+                requestedOutput,
+                PlanningGuard.none());
+    }
+
+    static CompiledRootProgram.InventorySnapshot<AEKey> captureNetworkSnapshot(
+            CompiledRootProgram<AEKey> program,
+            Ae2PlanningInventorySnapshot networkSnapshot,
+            AEKey requestedOutput,
+            PlanningGuard guard) {
         Objects.requireNonNull(networkSnapshot, "networkSnapshot");
         return program.captureLongInventory(key ->
-                key.equals(requestedOutput) ? 0L : networkSnapshot.amount(key));
+                key.equals(requestedOutput) ? 0L : networkSnapshot.amount(key), guard);
     }
 
     /**
@@ -31,22 +43,42 @@ final class Ae2ReferencedInventory {
             CompiledRootProgram<AEKey> program,
             KeyCounter networkSnapshot,
             AEKey requestedOutput) {
+        return captureExactNetworkSnapshot(
+                program,
+                networkSnapshot,
+                requestedOutput,
+                PlanningGuard.none());
+    }
+
+    @Nullable
+    static CompiledRootProgram.BigInventorySnapshot<AEKey> captureExactNetworkSnapshot(
+            CompiledRootProgram<AEKey> program,
+            KeyCounter networkSnapshot,
+            AEKey requestedOutput,
+            PlanningGuard guard) {
         BigKeyCounterSidecars.Snapshot exact =
                 BigKeyCounterSidecars.snapshot(networkSnapshot).orElse(null);
         // 無関係なキーのアダプター失敗だけで、対象クラフト全体を捨てない。
-        if (exact == null || !hasExactReferencedKeys(program, exact, requestedOutput)) {
+        if (exact == null || !hasExactReferencedKeys(
+                program,
+                exact,
+                requestedOutput,
+                guard)) {
             return null;
         }
         return program.captureBigInventory(
                 key -> key.equals(requestedOutput) ? BigInteger.ZERO : exact.amount(key),
-                ACOConfig.getBigIntegerMaximumBits());
+                ACOConfig.getBigIntegerMaximumBits(),
+                guard);
     }
 
     private static boolean hasExactReferencedKeys(
             CompiledRootProgram<AEKey> program,
             BigKeyCounterSidecars.Snapshot exact,
-            AEKey requestedOutput) {
+            AEKey requestedOutput,
+            PlanningGuard guard) {
         for (int node = 0; node < program.nodeCount(); node++) {
+            guard.checkpoint(node + 1);
             AEKey key = program.keyAt(node);
             // AE2は注文の完成品を在庫計算から除外するため、出力自身は検証対象にしない。
             if (!key.equals(requestedOutput) && !exact.isExact(key)) {

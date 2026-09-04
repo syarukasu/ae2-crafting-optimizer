@@ -378,6 +378,10 @@ public final class Ae2ImmutablePlanningGraphCache {
         }
 
         private Snapshot compile() {
+            return compile(PlanningGuard.none());
+        }
+
+        private Snapshot compile(PlanningGuard guard) {
             Snapshot current = compiled;
             if (current != null) {
                 OptimizationMetrics.recordPlanningGraphCompileCache(true);
@@ -387,7 +391,7 @@ public final class Ae2ImmutablePlanningGraphCache {
                 current = compiled;
                 if (current == null) {
                     long startedNanos = System.nanoTime();
-                    current = Snapshot.compile(this);
+                    current = Snapshot.compile(this, guard);
                     compiled = current;
                     OptimizationMetrics.recordPlanningGraphCompileCache(false);
                     OptimizationMetrics.recordPlanningGraphCompileNanos(
@@ -436,6 +440,11 @@ public final class Ae2ImmutablePlanningGraphCache {
         /** fingerprint、SCC、配列Programをworker側で初回だけ生成する。 */
         Ae2PlanningGraphSnapshot compile() {
             return published.compile();
+        }
+
+        /** AE2計算workerのpauseを保ちつつ、初回の不変Graphを構築する。 */
+        Ae2PlanningGraphSnapshot compile(PlanningGuard guard) {
+            return published.compile(guard);
         }
 
         Optional<Ae2PlanningGraphSnapshot> compiledSnapshot() {
@@ -496,7 +505,9 @@ public final class Ae2ImmutablePlanningGraphCache {
             this.recipeGeneration = recipeGeneration;
         }
 
-        private static Snapshot compile(PublishedCapture capture) {
+        private static Snapshot compile(
+                PublishedCapture capture,
+                PlanningGuard guard) {
             IdentityHashMap<IPatternDetails, String> idByPattern = new IdentityHashMap<>();
             IdentityHashMap<IPatternDetails, CompiledPattern<AEKey>> compiledByPattern =
                     new IdentityHashMap<>();
@@ -504,7 +515,9 @@ public final class Ae2ImmutablePlanningGraphCache {
             List<CompiledPattern<AEKey>> compiledPatterns = new ArrayList<>();
             Set<String> exactInputDomains = new LinkedHashSet<>();
             // immutable Pattern captureごとにfingerprintをworker上で一度だけ作る。
+            int compiledPatternCount = 0;
             for (Ae2CompiledPatternFactory.Captured pattern : capture.patterns) {
+                guard.checkpoint(++compiledPatternCount);
                 String id = pattern.fingerprint();
                 CompiledPattern<AEKey> compiled = pattern.compile(id);
                 idByPattern.put(pattern.details(), id);
@@ -521,7 +534,9 @@ public final class Ae2ImmutablePlanningGraphCache {
             Set<AEKey> incompleteOutputs = new LinkedHashSet<>();
             Set<AEKey> emittableKeys = new LinkedHashSet<>();
             // nodeごとのAE2候補順を、対応するpure Pattern配列へ変換する。
+            int compiledNodeCount = 0;
             for (Map.Entry<AEKey, NodeCapture> entry : capture.nodes.entrySet()) {
+                guard.checkpoint(++compiledNodeCount);
                 AEKey key = entry.getKey();
                 NodeCapture node = entry.getValue();
                 registeredPatternCounts.put(key, node.candidates().size());
@@ -546,7 +561,8 @@ public final class Ae2ImmutablePlanningGraphCache {
             return new Snapshot(
                     CompiledCraftingGraph.compile(
                             capture.patternGeneration,
-                            compiledPatterns),
+                            compiledPatterns,
+                            guard),
                     idByPattern,
                     patternById,
                     registeredPatternCounts,
@@ -605,13 +621,20 @@ public final class Ae2ImmutablePlanningGraphCache {
 
         @Override
         public CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(AEKey root) {
+            return rootProgramOutcome(root, PlanningGuard.none());
+        }
+
+        @Override
+        public CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(
+                AEKey root,
+                PlanningGuard guard) {
             synchronized (rootOutcomes) {
                 CompiledRootProgram.Outcome<AEKey> cached = rootOutcomes.get(root);
                 if (cached != null) {
                     return cached;
                 }
             }
-            CompiledRootProgram.Outcome<AEKey> outcome = compileRootOutcome(root);
+            CompiledRootProgram.Outcome<AEKey> outcome = compileRootOutcome(root, guard);
             synchronized (rootOutcomes) {
                 CompiledRootProgram.Outcome<AEKey> raced = rootOutcomes.get(root);
                 if (raced != null) {
@@ -621,15 +644,22 @@ public final class Ae2ImmutablePlanningGraphCache {
             }
         }
 
-        private CompiledRootProgram.Outcome<AEKey> compileRootOutcome(AEKey root) {
+        private CompiledRootProgram.Outcome<AEKey> compileRootOutcome(
+                AEKey root,
+                PlanningGuard guard) {
             CompiledRootProgram.Outcome<AEKey> outcome =
-                    CompiledRootProgram.compile(graph, root, emittableKeys::contains);
+                    CompiledRootProgram.compile(
+                            graph,
+                            root,
+                            emittableKeys::contains,
+                            guard);
             if (outcome.program().isEmpty()) {
                 return outcome;
             }
             CompiledRootProgram<AEKey> program = outcome.program().orElseThrow();
             // AE2候補数とpure graph候補数が一つでも違うrootをAuthoritativeにしない。
             for (int node = 0; node < program.nodeCount(); node++) {
+                guard.checkpoint(node + 1);
                 AEKey key = program.keyAt(node);
                 int registered = registeredPatternCount(key);
                 int compiled = graph.patternsFor(key).size();
@@ -655,6 +685,13 @@ public final class Ae2ImmutablePlanningGraphCache {
         @Override
         public Optional<Ae2StrictCraftingTopology> strictTopology(
                 CompiledRootProgram<AEKey> program) {
+            return strictTopology(program, PlanningGuard.none());
+        }
+
+        @Override
+        public Optional<Ae2StrictCraftingTopology> strictTopology(
+                CompiledRootProgram<AEKey> program,
+                PlanningGuard guard) {
             AEKey root = program.root();
             synchronized (rootOutcomes) {
                 Optional<Ae2StrictCraftingTopology> cached = strictTopologies.get(root);
@@ -663,7 +700,7 @@ public final class Ae2ImmutablePlanningGraphCache {
                 }
             }
             Optional<Ae2StrictCraftingTopology> compiled = Optional.ofNullable(
-                    Ae2StrictCraftingTopology.compile(this, program));
+                    Ae2StrictCraftingTopology.compile(this, program, guard));
             synchronized (rootOutcomes) {
                 CompiledRootProgram.Outcome<AEKey> current = rootOutcomes.get(root);
                 if (current == null || current.program().orElse(null) != program) {

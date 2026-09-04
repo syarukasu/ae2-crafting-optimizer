@@ -31,7 +31,7 @@ AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのNeoForge
 - Applied Energistics 2 `19.2.17`
 - Advanced AE `1.6.x-1.21.1`（NeoForge、任意）
 - Neo ECO AE Extension `21.1.1`（任意）
-- 1.21.1向けGTCEu、Mekanism、Applied Mekanistics連携（任意）
+- 1.21.1向けGTCEu連携（任意）
 - 専用サーバー、シングルプレイ
 
 サーバーと全クライアントへ同じJARを導入してください。共通Configは次です。
@@ -66,9 +66,9 @@ config/ae2_crafting_optimizer-common.toml
 
 ### 機械Recipe Intent
 
-Pattern Providerが指定したレシピ意図を保持し、GTCEuやMekanismが毎tick同じ
-レシピを総当たりする回数を減らします。電圧、条件、電力、Tank、出力容量などの
-最終判定は各機械MODが行います。
+Pattern Providerが指定したレシピ意図を保持し、GTCEuが毎tick同じレシピを
+総当たりする回数を減らします。電圧、条件、電力、Tank、出力容量などの最終判定は
+GTCEuが行います。MekanismのRecipe Cacheと機械tickはMekanism本体へ完全に任せます。
 
 ## 物理クラフトツリー
 

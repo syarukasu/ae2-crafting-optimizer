@@ -29,8 +29,17 @@ final class Ae2StrictCraftingTopology {
     static Ae2StrictCraftingTopology compile(
             Ae2PlanningGraphSnapshot snapshot,
             CompiledRootProgram<AEKey> program) {
+        return compile(snapshot, program, PlanningGuard.none());
+    }
+
+    @Nullable
+    static Ae2StrictCraftingTopology compile(
+            Ae2PlanningGraphSnapshot snapshot,
+            CompiledRootProgram<AEKey> program,
+            PlanningGuard guard) {
         Objects.requireNonNull(snapshot, "snapshot");
         Objects.requireNonNull(program, "program");
+        Objects.requireNonNull(guard, "guard");
         // 異なるPattern世代のProgramをSnapshotへ接続しない。
         if (program.generation() != snapshot.graph().generation()) {
             return null;
@@ -46,6 +55,7 @@ final class Ae2StrictCraftingTopology {
 
         // 配列Programの全ノードを一巡し、live AE2状態をworkerから再読込しない。
         for (int node = 0; node < program.nodeCount(); node++) {
+            guard.checkpoint(node + 1);
             // cancellationをAE2 fallbackへ読み替えず、呼出元へ明示的に伝える。
             if (Thread.currentThread().isInterrupted()) {
                 throw new PlanningCancelledException(node);
@@ -142,10 +152,22 @@ final class Ae2StrictCraftingTopology {
             AEKey root,
             BigInteger requestedAmount,
             int maximumBits) {
+        return mightRequireWideArithmetic(
+                root,
+                requestedAmount,
+                maximumBits,
+                PlanningGuard.none());
+    }
+
+    boolean mightRequireWideArithmetic(
+            AEKey root,
+            BigInteger requestedAmount,
+            int maximumBits,
+            PlanningGuard guard) {
         WideArithmeticPreflight.LongSafetyCertificate<AEKey> certificate =
                 longSafetyCertificate(maximumBits);
         // 上界でlong安全を証明できた注文は、正確なBigInteger計画を重ねずに終了する。
-        if (certificate.certify(requestedAmount)) {
+        if (certificate.certify(requestedAmount, guard)) {
             return false;
         }
         // 保守的上界だけでwideを確定せず、正確なBigInteger計画で最終判定する。
@@ -154,7 +176,8 @@ final class Ae2StrictCraftingTopology {
                 requestedAmount,
                 program,
                 key -> key.getType().getAmountPerByte(),
-                maximumBits);
+                maximumBits,
+                guard);
         if (!exactWide) {
             certificate.recordExactSafe(requestedAmount);
         }

@@ -51,8 +51,6 @@ public final class MixinFeatureCatalog {
             entry("GTCEuRecipeLogicIntentFastPathMixin", OptimizationFeature.RECIPE_INTENT_BRIDGE),
             entry("KeyCounterBigIntegerSidecarLifecycleMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("ListCraftingInventoryExactCountsMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
-            entry("MekanismCachedRecipeAccessor", OptimizationFeature.RECIPE_INTENT_BRIDGE),
-            entry("MekanismRecipeIntentFastPathMixin", OptimizationFeature.RECIPE_INTENT_BRIDGE),
             entry("MEStorageMenuDisplaySaturationMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("NeoEcoCraftingCpuExecutionBudgetMixin", OptimizationFeature.CRAFTING_EXECUTION_BUDGET),
             entry("NetworkCraftingSimulationStateAccessor", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),

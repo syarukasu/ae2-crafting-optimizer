@@ -26,7 +26,6 @@ class MixinFeatureCatalogTest {
             Path.of("src/main/resources/aco.integration.ae2_overclocked.mixins.json"),
             Path.of("src/main/resources/aco.integration.extendedae.mixins.json"),
             Path.of("src/main/resources/aco.integration.gtceu.mixins.json"),
-            Path.of("src/main/resources/aco.integration.mekanism.mixins.json"),
             Path.of("src/main/resources/aco.integration.neoecoae.mixins.json"));
 
     @Test

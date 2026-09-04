@@ -44,15 +44,15 @@ mixin + access  ->  integration  ->  optimization
 | クラス | 行数 | 判断 |
 |---|---:|---|
 | `PhysicalCraftingTreeTransaction` | 3754 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
-| `Ae2AuthoritativeCraftingPlanner` | 1692 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
+| `Ae2AuthoritativeCraftingPlanner` | 1594 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
 | `CompiledRootProgram` | 1458 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
 | `BigCraftingJob` | 1266 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
 | `ExactNetworkStorageBridge` | 1184 | 高。実在庫境界。snapshotとmutationの分離候補だが原子性試験が先。 |
 | `TransactionalCraftingExecutorV2` | 960 | 高。所有権移転後の処理。見た目の短縮目的では分割せず、phase単位の試験を先に増やす。 |
 | `BigCraftingHostRuntime` | 920 | 高。外部Host容量と予約を所有。複数Job仕様を勝手に導入しない。 |
 | `BigCraftingRuntime` | 875 | 中。公開API側のruntime registry。Host runtimeとの責務重複を監視する。 |
-| `MekanismRecipeIntentFastPath` | 703 | 中。責務一覧を基準に、挙動固定試験を追加してから分割可否を別Issueで判断する。 |
 | `Ae2ImmutablePlanningGraphCache` | 695 | 中。責務一覧を基準に、挙動固定試験を追加してから分割可否を別Issueで判断する。 |
+| `Ae2BigCraftingExecutionManager` | 680 | 中。責務一覧を基準に、挙動固定試験を追加してから分割可否を別Issueで判断する。 |
 
 ## パッケージ責務
 
@@ -79,7 +79,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.integration` | AE2、Advanced AE、任意MOD、exact storageへの版別接続。 |
 | `com.syaru.ae2craftingoptimizer.intent` | Providerが意図するrecipeを短期間伝える検索hint。 |
 | `com.syaru.ae2craftingoptimizer.lifecycle` | server起動、停止、reload、registry accessの順序管理。 |
-| `com.syaru.ae2craftingoptimizer.mekanism` | Mekanismの本来判定へ候補を渡すRecipe Intentの任意連携。 |
 | `com.syaru.ae2craftingoptimizer.mixin` | 外部処理へ薄い入口を追加するMixinと適用plugin。 |
 | `com.syaru.ae2craftingoptimizer.network` | BigInteger容量と進捗を同期する版付き通信路。 |
 | `com.syaru.ae2craftingoptimizer.optimization` | 世代付きcache、時間予算、診断、保守的高速経路。 |
@@ -89,7 +88,7 @@ mixin + access  ->  integration  ->  optimization
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **322件**
+本版の本番トップレベル型: **316件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -117,7 +116,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess` | AE2系の実ExecutingCraftingJobへBigInteger正本を設置・同期する共通契約。 |
 | `com.syaru.ae2craftingoptimizer.access.ExactCraftingLogicAccess` | AE2系CraftingCpuLogicを本来の完了通知順序で閉じる共通契約。 |
 | `com.syaru.ae2craftingoptimizer.access.ExtendedAePlusBigIntegerCellInventoryAccess` | ExtendedAE PlusのBigIntegerセルへ安全に接続する、Mixinではない内部契約。 |
-| `com.syaru.ae2craftingoptimizer.access.MekanismCachedRecipeAccess` | MekanismのCachedRecipeへ接続する、MixinではないOptional契約。 |
 | `com.syaru.ae2craftingoptimizer.access.NetworkStorageMountsAccess` | NetworkStorageのmount優先順へ接続する、Mixinではない内部契約。 |
 | `com.syaru.ae2craftingoptimizer.access.NetworkStorageRevisionAccess` | NetworkStorageのmutationを、その所有StorageServiceだけへ通知するMixin境界。 |
 | `com.syaru.ae2craftingoptimizer.access.PatternProviderTargetAccess` | Pattern Providerから静的な配置情報だけを読むMixin用契約。 |
@@ -288,7 +286,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.Ae2PlanningInventorySnapshot` | AE2がserver threadで取得したlong在庫値を、workerへ渡せる不変値へ固定する。 |
 | `com.syaru.ae2craftingoptimizer.engine.Ae2ReferencedInventory` | AE2の全在庫をMap化せず、Compiled Root Programが参照するキーだけを取得する。 |
 | `com.syaru.ae2craftingoptimizer.engine.Ae2StrictCraftingTopology` | 代替、循環、返却物などを検査し、数式計画へ安全に変換できるPattern DAGだけを認定する。 |
-| `com.syaru.ae2craftingoptimizer.engine.AsyncPlanningExecutor` | 正確な純粋Plannerを単一の専用workerで実行し、Server Threadや呼出threadで代行しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan` | 各AEKey量とPattern回数はlongに収まるが、合計CPU容量だけがlongを超える厳密計画。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigCountMath` | BigInteger数量Mapの加算・乗算・ceilDivを正確に行う副作用なし算術。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigCraftingCapacityLedger` | BigCraftingCapacityLedgerが示す所有量、Receipt、収支をexact値で記録・検証する。 |
@@ -401,12 +398,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.lifecycle.ACOServerLifecycle` | サーバーの開始・tick・データ再読込・停止に伴うACO状態を一元管理する。 |
 | `com.syaru.ae2craftingoptimizer.lifecycle.ACOStartupReport` | 起動時にACOの現行中核機能と安全上限を一度だけ報告する。 |
 
-### `com.syaru.ae2craftingoptimizer.mekanism`
-
-| クラス | 仕事 |
-|---|---|
-| `com.syaru.ae2craftingoptimizer.mekanism.MekanismRecipeIntentFastPath` | Provider Intentに一致するMekanism recipe候補だけを優先し、CachedRecipeの成立判定へ渡す。 |
-
 ### `com.syaru.ae2craftingoptimizer.mixin`
 
 | クラス | 仕事 |
@@ -458,9 +449,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.mixin.GTCEuRecipeLogicIntentFastPathMixin` | GTCEuRecipeLogicIntentFastPathMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.KeyCounterBigIntegerSidecarLifecycleMixin` | KeyCounterBigIntegerSidecarLifecycleMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.ListCraftingInventoryExactCountsMixin` | ListCraftingInventoryExactCountsMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
-| `com.syaru.ae2craftingoptimizer.mixin.MekanismCachedRecipeAccessor` | MekanismCachedRecipeAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
-| `com.syaru.ae2craftingoptimizer.mixin.MekanismMixinConfigPlugin` | MekanismMixinConfigPluginが担当するMixin群の適用可否を、対象MODと対応版から決定する。 |
-| `com.syaru.ae2craftingoptimizer.mixin.MekanismRecipeIntentFastPathMixin` | MekanismRecipeIntentFastPathMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.MEStorageMenuDisplaySaturationMixin` | Issue #148の表示投影をMEStorageMenu#broadcastChangesのSnapshot取得だけへ接続する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.MixinFeatureCatalog` | 全Mixinを監査済みOptimizationFeatureへ対応付け、未登録Mixinをfail-closedにする正本。 |
 | `com.syaru.ae2craftingoptimizer.mixin.ModPresenceMixinConfigPlugin` | ModPresenceMixinConfigPluginが担当するMixin群の適用可否を、対象MODと対応版から決定する。 |

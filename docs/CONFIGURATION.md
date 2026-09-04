@@ -80,11 +80,12 @@ ACO API and retain their own execution, progress, power, cancellation, persisten
 Optional integration settings cover:
 
 - AppliedE temporary-pattern ownership boundaries;
-- GTCEu and Mekanism Recipe Intent candidate lookup;
+- GTCEu Recipe Intent candidate lookup;
 - validated lookup caches for Circuit Cutter, Reaction Chamber, AE2 Overclock, and Assembly Matrix.
 
-Recipe Intent is a hint only. GTCEu or Mekanism performs the final recipe test and owns machine
-execution. ACO does not contain a built-in native machine batch adapter.
+Recipe Intent is a hint only. GTCEu performs the final recipe test and owns machine execution.
+Mekanism recipe lookup remains entirely Mekanism-owned. ACO does not contain a built-in native
+machine batch adapter.
 
 ## Diagnostics
 

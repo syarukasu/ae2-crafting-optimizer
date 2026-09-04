@@ -24,7 +24,7 @@ class IssueRegressionManifestTest {
     private static final Set<Integer> EXPECTED_ISSUES = Set.of(
             1, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14, 28, 29, 30, 32, 35, 37, 39, 42, 44, 46, 51, 53,
             55, 58, 61, 64, 71, 74, 75, 77, 79, 84, 87, 90, 93, 98, 101, 102, 103, 109, 115, 118,
-            119, 120, 123, 125, 129, 140, 145, 148, 153, 156, 161, 164, 167, 170, 179);
+            119, 120, 123, 125, 129, 140, 145, 148, 153, 156, 161, 164, 167, 170, 176, 179);
     private static final Set<String> KINDS =
             Set.of("COMPATIBILITY", "REGRESSION", "FEATURE", "PERFORMANCE", "RELEASE", "ROADMAP", "DOCUMENTATION", "ARCHITECTURE");
     private static final Set<String> LOADERS = Set.of("FORGE_1_20_1", "NEOFORGE_1_21_1", "BOTH");

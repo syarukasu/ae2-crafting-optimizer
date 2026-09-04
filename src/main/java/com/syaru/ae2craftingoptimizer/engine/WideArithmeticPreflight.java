@@ -23,20 +23,40 @@ final class WideArithmeticPreflight {
             CompiledRootProgram<K> program,
             ToLongFunction<K> amountPerByte,
             int maximumBits) {
+        return requiresWideArithmetic(
+                root,
+                requestedAmount,
+                program,
+                amountPerByte,
+                maximumBits,
+                PlanningGuard.none());
+    }
+
+    static <K> boolean requiresWideArithmetic(
+            K root,
+            BigInteger requestedAmount,
+            CompiledRootProgram<K> program,
+            ToLongFunction<K> amountPerByte,
+            int maximumBits,
+            PlanningGuard guard) {
         Objects.requireNonNull(root, "root");
         Objects.requireNonNull(requestedAmount, "requestedAmount");
         Objects.requireNonNull(program, "program");
         Objects.requireNonNull(amountPerByte, "amountPerByte");
+        Objects.requireNonNull(guard, "guard");
         // 別RootのProgramを誤用すると、需要式とCPU byte式の双方が変わるため明示的に拒否する。
         if (!program.root().equals(root)) {
             throw new IllegalArgumentException("root does not match the compiled program");
         }
         CompiledRootProgram.BigInventorySnapshot<K> emptyInventory =
-                program.captureBigInventory(ignored -> BigInteger.ZERO, maximumBits);
+                program.captureBigInventory(
+                        ignored -> BigInteger.ZERO,
+                        maximumBits,
+                        guard);
         BigCraftingPlan<K> fullPlan = program.planBig(
                 requestedAmount,
                 emptyInventory,
-                PlanningGuard.none(),
+                guard,
                 maximumBits);
         // Pattern回数または各AEKey量が個別にlongを超える場合はWide計画が必須になる。
         if (containsValuePastLong(fullPlan.patternExecutions())
@@ -73,7 +93,8 @@ final class WideArithmeticPreflight {
             CompiledRootProgram<K> program,
             K root,
             long requestedAmount,
-            ToLongFunction<K> amountPerByte) {
+            ToLongFunction<K> amountPerByte,
+            PlanningGuard guard) {
         int rootIndex = program.indexOf(root);
         // RootがProgramにない場合は、呼出側が安全にAE2へ戻せるよう失敗させる。
         if (rootIndex < 0) {
@@ -87,6 +108,7 @@ final class WideArithmeticPreflight {
         Map<String, Long> executionsByPattern = new LinkedHashMap<>();
         // CompiledRootProgramのトポロジカル順を一度だけ走査して全候補の上界を作る。
         for (int node = 0; node < program.nodeCount(); node++) {
+            guard.checkpoint(node + 1);
             // 未到達ノードは需要もPattern回数も増やさない。
             if (demand[node] == 0L) {
                 continue;
@@ -152,7 +174,9 @@ final class WideArithmeticPreflight {
         }
         long totalDemand = 0L;
         // 異なるKeyの需要合計もAE2内部集計へ入るため、aggregate overflowを先に検出する。
-        for (long amount : demand) {
+        for (int node = 0; node < demand.length; node++) {
+            guard.checkpoint(node + 1);
+            long amount = demand[node];
             // 未到達ノードは合計へ加えない。
             if (amount == 0L) {
                 continue;
@@ -166,6 +190,7 @@ final class WideArithmeticPreflight {
         long bytes = 0L;
         // 各参照キーを個別に切り上げ、AE2の有理数合計以上の安全なbyte上界を作る。
         for (int node = 0; node < demand.length; node++) {
+            guard.checkpoint(node + 1);
             // 未到達ノードのstackとnode overheadは計上しない。
             if (demand[node] == 0L) {
                 continue;
@@ -197,6 +222,7 @@ final class WideArithmeticPreflight {
         }
         // 同じPatternの全実行数が各再帰訪問で加算されるAE2 byte式を上から評価する。
         for (int node = 0; node < program.nodeCount(); node++) {
+            guard.checkpoint(node + 1);
             CompiledPattern<K> pattern = program.patternAt(node);
             // Patternを持たない終端と未到達ノードは実行byteを持たない。
             if (pattern == null || visitUpperBound[node] == 0L) {
@@ -278,6 +304,12 @@ final class WideArithmeticPreflight {
         }
 
         boolean certify(BigInteger requestedAmount) {
+            return certify(requestedAmount, PlanningGuard.none());
+        }
+
+        boolean certify(
+                BigInteger requestedAmount,
+                PlanningGuard guard) {
             // 既存の最大安全量以下なら、DAGを再走査せず証明を再利用する。
             if (certifiesCached(requestedAmount)) {
                 return true;
@@ -291,7 +323,8 @@ final class WideArithmeticPreflight {
                     program,
                     program.root(),
                     requestedLong,
-                    amountPerByte);
+                    amountPerByte,
+                    guard);
             // 保守的上界で安全を証明できない注文は、wideと断定せず正確判定へ渡す。
             if (potentiallyWide) {
                 return false;
