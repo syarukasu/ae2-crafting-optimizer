@@ -6,7 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.syaru.ae2craftingoptimizer.api.contract.ExactCountLimits;
+import com.syaru.ae2craftingoptimizer.api.contract.ReceiptReservation;
+import com.syaru.ae2craftingoptimizer.api.contract.ReceiptReservationProtocol;
+import com.syaru.ae2craftingoptimizer.api.contract.ReceiptReservationState;
+import com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactCraftingEscrow;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -212,10 +218,46 @@ class OverflowPromotingCraftingPlannerTest {
         assertTrue(plan.craftable());
         assertEquals(exactInput, plan.usedInventory().get("input"));
         assertFalse(plan.patternExecutions().containsKey("input"));
-        assertVirtualExecutionCompletes(
+        assertReceiptBackedVirtualExecutionCompletes(
                 plan,
                 Map.of("input", exactInput),
                 program.patternsByOutput(),
+                request);
+    }
+
+    @Test
+    void receiptBackedExecutionAggregatesRepeatedWideInputBeforeReservation() {
+        CompiledPattern<String> output = new CompiledPattern<>(
+                "output",
+                List.of(
+                        new CompiledPattern.InputSlot<>(List.of(stack("raw", 1L))),
+                        new CompiledPattern.InputSlot<>(List.of(stack("raw", 1L)))),
+                Map.of("output", 1L),
+                false);
+        CompiledRootProgram<String> program = CompiledRootProgram.tryCompile(
+                        CompiledCraftingGraph.compile(1L, List.of(output)),
+                        "output",
+                        ignored -> false)
+                .orElseThrow();
+        BigInteger request = BigInteger.valueOf(Long.MAX_VALUE);
+        BigInteger exactInput = request.multiply(BigInteger.TWO);
+
+        var result = new OverflowPromotingCraftingPlanner<String>(256).plan(
+                program,
+                request,
+                program.captureBigInventory(
+                        key -> key.equals("raw") ? exactInput : BigInteger.ZERO,
+                        256),
+                PlanningGuard.none());
+
+        BigCraftingPlan<String> plan = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                result).plan();
+        assertEquals(exactInput, plan.usedInventory().get("raw"));
+        assertReceiptBackedVirtualExecutionCompletes(
+                plan,
+                Map.of("raw", exactInput),
+                Map.of("output", output),
                 request);
     }
 
@@ -273,7 +315,7 @@ class OverflowPromotingCraftingPlannerTest {
                 OverflowPromotingCraftingPlanner.BigResult.class,
                 craftable).plan();
         assertTrue(executable.craftable());
-        assertVirtualExecutionCompletes(
+        assertReceiptBackedVirtualExecutionCompletes(
                 executable,
                 Map.of("seed_a", seedA, "seed_b", seedB),
                 program.patternsByOutput(),
@@ -305,7 +347,7 @@ class OverflowPromotingCraftingPlannerTest {
         assertEquals(BigInteger.TWO, plan.patternExecutions().get("output"));
         assertEquals(BigInteger.TWO, plan.usedInventory().get("raw"));
         BigInteger producedOutput = BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO);
-        assertVirtualExecutionCompletes(
+        assertReceiptBackedVirtualExecutionCompletes(
                 plan,
                 Map.of("raw", BigInteger.TWO),
                 Map.of("output", output),
@@ -342,7 +384,7 @@ class OverflowPromotingCraftingPlannerTest {
         assertEquals(BigInteger.TWO, plan.patternExecutions().get("output"));
         assertEquals(BigInteger.TWO, plan.patternExecutions().get("intermediate"));
         assertEquals(BigInteger.TWO, plan.usedInventory().get("raw"));
-        assertVirtualExecutionCompletes(
+        assertReceiptBackedVirtualExecutionCompletes(
                 plan,
                 Map.of("raw", BigInteger.TWO),
                 Map.of(
@@ -351,23 +393,40 @@ class OverflowPromotingCraftingPlannerTest {
                 BigInteger.TWO);
     }
 
-    private static void assertVirtualExecutionCompletes(
+    private static void assertReceiptBackedVirtualExecutionCompletes(
             BigCraftingPlan<String> plan,
             Map<String, BigInteger> initialInventory,
             Map<String, CompiledPattern<String>> patternsByOutput,
             BigInteger finalOutputAmount) {
         BigCraftingInventory<String> inventory = new BigCraftingInventory<>(initialInventory);
+        ExactCraftingEscrow<String> escrow = new ExactCraftingEscrow<>();
         Map<String, BigInteger> producedOutputs = new LinkedHashMap<>();
+
+        // ME境界入力を先に予約し、以降の物理段はEscrow内の実在量だけを消費する。
         try (var transaction = inventory.beginTransaction()) {
-            executePlannedPattern(
-                    plan.requestedKey(),
-                    plan,
-                    patternsByOutput,
-                    new HashSet<>(),
-                    transaction,
-                    producedOutputs);
+            for (var entry : plan.usedInventory().entrySet()) {
+                transaction.extractExact(entry.getKey(), entry.getValue());
+            }
             transaction.commit();
         }
+        escrow.credit(plan.usedInventory());
+        executeReceiptBackedPattern(
+                plan.requestedKey(),
+                plan,
+                patternsByOutput,
+                new HashSet<>(),
+                escrow,
+                producedOutputs);
+
+        Map<String, BigInteger> returnedOutputs = escrow.snapshot();
+        // 最終搬入はEscrowに実在する成果物だけをME境界へ返す。
+        try (var transaction = inventory.beginTransaction()) {
+            for (var entry : returnedOutputs.entrySet()) {
+                transaction.insert(entry.getKey(), entry.getValue());
+            }
+            transaction.commit();
+        }
+        escrow.debitExact(returnedOutputs);
 
         ExactCraftingJobLedger<String, String> ledger = ExactCraftingJobLedger.planned(
                 plan.patternExecutions(),
@@ -383,6 +442,7 @@ class OverflowPromotingCraftingPlannerTest {
         assertTrue(ledger.remainingTasks().isEmpty());
         assertTrue(ledger.waitingFor().isEmpty());
         assertEquals(BigInteger.ZERO, ledger.remainingOutput());
+        assertTrue(escrow.isEmpty());
         assertEquals(finalOutputAmount, inventory.amount(plan.requestedKey()));
         // 入口ごとに、計画量と実抽出量が一致して残数が正確であることを確認する。
         for (var entry : plan.usedInventory().entrySet()) {
@@ -392,14 +452,15 @@ class OverflowPromotingCraftingPlannerTest {
         }
     }
 
-    private static void executePlannedPattern(
+    private static void executeReceiptBackedPattern(
             String output,
             BigCraftingPlan<String> plan,
             Map<String, CompiledPattern<String>> patternsByOutput,
             Set<String> executedPatterns,
-            BigCraftingInventory.Transaction<String> transaction,
+            ExactCraftingEscrow<String> escrow,
             Map<String, BigInteger> producedOutputs) {
         CompiledPattern<String> pattern = patternsByOutput.get(output);
+        // 在庫で満たした葉と、既に集約実行した共有Patternは再実行しない。
         if (pattern == null || !executedPatterns.add(pattern.id())) {
             return;
         }
@@ -413,22 +474,65 @@ class OverflowPromotingCraftingPlannerTest {
         for (CompiledPattern.InputSlot<String> slot : pattern.inputs()) {
             assertEquals(1, slot.alternatives().size());
             CompiledPattern.Stack<String> input = slot.alternatives().get(0);
-            executePlannedPattern(
+            executeReceiptBackedPattern(
                     input.key(),
                     plan,
                     patternsByOutput,
                     executedPatterns,
-                    transaction,
+                    escrow,
                     producedOutputs);
-            transaction.extractExact(
-                    input.key(),
-                    BigInteger.valueOf(input.amount()).multiply(executions));
         }
+        Map<String, BigInteger> requiredInputs = new LinkedHashMap<>();
+        // 同一素材を複数slotで使う場合も、予約前に一つの正確量へ集約する。
+        for (CompiledPattern.InputSlot<String> slot : pattern.inputs()) {
+            CompiledPattern.Stack<String> input = slot.alternatives().get(0);
+            requiredInputs.merge(
+                    input.key(),
+                    BigInteger.valueOf(input.amount()).multiply(executions),
+                    BigInteger::add);
+        }
+
+        String transactionId = "virtual-" + pattern.id();
+        byte[] digest = pattern.id().getBytes(StandardCharsets.UTF_8);
+        ExactCountLimits limits = ExactCountLimits.defaults();
+        ReceiptReservation receipt = ReceiptReservationProtocol.reserve(
+                transactionId,
+                digest,
+                limits);
+        receipt = ReceiptReservationProtocol.commitRunning(
+                receipt,
+                transactionId,
+                digest,
+                limits);
+        // 物理Workerへ渡す前に、段の全入力をEscrowから一度だけ予約する。
+        if (!requiredInputs.isEmpty()) {
+            escrow.debitExact(requiredInputs);
+        }
+
+        Map<String, BigInteger> physicalOutputs = new LinkedHashMap<>();
+        // OUTPUT_READYの内容はPlanの完成品ではなく、Pattern式一回分と実行係数から得る。
         for (Map.Entry<String, Long> produced : pattern.outputs().entrySet()) {
             BigInteger amount = BigInteger.valueOf(produced.getValue()).multiply(executions);
-            transaction.insert(produced.getKey(), amount);
+            physicalOutputs.put(produced.getKey(), amount);
             producedOutputs.merge(produced.getKey(), amount, BigInteger::add);
         }
+        receipt = ReceiptReservationProtocol.markOutputReady(
+                receipt,
+                transactionId,
+                digest,
+                limits);
+        escrow.credit(physicalOutputs);
+        receipt = ReceiptReservationProtocol.acknowledge(
+                receipt,
+                transactionId,
+                digest,
+                limits);
+        receipt = ReceiptReservationProtocol.forget(
+                receipt,
+                transactionId,
+                digest,
+                limits);
+        assertEquals(ReceiptReservationState.FORGOTTEN, receipt.state());
     }
 
     private static CompiledCraftingGraph<String> graph(long inputAmount) {
