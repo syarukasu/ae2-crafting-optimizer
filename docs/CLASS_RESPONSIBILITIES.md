@@ -160,6 +160,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.api.big.AeKeyBigCraftingCodec` | AeKeyBigCraftingCodecが示す値を、上限とschemaを検証しながら保存・通信形式へ相互変換する。 |
 | `com.syaru.ae2craftingoptimizer.api.big.AeKeyBigCraftingPacketCodec` | AeKeyBigCraftingPacketCodecが示す値を、上限とschemaを検証しながら保存・通信形式へ相互変換する。 |
 | `com.syaru.ae2craftingoptimizer.api.big.BigCraftingEngineApi` | AQE、InsaneAEなどへexact計画、容量、台帳を公開する版付きFacade。 |
+| `com.syaru.ae2craftingoptimizer.api.big.BigCraftingPhysicalExecution` | 既存の物理加工トランザクションを外部CPUへ公開する。提出前検証とexact状態の公開のみを担当し、CPUの所有・tick・保存は呼出元に委ねる。 |
 | `com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostBackendState` | BigInteger Hostの原子的な状態表示に使う安定ラベル。 |
 | `com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRegistration` | 一つのCPU所有者とBigCraftingHostRuntimeを結ぶ世代付き登録ハンドル。 |
 | `com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRegistry` | CPU所有者ごとのBigInteger Hostを、GCではなく明示的なライフサイクルで管理する。 |

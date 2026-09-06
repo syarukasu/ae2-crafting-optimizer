@@ -1,5 +1,5 @@
 # repository=https://github.com/syarukasu/ae2-crafting-optimizer
-# synchronized_through_issue=179
+# synchronized_through_issue=182
 # runtime_status: NOT_REQUIRED, VERIFIED, PENDING
 issue	kind	loaders	required	automated_evidence	runtime_status	runtime_evidence	summary
 1	COMPATIBILITY	NEOFORGE_1_21_1	STATIC	.github/workflows/build.yml	NOT_REQUIRED	-	NeoForge 1.21.1 port
@@ -62,3 +62,4 @@ issue	kind	loaders	required	automated_evidence	runtime_status	runtime_evidence	s
 170	REGRESSION	BOTH	RUNTIME	src/test/java/com/syaru/ae2craftingoptimizer/optimization/CraftingCalculationSnapshotContextTest.java	PENDING	-	Missing revision capture must fall back without crashing the AE2 grid tick
 176	REGRESSION	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlannerTest.java	NOT_REQUIRED	-	BigInteger promotion is independent of whether overflow occurs in input, intermediate, output, pattern count, or bytes
 179	ARCHITECTURE	BOTH	UNIT	src/test/java/com/syaru/ae2craftingoptimizer/integration/Issue179PlanningBoundarySourceTest.java;src/test/java/com/syaru/ae2craftingoptimizer/engine/Ae2AuthoritativeCraftingPlannerPolicyTest.java	NOT_REQUIRED	-	Pure planning stays on AE2's existing calculation worker and direct external-machine recipe interception remains absent
+182	REGRESSION	FORGE_1_20_1	RUNTIME	src/test/java/com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecutionTest.java;src/test/java/com/syaru/ae2craftingoptimizer/engine/craftingtable/ExactCraftingEscrowTest.java;src/test/java/com/syaru/ae2craftingoptimizer/engine/craftingtable/PhysicalPatternAccountingSourceContractTest.java	PENDING	-	Expose the existing receipt-backed physical transaction to AQE without restoring ACO-owned external CPU execution

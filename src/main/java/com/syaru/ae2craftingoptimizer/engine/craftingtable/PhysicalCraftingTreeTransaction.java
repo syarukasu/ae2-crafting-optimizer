@@ -627,6 +627,11 @@ public final class PhysicalCraftingTreeTransaction {
                 finalOutputReturned);
     }
 
+    /** Read-only receipt accounting for the external CPU API, without live grid reads. */
+    public AccountingSnapshot accountingSnapshot() {
+        return accountingSnapshotFromPersistedIdentities();
+    }
+
     /** GUIへ渡す進捗は、実BatchTargetの進捗と完了済み物理段から求める。 */
     public int progressNumerator() {
         int total =

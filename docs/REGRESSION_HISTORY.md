@@ -18,6 +18,7 @@
 | [#151](https://github.com/syarukasu/ae2-crafting-optimizer/issues/151) | 版統合時にPR #127のBigInteger物理実行基準が失われる | 1.5.25-1.5.27 | 統合PR | [ISSUE-151.md](issues/ISSUE-151.md) |
 | [#153](https://github.com/syarukasu/ae2-crafting-optimizer/issues/153) | 同一キーのmounted storage合計がlong境界を超えるとストレージモニターが負数化する | 1.5.28以前 | 1.5.29 | [ISSUE-153.md](issues/ISSUE-153.md) |
 | [#179](https://github.com/syarukasu/ae2-crafting-optimizer/issues/179) | 4-thread専用計算がserial経路を重複し、実経路のTPS非占有を証明できない | 1.5.33 | 2.0.0 | [ACO 2.0設計](PARALLEL_PLANNER_2_0.md) |
+| [#182](https://github.com/syarukasu/ae2-crafting-optimizer/issues/182) | AQE専用実行の削除後、外部CPUから既存物理加工を呼び出す公開経路がない | 2.0.0開発版 | PR / 実機未確認 | [ISSUE-182.md](issues/ISSUE-182.md) |
 | 外部コンシューマ回帰 | 実経路でsidecarが消える、またはQuantum Bulkが`maxPatterns=1`へ誤って制限される | 1.5.18系 | 作業中 | [ISSUE-BIGINT-EXTERNAL-CONSUMER.md](ISSUE-BIGINT-EXTERNAL-CONSUMER.md) |
 
 ## 運用
