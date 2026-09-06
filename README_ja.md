@@ -25,10 +25,8 @@ AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのForge
 - Java `17`
 - Applied Energistics 2 `15.4.10`
 - Advanced AE `1.3.5-1.20.1`（任意）
-- Neo ECO AE Extension `20.3.x`（任意）
+- Neo ECO AE Extension `20.3.x`または`20.4.x`（任意）
 - GTCEu Modern `7.5.3`（任意）
-- Mekanism `10.4.16`（任意）
-- Applied Mekanistics `1.4.3`（任意）
 - 専用サーバー、シングルプレイ、通常Forge MODとしてのArclight
 
 サーバーと全クライアントへ同じJARを導入してください。共通Configは次です。
@@ -63,9 +61,10 @@ config/ae2_crafting_optimizer-common.toml
 
 ### 機械Recipe Intent
 
-Pattern Providerが指定したレシピ意図を保持し、GTCEuやMekanismが毎tick同じ
-レシピを総当たりする回数を減らします。電圧、条件、電力、Tank、出力容量などの
-最終判定は各機械MODが行います。
+Pattern Providerが指定したレシピ意図を保持し、対応GTCEu機械が毎tick同じレシピを
+総当たりする回数を減らします。電圧、条件、電力、Tank、出力容量などの最終判定は
+GTCEuが行います。Mekanismの`RecipeCacheLookupMonitor`と機械レシピ探索はMekanism自身が
+所有し、ACOは第二のcacheを追加せず`getRecipe`も横取りしません。
 
 ## 物理クラフトツリー
 
