@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [2.0.0-rc.3] - 2026-09-16
+
+Prerelease. See [bilingual release notes](docs/releases/2.0.0-rc.3.md).
+
+- Use ordered exact accounting for shared-input single-output DAGs.
+- Prune unused emitter dependencies before cycle checks and preserve that proof during snapshot validation.
+- Correct legacy map planners reserving simulated byproducts as initial stock.
+- Add actual AE2 shared-input/fluid comparisons and wide quantity/concurrency regressions.
+- Preserve candidate-selection guards and all pending full-modpack/runtime acceptance.
+
 ## [2.0.0-rc.2] - 2026-09-15
 
 Prerelease. See [bilingual release notes](docs/releases/2.0.0-rc.2.md).
