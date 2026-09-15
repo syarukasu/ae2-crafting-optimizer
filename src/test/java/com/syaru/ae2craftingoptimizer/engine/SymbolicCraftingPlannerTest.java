@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 class SymbolicCraftingPlannerTest {
     @Test
-    void aggregatesSharedIntermediateBeforeExpandingIt() {
+    void reusesSharedIntermediateSurplusWithOrderedAccounting() {
         var out = new CompiledPattern<>(
                 "out",
                 List.of(slot("a", 1), slot("b", 1)),
@@ -28,7 +28,11 @@ class SymbolicCraftingPlannerTest {
 
         assertTrue(plan.craftable());
         assertEquals(BigInteger.ONE, plan.patternExecutions().get("c"));
-        assertEquals(5, plan.expandedRequests());
+        assertEquals(Map.of("raw", BigInteger.ONE), plan.usedInventory());
+        // The second request for c consumes prior surplus without expanding its raw input again.
+        assertEquals(6, plan.expandedRequests());
+        assertEquals(BigInteger.valueOf(6 * 8 + 4 + 6 * 8),
+                BigExactCraftingByteCounter.calculate(plan.trace(), k -> 1, 4096));
     }
 
     @Test

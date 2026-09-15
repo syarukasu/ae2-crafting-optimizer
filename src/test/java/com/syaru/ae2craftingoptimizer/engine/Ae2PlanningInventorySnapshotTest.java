@@ -10,6 +10,8 @@ import appeng.api.stacks.KeyCounter;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.lang.reflect.Proxy;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -170,6 +172,86 @@ class Ae2PlanningInventorySnapshotTest {
                 root, k -> false).orElseThrow();
         exact.set(true);
         org.junit.jupiter.api.Assertions.assertNull(Ae2StrictCraftingTopology.compile(snapshot, stale));
+    }
+
+    @Test
+    void strictTopologyAcceptsSharedSingleOutputInputsWithExactByteTrace() {
+        AEKey root = new TestKey("root"), left = new TestKey("left"), right = new TestKey("right"),
+                shared = new TestKey("shared"), raw = new TestKey("raw");
+        var graph = CompiledCraftingGraph.compile(1L, List.of(
+                recipe("root", root, 1, left, right), recipe("left", left, 1, shared),
+                recipe("right", right, 1, shared), recipe("shared", shared, 3, raw)));
+        var program = CompiledRootProgram.tryCompile(graph, root, k -> false).orElseThrow();
+        var exact = new AtomicBoolean(true);
+        var snapshot = (Ae2PlanningGraphSnapshot) Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[] { Ae2PlanningGraphSnapshot.class },
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "graph" -> graph;
+                    case "recipeGeneration" -> 1L;
+                    case "isEmittable", "isIncompletelyCompiled" -> false;
+                    case "registeredPatternCount" -> graph.patternsFor((AEKey) args[0]).size();
+                    case "hasExactlyOneFullyCompiledPattern" -> graph.patternsFor((AEKey) args[0]).size() == 1;
+                    case "hasExactInputDomain" -> exact.get();
+                    default -> throw new AssertionError(method.getName());
+                });
+        org.junit.jupiter.api.Assertions.assertNotNull(Ae2StrictCraftingTopology.compile(snapshot, program));
+        assertTrue(program.usesOrderedAccounting());
+        var plan = program.planLong(5, program.captureLongInventory(k -> k == raw ? 4 : 0), PlanningGuard.none());
+        assertEquals(Map.of("root", 5L, "left", 5L, "right", 5L, "shared", 4L), plan.patternExecutions());
+        assertEquals(Map.of(raw, 4L), plan.usedInventory());
+        assertTrue(plan.missing().isEmpty());
+        org.junit.jupiter.api.Assertions.assertNotNull(plan.trace());
+        exact.set(false);
+        org.junit.jupiter.api.Assertions.assertNull(Ae2StrictCraftingTopology.compile(snapshot, program));
+    }
+
+    @Test
+    void realSnapshotDoesNotRevalidateUnusedEmitterProducers() throws Exception {
+        AEKey root = new TestKey("root"), feed = new TestKey("feed");
+        var graph = CompiledCraftingGraph.compile(1L, List.of(new CompiledPattern<AEKey>("root",
+                List.of(new CompiledPattern.InputSlot<>(List.of(new CompiledPattern.Stack<>(feed, 2)))),
+                Map.of(root, 1L, feed, 1L), true)));
+        for (int count : new int[] {0, 2}) {
+            var snapshot = snapshot(graph, Map.of(root, 1, feed, count), Set.of(feed), Set.of(feed));
+            var outcome = snapshot.rootProgramOutcome(root);
+            assertEquals(RootProgramFailure.NONE, outcome.failure());
+            var program = outcome.program().orElseThrow();
+            org.junit.jupiter.api.Assertions.assertNotNull(snapshot.strictTopology(program).orElseThrow());
+            var plan = program.planLong(5, program.captureLongInventory(k -> 0L), PlanningGuard.none());
+            assertEquals(Map.of(feed, 10L), plan.emitted());
+            assertEquals(Map.of("root", 5L), plan.patternExecutions());
+            assertTrue(plan.usedInventory().isEmpty());
+        }
+    }
+
+    @Test
+    void realSnapshotStillRejectsIncompleteAndAmbiguousNonEmitters() throws Exception {
+        AEKey root = new TestKey("root"), raw = new TestKey("raw");
+        var graph = CompiledCraftingGraph.compile(1L, List.of(recipe("root", root, 1, raw)));
+        assertEquals(RootProgramFailure.INCOMPLETE_PATTERN_SNAPSHOT,
+                snapshot(graph, Map.of(root, 1, raw, 1), Set.of(), Set.of(raw))
+                        .rootProgramOutcome(root).failure());
+        assertEquals(RootProgramFailure.MULTIPLE_PRODUCERS,
+                snapshot(graph, Map.of(root, 2, raw, 0), Set.of(), Set.of())
+                        .rootProgramOutcome(root).failure());
+    }
+
+    private static CompiledPattern<AEKey> recipe(String id, AEKey out, long count, AEKey... inputs) {
+        return new CompiledPattern<>(id, java.util.Arrays.stream(inputs).map(k ->
+                new CompiledPattern.InputSlot<AEKey>(List.of(new CompiledPattern.Stack<>(k, 1))))
+                .toList(), Map.of(out, count), true);
+    }
+
+    private static Ae2PlanningGraphSnapshot snapshot(CompiledCraftingGraph<AEKey> graph,
+            Map<AEKey, Integer> registered, Set<AEKey> emitters, Set<AEKey> incomplete) throws Exception {
+        // Exercise the production snapshot checks, not a proxy that bypasses compileRootOutcome.
+        var type = Class.forName(Ae2ImmutablePlanningGraphCache.class.getName() + "$Snapshot");
+        var ctor = type.getDeclaredConstructor(CompiledCraftingGraph.class, IdentityHashMap.class,
+                Map.class, Map.class, Set.class, Set.class, Set.class, long.class);
+        ctor.setAccessible(true);
+        var exact = graph.patterns().stream().map(CompiledPattern::id).collect(java.util.stream.Collectors.toSet());
+        return (Ae2PlanningGraphSnapshot) ctor.newInstance(graph, new IdentityHashMap<>(), Map.of(),
+                registered, incomplete, emitters, exact, 1L);
     }
 
     /** Minecraft Registry初期化なしでKeyCounterの参照キーを分離する最小AEKey。 */

@@ -97,9 +97,13 @@ public final class CompiledRootProgram<K> {
         this.emittableKeys = Set.copyOf(emittableKeys);
         this.patternCount = patternCount;
         this.hasByproducts = patternsByOutput.values().stream().anyMatch(pattern -> pattern.outputs().size() > 1);
-        this.orderedAccounting = patternsByOutput.entrySet().stream().anyMatch(entry ->
+        boolean coupledOutputs = patternsByOutput.entrySet().stream().anyMatch(entry ->
                 entry.getValue().outputs().keySet().stream().anyMatch(output ->
                         !output.equals(entry.getKey()) && indexByKey.containsKey(output)));
+        // Issue #190: shared single-output inputs also need AE2's ordered stock and byte accounting.
+        this.orderedAccounting = coupledOutputs || (!hasUniqueInputOccurrencePerKey()
+                && patternsByOutput.values().stream().allMatch(pattern -> pattern.inputs().stream()
+                        .allMatch(slot -> slot.alternatives().size() == 1)));
     }
 
     /**
@@ -1313,8 +1317,8 @@ public final class CompiledRootProgram<K> {
 
     /**
      * CPU bytesをAE2の展開木と同じ式で数えられる、単一候補かつ木構造の入力domainかを返す。
-     * 同じ中間キーを複数slotから参照するDAGは数量計画には使えるが、固有ノード単位の
-     * 実行回数を各枝で再帰展開するとbytesを二重計上するため、exact結果の採用対象にしない。
+     * 同じ中間キーを複数slotから参照するDAGは固有ノード単位の実行回数ではbytesを証明できない。
+     * Issue #190: 単一候補の共有DAGは順序付き計画のtraceで会計し、この木構造の証明とは区別する。
      */
     boolean hasUniqueInputOccurrencePerKey() {
         boolean[] referenced = new boolean[keys.size()];
