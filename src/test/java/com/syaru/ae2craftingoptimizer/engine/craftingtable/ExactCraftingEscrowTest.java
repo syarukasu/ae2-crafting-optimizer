@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.syaru.ae2craftingoptimizer.api.contract.ExactCountLimits;
+import com.syaru.ae2craftingoptimizer.api.contract.ReceiptReservation;
+import com.syaru.ae2craftingoptimizer.api.contract.ReceiptReservationProtocol;
+import com.syaru.ae2craftingoptimizer.api.contract.ReceiptReservationState;
 import java.math.BigInteger;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -56,17 +60,39 @@ class ExactCraftingEscrowTest {
                 Map.of(
                         "raw",
                         amount);
+        byte[] digest = {1, 2, 5};
+        ExactCountLimits limits = ExactCountLimits.defaults();
+        ReceiptReservation receipt = ReceiptReservationProtocol.reserve(
+                "issue-125-cancel",
+                digest,
+                limits);
 
         escrow.debitExact(
                 reservation);
+        receipt = ReceiptReservationProtocol.commitRunning(
+                receipt,
+                "issue-125-cancel",
+                digest,
+                limits);
+        receipt = ReceiptReservationProtocol.cancelReservation(
+                receipt,
+                "issue-125-cancel",
+                digest,
+                limits);
         escrow.credit(
                 reservation);
+        receipt = ReceiptReservationProtocol.forget(
+                receipt,
+                "issue-125-cancel",
+                digest,
+                limits);
 
         assertEquals(
                 Map.of(
                         "raw",
                         amount),
                 escrow.snapshot());
+        assertEquals(ReceiptReservationState.FORGOTTEN, receipt.state());
     }
 
     @Test

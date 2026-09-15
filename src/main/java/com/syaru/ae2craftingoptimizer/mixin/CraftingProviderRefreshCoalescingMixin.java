@@ -6,12 +6,15 @@ import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.stacks.AEKey;
 import appeng.me.service.CraftingService;
+import com.syaru.ae2craftingoptimizer.access.CraftingProviderRefreshAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.engine.Ae2ImmutablePlanningGraphCache;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
+import com.syaru.ae2craftingoptimizer.optimization.ServerPlanningThreadGuard;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,7 +25,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = CraftingService.class, remap = false)
-public abstract class CraftingProviderRefreshCoalescingMixin {
+public abstract class CraftingProviderRefreshCoalescingMixin
+        implements CraftingProviderRefreshAccess {
     @Unique
     private final Set<IGridNode> aco$pendingProviderRefreshes =
             Collections.newSetFromMap(new IdentityHashMap<>());
@@ -37,16 +41,13 @@ public abstract class CraftingProviderRefreshCoalescingMixin {
         }
 
         if (!ACOConfig.coalesceCraftingProviderRefreshes()) {
-            // refreshNodeCraftingProviderはクラフト索引だけでなく、Pattern Access Terminalへ
-            // Providerのスロット配置変更を通知する。内容が同じでも通知自体は止めない。
-            ProviderPatternGenerationTracker.shouldRefresh(node);
+            // 通知をそのまま通し、世代はAE2索引更新が完了したTAILで確定する。
             return;
         }
 
         ICraftingProvider provider = node.getService(ICraftingProvider.class);
         // issue #123: 外部Providerの遅延更新をACOが先に確定しないよう、通知を即時通過させる。
         if (!ProviderPatternGenerationTracker.isRefreshCoalescingSafe(provider)) {
-            ProviderPatternGenerationTracker.shouldRefresh(node);
             return;
         }
 
@@ -56,7 +57,9 @@ public abstract class CraftingProviderRefreshCoalescingMixin {
 
     @Inject(method = "onServerEndTick", at = @At("HEAD"))
     private void aco$flushProviderRefreshesAtTickEnd(CallbackInfo ci) {
-        aco$flushProviderRefreshes();
+        aco$flushPendingProviderRefreshes();
+        Ae2ImmutablePlanningGraphCache.refreshPublishedIndexes(
+                (CraftingService) (Object) this);
     }
 
     @Inject(method = "beginCraftingCalculation", at = @At("HEAD"))
@@ -67,28 +70,76 @@ public abstract class CraftingProviderRefreshCoalescingMixin {
             long amount,
             CalculationStrategy strategy,
             CallbackInfoReturnable<?> cir) {
-        aco$flushProviderRefreshes();
+        // 互換MODがoff-threadで計算APIを呼んでも、AE2のProvider索引をそのthreadから変更しない。
+        if (!ServerPlanningThreadGuard.canCapture(level)) {
+            return;
+        }
+        aco$flushPendingProviderRefreshes();
+        /*
+         * Pattern更新と同じtickの注文でも旧indexをAE2 long経路へ落とさない。
+         * clean時は定数時間で戻り、dirty時だけ現在のAE2候補順を公開する。
+         */
+        Ae2ImmutablePlanningGraphCache.refreshPublishedIndexes(
+                (CraftingService) (Object) this);
+    }
+
+    @Inject(method = "refreshNodeCraftingProvider", at = @At("TAIL"), require = 1)
+    private void aco$commitProviderGenerationAfterRefresh(IGridNode node, CallbackInfo ci) {
+        /*
+         * Issue #167: generationをAE2索引更新より先へ公開しない。内容が同じAE2 Providerでも
+         * refresh通知自体は止めず、Trackerは世代を進める必要がある時だけ進める。
+         */
+        ProviderPatternGenerationTracker.shouldRefresh(node);
+        Ae2ImmutablePlanningGraphCache.invalidate(
+                (CraftingService) (Object) this,
+                node.getLevel());
     }
 
     @Inject(method = "addNode", at = @At("HEAD"))
     private void aco$dropPendingRefreshOnNodeAdd(IGridNode node, CompoundTag savedData, CallbackInfo ci) {
         aco$pendingProviderRefreshes.remove(node);
-        ProviderPatternGenerationTracker.forget(node);
     }
 
     @Inject(method = "addNode", at = @At("RETURN"))
     private void aco$rememberProviderAfterNodeAdd(IGridNode node, CompoundTag savedData, CallbackInfo ci) {
+        // Issue #179: ケーブル・CPUなど非Providerの追加はPattern索引を変更しない。
+        if (node.getService(ICraftingProvider.class) == null) {
+            return;
+        }
+        // AE2がnodeを索引へ追加した後に旧snapshotを破棄し、新しい内容を正本として記録する。
+        ProviderPatternGenerationTracker.forget(node);
         ProviderPatternGenerationTracker.remember(node);
+        Ae2ImmutablePlanningGraphCache.invalidate(
+                (CraftingService) (Object) this,
+                node.getLevel());
     }
 
     @Inject(method = "removeNode", at = @At("HEAD"))
     private void aco$dropPendingRefreshOnNodeRemove(IGridNode node, CallbackInfo ci) {
         aco$pendingProviderRefreshes.remove(node);
+        // Issue #179: 非Providerの削除で全Gridの公開索引を再取得しない。
+        if (node.getService(ICraftingProvider.class) == null) {
+            return;
+        }
+        // remove完了後はLevel参照が失われ得るため、変更前に公開Snapshotを失効させる。
+        Ae2ImmutablePlanningGraphCache.invalidate(
+                (CraftingService) (Object) this,
+                node.getLevel());
+    }
+
+    @Inject(method = "removeNode", at = @At("RETURN"))
+    private void aco$forgetProviderAfterNodeRemove(IGridNode node, CallbackInfo ci) {
+        // Issue #179: 実際にPattern/Emitterを供給するノードの削除だけ世代を進める。
+        if (node.getService(ICraftingProvider.class) == null) {
+            return;
+        }
+        // AE2索引からnodeが消えた後に世代を進め、旧Graphを新世代として再利用させない。
         ProviderPatternGenerationTracker.forget(node);
     }
 
     @Unique
-    private void aco$flushProviderRefreshes() {
+    @Override
+    public void aco$flushPendingProviderRefreshes() {
         if (!ACOConfig.coalesceCraftingProviderRefreshes()
                 || aco$flushingProviderRefreshes
                 || aco$pendingProviderRefreshes.isEmpty()) {
@@ -103,7 +154,6 @@ public abstract class CraftingProviderRefreshCoalescingMixin {
             for (IGridNode node : pending) {
                 // 同一tickの重複だけをまとめ、最終状態のAE2通知は必ず一回通す。
                 // これを省略すると大容量Providerの端末スロットがクライアントとずれる。
-                ProviderPatternGenerationTracker.shouldRefresh(node);
                 service.refreshNodeCraftingProvider(node);
             }
         } finally {

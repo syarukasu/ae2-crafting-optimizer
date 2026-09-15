@@ -1,19 +1,24 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import java.math.BigInteger;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.ToLongFunction;
 
 /**
  * AE2 15.4.10のCPU bytes式をBigIntegerの有理数として計算する。
  * doubleへ落とさないため、10^64級でも最後のceilまで桁落ちしない。
+ * 入力Patternは単一候補かつ各キーが一度だけ現れる木構造でなければならない。
+ * 共有DAGを渡した場合は近似値を返さず、明示的に失敗する。
  */
 public final class BigExactCraftingByteCounter<K> {
     private final Map<K, CompiledPattern<K>> patterns;
     private final Map<String, BigInteger> executions;
     private final ToLongFunction<K> amountPerByte;
     private final int maximumBits;
+    private final Set<K> visitedKeys = new HashSet<>();
     private BigInteger numerator = BigInteger.ZERO;
     private BigInteger denominator = BigInteger.ONE;
 
@@ -51,6 +56,11 @@ public final class BigExactCraftingByteCounter<K> {
     }
 
     private BigInteger visit(K key, BigInteger requestedAmount) {
+        // 共有中間素材または循環を枝ごとに再展開してCPU bytesを二重計上しない。
+        if (!visitedKeys.add(key)) {
+            throw new IllegalArgumentException(
+                    "exact byte counting requires a tree-shaped single-occurrence input graph");
+        }
         long divisor = amountPerByte.applyAsLong(key);
         if (divisor <= 0L) {
             throw new IllegalArgumentException("amountPerByte must be positive");

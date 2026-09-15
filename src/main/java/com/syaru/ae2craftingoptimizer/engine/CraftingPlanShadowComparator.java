@@ -23,16 +23,23 @@ public final class CraftingPlanShadowComparator {
     /** Authoritative認定用に、Pattern、在庫使用、Emitter、不足の全会計を比較する。 */
     public static <K> ShadowComparison compareComplete(
             LongCraftingPlan<K> shadow,
+            long shadowBytes,
             Map<String, Long> referencePatternExecutions,
             Map<K, Long> referenceUsedInventory,
             Map<K, Long> referenceEmitted,
-            Map<K, Long> referenceMissing) {
+            Map<K, Long> referenceMissing,
+            long referenceBytes) {
         Objects.requireNonNull(shadow, "shadow");
         List<String> mismatches = new ArrayList<>();
         compareMap("pattern executions", shadow.patternExecutions(), referencePatternExecutions, mismatches);
         compareMap("used inventory", shadow.usedInventory(), referenceUsedInventory, mismatches);
         compareMap("emitted inputs", shadow.emitted(), referenceEmitted, mismatches);
         compareMap("missing inputs", shadow.missing(), referenceMissing, mismatches);
+        // CPU容量判定もAE2計画結果の一部なので、数量Mapだけの一致で認定しない。
+        if (shadowBytes != referenceBytes) {
+            mismatches.add("crafting bytes differ: shadow=" + shadowBytes
+                    + ", reference=" + referenceBytes);
+        }
         return new ShadowComparison(mismatches.isEmpty(), List.copyOf(mismatches));
     }
 

@@ -2,9 +2,12 @@ package com.syaru.ae2craftingoptimizer.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.syaru.ae2craftingoptimizer.optimization.BigIntegerPlanDeclineReason;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class Ae2AuthoritativeCraftingPlannerPolicyTest {
@@ -60,22 +63,6 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
     }
 
     @Test
-    void retriesOnlySnapshotShapedRootProgramFailures() {
-        assertTrue(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
-                RootProgramFailure.INCOMPLETE_PATTERN_SNAPSHOT,
-                true));
-        assertFalse(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
-                RootProgramFailure.MULTIPLE_PRODUCERS,
-                true));
-        assertFalse(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
-                RootProgramFailure.CYCLE,
-                true));
-        assertFalse(Ae2AuthoritativeCraftingPlanner.shouldRetryRootProgram(
-                RootProgramFailure.MISSING_FROM_SNAPSHOT,
-                false));
-    }
-
-    @Test
     void honorsWidePlanShadowRequirement() {
         assertFalse(Ae2AuthoritativeCraftingPlanner.isQualifiedForReplacement(
                 false,
@@ -90,22 +77,10 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
     }
 
     @Test
-    void retriesTheFirstStaleSnapshot() {
-        assertEquals(
-                Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.RETRY,
-                Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
-                        true,
-                        false,
-                        false));
-    }
-
-    @Test
-    void doesNotRebindALongSafetyCertificateToANewGeneration() {
+    void ordinaryStaleSnapshotFallsBackWithoutRelabelingInventory() {
         assertEquals(
                 Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.FALLBACK_TO_AE2,
                 Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
-                        true,
-                        false,
                         false,
                         false));
     }
@@ -126,7 +101,6 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
                 Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.FALLBACK_TO_AE2,
                 Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
                         false,
-                        false,
                         false));
     }
 
@@ -135,7 +109,6 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
         assertEquals(
                 Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.REJECT_WIDE,
                 Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
-                        false,
                         false,
                         true));
     }
@@ -146,7 +119,36 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
                 Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.CANCEL,
                 Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
                         true,
-                        true,
                         false));
+    }
+
+    @Test
+    void yieldsToAe2BeforeWaitingForServerThreadExactCapture() {
+        CompletableFuture<String> exactCapture = new CompletableFuture<>();
+        AtomicInteger yields = new AtomicInteger();
+
+        Ae2AuthoritativeCraftingPlanner.cooperativelyAwait(
+                exactCapture,
+                () -> {
+                    yields.incrementAndGet();
+                    exactCapture.complete("captured");
+                },
+                true);
+
+        assertEquals(1, yields.get());
+        assertEquals("captured", exactCapture.join());
+    }
+
+    @Test
+    void refusesPendingServerCaptureWithoutAe2YieldHandshake() {
+        CompletableFuture<String> exactCapture = new CompletableFuture<>();
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> Ae2AuthoritativeCraftingPlanner.cooperativelyAwait(
+                        exactCapture,
+                        null,
+                        true));
+        assertTrue(exactCapture.isCancelled());
     }
 }

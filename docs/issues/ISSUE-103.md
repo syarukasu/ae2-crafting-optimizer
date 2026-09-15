@@ -2,9 +2,8 @@
 
 ## 問題
 
-正確なBigInteger実行viewまたは外部Consumerが無いwide計画を、標準CPUへ渡さないための
-fail-closedガードが`CPU_TOO_SMALL`を返していました。これは実容量不足ではないため、
-CPUを増設しても解消せず、診断も残りませんでした。
+正確なBigInteger実行viewまたは外部Consumerが無いwide計画を、外部CPUの提出境界で
+`CPU_TOO_SMALL`へ変換すると、実容量不足ではないのにCPU増設を促す誤診断になりました。
 
 1.5.22では#106の修正が1.5.x成果物へ含まれておらず、Graph自体には正常な
 `rootProgram`があっても更新途中のSnapshotが`NO_COMPILED_PROGRAM`として固定され、
@@ -12,11 +11,8 @@ wide計画が作られない再発も確認されました。
 
 ## 修正
 
-- exact viewと外部Consumerが揃う実行計画は従来どおり提出する。
-- exact view欠落、simulation、Consumer欠落を個別の診断文へ分ける。
-- `SUBMISSION_BACKING_MISSING`を統計へ記録する。
-- 初回だけWARNを出し、`INCOMPLETE_PLAN`でfail closedする。
-- `CPU_TOO_SMALL`は本当のCPU容量不足だけに使用する。
+- ACO公開計画へ正確なbyte数と失敗理由を保持し、外部CPUが自分の容量判定を行えるようにする。
+- ACOは外部CPUの提出結果を`CPU_TOO_SMALL`へ変換しない。
 - Root Programの失敗を循環、複数Producer、複数出力、上限超過、
   不完全Pattern Snapshot、Snapshot欠落へ分類する。
 - Snapshot由来の失敗だけを一回再構築し、同じSnapshotを無限に再構築しない。
@@ -35,10 +31,18 @@ wide計画が作られない再発も確認されました。
 
 - `CompiledRootProgramFailureReasonTest`
 - `Ae2AuthoritativeCraftingPlannerPolicyTest`
-- `WidePlanSubmissionGuardTest`
+- `Ae2CraftingPlanSidecarsTest`
 
 ## 1.5.xバックポート
 
 - 状態: Gradle verified
 - 対象: Forge 1.20.1 / NeoForge 1.21.1
 - 起動・GameTest: ユーザー側確認。Gradle試験では代替しない。
+
+## Issue #167後のcache境界
+
+Issue #103の「一時的なcompile失敗をnegative cacheへ残さない」は、mutableなAE2索引から
+取得した途中状態を新しい世代で再利用しないための規則である。Issue #167以降は、公開前に
+pattern、recipe、config revisionを検証したimmutable Snapshot内だけで、構造上の
+`RootProgramFailure`を有界LRUへ保持する。storage不足結果はここへ保存せず、storage revisionを
+含む別の完了Plan cacheで管理する。異なるrevisionへ失敗結果を持ち越してはならない。

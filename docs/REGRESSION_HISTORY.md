@@ -17,7 +17,14 @@
 | [#148](https://github.com/syarukasu/ae2-crafting-optimizer/issues/148) | 同一キーのmounted storage合計がlong境界を超えると端末表示が消える | 1.5.27以前 | 1.5.28 | [ISSUE-148.md](issues/ISSUE-148.md) |
 | [#151](https://github.com/syarukasu/ae2-crafting-optimizer/issues/151) | 版統合時にPR #127のBigInteger物理実行基準が失われる | 1.5.25-1.5.27 | 統合PR | [ISSUE-151.md](issues/ISSUE-151.md) |
 | [#153](https://github.com/syarukasu/ae2-crafting-optimizer/issues/153) | 同一キーのmounted storage合計がlong境界を超えるとストレージモニターが負数化する | 1.5.28以前 | 1.5.29 | [ISSUE-153.md](issues/ISSUE-153.md) |
+| [#179](https://github.com/syarukasu/ae2-crafting-optimizer/issues/179) | worker上の純粋計算中もsimulateForがtickを待たせる。固定4-thread化だけでは解決しない | 2.0.0開発版 | ローカル修正 / Snapshot適格な標準経路も分離。動的経路は対象外 | [ISSUE-179.md](issues/ISSUE-179.md) |
+| [#182](https://github.com/syarukasu/ae2-crafting-optimizer/issues/182) | AQE専用実行の削除後、外部CPUから既存物理加工を呼び出す公開経路がない | 2.0.0開発版 | PR / 実機未確認 | [ISSUE-182.md](issues/ISSUE-182.md) |
 | 外部コンシューマ回帰 | 実経路でsidecarが消える、またはQuantum Bulkが`maxPatterns=1`へ誤って制限される | 1.5.18系 | 作業中 | [ISSUE-BIGINT-EXTERNAL-CONSUMER.md](ISSUE-BIGINT-EXTERNAL-CONSUMER.md) |
+
+## 2.0.0開発版の再発記録
+
+- [Issue #125](issues/ISSUE-125.md): ACO所有Jobの外側で通常BatchがTaskを削除して隔離される。
+  通常実行予算の確定位置で排他化する。Taskの再生成・不一致の握り潰しは禁止。
 
 ## 運用
 

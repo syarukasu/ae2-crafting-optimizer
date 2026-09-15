@@ -1,120 +1,121 @@
 # Configuration
 
-ACO uses one Forge Common Config:
+ACO uses one Common Config:
 
 ```text
 config/ae2_crafting_optimizer-common.toml
 ```
 
-The server copy is authoritative for gameplay. Use the same ACO JAR and
-matching configuration intent on every client and server.
+Issue #164 intentionally removes obsolete compatibility keys. A key shown in an older ACO config
+but absent from this document has no runtime implementation and is no longer part of the schema.
 
-## Master Switch
+## General and domains
 
-`enableOptimizer` disables new optimization work while preserving recovery of
-already persisted transactions.
+```toml
+[general]
+enableOptimizer = true
 
-Disabling a feature must never delete a live receipt or assume that another
-owner rejected work.
+[optimizationDomains]
+patternProvider = true
+craftingPlanning = true
+craftingExecution = true
+bigInteger = true
+optionalIntegration = true
+```
 
-## Calculation
+The master switch is evaluated first, then the domain, then the individual feature. Disabling a
+domain prevents that domain from touching AE2 or an add-on before ownership is acquired.
 
-Important calculation options include:
+## Crafting planning
 
-| Key | Default | Purpose |
-| --- | ---: | --- |
-| `enableAqeBigCraftingProfile` | `true` | Activates the narrow AQE compiled/checked profile only when Advanced AE and AQE are installed. |
-| `enableExternalBigCraftingProfile` | `true` | Allows a registered external CPU consumer to accept an exact BigInteger plan. Registration is performed by the consumer through the public API. |
-| `enableLongRootCraftAmounts` | `true` | Adds the signed-long root-order path while preserving AE2's original int path. |
-| `enableCompiledCraftingGraph` | `true` | Reuses a generation-keyed deterministic graph where the active profile allows it. |
-| `enableShadowMode` | `true` | Compares eligible compiled results against AE2 without changing normal results. |
-| `enableExactBigIntegerInventorySnapshots` | `true` | Keeps exact sidecar stock while AE2 sees a saturated long facade. |
-| `retryIncompleteCraftingGraphSnapshot` | `true` | Rebuilds a snapshot-shaped incomplete graph once per snapshot; structural failures are not retried. |
-| `logWidePlanSubmissionDeclines` | `true` | Logs bounded diagnostics when a wide plan cannot use a CPU BigInteger ledger. |
-| `enableAtomicBigCapacityPlans` | `true` | Allows exact planning above signed-long aggregate limits for supported hosts. |
-| `bigIntegerMaximumBits` | implementation ceiling | Bounds all BigInteger intermediates and persistence. |
+The active planning settings control:
 
-The exact decimal ceiling is `10^16384 - 1`.
+- running-calculation deduplication;
+- short-lived completed simulation-plan caching;
+- root-reachable immutable graph capture and generation-keyed compiled programs;
+- per-calculation memoization that preserves AE2's complete candidate list and order;
+- provider refresh coalescing and generation tracking;
+- long root amounts, compiled graphs, checked arithmetic, strict authoritative planning;
+- Shadow comparison against AE2's authoritative result.
 
-## Physical Crafting Tree
+ACO does not prune, reorder, or replay AE2's global Pattern candidate list. Issue #167 removed the
+old global Pattern lookup cache and structural candidate pruning because they could publish a stale
+list under a new generation or alter AE2 recipe selection. A stale ordinary request returns to AE2
+before ACO owns the plan; an exact wide request fails with its original diagnostic instead of
+silently entering an overflowing long path.
 
-The compatibility section name remains `[exactVectorCrafting]`.
+The in-flight calculation index is bounded per AE2 crafting service by
+`activeCalculationMaximumEntries` (default `4096`). Eviction removes only ACO's lookup entry; it
+does not cancel the AE2 calculation or any caller-owned Future.
 
-| Key | Default | Purpose |
-| --- | ---: | --- |
-| `enabled` | `true` | Enables strict physical crafting-table tree transactions. |
-| `enableAqeBigIntegerParents` | `true` | Offers an eligible AQE parent to the physical path before checked-long child windows. |
-| `maximumPatternNodes` | `1024` | Maximum distinct physical recipe steps in one transaction. |
-| `maximumUniqueInputKeys` | `128` | Maximum distinct exact ME boundary-input keys. |
-| `maximumUniqueOutputKeys` | `128` | Maximum distinct final and fixed-return output keys. |
-| `maximumStartsPerGridPerTick` | `1` | Maximum new ownership transfers per grid and tick. |
-| `maximumActiveStagesPerGridPerTick` | `256` | Maximum active, setup-ready, or dependency-ready physical step operations per grid and tick. Dependency-blocked steps return their claim. |
-| `maximumActiveTransactionsPerGrid` | `4` | Maximum concurrent physical parent transactions per grid. |
-| `gridTimeBudgetMillis` | `2` | Soft main-thread scheduling budget measured from the grid's first Exact Vector operation. Trees up to 64 steps retain a full-scan guarantee inside the count limit. |
-| `logVectorDiagnostics` | `false` | Enables bounded acceptance, recovery, and quarantine logs. |
+Successful completed-plan caching remains disabled by default. It must never reuse a plan after a
+storage or provider generation change.
 
-Deleted direct-executor, artificial duration, fixed tree-energy, coolant, and
-Compiled Crafting Island options cannot reactivate those removed paths.
+## Crafting execution
 
-## CPU Execution Budget
+The execution section controls only:
 
-The CPU budget settings cap work started in one tick, not CPU storage or
-displayed co-processors.
+- per-CPU and per-grid standard AE2 execution budgets;
+- measured sequential AE2 dispatch waves;
+- the public Transactional Batch V2 protocol and its persistent journal;
+- a thin NeoECO execution-budget hook that does not own NeoECO jobs.
 
-Recommended behavior:
+`maxEffectiveCoprocessorsPerCpu` changes the amount ACO lets one CPU spend in a tick. It does not
+change CPU capacity, displayed co-processors, recipes, or completed-work accounting.
 
-- keep the hard co-processor cap high enough for the intended hardware;
-- use adaptive per-CPU timing;
-- keep the shared grid time budget enabled;
-- retain a minimum progress allowance so one CPU cannot starve;
-- lower the time target before lowering hardware capacity.
+## BigInteger and exact vector
 
-Sequential Instant continues AE2's original execution loop in measured waves.
-It is not a whole-tree output conversion.
+The BigInteger section controls exact plan/API availability, exact inventory snapshots, standard
+AE2 exact execution, maximum magnitude, execution-window size, and memory accounting.
 
-## Transactional Batch V2
+The exact-vector section controls only ACO-owned standard AE2 physical transactions. Before taking
+ownership, ACO verifies deterministic topology, bounded key/node counts, and exact storage routes.
+After ownership, it does not fall back to AE2.
 
-The V2 protocol uses:
+External CPUs such as AQE or InsaneAE are not configured here. They register through the public
+ACO API and retain their own execution, progress, power, cancellation, persistence, and completion.
 
-- source receipt;
-- target receipt;
-- persistent world journal;
-- prepare, accept, account, reconcile, and forget phases.
+## Optional integrations
 
-Compatible adapters may enable it independently. ACO never treats an adapter
-as atomic merely because it reports a large limit.
+Optional integration settings cover:
 
-GTCEu and Mekanism native adapters remain separate from the physical
-crafting-table tree. Their own recipe, tank, energy, and output checks remain
-authoritative.
+- AppliedE temporary-pattern ownership boundaries;
+- GTCEu Recipe Intent candidate lookup;
+- validated lookup caches for Circuit Cutter, Reaction Chamber, AE2 Overclock, and Assembly Matrix.
 
-## Machine Intent
+Recipe Intent is a hint only. GTCEu performs the final recipe test and owns machine execution.
+Mekanism recipe lookup remains entirely Mekanism-owned. ACO does not contain a built-in native
+machine batch adapter.
 
-Recipe Intent options control candidate lookup and cache sizes. They may reduce
-repeated recipe discovery, but never bypass the machine mod's live validation.
+## Diagnostics
 
-If an add-on version differs from the pinned integration range, disable its
-intent path until the class and method layout has been re-audited.
+```toml
+[diagnostics]
+logCraftingDecisionFlow = true
+```
 
-## Compatibility-Disabled Paths
+`logCraftingDecisionFlow` records bounded `ACO-DIAG event=...` lines in `debug.log` for
+planning decisions, compiled-graph rebuilds, and ACO-owned standard AE2 exact execution
+lifecycle transitions. It does not log every successful tick, entire inventory or pattern
+collections, or every decimal digit of huge `BigInteger` values. Disabling it changes only
+diagnostic output and never changes planning, ownership, accounting, or fallback decisions.
+The former `logBigIntegerPlanDeclines` key was removed; its narrower output is covered by this
+single structured diagnostic contract.
 
-Old mutable terminal, storage watcher, bus transfer, IO Port, capability, and
-full-storage simulation rewrites remain unregistered. Retained TOML keys are
-read-only migration no-ops and cannot enable their removed Mixins.
+`/aco stats` reports immutable capture time separately from worker-side authoritative Planner time.
+When decision-flow logging is disabled, ACO does not allocate correlation IDs for each calculation;
+metrics remain bounded counters and do not serialize inventories or complete BigInteger values.
 
-This protects terminal insertion, Import/Export Bus behavior, and container
-slot synchronization.
+## Removed settings
 
-## Recovery
+The following families were removed instead of being kept as no-op compatibility switches:
 
-Do not delete transaction NBT or receipt data to clear a stuck job. Enable
-diagnostics, preserve the world, and inspect:
+- terminal, storage watcher, packet, visible-range, and scrollbar rewrites;
+- Import/Export Bus, IO Port, capability, transfer-simulation, P2P, and Grid Tick rewrites;
+- two-stage missing preview and deterministic first-missing fast-fail;
+- inventory-availability Pattern reordering;
+- Pattern Batch V1, built-in GTCEu/Mekanism native batching, and Fair Scheduler;
+- AQE-specific or generic external-CPU execution profiles inside ACO.
 
-- parent transaction ID;
-- Worker transaction ID and payload digest;
-- exact boundary before/after values;
-- escrow contents;
-- Pattern and recipe generations;
-- quarantine reason.
-
-An uncertain transaction is intentionally stopped rather than replayed.
+Reintroducing one of these requires a separate Issue, explicit ownership contract, and automated
+failure/recovery tests. It must not be smuggled back as a legacy fallback.

@@ -41,13 +41,25 @@ public final class Ae2CraftingPlanSidecars {
                 metadata.emittedItems(),
                 metadata.missingItems(),
                 metadata.patternTimes());
+        attach(facade, metadata);
+        return facade;
+    }
+
+    /**
+     * 再構築済みの純正Facadeへ、同じ計算から固定したWide metadataを関連付ける。
+     *
+     * <p>完了計画cacheなど、AE2の可変Counterを複製する境界だけで使用する。
+     * metadataを値の一致から推測せず、呼出し元が同じ計算であることを保証する。</p>
+     */
+    public static void attach(CraftingPlan facade, WideCraftingPlan metadata) {
+        Objects.requireNonNull(facade, "facade");
+        Objects.requireNonNull(metadata, "metadata");
         synchronized (SIDECARS) {
             removeCollectedFacades();
             SIDECARS.put(
                     new IdentityWeakReference(facade, COLLECTED_FACADES),
                     metadata);
         }
-        return facade;
     }
 
     /**
@@ -67,12 +79,7 @@ public final class Ae2CraftingPlanSidecars {
         if (metadata == null) {
             return;
         }
-        synchronized (SIDECARS) {
-            removeCollectedFacades();
-            SIDECARS.put(
-                    new IdentityWeakReference(aliasFacade, COLLECTED_FACADES),
-                    metadata);
-        }
+        attach(aliasFacade, metadata);
     }
 
     /** 純正Facadeまたは旧内部呼出しのACO計画から、正確なSidecarを取得する。 */

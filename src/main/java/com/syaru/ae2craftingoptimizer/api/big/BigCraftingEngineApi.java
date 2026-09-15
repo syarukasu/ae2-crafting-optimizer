@@ -96,8 +96,7 @@ public final class BigCraftingEngineApi {
      * it does not expose or mutate a crafting plan.</p>
      */
     public static boolean isCalculationProfileActive() {
-        return ACOConfig.enableBigCraftingProfile()
-                && ACOConfig.enableCompiledCraftingGraph()
+        return ACOConfig.enableCompiledCraftingGraph()
                 && ACOConfig.enableBigIntegerCraftingBackend();
     }
 

@@ -32,7 +32,7 @@ class SymbolicCraftingPlannerTest {
     }
 
     @Test
-    void refusesAmbiguousOrByproductGraphs() {
+    void acceptsIndependentByproductGraphs() {
         var multiOutput = new CompiledPattern<>(
                 "multi",
                 List.of(slot("raw", 1)),
@@ -41,7 +41,7 @@ class SymbolicCraftingPlannerTest {
         var graph = CompiledCraftingGraph.compile(1, List.of(multiOutput));
         assertTrue(new SymbolicCraftingPlanner<String>()
                 .tryPlanLong(graph, "out", 1, Map.of("raw", 1L), Set.of(), PlanningGuard.none())
-                .isEmpty());
+                .isPresent());
     }
 
     private static CompiledPattern.InputSlot<String> slot(String key, long amount) {
