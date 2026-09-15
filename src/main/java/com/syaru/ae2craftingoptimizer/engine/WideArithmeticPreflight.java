@@ -72,7 +72,9 @@ final class WideArithmeticPreflight {
                 || sumExceedsLong(fullPlan.missing())) {
             return true;
         }
-        BigInteger bytes = BigExactCraftingByteCounter.calculate(
+        BigInteger bytes = fullPlan.trace() != null
+                ? BigExactCraftingByteCounter.calculate(fullPlan.trace(), amountPerByte, maximumBits)
+                : BigExactCraftingByteCounter.calculate(
                 root,
                 requestedAmount,
                 program.patternsByOutput(),
@@ -304,6 +306,9 @@ final class WideArithmeticPreflight {
 
         boolean certifiesCached(BigInteger requestedAmount) {
             validateRequest(requestedAmount);
+            if (program.usesOrderedAccounting()) {
+                return false;
+            }
             // long API外の数量は、この証明器のキャッシュ対象にしない。
             if (requestedAmount.compareTo(LONG_MAX) > 0) {
                 return false;
@@ -319,6 +324,10 @@ final class WideArithmeticPreflight {
         boolean certify(
                 BigInteger requestedAmount,
                 PlanningGuard guard) {
+            if (program.usesOrderedAccounting()) {
+                validateRequest(requestedAmount);
+                return false;
+            }
             // 既存の最大安全量以下なら、DAGを再走査せず証明を再利用する。
             if (certifiesCached(requestedAmount)) {
                 return true;

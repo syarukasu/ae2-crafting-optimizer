@@ -40,13 +40,16 @@ class IndependentByproductPlanningTest {
     }
 
     @Test
-    void rejectsAByproductConsumedInAnotherBranchInsteadOfInventingInventory() {
+    void reusesAByproductConsumedInAnotherBranchWithoutInventingInitialInventory() {
         var root = process("assemble", List.of(slot("part", 1), slot("gas", 2)), Map.of("out", 1L));
         var split = process("split", List.of(slot("raw", 1)), Map.of("part", 1L, "gas", 2L));
         var result = CompiledRootProgram.compile(CompiledCraftingGraph.compile(1, List.of(root, split)),
                 "out", ignored -> false);
-        assertTrue(result.program().isEmpty());
-        assertEquals("COUPLED_OUTPUTS", result.failure().name());
+        var program = result.program().orElseThrow();
+        var plan = program.planLong(10, program.captureLongInventory(k -> 0), PlanningGuard.none());
+        assertEquals(Map.of("assemble", 10L, "split", 10L), plan.patternExecutions());
+        assertEquals(Map.of("raw", 10L), plan.missing());
+        assertTrue(plan.usedInventory().isEmpty());
     }
 
     @Test
@@ -55,7 +58,10 @@ class IndependentByproductPlanningTest {
         var split = process("split", List.of(slot("raw", 1)), Map.of("part", 1L, "gas", 2L));
         var result = CompiledRootProgram.compile(CompiledCraftingGraph.compile(1, List.of(root, split)),
                 "out", "gas"::equals);
-        assertTrue(result.program().isEmpty());
+        var program = result.program().orElseThrow();
+        var plan = program.planLong(10, program.captureLongInventory(k -> 0), PlanningGuard.none());
+        assertTrue(plan.emitted().isEmpty());
+        assertEquals(Map.of("raw", 10L), plan.missing());
     }
 
     @Test

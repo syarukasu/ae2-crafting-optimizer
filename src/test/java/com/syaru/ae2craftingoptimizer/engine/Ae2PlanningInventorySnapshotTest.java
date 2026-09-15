@@ -137,6 +137,42 @@ class Ae2PlanningInventorySnapshotTest {
         org.junit.jupiter.api.Assertions.assertNull(Ae2StrictCraftingTopology.compile(snapshot, program));
     }
 
+    @Test
+    void strictTopologyAdoptsCoupledOutputsOnlyWithCurrentExactCapture() {
+        AEKey root = new TestKey("circuit"), part = new TestKey("part"),
+                gas = new TestKey("chemical"), raw = new TestKey("raw");
+        var assembly = new CompiledPattern<AEKey>("assemble", List.of(
+                new CompiledPattern.InputSlot<>(List.of(new CompiledPattern.Stack<>(part, 1L))),
+                new CompiledPattern.InputSlot<>(List.of(new CompiledPattern.Stack<>(gas, 1000L)))),
+                Map.of(root, 1L), true);
+        var split = new CompiledPattern<AEKey>("split", List.of(new CompiledPattern.InputSlot<>(
+                List.of(new CompiledPattern.Stack<>(raw, 1L)))), Map.of(part, 1L, gas, 1000L), true);
+        var graph = CompiledCraftingGraph.compile(1L, List.of(assembly, split));
+        var program = CompiledRootProgram.tryCompile(graph, root, k -> false).orElseThrow();
+        var exact = new AtomicBoolean(true);
+        var snapshot = (Ae2PlanningGraphSnapshot) Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[] { Ae2PlanningGraphSnapshot.class },
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "graph" -> graph;
+                    case "recipeGeneration" -> 1L;
+                    case "isEmittable", "isIncompletelyCompiled" -> false;
+                    case "registeredPatternCount" -> graph.patternsFor((AEKey) args[0]).size();
+                    case "hasExactlyOneFullyCompiledPattern" -> graph.patternsFor((AEKey) args[0]).size() == 1;
+                    case "hasExactInputDomain" -> exact.get();
+                    default -> throw new AssertionError(method.getName());
+                });
+        org.junit.jupiter.api.Assertions.assertNotNull(Ae2StrictCraftingTopology.compile(snapshot, program));
+        var plan = program.planLong(5, program.captureLongInventory(k -> k == raw ? 5 : 0), PlanningGuard.none());
+        assertEquals(Map.of("assemble", 5L, "split", 5L), plan.patternExecutions());
+        assertEquals(Map.of(raw, 5L), plan.usedInventory());
+        exact.set(false);
+        org.junit.jupiter.api.Assertions.assertNull(Ae2StrictCraftingTopology.compile(snapshot, program));
+        var stale = CompiledRootProgram.tryCompile(CompiledCraftingGraph.compile(2L, List.of(assembly, split)),
+                root, k -> false).orElseThrow();
+        exact.set(true);
+        org.junit.jupiter.api.Assertions.assertNull(Ae2StrictCraftingTopology.compile(snapshot, stale));
+    }
+
     /** Minecraft Registry初期化なしでKeyCounterの参照キーを分離する最小AEKey。 */
     private static final class TestKey extends AEKey {
         private final ResourceLocation id;

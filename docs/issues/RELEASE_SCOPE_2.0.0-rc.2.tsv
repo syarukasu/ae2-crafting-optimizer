@@ -1,0 +1,5 @@
+# release=2.0.0-rc.2
+# baseline=2.0.0-rc.1
+# loader=BOTH
+issue	change	automated_guarantee
+185	Ordered reusable processing co-products and exact initial inventory accounting	Actual AE2 differential plans, bulk BigInteger boundaries, immutable snapshots, topology capture and full loader regression suites

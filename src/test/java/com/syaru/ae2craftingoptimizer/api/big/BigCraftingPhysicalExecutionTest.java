@@ -39,16 +39,7 @@ import org.junit.jupiter.api.Test;
 class BigCraftingPhysicalExecutionTest {
     @BeforeAll
     static void initializeRegistryAndConfig() throws Exception {
-        SharedConstants.tryDetectVersion();
-        // 実AEItemKeyの保存検証に必要なRegistryだけを用意し、ゲームやネットワークを起動しない。
-        var bootstrapped = Bootstrap.class.getDeclaredField("isBootstrapped");
-        bootstrapped.setAccessible(true);
-        bootstrapped.setBoolean(null, true);
-        LoadingModList.of(List.of(), List.of(), List.of(), List.of(), Map.of());
-        // AE2の汎用Key codecが参照する代替項目だけを、実クラスで登録する。
-        Registry.register(BuiltInRegistries.ITEM, AEItems.MISSING_CONTENT.id(),
-                new MissingContentItem(new Item.Properties()));
-        BuiltInRegistries.bootStrap();
+        com.syaru.ae2craftingoptimizer.TestRegistries.initialize();
         var keyTypes = new RegistryBuilder<AEKeyType>(ResourceKey.createRegistryKey(
                 ResourceLocation.fromNamespaceAndPath("ae2", "physical_execution_test_keys")))
                 .disableRegistrationCheck().create();

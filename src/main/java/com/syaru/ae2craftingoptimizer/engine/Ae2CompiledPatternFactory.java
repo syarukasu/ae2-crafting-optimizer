@@ -61,7 +61,7 @@ final class Ae2CompiledPatternFactory {
             if (alternatives.isEmpty()) {
                 return null;
             }
-            inputs.add(new CompiledPattern.InputSlot<>(alternatives));
+            inputs.add(new CompiledPattern.InputSlot<>(alternatives, capturedAlternatives.get(0).amount()));
             fingerprintInputs.add(new FingerprintInput(
                     input.getMultiplier(),
                     List.copyOf(capturedAlternatives)));

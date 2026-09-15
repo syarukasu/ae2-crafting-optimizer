@@ -35,6 +35,24 @@ public final class ExactCraftingByteCounter<K> {
         return (long) Math.ceil(counter.bytes);
     }
 
+    static <K> long calculate(CraftingPlanTrace<K> trace, ToLongFunction<K> amountPerByte) {
+        var counter = new ExactCraftingByteCounter<K>(Map.of(), Map.of(), amountPerByte);
+        for (var charge : trace.charges()) {
+            if (charge.key() == null) {
+                counter.add(charge.amount().longValueExact());
+            } else {
+                long divisor = amountPerByte.applyAsLong(charge.key());
+                if (divisor <= 0) {
+                    throw new IllegalArgumentException("amountPerByte must be positive");
+                }
+                long multiplier = charge.amount().divide(java.math.BigInteger.valueOf(charge.templateAmount()))
+                        .longValueExact();
+                counter.add((double) charge.templateAmount() * multiplier / divisor * 8);
+            }
+        }
+        return (long) Math.ceil(counter.bytes);
+    }
+
     private long visit(K key, long requestedAmount) {
         long divisor = amountPerByte.applyAsLong(key);
         if (divisor <= 0L) {
