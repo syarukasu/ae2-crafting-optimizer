@@ -1,5 +1,50 @@
 # Issue #125: BigInteger物理クラフト受理後の停止
 
+## 2026-09-15 通常Batch実行との所有権競合
+
+- 状態: Verified（通常予算の分離と両版回帰build。実機完走の確認ではない）
+- 再現: Forgeで9月14日22:50:04、stage_20を10個発注。物理Batch受理直後に
+  `exact task definitions do not match the AE2 job`でexact Jobが隔離された。
+- 原因経路: ACOは`executeCrafting`のHEADで通常実行を止めるが、Thunderboltの
+  `tickCraftingLogic`内WrapOperationはその外側で実JobのTaskを走査・削除する。
+  Receiptで配送済みになったTaskの0カウンタを削除すると、ACOの開始時Task集合との照合が失敗する。
+- 修正方針: ACO所有のexact Jobだけ、AE2のtick内で最初に確定する通常実行予算を0にする。
+  外側Batch呼出しへ到達させず、AE2の非稼働判定、Link取消、余剰搬入、使用予算履歴は維持する。
+  既存の直接executeCrafting呼出し抑止と会計不一致検査も維持する。
+- 禁止: 完了Taskの再生成、不一致の握り潰し、隔離Jobの強制再開、外部MODの無効化・ソース変更。
+- 受け入れ: 通常Jobの予算は不変、exact Jobでは外側Batchが呼ばれないことを既存JUnitへ追加。
+  両AE2版の注入位置を確認し、既存のReceipt/Escrow・位置独立wide試験と両版buildを通す。
+- 制限: AQE側の停止を同じ原因とは断定しない。既に隔離されたJobの復旧と実機完走は別途確認する。
+- 検証: Forge 117 suites / 499 tests（skip 2）、NeoForge 125 suites / 519 tests。
+  両版で失敗0・エラー0、clean buildと回帰マニフェスト検証に成功。
+  AE2の実classで取消判定後・外側Batch呼出し前の予算STOREを照合した。
+  既存のReceipt/Escrow・保存復元・位置独立wide試験も通過した。
+- 保存境界: AE2は0回になったTaskもNBTへ保存する。保存を理由にTask集合照合を緩める必要はない。
+- 別経路: 配置済みAQE 2.2.7にはACO 2.0用の物理API接続が存在しない。
+  AQE Issue #33 / Draft PR #34の実行引き継ぎ修正と組み合わせる必要がある。
+  ACOへAdvanced AE専用の実行処理を戻す修正は行わない。
+- AQE照合: Draft PR #34のHEAD 513fa0d5を変更せず、今回のForge ACO JARを依存指定して
+  clean build成功。AQEは38 tests（skip 1）、失敗0・エラー0。
+  配布JAR内のAdvCraftingExactLogicMixin登録とAqePhysicalExecution収録を確認。配置は未変更。
+
+## 2026-09-14 Snapshot取得失敗の分類
+
+- 状態: Verified（静的な捕捉範囲と回帰build。実機報告全体の解決判定ではない）
+- コード上の確定事実: `getOrCompile`は世代変更中に`StalePlanningSnapshotException`を投げる。
+  標準CPU Managerはその呼出しを復旧用tryの外で行い、外側のRuntimeException捕捉がJobを恒久隔離する。
+  外部CPU APIでは同じ例外をSnapshot待ちとしており、経路間で扱いが異なる。
+- 修正: Snapshot取得部分だけで当該例外を捕捉し、既存の待機理由ログへ渡す。
+  当該tickでは実行せず、既存のReceipt、Escrow、Job、保存状態をそのまま保持する。
+- 不変条件: 古いGraphを使用しない。long fallback、独自retry、会計破損の握り潰しは追加しない。
+  次の通常tickでも取得できなければ待機を維持し、その他の異常は従来通り明示する。
+- 所有権取得前の取消は既存MixinがAE2のfinishJobへ渡しており、ここは変更不要と確認した。
+- 試験: 既存Issue125RegressionSourceTestへSnapshot取得の捕捉範囲を固定する一件だけ追加。
+  仮想注文、保存復元、回帰マニフェストと両版buildも確認する。
+- この分類不備はコード上で確認した別の停止経路であり、過去の実機報告すべての原因とは断定しない。
+- 結果: Forge 117 suites / 496 tests（skip 2）、NeoForge 125 suites / 516 tests。
+  両版で失敗0・エラー0、`clean build verifyIssueRegressionManifest --no-build-cache`成功。
+  既存の位置独立wide仮想注文、Receipt/Escrow取消、保存復元試験を維持。
+
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/125
 - 状態: Implemented
 - 対象版: 2.0.0

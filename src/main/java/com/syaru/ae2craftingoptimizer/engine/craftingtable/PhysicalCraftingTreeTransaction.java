@@ -668,6 +668,11 @@ public final class PhysicalCraftingTreeTransaction {
         return result;
     }
 
+    /** Issue #182: 外部CPUへ、live Gridを読まないReceipt由来の会計を公開する。 */
+    public AccountingSnapshot accountingSnapshot() {
+        return accountingSnapshotFromPersistedIdentities();
+    }
+
     /**
      * live graphへ触れず、Transactionが所有する不変Pattern identityだけから会計を再構築する。
      *

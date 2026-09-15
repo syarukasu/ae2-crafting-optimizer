@@ -55,6 +55,7 @@ public final class CompiledRootProgram<K> {
     private final Map<K, CompiledPattern<K>> patternsByOutput;
     private final Set<K> emittableKeys;
     private final int patternCount;
+    private final boolean hasByproducts;
 
     private CompiledRootProgram(
             long generation,
@@ -93,10 +94,11 @@ public final class CompiledRootProgram<K> {
         this.patternsByOutput = Map.copyOf(patternsByOutput);
         this.emittableKeys = Set.copyOf(emittableKeys);
         this.patternCount = patternCount;
+        this.hasByproducts = patternsByOutput.values().stream().anyMatch(pattern -> pattern.outputs().size() > 1);
     }
 
     /**
-     * 単一Pattern、単一候補、単一出力、非循環という条件を証明できるルートだけをコンパイルする。
+     * 単一Pattern、非循環、要求グラフと独立した副産物を持つルートをコンパイルする。
      * EmitterはAE2と同じくレシピより先に解決し、その先の依存関係を展開しない。
      */
     public static <K> Optional<CompiledRootProgram<K>> tryCompile(
@@ -166,8 +168,7 @@ public final class CompiledRootProgram<K> {
             }
 
             CompiledPattern<K> pattern = candidates.get(0);
-            // 副産物や複数出力は余剰在庫会計が必要なため、単一路線から除外する。
-            if (pattern.outputs().size() != 1 || pattern.outputAmount(key) <= 0L) {
+            if (pattern.outputAmount(key) <= 0L) {
                 return Outcome.failed(RootProgramFailure.MULTIPLE_OUTPUTS);
             }
 
@@ -183,6 +184,17 @@ public final class CompiledRootProgram<K> {
             }
             selected.put(key, pattern);
             dependencies.put(key, Set.copyOf(children));
+        }
+
+        // Issue #179: independent byproducts never satisfy this order's inputs. Keep their full Pattern.
+        int checkedOutputs = 0;
+        for (Map.Entry<K, CompiledPattern<K>> entry : selected.entrySet()) {
+            for (K output : entry.getValue().outputs().keySet()) {
+                guard.checkpoint(++checkedOutputs);
+                if (!output.equals(entry.getKey()) && reachable.contains(output)) {
+                    return Outcome.failed(RootProgramFailure.COUPLED_OUTPUTS);
+                }
+            }
         }
 
         List<K> order = topologicalOrder(reachable, dependencies, guard);
@@ -559,6 +571,21 @@ public final class CompiledRootProgram<K> {
                         child);
             }
         }
+        // Issue #179: a small main product must not hide overflowing fluid/gas byproducts.
+        if (hasByproducts) {
+            long total = 0L;
+            for (int node = 0; node < patternExecutions.length; node++) {
+                guard.checkpoint(node + 1);
+                if (patternExecutions[node] == 0L) {
+                    continue;
+                }
+                for (long amount : patternAt(node).outputs().values()) {
+                    total = CheckedLongMath.add(total,
+                            CheckedLongMath.multiply(amount, patternExecutions[node], "compiled-root/output"),
+                            "compiled-root/output-total");
+                }
+            }
+        }
         LongResultMaps<K> resultMaps = longResultMaps(
                 patternExecutions,
                 used,
@@ -660,7 +687,7 @@ public final class CompiledRootProgram<K> {
                     missing.put(keys.get(node), deficit);
                 } else {
                     // Processing Patternは機械時間を持つため、作業台一括経路へ混入させない。
-                    if (pattern.externalPush()) {
+                    if (pattern.externalPush() || pattern.outputs().size() != 1) {
                         return Optional.empty();
                     }
                     BigInteger executions = BigCountMath.requireMaximumBits(
@@ -858,6 +885,7 @@ public final class CompiledRootProgram<K> {
                 patternExecutions,
                 used,
                 demand);
+        requiresWideOutputCounts(resultMaps.patternExecutions(), maximumBits, guard);
         return new BigCraftingPlan<>(
                 root,
                 requestedAmount,
@@ -866,6 +894,32 @@ public final class CompiledRootProgram<K> {
                 resultMaps.emitted(),
                 resultMaps.missing(),
                 nodeCount);
+    }
+
+    /** Issue #179: include every produced output in the native counter boundary, not in initial inventory. */
+    boolean requiresWideOutputCounts(
+            Map<String, BigInteger> executions, int maximumBits, PlanningGuard guard) {
+        if (!hasByproducts) {
+            return false;
+        }
+        BigInteger total = BigInteger.ZERO;
+        for (int node = 0; node < nodeCount(); node++) {
+            guard.checkpoint(node + 1);
+            CompiledPattern<K> pattern = patternAt(node);
+            if (pattern == null) {
+                continue;
+            }
+            BigInteger count = executions.getOrDefault(pattern.id(), BigInteger.ZERO);
+            if (count.signum() == 0) {
+                continue;
+            }
+            for (long amount : pattern.outputs().values()) {
+                total = BigCountMath.add(total,
+                        BigCountMath.multiply(BigInteger.valueOf(amount), count, "compiled-root/output", maximumBits),
+                        "compiled-root/output-total", maximumBits);
+            }
+        }
+        return total.bitLength() > SIGNED_LONG_MAGNITUDE_BITS;
     }
 
     /** 三本の数量配列を一巡し、最終Planが必要とする四Mapを同時に物質化する。 */
@@ -1166,6 +1220,11 @@ public final class CompiledRootProgram<K> {
 
     public int nodeCount() {
         return keys.size();
+    }
+
+    /** 同一Programが参照する不変キー列。発注時の在庫固定で全Graphを走査しない。 */
+    List<K> referencedKeys() {
+        return keys;
     }
 
     public int patternCount() {

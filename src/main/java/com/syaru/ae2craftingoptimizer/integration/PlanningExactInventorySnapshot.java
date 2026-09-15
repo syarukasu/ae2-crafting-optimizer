@@ -5,6 +5,7 @@ import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
 import appeng.me.storage.NetworkStorage;
 import com.syaru.ae2craftingoptimizer.access.NetworkStorageMountsAccess;
+import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Objects;
@@ -41,7 +42,8 @@ public final class PlanningExactInventorySnapshot {
     static KeyCounter captureMountedStorages(
             Iterable<? extends Iterable<MEStorage>> priorities) {
         Objects.requireNonNull(priorities, "priorities");
-        KeyCounter result = new KeyCounter();
+        KeyCounter facade = new KeyCounter();
+        BigKeyCounterSidecars.Accumulator exact = new BigKeyCounterSidecars.Accumulator();
         Set<MEStorage> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         // 優先度は合計量へ影響しないが、AE2と同じ順序で決定的に列挙する。
         for (Iterable<MEStorage> priority : priorities) {
@@ -50,9 +52,17 @@ public final class PlanningExactInventorySnapshot {
                 if (!visited.add(mountedStorage)) {
                     continue;
                 }
-                BigIntegerStorageSnapshotBridge.collect(mountedStorage, result, true);
+                BigIntegerStorageSnapshotBridge.collect(mountedStorage, facade, exact);
             }
         }
+        // mountがない場合は従来どおりSidecarを新設しない。
+        if (visited.isEmpty()) {
+            return facade;
+        }
+        // Issue #156: 空Counterへ正本を一度だけ付けてから表示値を移す。二重加算しない。
+        KeyCounter result = new KeyCounter();
+        BigKeyCounterSidecars.merge(result, exact.snapshot());
+        result.addAll(facade);
         return result;
     }
 }

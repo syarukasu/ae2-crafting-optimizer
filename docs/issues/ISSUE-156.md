@@ -1,9 +1,166 @@
 # Issue #156: 通常クラフト発注時の不要なexact計算
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/156
-- 状態: In review
+- 状態: Verified
 - 対象版: Forge 1.20.1 / NeoForge 1.21.1
 - 関連Issue: #109, #125, #151, #153
+
+## 2026-09-14: 発注時の在庫固定・exact集計の追加最適化
+
+目標は発注前の同期準備とwide在庫集計の重複処理を減らすこと。
+実storageのinsert/extract、外部CPU実行、数量契約、公開APIシグネチャは変更しない。
+World/MEのmutationをworkerへ移すことも非目標とする。
+
+確認した原因:
+
+- constructorのcaptureReferencedへ渡すRootCapture.referencedKeysは、注文の依存キーでは
+  なく公開index全体のキーを返していた。小さい注文でも全Pattern規模の照会になる。
+- PlanningExactInventorySnapshotはmountごとにBigKeyCounterSidecars.mergeを呼び、
+  それまでの全合計Map/Setを複製・凍結する。異なるキーが増える構成で累積コピーが二次的に増える。
+
+最小修正:
+
+- 同じPublishedCaptureにcached Root Programがある場合だけ、その不変キー列を参照する。
+  cold、失敗、eviction時は従来の全参照キーを保持し、同期graph構築は追加しない。
+  在庫値自体は毎回新たに固定し、古い在庫やMissingを再利用しない。
+- 一回のexact captureだけが所有するAccumulatorでmount寄与を合計する。
+  キー別exact判定は既存mergeと共通化し、最後に一度だけ不変Snapshotを公開する。
+  各mountの読み取り、可視キー、negative/incomplete判定、重複mount除外は維持する。
+- 通常のNetworkStorage/GUI/busの経路や実insert/extractへ新しい注入を追加しない。
+
+受け入れ:
+
+- 関連既存JUnitを先に実行する。
+- warm/cold rootの参照範囲と、immutable在庫が元Counterの変更を受けないことを確認する。
+- 既存逐次mergeと一括captureのlong Facade、BigInteger量、キー別exact判定を比較する。
+- 既存のBigInteger位置独立、sidecar/API、世代、取消試験を維持する。
+- 両版のclean build、回帰マニフェスト、git diff --checkを通す。
+- 実際のcaptureメソッドの仮想mount fixtureを同一JVM内で比較し、発注全体/TPSの倍率とは区別する。
+- GitHub公開、稼働環境への配置は行わない。
+
+### 在庫固定・集計変更の結果
+
+今回の製品変更は5ファイルに限定した。
+
+- Ae2ImmutablePlanningGraphCache: 同じPublishedCaptureのcached Root Programだけから参照キーを得る。
+- CompiledRootProgram: 構築済み不変キー列をpackage-privateで返す。
+- BigKeyCounterSidecars: キー別exact判定を共有するcapture-local Accumulator。
+- BigIntegerStorageSnapshotBridge: 通常の逐次公開を維持し、Planningだけローカル合計へ加算する。
+- PlanningExactInventorySnapshot: 重複mount除外とFacadeを維持し、最終exact Sidecarを一度だけ公開する。
+
+追加試験は既存2クラスへ計3件。
+Ae2PlanningInventorySnapshotTestでwarm/cold/失敗時の選択、同期compile不在、在庫の取り直しを確認。
+BigIntegerStorageSnapshotBridgeTestで実captureメソッドと逐次集計を比較し、
+incomplete Provider、負数Facade、キー別exact判定も一致することを確認した。
+重複mount、10^64在庫、通常long加算、公開APIの計画参照は既存試験も維持している。
+
+同一JVM、同一258 mount fixture、暖機10回後に20回ずつ経路を交互に計測。
+256種類の独立キーに、10^64を返す公開ExactStorageAmountProviderと同じキーのlong寄与7を追加した。
+「逐次」は従来方式のmountごとmerge、「一括」は本番のcaptureMountedStorages入口である。
+入力fixture生成と結果比較は計測外。各行は20回合計で、API呼出し前の集計区間だけの値。
+
+| 計測 | 逐次 ms | 一括 ms | 逐次 MiB | 一括 MiB |
+|---|---:|---:|---:|---:|
+| Forge / Java 17 関連試験 | 137.387 | 44.655 | 250.437 | 104.927 |
+| Forge / Java 17 clean build | 146.225 | 47.833 | 250.489 | 104.995 |
+| NeoForge / Java 21 clean build | 147.692 | 53.978 | 251.057 | 105.286 |
+| Forge / Java 17 #182 parity後の再検証 | 171.652 | 61.983 | 250.456 | 104.909 |
+| NeoForge / Java 21 #182 parity後の再検証 | 168.633 | 53.575 | 250.937 | 105.126 |
+
+このfixtureの集計区間は約2.7-3.1倍、割り当て量は約58%減。
+全クラフト発注時間、Main Server Thread時間、TPS、実セルI/Oの倍率は未計測。
+実サーバーのstorage読み取りは引き続きserver上で実行される。
+実insert/extractを非同期へ移したり、CPUやEscrow/Receiptの所有権を変更したりしていない。
+AQE/InsaneAEが使う公開APIシグネチャ、sidecar、数量Plannerにも変更はない。
+外部MODとの実稼働相互運用はこの仮想試験だけでは保証しない。
+
+- Forge: 117 suites / 495 tests / failures 0 / errors 0 / skipped 2。
+- NeoForge: 124 suites / 513 tests / failures 0 / errors 0 / skipped 0。
+- 両版でclean build verifyIssueRegressionManifest --no-build-cache --no-daemon成功。
+- 両版でgit diff --check成功。新ロジックは同じ意味で実装した。
+  loader差分は既存のRegistryAccess呼出しとコメントだけである。
+- Forge JAR SHA-256: 3D39B8189E5FDB7F85A2B7A9FA191DADC96FEAF11DC663A3F655E25F78934B1B
+- NeoForge JAR SHA-256: 248CD35159A60328E630B3605FC1DF44D3B45B7E6F3592C5951F5CD2EF49F01D
+
+これはIssue #156全体の完了ではなく、現在の発注経路で確認した二つの重複処理の修正記録。
+cold rootは全参照キーの開始時在庫を保持し、未知のPatternや実在庫をworkerへ渡さない。
+GitHubのIssue/PR投稿、リリース、サーバー・クライアントへの配置は行っていない。
+
+## 2026-09-14: クラフトGraph構築の追加最適化
+
+目標は構築そのものの時間と割り当て量を減らすこと。数量計算、CPU実行、
+公開API、保存形式、Serverとの待機境界は今回変更しない。
+
+実コードで確認した構築経路:
+
+- 公開済みPattern SnapshotをworkerのSnapshot.compileがCompiledCraftingGraphへ変換する。
+- Graphは出力索引と依存辺を作り、循環検査で逆向きの依存Graphをもう一つ構築する。
+  二度の探索に加え、逆辺用のMap/Setを各ノードへ割り当てている。
+- Snapshot.compileのcandidatesByOutputは全候補のListを作るが、返却Snapshotにも
+  Graphにも渡されず、以降の処理から一度も参照されない。
+
+修正方針:
+
+- 循環検査を再帰しないTarjan法へ置換し、逆Graphと二巡目をなくす。
+  Pattern索引・候補集合・候補順は変更しない。共有依存と別SCCを混同しない。
+- 未使用候補Map/Listだけを除去し、候補数・未capture・出力量の検証は維持する。
+- 世代付きcacheのkey、失効、publication、long/BigInteger計算は変更しない。
+- 元の実装と変更後で、同一fixtureのGraphとRoot Program構築を測る。
+  数量Plannerの倍率をツリー構築やTPSの倍率として報告しない。
+
+受け入れ:
+
+- 先に既存Graph/Root Program試験を実行する。
+- 既存の20,000段chainと循環検査を維持し、別SCCへの片方向辺・自己循環・候補順を
+  一つの追加fixtureで確認する。新しい試験基盤は作らない。
+- 既存性能probeへ共有中間素材を持つ構築計測だけを追加する。絶対時間は合否条件にしない。
+- 両版の関連JUnit、clean build、回帰マニフェスト、diff検査を通す。
+- 不変条件は結果、Missing、bytes、循環判定と候補順の一致。
+  稼働環境への配置、起動、GitHub公開はこの変更に含めない。
+
+### 追加変更の検証結果
+
+今回の変更はGraph構築の局所最適化。Issue全体の完了、実AE2の発注時間やTPS改善、
+通常AE2再帰ツリー全体の置換を意味しない。
+
+- Forge / Java 17: 117 suites、492 tests、失敗0、エラー0、skip 2。
+- NeoForge / Java 21: 124 suites、510 tests、失敗0、エラー0、skip 0。
+- 両版の`clean build verifyIssueRegressionManifest --no-build-cache --no-daemon`成功。
+- 今回のGraph実装と追加試験は両ローダーで同一。数量Planner、public API、Mixinは変更なし。
+- 追加した機能試験は別SCC・自己循環・候補順を確認する1件。性能probeは既存クラスへ追加した。
+
+1,000枝が共有中間素材へ合流する1,003ノードを、40回暖機後に120回構築した記録。
+Graphは候補索引と循環検査、TreeはそのGraphにRoot Programの構築を加えた範囲。
+fixture生成、live Pattern capture、数量計算、ゲーム内発注は計測外。
+割り当て量は計測threadの合計であり、常駐heap量ではない。
+
+| 実行 | Graph ms | Tree ms | Graph MiB | Tree MiB |
+|---|---:|---:|---:|---:|
+| Forge 変更前・対象試験のみ | 122.328 | 290.617 | 175.242 | 323.256 |
+| Forge 変更後・対象試験のみ | 74.320 | 216.057 | 96.052 | 246.529 |
+| Forge 変更後・全体試験内 | 73.107 | 300.430 | 96.049 | 246.524 |
+| NeoForge 変更前・対象試験のみ | 118.008 | 222.462 | 188.271 | 329.343 |
+| NeoForge 変更後・対象試験のみ | 86.351 | 228.698 | 107.956 | 258.871 |
+| NeoForge 変更後・全体試験内 | 141.252 | 373.159 | 107.956 | 246.948 |
+
+Graphの割り当て量は約43-45%減少した。一方、wall timeは実行間で変動が大きく、
+Graphを含めて固定の高速化倍率は未確定。Root Program込みの全体高速化も断定しない。
+未使用候補Map除去はlive Snapshot側の変更であり、このpure probeの倍率へ加算しない。
+
+変更ファイル:
+
+- `engine/CompiledCraftingGraph.java`: 逆Graphを作らない非再帰SCC検査。
+- `engine/Ae2ImmutablePlanningGraphCache.java`: 未使用候補Map/Listの除去。
+- `engine/CompiledCraftingGraphTest.java`: SCCと候補順の保護。
+- `engine/PlannerPerformanceProbeTest.java`: 構築範囲を分離した計測。
+- 本仕様書、回帰マニフェスト、クラス責務一覧とその生成script。
+
+ビルド済みJARのSHA-256:
+
+- Forge: `720FDEDF421F3E83AFBD5CC0BE0374970FCF9D769C1C9DA771564A7AB5070AE2`
+- NeoForge: `01B298DE38C5FE93D971EFE5980A7373670FACF141BC1CA879ED6E75D6F94406`
+
+GitHubのIssue/PR更新、リリース、稼働環境への配置は行っていない。
 
 ## 症状
 

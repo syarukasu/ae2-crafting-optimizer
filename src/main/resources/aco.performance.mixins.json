@@ -7,6 +7,8 @@
   "mixins": [
     "CraftingCalculationMemoLifecycleMixin",
     "CraftingCpuHelperCalculationMemoMixin",
+    "CraftingSimulationIngredientSearchMixin",
+    "KeyCounterCalculationIndexMixin",
     "CraftingCpuLogicExecutionBudgetMixin",
     "CraftingProviderRefreshCoalescingMixin",
     "CraftingServiceCalculationDeduplicationMixin",

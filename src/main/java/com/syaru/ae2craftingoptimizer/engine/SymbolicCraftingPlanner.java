@@ -24,7 +24,7 @@ public final class SymbolicCraftingPlanner<K> {
                 graph,
                 requestedKey,
                 emittable::contains);
-        // 曖昧、循環、複数出力などを含む経路は呼出側のAE2 Fallbackへ返す。
+        // 曖昧、循環、副産物の再利用などを含む経路は呼出側のAE2 Fallbackへ返す。
         if (compiled.isEmpty()) {
             return Optional.empty();
         }

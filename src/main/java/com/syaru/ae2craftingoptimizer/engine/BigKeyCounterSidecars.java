@@ -43,25 +43,11 @@ public final class BigKeyCounterSidecars {
                 current = fromFacade(target);
             }
 
-            Map<AEKey, BigInteger> merged = new LinkedHashMap<>(current.amounts());
-            Set<AEKey> exactKeys = new LinkedHashSet<>(current.exactKeys());
-            // 同一キーをBigIntegerで加算し、long境界を越えても負数へ巻き戻さない。
-            for (Map.Entry<AEKey, BigInteger> entry : contribution.amounts().entrySet()) {
-                merged.merge(entry.getKey(), entry.getValue(), BigInteger::add);
-                // 現在値と今回の寄与の両方が正確なキーだけ、合計値も正確と証明できる。
-                if (current.isExact(entry.getKey())
-                        && contribution.isExact(entry.getKey())) {
-                    exactKeys.add(entry.getKey());
-                } else {
-                    exactKeys.remove(entry.getKey());
-                }
-            }
+            Accumulator merged = new Accumulator(current);
+            merged.add(contribution);
             SIDECARS.put(
                     new IdentityWeakReference(target, COLLECTED_COUNTERS),
-                    new Snapshot(
-                            merged,
-                            current.complete() && contribution.complete(),
-                            exactKeys));
+                    merged.snapshot());
         }
     }
 
@@ -186,6 +172,45 @@ public final class BigKeyCounterSidecars {
         // GC済みKeyCounterだけを除去し、稼働中ネットワークのSnapshotは保持する。
         while ((reference = (IdentityWeakReference) COLLECTED_COUNTERS.poll()) != null) {
             SIDECARS.remove(reference);
+        }
+    }
+
+    /**
+     * Issue #156: 一回のcapture内だけで所有する合計。mountごとの全量コピーを避け、
+     * workerやSidecar表へはsnapshot()で固定した値だけを公開する。
+     */
+    public static final class Accumulator {
+        private final Map<AEKey, BigInteger> amounts = new LinkedHashMap<>();
+        private final Set<AEKey> exactKeys = new LinkedHashSet<>();
+        private boolean complete = true;
+
+        public Accumulator() {
+        }
+
+        private Accumulator(Snapshot initial) {
+            amounts.putAll(initial.amounts());
+            exactKeys.addAll(initial.exactKeys());
+            complete = initial.complete();
+        }
+
+        public void add(Snapshot contribution) {
+            Objects.requireNonNull(contribution, "contribution");
+            // 既存mergeと同じ順序で、各mountの同一キー寄与を正確に加算する。
+            for (Map.Entry<AEKey, BigInteger> entry : contribution.amounts().entrySet()) {
+                AEKey key = entry.getKey();
+                amounts.merge(key, entry.getValue(), BigInteger::add);
+                // 両方の寄与が証明済みの場合だけ、合計もexactとして維持する。
+                if ((complete || exactKeys.contains(key)) && contribution.isExact(key)) {
+                    exactKeys.add(key);
+                } else {
+                    exactKeys.remove(key);
+                }
+            }
+            complete &= contribution.complete();
+        }
+
+        public Snapshot snapshot() {
+            return new Snapshot(amounts, complete, exactKeys);
         }
     }
 

@@ -105,6 +105,26 @@ class CompiledRootProgramTest {
     }
 
     @Test
+    void promotesPatternInputWhenEightTimesTwoToTheSixtiethWouldOverflowLong() {
+        var program = compile(
+                List.of(pattern("output", "gas", 8L, "output", 1L)),
+                "output");
+        var inventory = program.captureLongInventory(ignored -> 0L);
+        BigInteger requested = BigInteger.ONE.shiftLeft(60);
+
+        var result = new OverflowPromotingCraftingPlanner<String>().plan(
+                program,
+                requested,
+                inventory,
+                PlanningGuard.none());
+
+        var big = assertInstanceOf(OverflowPromotingCraftingPlanner.BigResult.class, result);
+        assertEquals(
+                BigInteger.ONE.shiftLeft(63),
+                big.plan().missing().get("gas"));
+    }
+
+    @Test
     void keepsTwoLongMaximumChemicalInputsExactAfterPromotion() {
         var output = new CompiledPattern<>(
                 "pressurized-reaction",
@@ -174,7 +194,7 @@ class CompiledRootProgramTest {
     }
 
     @Test
-    void refusesAmbiguousByproductAndCyclicRoutes() {
+    void refusesAmbiguousAndCyclicRoutesButKeepsIndependentByproducts() {
         var first = new CompiledPattern<>("first", List.of(), Map.of("output", 1L), false);
         var second = new CompiledPattern<>("second", List.of(), Map.of("output", 1L), false);
         assertTrue(CompiledRootProgram.tryCompile(
@@ -192,7 +212,7 @@ class CompiledRootProgramTest {
                         CompiledCraftingGraph.compile(1L, List.of(byproduct)),
                         "output",
                         ignored -> false)
-                .isEmpty());
+                .isPresent());
 
         var a = pattern("a", "b", 1L, "a", 1L);
         var b = pattern("b", "a", 1L, "b", 1L);

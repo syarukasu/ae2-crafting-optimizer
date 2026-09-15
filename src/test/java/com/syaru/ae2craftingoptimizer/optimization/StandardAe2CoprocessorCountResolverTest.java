@@ -4,8 +4,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
+import com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess;
+import java.lang.reflect.Proxy;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 class StandardAe2CoprocessorCountResolverTest {
+    @Test
+    void exactOwnershipExcludesNativeBatchesWithoutChangingOrdinaryBudgets() {
+        var owned = new AtomicBoolean(true);
+        var job = Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[] { ExactCraftingJobAccess.class }, (proxy, method, args) -> {
+                    assertEquals("aco$isExactJob", method.getName());
+                    return owned.get();
+                });
+        assertEquals(0, CraftingExecutionBudget.nativeTickOperations(job, Integer.MAX_VALUE));
+        owned.set(false);
+        assertEquals(Integer.MAX_VALUE, CraftingExecutionBudget.nativeTickOperations(job, Integer.MAX_VALUE));
+        assertEquals(7, CraftingExecutionBudget.nativeTickOperations(null, 7));
+        assertEquals(-1, CraftingExecutionBudget.nativeTickOperations(new Object(), -1));
+    }
+
     @Test
     void negativeWrappedReportUsesWideClusterTotal() {
         long exact = (long) Integer.MAX_VALUE + 4_096L;

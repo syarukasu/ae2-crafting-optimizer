@@ -1,0 +1,13 @@
+# release=2.0.0-rc.1
+# baseline=1.5.33
+# loader=BOTH
+issue	change	automated_guarantee
+125	Preserve exact physical job execution ownership	Receipt accounting and native/exact tick exclusion regressions
+156	Reduce repeated planning work	Compiled graph, inventory and calculation-local cache boundary tests
+161	Bound standard AE2 execution work	Coprocessor overflow and execution budget tests
+164	Remove duplicate legacy ownership	Public API and core ownership source contracts
+167	Keep immutable planning snapshots generation-correct	Snapshot, input-domain, byte-accounting and cache invalidation tests
+176	Keep overflow handling independent of count location	Long and BigInteger boundary tests
+179	Improve industrial planning coverage and cooperative ingredient search	Independent byproducts, complete output bounds, tick handoff and candidate index tests
+182	Expose existing physical execution through API version 1	Receipt-backed facade, codec and loader parity tests
+184	Publish one RC with separate loader artifacts	Version metadata, artifact boundary checks and release scope gate

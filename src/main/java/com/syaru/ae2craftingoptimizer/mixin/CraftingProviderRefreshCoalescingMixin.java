@@ -102,6 +102,10 @@ public abstract class CraftingProviderRefreshCoalescingMixin
 
     @Inject(method = "addNode", at = @At("RETURN"))
     private void aco$rememberProviderAfterNodeAdd(IGridNode node, CompoundTag savedData, CallbackInfo ci) {
+        // Issue #179: ケーブル・CPUなど非Providerの追加はPattern索引を変更しない。
+        if (node.getService(ICraftingProvider.class) == null) {
+            return;
+        }
         // AE2がnodeを索引へ追加した後に旧snapshotを破棄し、新しい内容を正本として記録する。
         ProviderPatternGenerationTracker.forget(node);
         ProviderPatternGenerationTracker.remember(node);
@@ -113,6 +117,10 @@ public abstract class CraftingProviderRefreshCoalescingMixin
     @Inject(method = "removeNode", at = @At("HEAD"))
     private void aco$dropPendingRefreshOnNodeRemove(IGridNode node, CallbackInfo ci) {
         aco$pendingProviderRefreshes.remove(node);
+        // Issue #179: 非Providerの削除で全Gridの公開索引を再取得しない。
+        if (node.getService(ICraftingProvider.class) == null) {
+            return;
+        }
         // remove完了後はLevel参照が失われ得るため、変更前に公開Snapshotを失効させる。
         Ae2ImmutablePlanningGraphCache.invalidate(
                 (CraftingService) (Object) this,
@@ -121,6 +129,10 @@ public abstract class CraftingProviderRefreshCoalescingMixin
 
     @Inject(method = "removeNode", at = @At("RETURN"))
     private void aco$forgetProviderAfterNodeRemove(IGridNode node, CallbackInfo ci) {
+        // Issue #179: 実際にPattern/Emitterを供給するノードの削除だけ世代を進める。
+        if (node.getService(ICraftingProvider.class) == null) {
+            return;
+        }
         // AE2索引からnodeが消えた後に世代を進め、旧Graphを新世代として再利用させない。
         ProviderPatternGenerationTracker.forget(node);
     }

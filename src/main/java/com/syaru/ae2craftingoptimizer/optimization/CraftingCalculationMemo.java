@@ -4,6 +4,7 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
+import com.syaru.ae2craftingoptimizer.access.CraftingCalculationThreadAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import java.util.Collection;
@@ -41,6 +42,19 @@ public final class CraftingCalculationMemo {
         State state = CURRENT.get();
         if (state != null && state.calculation == calculation) {
             CURRENT.remove();
+        }
+    }
+
+    public static boolean isActive() {
+        return CURRENT.get() != null && ACOConfig.memoizeCraftingCalculationQueries();
+    }
+
+    /** Only call between candidates, never while a shared recipe frame is temporarily changed. */
+    public static void checkpointIngredientSearch() throws InterruptedException {
+        State state = CURRENT.get();
+        if (state != null && ACOConfig.memoizeCraftingCalculationQueries()
+                && state.calculation instanceof CraftingCalculationThreadAccess calculation) {
+            calculation.aco$checkpointIngredientSearch();
         }
     }
 

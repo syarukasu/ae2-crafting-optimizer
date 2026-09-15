@@ -9,6 +9,12 @@
 
 English | [日本語](README_ja.md)
 
+## 2.0.0 Release Candidate
+
+**2.0.0-rc.1 is a prerelease.** See the [release notes](docs/releases/2.0.0-rc.1.md)
+for improvements, migration requirements and known limitations. The new candidate's
+full live completion/cancellation/restart matrix is still pending.
+
 AE2 Crafting Optimizer (ACO) is a NeoForge 1.21.1 optimization and integration
 layer for Applied Energistics 2. It reduces repeated crafting calculations,
 paces very large CPU execution bursts, and provides an exact transaction model

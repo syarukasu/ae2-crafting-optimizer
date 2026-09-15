@@ -27,6 +27,8 @@ public final class MixinFeatureCatalog {
             entry("CraftingCalculationDiagnosticsMixin", OptimizationFeature.CRAFTING_QUERY_MEMOIZATION),
             entry("CraftingCalculationMemoLifecycleMixin", OptimizationFeature.CRAFTING_QUERY_MEMOIZATION),
             entry("CraftingCpuHelperCalculationMemoMixin", OptimizationFeature.CRAFTING_QUERY_MEMOIZATION),
+            entry("CraftingSimulationIngredientSearchMixin", OptimizationFeature.CRAFTING_QUERY_MEMOIZATION),
+            entry("KeyCounterCalculationIndexMixin", OptimizationFeature.CRAFTING_QUERY_MEMOIZATION),
             entry("CraftingCpuClusterTransactionAccessMixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
             entry("CraftingCpuLogicBatchSourceReceiptMixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
             entry("CraftingCpuLogicExecutionBudgetMixin", OptimizationFeature.CRAFTING_EXECUTION_BUDGET),

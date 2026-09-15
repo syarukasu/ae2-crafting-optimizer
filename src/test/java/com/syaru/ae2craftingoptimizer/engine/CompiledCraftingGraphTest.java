@@ -2,6 +2,7 @@ package com.syaru.ae2craftingoptimizer.engine;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -33,6 +34,24 @@ class CompiledCraftingGraphTest {
 
         assertFalse(graph.isCyclic("k" + depth));
         assertTrue(graph.stronglyConnectedComponentCount() == depth + 1);
+    }
+
+    @Test
+    void preservesSeparateCyclesAndCandidateOrderAcrossSharedDependencies() {
+        var first = pattern("root-first", "c", "root");
+        var second = pattern("root-second", "a", "root");
+        var graph = CompiledCraftingGraph.compile(8L, List.of(
+                pattern("a", "b", "a"), pattern("b", "a", "b"),
+                pattern("c", "d", "c"), pattern("d", "c", "d"),
+                pattern("bridge", "a", "c"), pattern("self", "self", "self"), first, second));
+
+        assertEquals(4, graph.stronglyConnectedComponentCount());
+        assertTrue(graph.sharesCycle("a", "b"));
+        assertTrue(graph.sharesCycle("c", "d"));
+        assertFalse(graph.sharesCycle("a", "c"));
+        assertTrue(graph.isCyclic("self"));
+        assertFalse(graph.isCyclic("root"));
+        assertEquals(List.of(first, second), graph.patternsFor("root"));
     }
 
     private static CompiledPattern<String> pattern(String id, String input, String output) {
