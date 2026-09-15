@@ -7,7 +7,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Bulk, input-ordered simulation for proven acyclic, single-candidate co-product programs. */
+/** Bulk, input-ordered simulation for proven acyclic, single-candidate shared-input/co-product programs. */
 final class OrderedByproductPlanner {
     private static final int MAX_REQUESTS = 1_048_576;
 

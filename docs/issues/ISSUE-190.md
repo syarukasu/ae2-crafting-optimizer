@@ -1,7 +1,7 @@
 # Issue #190: Real industrial recipe acceptance
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/190
-- Status: Implemented (bounded fixes; full industrial acceptance remains PENDING)
+- Status: Implemented (shared-input and emitter snapshot follow-up; full acceptance remains PENDING)
 - Target: 2.0.0 prerelease; Forge 1.20.1 modpack capture, shared planner verification on both loaders
 - Related: #156, #179, #185, #167, #176, #182
 
@@ -93,6 +93,55 @@ Forge failing tests reproduce both arithmetic paths, 10^64 orders, partial stock
 input reversal and the public fallback. Apply the same fix and tests here.
 
 ## Results
+
+### Follow-up scope: shared inputs and emitter snapshots
+
+The ordered evaluator is selected only for coupled outputs. A single-output DAG
+with a material shared by two inputs still fails Ae2StrictCraftingTopology even
+though the existing ordered simulator can preserve its extraction order and bytes.
+Select that evaluator for shared-input DAGs only when every slot has one exact
+alternative. Retain the independent tree evaluator and all dynamic-input guards.
+Do not select a producer arbitrarily or enable ambiguous recipes in this change.
+
+Snapshot.compileRootOutcome rechecks registered/compiled producer counts for
+emitter leaves, undoing the earlier emitter-pruned compiler proof. Skip producer
+validation only for captured emitters; keep it for every non-emitter and retain
+generation checks. A secondary output of a captured pattern can still be present
+in the pure graph while an emitter has zero captured producers, reproducing this
+failure without unsupported live reads.
+
+Before adoption, require failing tests for strict shared-input acceptance and real
+Snapshot outcome checks; compare duplicate slots, repeated intermediates, partial
+stock, missing stock, whole fluid templates, and CPU bytes against actual AE2.
+Exercise exact wide quantities and independent concurrent plans on both loaders.
+Tests must detect any remaining tree-accounting mismatch before broadening the
+authoritative path. Owners remain CompiledRootProgram, OrderedByproductPlanner,
+and Ae2ImmutablePlanningGraphCache. No execution/persistence/API version changes.
+
+Follow-up implemented in CompiledRootProgram and Ae2ImmutablePlanningGraphCache.
+Four new failing tests reproduced the defects before the production changes.
+Ae2PlanningInventorySnapshotTest covers real Snapshot outcomes and retained
+non-emitter/exact-domain rejection. ReusableByproductAe2OracleTest adds 250
+seeded shared-DAG cases and 24 repeated-fluid-slot cases against actual AE2,
+including used stock, missing amounts, emitted amounts and CPU bytes.
+SharedInputPlanningTest covers 1, 100, 9220000000000000000, Long.MAX_VALUE,
+Long.MAX_VALUE+1 and 10^64, independent conservation and CPU bytes, cancellation,
+and concurrent evaluations of an immutable snapshot. This is not a reservation
+or live-world concurrency test.
+
+SymbolicCraftingPlannerTest now checks six ordered requests instead of five
+unique indexed keys. The second shared-material request consumes prior surplus;
+the producer still runs once and consumes exactly one raw item. It also checks
+100 bytes from the ordered trace, rather than dropping the stock assertions.
+
+Full clean builds pass on upstream Forge (562 tests), UELM (562 tests) and
+NeoForge (573 tests), with zero failures, errors or skipped tests. The regression
+manifest passes. This change does not establish complete modpack-tree latency.
+The existing ordered request-expansion bound still applies; shared DAGs are not
+claimed to have linear cost for every graph shape. No production deployment or
+runtime verification was performed for this follow-up.
+
+### Previous bounded fixes and capture results
 
 Two bounded correctness/performance defects are fixed:
 - Emitter-pruned cycle handling: four failing tests before the change; all five

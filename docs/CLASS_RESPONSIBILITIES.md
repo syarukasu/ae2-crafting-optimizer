@@ -45,13 +45,13 @@ mixin + access  ->  integration  ->  optimization
 |---|---:|---|
 | `PhysicalCraftingTreeTransaction` | 3759 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
 | `Ae2AuthoritativeCraftingPlanner` | 1683 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
-| `CompiledRootProgram` | 1495 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
+| `CompiledRootProgram` | 1584 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
 | `BigCraftingJob` | 1266 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
 | `ExactNetworkStorageBridge` | 1184 | 高。実在庫境界。snapshotとmutationの分離候補だが原子性試験が先。 |
 | `TransactionalCraftingExecutorV2` | 960 | 高。所有権移転後の処理。見た目の短縮目的では分割せず、phase単位の試験を先に増やす。 |
 | `BigCraftingHostRuntime` | 920 | 高。外部Host容量と予約を所有。複数Job仕様を勝手に導入しない。 |
 | `BigCraftingRuntime` | 875 | 中。公開API側のruntime registry。Host runtimeとの責務重複を監視する。 |
-| `Ae2ImmutablePlanningGraphCache` | 816 | 中。責務一覧を基準に、挙動固定試験を追加してから分割可否を別Issueで判断する。 |
+| `Ae2ImmutablePlanningGraphCache` | 820 | 中。責務一覧を基準に、挙動固定試験を追加してから分割可否を別Issueで判断する。 |
 | `Ae2BigCraftingExecutionManager` | 688 | 中。責務一覧を基準に、挙動固定試験を追加してから分割可否を別Issueで判断する。 |
 
 ## パッケージ責務
@@ -310,7 +310,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.CheckedLongMath` | 通常計画のlong演算をexact検査し、overflow時は昇格用例外を返す。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledCraftingGraph` | 世代内で再利用するPattern候補索引と依存Graph。非再帰Tarjan法で逆Graphを複製せず循環を検査し、候補順を保持する。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledPattern` | 一つのPatternをnode ID、exact係数、候補情報へ正規化した不変値。 |
-| `com.syaru.ae2craftingoptimizer.engine.CompiledRootProgram` | 外部供給で依存を打ち切ったDAGの検証、配列計算、副産物の順序付き計画への振り分け、全出力の数量境界を所有する。 |
+| `com.syaru.ae2craftingoptimizer.engine.CompiledRootProgram` | 外部供給で依存を打ち切ったDAGの検証、配列計算、共有素材・副産物の順序付き計画への振り分け、全出力の数量境界を所有する。 |
 | `com.syaru.ae2craftingoptimizer.engine.CraftingPlanTrace` | 順序付き計画のCPU容量計算に必要な要求順と入力単位を不変値として保持する。永続取引や実在庫を所有しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.OrderedByproductPlanner` | 単一候補DAGを入力順にまとめて評価し、副産物の再利用、元在庫の最大不足量、容量計算の記録を所有する。実クラフトを実行しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledRootQualificationRegistry` | AE2標準計画とのShadow一致実績を、世代付きRoot Program単位で記録する。 |
