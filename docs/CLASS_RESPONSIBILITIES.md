@@ -296,7 +296,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.BigCraftingJob` | BigInteger注文の永続状態とlong実行Windowの貸出・回収を管理する。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigCraftingKeyCodec` | BigCraftingKeyCodecが示す値を、上限とschemaを検証しながら保存・通信形式へ相互変換する。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigCraftingPlan` | BigCraftingPlanが示すクラフト計画またはコンパイル済みプログラムを不変値として保持する。 |
-| `com.syaru.ae2craftingoptimizer.engine.BigCraftingPlanner` | BigCraftingPlannerが示す入力から、副作用なしでクラフト計画を構築する。 |
+| `com.syaru.ae2craftingoptimizer.engine.BigCraftingPlanner` | Map方式のBigInteger試算。元在庫の最大不足量を保持し、生成した副産物を元在庫へ混ぜない。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigCraftingPlanSummary` | CraftConfirm画面へ送る、容量と素材別数量のBigInteger正本。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigCraftingTaskProgress` | Pattern taskの総数、完了数、待機数をBigIntegerで追跡する。 |
 | `com.syaru.ae2craftingoptimizer.engine.BigExactCraftingByteCounter` | AE2 15.4.10のCPU bytes式をBigIntegerの有理数として計算する。 |
@@ -310,7 +310,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.CheckedLongMath` | 通常計画のlong演算をexact検査し、overflow時は昇格用例外を返す。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledCraftingGraph` | 世代内で再利用するPattern候補索引と依存Graph。非再帰Tarjan法で逆Graphを複製せず循環を検査し、候補順を保持する。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledPattern` | 一つのPatternをnode ID、exact係数、候補情報へ正規化した不変値。 |
-| `com.syaru.ae2craftingoptimizer.engine.CompiledRootProgram` | 決定的DAGの配列計算、副産物の共有時の順序付き計画への振り分け、全出力の数量境界を所有する。 |
+| `com.syaru.ae2craftingoptimizer.engine.CompiledRootProgram` | 外部供給で依存を打ち切ったDAGの検証、配列計算、副産物の順序付き計画への振り分け、全出力の数量境界を所有する。 |
 | `com.syaru.ae2craftingoptimizer.engine.CraftingPlanTrace` | 順序付き計画のCPU容量計算に必要な要求順と入力単位を不変値として保持する。永続取引や実在庫を所有しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.OrderedByproductPlanner` | 単一候補DAGを入力順にまとめて評価し、副産物の再利用、元在庫の最大不足量、容量計算の記録を所有する。実クラフトを実行しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledRootQualificationRegistry` | AE2標準計画とのShadow一致実績を、世代付きRoot Program単位で記録する。 |
@@ -321,7 +321,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState` | 標準AE2の実Jobへ付随するexact task、waiting、output、Receiptのsidecar正本。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator` | Exact計画が参照するPatternだけを、CPU提出直前のCraftingServiceへ再照合する。 |
 | `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlan` | LongCraftingPlanが示すクラフト計画またはコンパイル済みプログラムを不変値として保持する。 |
-| `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlanner` | 通常規模の注文をchecked long演算で展開するPlanner。 |
+| `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlanner` | Map方式のchecked long試算。元在庫の最大不足量と生成した副産物を区別する。 |
 | `com.syaru.ae2craftingoptimizer.engine.OverflowPromotingCraftingPlanner` | checked long Plannerを先に試し、overflowした注文だけ最初からBigIntegerで再計算する。 |
 | `com.syaru.ae2craftingoptimizer.engine.PlanningCancellationToken` | 共有計算を直接cancelせず、呼出者ごとの取消要求を協調的に伝えるtoken。 |
 | `com.syaru.ae2craftingoptimizer.engine.PlanningCancelledException` | PlanningCancelledExceptionが示す失敗を呼出側へ型付きで通知する。 |

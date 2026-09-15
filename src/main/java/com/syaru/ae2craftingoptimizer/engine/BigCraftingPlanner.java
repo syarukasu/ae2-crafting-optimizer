@@ -66,6 +66,7 @@ public final class BigCraftingPlanner<K> {
     private static final class State<K> {
         private final CompiledCraftingGraph<K> graph;
         private final Map<K, BigInteger> available = new HashMap<>();
+        private final Map<K, BigInteger> initial = new HashMap<>();
         private final Map<String, BigInteger> patternExecutions = new LinkedHashMap<>();
         private final Map<K, BigInteger> usedInventory = new LinkedHashMap<>();
         private final Map<K, BigInteger> emitted = new LinkedHashMap<>();
@@ -92,6 +93,7 @@ public final class BigCraftingPlanner<K> {
                 BigCountMath.requireMaximumBits(amount, "inventory", maximumBits);
                 if (amount.signum() != 0) {
                     available.put(key, amount);
+                    initial.put(key, amount);
                 }
             });
         }
@@ -112,12 +114,6 @@ public final class BigCraftingPlanner<K> {
                         continue;
                     }
                     BigInteger fromInventory = takeAvailable(frame.key, frame.amount);
-                    BigCountMath.merge(
-                            usedInventory,
-                            frame.key,
-                            fromInventory,
-                            frame.path + "/inventory",
-                            maximumBits);
                     frame.deficit = frame.amount.subtract(fromInventory);
                     if (frame.deficit.signum() == 0) {
                         pending.pop();
@@ -261,6 +257,11 @@ public final class BigCraftingPlanner<K> {
             BigInteger present = available.getOrDefault(key, BigInteger.ZERO);
             BigInteger taken = present.min(amount);
             BigInteger remaining = present.subtract(taken);
+            // Issue #190: reserve the peak initial-stock deficit, not co-product withdrawals.
+            BigInteger deficit = initial.getOrDefault(key, BigInteger.ZERO).subtract(remaining);
+            if (deficit.compareTo(usedInventory.getOrDefault(key, BigInteger.ZERO)) > 0) {
+                usedInventory.put(key, deficit);
+            }
             if (remaining.signum() == 0) {
                 available.remove(key);
             } else {
