@@ -107,6 +107,44 @@ class ReusableByproductAe2OracleTest {
         compare(List.of(root, split), out, 8, Map.of(a, 1L, b, 100L, raw, 100L));
     }
 
+    @Test
+    void comparesSharedSingleOutputDagsAgainstActualAe2() throws Exception {
+        var random = new Random(190);
+        AEKey out = AEItemKey.of(Items.DIAMOND), raw = AEItemKey.of(Items.COBBLESTONE),
+                shared = AEItemKey.of(Items.IRON_INGOT), left = AEItemKey.of(Items.GOLD_INGOT),
+                right = AEItemKey.of(Items.REDSTONE);
+        for (int trial = 0; trial < 250; trial++) {
+            var inputs = new ArrayList<>(List.of(slot(left, 1 + random.nextInt(4), 1),
+                    slot(right, 1 + random.nextInt(4), 1), slot(shared, 1 + random.nextInt(3), 1)));
+            Collections.shuffle(inputs, random);
+            var patterns = List.of(new CompiledPattern<>("root", inputs, Map.of(out, 1L), true),
+                    new CompiledPattern<>("left", List.of(slot(shared, 1 + random.nextInt(4), 1)),
+                            Map.of(left, (long) (1 + random.nextInt(4))), true),
+                    new CompiledPattern<>("right", List.of(slot(shared, 1 + random.nextInt(4), 1)),
+                            Map.of(right, (long) (1 + random.nextInt(4))), true),
+                    new CompiledPattern<>("shared", List.of(slot(raw, 1 + random.nextInt(4), 1)),
+                            Map.of(shared, (long) (1 + random.nextInt(4))), true));
+            compare(patterns, out, 1 + random.nextInt(20), Map.of(raw, (long) random.nextInt(200),
+                    left, (long) random.nextInt(20), right, (long) random.nextInt(20),
+                    shared, (long) random.nextInt(20)));
+        }
+    }
+
+    @Test
+    void comparesRepeatedFluidSlotsAndWholeTemplatesAgainstActualAe2() throws Exception {
+        AEKey out = AEItemKey.of(Items.DIAMOND), fluid = AEFluidKey.of(net.minecraft.world.level.material.Fluids.WATER),
+                raw = AEItemKey.of(Items.COBBLESTONE);
+        var root = new CompiledPattern<>("root", List.of(slot(fluid, 2000, 1000), slot(fluid, 3000, 1000)),
+                Map.of(out, 1L), true);
+        var fluidRecipe = new CompiledPattern<>("fluid", List.of(slot(raw, 1, 1)), Map.of(fluid, 1500L), true);
+        for (long amount : new long[] {1, 5, 17}) {
+            for (long fluidStock : new long[] {0, 750, 2250, 12500}) {
+                compare(List.of(root, fluidRecipe), out, amount, Map.of(fluid, fluidStock, raw, 100L));
+                compare(List.of(root, fluidRecipe), out, amount, Map.of(fluid, fluidStock, raw, 0L));
+            }
+        }
+    }
+
     private static CompiledPattern.InputSlot<AEKey> slot(AEKey key, long amount, long quantum) {
         return new CompiledPattern.InputSlot<>(List.of(new CompiledPattern.Stack<>(key, amount)), quantum);
     }
@@ -212,6 +250,7 @@ class ReusableByproductAe2OracleTest {
         assertEquals(counts(expected.missingItems()), actual.missing());
         assertEquals(counts(expected.emittedItems()), actual.emitted());
         assertEquals(expected.simulation(), !actual.craftable());
+        assertNotNull(actual.trace(), "shared/co-product plans need ordered CPU byte accounting");
         assertEquals(expected.bytes(), ExactCraftingByteCounter.calculate(actual.trace(),
                 key -> key.getType().getAmountPerByte()));
         assertEquals(BigInteger.valueOf(expected.bytes()), BigExactCraftingByteCounter.calculate(actual.trace(),

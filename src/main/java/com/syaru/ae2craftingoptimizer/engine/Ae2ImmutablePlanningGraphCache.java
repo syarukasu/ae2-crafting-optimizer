@@ -745,6 +745,10 @@ public final class Ae2ImmutablePlanningGraphCache {
             for (int node = 0; node < program.nodeCount(); node++) {
                 guard.checkpoint(node + 1);
                 AEKey key = program.keyAt(node);
+                // Issue #190: emitter leaves do not execute their unused or uncaptured producers.
+                if (program.isEmittableAt(node)) {
+                    continue;
+                }
                 int registered = registeredPatternCount(key);
                 int compiled = graph.patternsFor(key).size();
                 if (registered > 1) {
