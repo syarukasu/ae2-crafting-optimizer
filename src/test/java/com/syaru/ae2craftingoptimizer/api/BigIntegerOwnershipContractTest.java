@@ -21,9 +21,15 @@ class BigIntegerOwnershipContractTest {
     @Test
     void externalCpuRegistrationDoesNotOwnStandardCpuSubmission() throws IOException {
         String mixins = readSource("src/main/resources/ae2_crafting_optimizer.mixins.json");
+        String advancedAeMixins = readSource("src/main/resources/aco.integration.advanced_ae.mixins.json");
 
         // Issue #109: API利用宣言だけで標準AE2 CPUの提出結果を変更しない。
         assertFalse(mixins.contains("CraftingCpuClusterBigCapacityGuardMixin"));
+        // 外部CPUの実行予算はアドオンが所有し、ACOはBigInteger APIだけを提供する。
+        assertFalse(advancedAeMixins.contains("AdvancedAeCraftingCpuLogicExecutionBudgetMixin"));
+        assertFalse(Files.exists(Path.of(
+                "src/main/java/com/syaru/ae2craftingoptimizer/mixin/"
+                        + "AdvancedAeCraftingCpuLogicExecutionBudgetMixin.java")));
     }
 
     private static String readSource(String relativePath) throws IOException {

@@ -22,13 +22,14 @@
     "CraftingTreeProcessCheckedMathMixin",
     "DelegatingMEInventoryAccessor",
     "ExecutingCraftingJobTransactionAccessMixin",
-    "GenericStackInvGenerationMixin",
     "KeyCounterBigIntegerSidecarLifecycleMixin",
     "ListCraftingInventoryExactCountsMixin",
     "MEStorageMenuDisplaySaturationMixin",
     "NetworkCraftingSimulationStateAccessor",
+    "NetworkStorageCraftingPlanGenerationMixin",
     "NetworkStorageMountsAccessor",
-    "PatternProviderLogicNativeBatchReceiptMixin",
+    "PatternProviderLogicTargetAccessMixin",
+    "StorageServiceCraftingPlanGenerationMixin",
     "TaskProgressTransactionAccessMixin"
   ],
   "client": [

@@ -6,6 +6,12 @@
 
 [English](README.md) | 日本語
 
+## 2.0.0 リリース候補版
+
+**2.0.0-rc.1はプレリリースです。** 改善内容・移行時の注意・既知の制限は
+[リリースノート](docs/releases/2.0.0-rc.1.md)を確認してください。
+今回の候補版の実機での完了・取消返却・再起動復旧には、未確認項目が残っています。
+
 AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのNeoForge
 1.21.1最適化・連携MODです。重複するクラフト計算を減らし、巨大CPUの一tick
 負荷を制御し、数量に比例しない作業台クラフト取引を提供します。
@@ -31,7 +37,7 @@ AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのNeoForge
 - Applied Energistics 2 `19.2.17`
 - Advanced AE `1.6.x-1.21.1`（NeoForge、任意）
 - Neo ECO AE Extension `21.1.1`（任意）
-- 1.21.1向けGTCEu、Mekanism、Applied Mekanistics連携（任意）
+- 1.21.1向けGTCEu連携（任意）
 - 専用サーバー、シングルプレイ
 
 サーバーと全クライアントへ同じJARを導入してください。共通Configは次です。
@@ -46,7 +52,7 @@ config/ae2_crafting_optimizer-common.toml
 
 - Provider・レシピ世代単位のCompiled Pattern Graph
 - 一計算内の在庫・候補メモ化
-- 厳密に証明できる材料不足の高速判定
+- レシピ選択と会計を証明できる場合だけ使う厳密なCompiled Planner
 - `add`、`multiply`、`ceilDiv`のオーバーフロー検査
 - `long`優先と、overflow時だけの`BigInteger`昇格
 - 世代変更時の古い計算結果破棄
@@ -66,9 +72,10 @@ config/ae2_crafting_optimizer-common.toml
 
 ### 機械Recipe Intent
 
-Pattern Providerが指定したレシピ意図を保持し、GTCEuやMekanismが毎tick同じ
-レシピを総当たりする回数を減らします。電圧、条件、電力、Tank、出力容量などの
-最終判定は各機械MODが行います。
+Pattern Providerが指定したレシピ意図を保持し、対応GTCEu機械が毎tick同じレシピを
+総当たりする回数を減らします。電圧、条件、電力、Tank、出力容量などの最終判定は
+GTCEuが行います。Mekanismの`RecipeCacheLookupMonitor`と機械レシピ探索はMekanism自身が
+所有し、ACOは第二のcacheを追加せず`getRecipe`も横取りしません。
 
 ## 物理クラフトツリー
 
@@ -142,8 +149,9 @@ BigInteger化しません。
   専用親Jobとして保持する。通常AE2の子Windowへ縮小せず、適合する物理Executorが
   なければ安全に待機する
 
-AQEは任意のHost連携、AACは任意の物理Executorです。ACO本体の必須依存では
-ありません。
+AQEとInsaneAEは、自身のCPU実行を保持したままACOの版付きexact plan APIを
+利用できます。AACは物理Worker契約を登録できます。いずれもACO本体の必須依存
+ではありません。
 
 ## 安全規則
 
@@ -163,20 +171,30 @@ ACOは次を行いません。
 ```toml
 [exactVectorCrafting]
 enabled = true
-enableAqeBigIntegerParents = true
+enablePhysicalExecution = true
 maximumPatternNodes = 1024
 maximumUniqueInputKeys = 128
 maximumUniqueOutputKeys = 128
 maximumStartsPerGridPerTick = 1
 maximumActiveStagesPerGridPerTick = 256
-maximumActiveTransactionsPerGrid = 4
 gridTimeBudgetMillis = 2
-logVectorDiagnostics = false
+logExecutionStalls = true
+verifyStorageRouteBeforeOwnership = true
+
+[diagnostics]
+logCraftingDecisionFlow = true
 ```
 
-`exactVectorCrafting`という節名はConfig移行のため維持しています。実装は本項の
-物理クラフトツリーであり、削除済み直接Vector Executorを再有効化する設定では
-ありません。
+`exactVectorCrafting`は本項の物理クラフトツリーです。外部CPUの選択や実行は
+この設定から行いません。
+
+`logCraftingDecisionFlow`は`debug.log`へ、上限付きの
+`ACO-DIAG event=...`行を出します。計画結果と状態遷移だけを記録し、毎tickの正常処理、
+全在庫、巨大値の全10進桁は出力しません。
+
+Issue #164では、旧Pattern Batch V1、外部CPU実行Manager、内蔵GTCEu/Mekanism
+Native Batch、独立Fair Scheduler、端末・ストレージ・Bus・P2P書換えを削除しました。
+これらはlegacy fallbackやno-op設定としても残していません。
 
 詳細は[Configuration](docs/CONFIGURATION.md)、
 [Feature ownership](docs/FEATURE_OWNERSHIP.md)、

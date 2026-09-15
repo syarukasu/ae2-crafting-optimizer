@@ -38,7 +38,7 @@ jobs:
       - name: Build
         run: |
           chmod +x gradlew
-          ./gradlew clean build --stacktrace -PacoLocalModsDir="$GITHUB_WORKSPACE/.ci-mods"
+          ./gradlew clean build verifyIssueRegressionReleaseReadiness --stacktrace -PacoLocalModsDir="$GITHUB_WORKSPACE/.ci-mods"
 
       - name: Verify 1.21.1 artifact boundary
         shell: bash

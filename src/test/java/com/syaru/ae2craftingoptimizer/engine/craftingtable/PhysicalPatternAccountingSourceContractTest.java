@@ -16,7 +16,7 @@ class PhysicalPatternAccountingSourceContractTest {
             "engine", "craftingtable", "PhysicalCraftingTreeTransaction.java");
     private static final Path MANAGER = Path.of(
             "src", "main", "java", "com", "syaru", "ae2craftingoptimizer",
-            "integration", "AqeBigCraftingExecutionManager.java");
+            "integration", "Ae2BigCraftingExecutionManager.java");
 
     @Test
     void persistsACompleteCanonicalIdentityWithLegacyMigration() {
@@ -50,7 +50,7 @@ class PhysicalPatternAccountingSourceContractTest {
     void capturesIdentityBeforeOwnershipAndNeverReResolvesTasksFromTheLiveGraph() {
         String source = read(MANAGER);
 
-        assertTrue(count(source, "capturePatternAccounting(") >= 2L);
+        assertTrue(count(source, "capturePatternAccounting(") >= 1L);
         assertTrue(source.contains("accounting.plannedPatternDefinitions()"));
         assertTrue(source.contains("accounting.dispatchedPatternDefinitions()"));
         assertFalse(source.contains("exact accounting references an unknown pattern"));

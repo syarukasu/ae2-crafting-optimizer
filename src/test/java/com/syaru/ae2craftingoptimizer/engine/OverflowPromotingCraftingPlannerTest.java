@@ -6,9 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.syaru.ae2craftingoptimizer.api.contract.ExactCountLimits;
+import com.syaru.ae2craftingoptimizer.api.contract.ReceiptReservation;
+import com.syaru.ae2craftingoptimizer.api.contract.ReceiptReservationProtocol;
+import com.syaru.ae2craftingoptimizer.api.contract.ReceiptReservationState;
+import com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactCraftingEscrow;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class OverflowPromotingCraftingPlannerTest {
@@ -209,6 +218,321 @@ class OverflowPromotingCraftingPlannerTest {
         assertTrue(plan.craftable());
         assertEquals(exactInput, plan.usedInventory().get("input"));
         assertFalse(plan.patternExecutions().containsKey("input"));
+        assertReceiptBackedVirtualExecutionCompletes(
+                plan,
+                Map.of("input", exactInput),
+                program.patternsByOutput(),
+                request);
+    }
+
+    @Test
+    void receiptBackedExecutionAggregatesRepeatedWideInputBeforeReservation() {
+        CompiledPattern<String> output = new CompiledPattern<>(
+                "output",
+                List.of(
+                        new CompiledPattern.InputSlot<>(List.of(stack("raw", 1L))),
+                        new CompiledPattern.InputSlot<>(List.of(stack("raw", 1L)))),
+                Map.of("output", 1L),
+                false);
+        CompiledRootProgram<String> program = CompiledRootProgram.tryCompile(
+                        CompiledCraftingGraph.compile(1L, List.of(output)),
+                        "output",
+                        ignored -> false)
+                .orElseThrow();
+        BigInteger request = BigInteger.valueOf(Long.MAX_VALUE);
+        BigInteger exactInput = request.multiply(BigInteger.TWO);
+
+        var result = new OverflowPromotingCraftingPlanner<String>(256).plan(
+                program,
+                request,
+                program.captureBigInventory(
+                        key -> key.equals("raw") ? exactInput : BigInteger.ZERO,
+                        256),
+                PlanningGuard.none());
+
+        BigCraftingPlan<String> plan = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                result).plan();
+        assertEquals(exactInput, plan.usedInventory().get("raw"));
+        assertReceiptBackedVirtualExecutionCompletes(
+                plan,
+                Map.of("raw", exactInput),
+                Map.of("output", output),
+                request);
+    }
+
+    @Test
+    void promotesCraftingIslandChainWhenOnlyIntermediateDemandExceedsLong() {
+        List<CompiledPattern<String>> patterns = new java.util.ArrayList<>();
+        patterns.add(new CompiledPattern<>(
+                "stage_01",
+                List.of(
+                        new CompiledPattern.InputSlot<>(
+                                List.of(new CompiledPattern.Stack<>("seed_a", 5L))),
+                        new CompiledPattern.InputSlot<>(
+                                List.of(new CompiledPattern.Stack<>("seed_b", 4L)))),
+                Map.of("stage_01", 1L),
+                false));
+        for (int stage = 2; stage <= 20; stage++) {
+            String input = "stage_%02d".formatted(stage - 1);
+            String output = "stage_%02d".formatted(stage);
+            patterns.add(pattern(output, output, stack(input, 9L)));
+        }
+        CompiledRootProgram<String> program = CompiledRootProgram.tryCompile(
+                        CompiledCraftingGraph.compile(1L, patterns),
+                        "stage_20",
+                        ignored -> false)
+                .orElseThrow();
+
+        OverflowPromotingCraftingPlanner<String> planner =
+                new OverflowPromotingCraftingPlanner<>(256);
+        var result = planner.plan(
+                program,
+                BigInteger.TEN,
+                program.captureLongInventory(ignored -> 0L),
+                PlanningGuard.none());
+
+        BigCraftingPlan<String> plan = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                result).plan();
+        BigInteger stageOneExecutions = BigInteger.TEN.multiply(BigInteger.valueOf(9L).pow(19));
+        assertEquals(stageOneExecutions.multiply(BigInteger.valueOf(5L)), plan.missing().get("seed_a"));
+        assertEquals(stageOneExecutions.multiply(BigInteger.valueOf(4L)), plan.missing().get("seed_b"));
+        assertTrue(plan.missing().get("seed_a").compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0);
+
+        BigInteger seedA = stageOneExecutions.multiply(BigInteger.valueOf(5L));
+        BigInteger seedB = stageOneExecutions.multiply(BigInteger.valueOf(4L));
+        var craftable = planner.plan(
+                program,
+                BigInteger.TEN,
+                program.captureBigInventory(
+                        key -> key.equals("seed_a")
+                                ? seedA
+                                : key.equals("seed_b") ? seedB : BigInteger.ZERO,
+                        256),
+                PlanningGuard.none());
+        BigCraftingPlan<String> executable = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                craftable).plan();
+        assertTrue(executable.craftable());
+        assertReceiptBackedVirtualExecutionCompletes(
+                executable,
+                Map.of("seed_a", seedA, "seed_b", seedB),
+                program.patternsByOutput(),
+                BigInteger.TEN);
+    }
+
+    @Test
+    void promotesWhenOnlyFinalOutputExceedsLong() {
+        BigInteger requestedOutput = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
+        CompiledPattern<String> output = new CompiledPattern<>(
+                "output",
+                List.of(new CompiledPattern.InputSlot<>(List.of(stack("raw", 1L)))),
+                Map.of("output", Long.MAX_VALUE),
+                true);
+        CompiledCraftingGraph<String> graph =
+                CompiledCraftingGraph.compile(1L, List.of(output));
+
+        var result = new OverflowPromotingCraftingPlanner<String>(256).plan(
+                graph,
+                "output",
+                requestedOutput,
+                Map.of("raw", BigInteger.TWO));
+
+        var plan = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                result).plan();
+        assertTrue(plan.craftable());
+        assertEquals(requestedOutput, plan.requestedAmount());
+        assertEquals(BigInteger.TWO, plan.patternExecutions().get("output"));
+        assertEquals(BigInteger.TWO, plan.usedInventory().get("raw"));
+        BigInteger producedOutput = BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO);
+        assertReceiptBackedVirtualExecutionCompletes(
+                plan,
+                Map.of("raw", BigInteger.TWO),
+                Map.of("output", output),
+                producedOutput);
+    }
+
+    @Test
+    void promotesWhenOnlyIntermediateDemandExceedsLong() {
+        CompiledPattern<String> output = new CompiledPattern<>(
+                "output",
+                List.of(new CompiledPattern.InputSlot<>(List.of(stack(
+                        "intermediate",
+                        Long.MAX_VALUE)))),
+                Map.of("output", 1L),
+                true);
+        CompiledPattern<String> intermediate = new CompiledPattern<>(
+                "intermediate",
+                List.of(new CompiledPattern.InputSlot<>(List.of(stack("raw", 1L)))),
+                Map.of("intermediate", Long.MAX_VALUE),
+                true);
+        CompiledCraftingGraph<String> graph =
+                CompiledCraftingGraph.compile(1L, List.of(output, intermediate));
+
+        var result = new OverflowPromotingCraftingPlanner<String>(256).plan(
+                graph,
+                "output",
+                BigInteger.TWO,
+                Map.of("raw", BigInteger.TWO));
+
+        var plan = assertInstanceOf(
+                OverflowPromotingCraftingPlanner.BigResult.class,
+                result).plan();
+        assertTrue(plan.craftable());
+        assertEquals(BigInteger.TWO, plan.patternExecutions().get("output"));
+        assertEquals(BigInteger.TWO, plan.patternExecutions().get("intermediate"));
+        assertEquals(BigInteger.TWO, plan.usedInventory().get("raw"));
+        assertReceiptBackedVirtualExecutionCompletes(
+                plan,
+                Map.of("raw", BigInteger.TWO),
+                Map.of(
+                        "output", output,
+                        "intermediate", intermediate),
+                BigInteger.TWO);
+    }
+
+    private static void assertReceiptBackedVirtualExecutionCompletes(
+            BigCraftingPlan<String> plan,
+            Map<String, BigInteger> initialInventory,
+            Map<String, CompiledPattern<String>> patternsByOutput,
+            BigInteger finalOutputAmount) {
+        BigCraftingInventory<String> inventory = new BigCraftingInventory<>(initialInventory);
+        ExactCraftingEscrow<String> escrow = new ExactCraftingEscrow<>();
+        Map<String, BigInteger> producedOutputs = new LinkedHashMap<>();
+
+        // ME境界入力を先に予約し、以降の物理段はEscrow内の実在量だけを消費する。
+        try (var transaction = inventory.beginTransaction()) {
+            for (var entry : plan.usedInventory().entrySet()) {
+                transaction.extractExact(entry.getKey(), entry.getValue());
+            }
+            transaction.commit();
+        }
+        escrow.credit(plan.usedInventory());
+        executeReceiptBackedPattern(
+                plan.requestedKey(),
+                plan,
+                patternsByOutput,
+                new HashSet<>(),
+                escrow,
+                producedOutputs);
+
+        Map<String, BigInteger> returnedOutputs = escrow.snapshot();
+        // 最終搬入はEscrowに実在する成果物だけをME境界へ返す。
+        try (var transaction = inventory.beginTransaction()) {
+            for (var entry : returnedOutputs.entrySet()) {
+                transaction.insert(entry.getKey(), entry.getValue());
+            }
+            transaction.commit();
+        }
+        escrow.debitExact(returnedOutputs);
+
+        ExactCraftingJobLedger<String, String> ledger = ExactCraftingJobLedger.planned(
+                plan.patternExecutions(),
+                plan.emitted(),
+                plan.requestedAmount());
+        ledger.reconcile(
+                plan.patternExecutions(),
+                producedOutputs,
+                producedOutputs,
+                BigInteger.ZERO);
+
+        assertTrue(ledger.completeAndBalanced());
+        assertTrue(ledger.remainingTasks().isEmpty());
+        assertTrue(ledger.waitingFor().isEmpty());
+        assertEquals(BigInteger.ZERO, ledger.remainingOutput());
+        assertTrue(escrow.isEmpty());
+        assertEquals(finalOutputAmount, inventory.amount(plan.requestedKey()));
+        // 入口ごとに、計画量と実抽出量が一致して残数が正確であることを確認する。
+        for (var entry : plan.usedInventory().entrySet()) {
+            assertEquals(
+                    initialInventory.get(entry.getKey()).subtract(entry.getValue()),
+                    inventory.amount(entry.getKey()));
+        }
+    }
+
+    private static void executeReceiptBackedPattern(
+            String output,
+            BigCraftingPlan<String> plan,
+            Map<String, CompiledPattern<String>> patternsByOutput,
+            Set<String> executedPatterns,
+            ExactCraftingEscrow<String> escrow,
+            Map<String, BigInteger> producedOutputs) {
+        CompiledPattern<String> pattern = patternsByOutput.get(output);
+        // 在庫で満たした葉と、既に集約実行した共有Patternは再実行しない。
+        if (pattern == null || !executedPatterns.add(pattern.id())) {
+            return;
+        }
+        BigInteger executions = plan.patternExecutions().getOrDefault(
+                pattern.id(),
+                BigInteger.ZERO);
+        if (executions.signum() == 0) {
+            return;
+        }
+        // 依存Patternを先に完了し、親Patternが実際の中間素材を消費する順で進める。
+        for (CompiledPattern.InputSlot<String> slot : pattern.inputs()) {
+            assertEquals(1, slot.alternatives().size());
+            CompiledPattern.Stack<String> input = slot.alternatives().get(0);
+            executeReceiptBackedPattern(
+                    input.key(),
+                    plan,
+                    patternsByOutput,
+                    executedPatterns,
+                    escrow,
+                    producedOutputs);
+        }
+        Map<String, BigInteger> requiredInputs = new LinkedHashMap<>();
+        // 同一素材を複数slotで使う場合も、予約前に一つの正確量へ集約する。
+        for (CompiledPattern.InputSlot<String> slot : pattern.inputs()) {
+            CompiledPattern.Stack<String> input = slot.alternatives().get(0);
+            requiredInputs.merge(
+                    input.key(),
+                    BigInteger.valueOf(input.amount()).multiply(executions),
+                    BigInteger::add);
+        }
+
+        String transactionId = "virtual-" + pattern.id();
+        byte[] digest = pattern.id().getBytes(StandardCharsets.UTF_8);
+        ExactCountLimits limits = ExactCountLimits.defaults();
+        ReceiptReservation receipt = ReceiptReservationProtocol.reserve(
+                transactionId,
+                digest,
+                limits);
+        receipt = ReceiptReservationProtocol.commitRunning(
+                receipt,
+                transactionId,
+                digest,
+                limits);
+        // 物理Workerへ渡す前に、段の全入力をEscrowから一度だけ予約する。
+        if (!requiredInputs.isEmpty()) {
+            escrow.debitExact(requiredInputs);
+        }
+
+        Map<String, BigInteger> physicalOutputs = new LinkedHashMap<>();
+        // OUTPUT_READYの内容はPlanの完成品ではなく、Pattern式一回分と実行係数から得る。
+        for (Map.Entry<String, Long> produced : pattern.outputs().entrySet()) {
+            BigInteger amount = BigInteger.valueOf(produced.getValue()).multiply(executions);
+            physicalOutputs.put(produced.getKey(), amount);
+            producedOutputs.merge(produced.getKey(), amount, BigInteger::add);
+        }
+        receipt = ReceiptReservationProtocol.markOutputReady(
+                receipt,
+                transactionId,
+                digest,
+                limits);
+        escrow.credit(physicalOutputs);
+        receipt = ReceiptReservationProtocol.acknowledge(
+                receipt,
+                transactionId,
+                digest,
+                limits);
+        receipt = ReceiptReservationProtocol.forget(
+                receipt,
+                transactionId,
+                digest,
+                limits);
+        assertEquals(ReceiptReservationState.FORGOTTEN, receipt.state());
     }
 
     private static CompiledCraftingGraph<String> graph(long inputAmount) {

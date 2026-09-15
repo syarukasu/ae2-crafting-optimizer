@@ -20,6 +20,13 @@
 | [#140](https://github.com/syarukasu/ae2-crafting-optimizer/issues/140) | Mekanism入力探索がDedicated Serverでclient-only音声型を毎tick解決する | 1.5.25 | 1.5.26 | [ISSUE-140.md](issues/ISSUE-140.md) |
 | [#148](https://github.com/syarukasu/ae2-crafting-optimizer/issues/148) | 同一キーのmounted storage合計がlong境界を超えると端末表示が消える | 1.5.27以前 | 1.5.28 | [ISSUE-148.md](issues/ISSUE-148.md) |
 | [#153](https://github.com/syarukasu/ae2-crafting-optimizer/issues/153) | 同一キーのmounted storage合計がlong境界を超えるとストレージモニターが負数化する | 1.5.28以前 | 1.5.29 | [ISSUE-153.md](issues/ISSUE-153.md) |
+| [#179](https://github.com/syarukasu/ae2-crafting-optimizer/issues/179) | worker上の純粋計算中もsimulateForがtickを待たせる。固定4-thread化だけでは解決しない | 2.0.0開発版 | ローカル修正 / Snapshot適格な標準経路も分離。動的経路は対象外 | [ISSUE-179.md](issues/ISSUE-179.md) |
+| [#182](https://github.com/syarukasu/ae2-crafting-optimizer/issues/182) | 外部CPU向け物理取引APIがForgeにしかない | 2.0.0開発版 | ローカル修正 / 実機未確認 | [ISSUE-182.md](issues/ISSUE-182.md) |
+
+## 2.0.0開発版の再発記録
+
+- [Issue #125](issues/ISSUE-125.md): ACO所有Jobの外側で通常BatchがTaskを削除して隔離される。
+  通常実行予算の確定位置で排他化する。Taskの再生成・不一致の握り潰しは禁止。
 
 ## 運用
 

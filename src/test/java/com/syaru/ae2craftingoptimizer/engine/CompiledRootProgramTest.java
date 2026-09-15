@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -50,6 +51,44 @@ class CompiledRootProgramTest {
     }
 
     @Test
+    void keepsPartialInventoryAndMissingRemainderSeparate() {
+        var program = compile(
+                List.of(pattern("output", "raw", 2L, "output", 1L)),
+                "output");
+        var inventory = program.captureLongInventory(key -> key.equals("raw") ? 3L : 0L);
+
+        LongCraftingPlan<String> plan = program.planLong(
+                4L,
+                inventory,
+                PlanningGuard.none());
+
+        assertEquals(Map.of("raw", 3L), plan.usedInventory());
+        assertEquals(Map.of("raw", 5L), plan.missing());
+    }
+
+    @Test
+    void keepsPartialInventoryAndEmitterRemainderSeparate() {
+        var graph = CompiledCraftingGraph.compile(
+                1L,
+                List.of(pattern("output", "emitted", 1L, "output", 1L)));
+        var program = CompiledRootProgram.tryCompile(
+                        graph,
+                        "output",
+                        Set.of("emitted")::contains)
+                .orElseThrow();
+        var inventory = program.captureLongInventory(key -> key.equals("emitted") ? 3L : 0L);
+
+        LongCraftingPlan<String> plan = program.planLong(
+                10L,
+                inventory,
+                PlanningGuard.none());
+
+        assertEquals(Map.of("emitted", 3L), plan.usedInventory());
+        assertEquals(Map.of("emitted", 7L), plan.emitted());
+        assertTrue(plan.missing().isEmpty());
+    }
+
+    @Test
     void promotesOnlyTheOverflowingOrderAndReusesTheSameProgram() {
         var program = compile(List.of(pattern("output", "gas", 2L, "output", 1L)), "output");
         var inventory = program.captureLongInventory(ignored -> 0L);
@@ -63,6 +102,26 @@ class CompiledRootProgramTest {
 
         var big = assertInstanceOf(OverflowPromotingCraftingPlanner.BigResult.class, result);
         assertEquals(requested.multiply(BigInteger.TWO), big.plan().missing().get("gas"));
+    }
+
+    @Test
+    void promotesPatternInputWhenEightTimesTwoToTheSixtiethWouldOverflowLong() {
+        var program = compile(
+                List.of(pattern("output", "gas", 8L, "output", 1L)),
+                "output");
+        var inventory = program.captureLongInventory(ignored -> 0L);
+        BigInteger requested = BigInteger.ONE.shiftLeft(60);
+
+        var result = new OverflowPromotingCraftingPlanner<String>().plan(
+                program,
+                requested,
+                inventory,
+                PlanningGuard.none());
+
+        var big = assertInstanceOf(OverflowPromotingCraftingPlanner.BigResult.class, result);
+        assertEquals(
+                BigInteger.ONE.shiftLeft(63),
+                big.plan().missing().get("gas"));
     }
 
     @Test
@@ -135,7 +194,7 @@ class CompiledRootProgramTest {
     }
 
     @Test
-    void refusesAmbiguousByproductAndCyclicRoutes() {
+    void refusesAmbiguousAndCyclicRoutesButKeepsIndependentByproducts() {
         var first = new CompiledPattern<>("first", List.of(), Map.of("output", 1L), false);
         var second = new CompiledPattern<>("second", List.of(), Map.of("output", 1L), false);
         assertTrue(CompiledRootProgram.tryCompile(
@@ -153,7 +212,7 @@ class CompiledRootProgramTest {
                         CompiledCraftingGraph.compile(1L, List.of(byproduct)),
                         "output",
                         ignored -> false)
-                .isEmpty());
+                .isPresent());
 
         var a = pattern("a", "b", 1L, "a", 1L);
         var b = pattern("b", "a", 1L, "b", 1L);
@@ -162,6 +221,40 @@ class CompiledRootProgramTest {
                         "a",
                         ignored -> false)
                 .isEmpty());
+    }
+
+    @Test
+    void provesOnlyTreeShapedSingleOccurrenceInputsForExactByteAccounting() {
+        var tree = compile(List.of(
+                pattern("root", "middle", 2L, "output", 1L),
+                pattern("middle", "raw", 3L, "middle", 1L)), "output");
+        assertTrue(tree.hasUniqueInputOccurrencePerKey());
+
+        var left = new CompiledPattern<>(
+                "left",
+                List.of(slot("shared", 1L)),
+                Map.of("left-output", 1L),
+                false);
+        var right = new CompiledPattern<>(
+                "right",
+                List.of(slot("shared", 1L)),
+                Map.of("right-output", 1L),
+                false);
+        var root = new CompiledPattern<>(
+                "root",
+                List.of(slot("left-output", 1L), slot("right-output", 1L)),
+                Map.of("output", 1L),
+                false);
+        var sharedDag = compile(List.of(root, left, right), "output");
+        assertFalse(sharedDag.hasUniqueInputOccurrencePerKey());
+
+        var duplicateSlots = new CompiledPattern<>(
+                "duplicate-slots",
+                List.of(slot("raw", 1L), slot("raw", 1L)),
+                Map.of("output", 1L),
+                false);
+        assertFalse(compile(List.of(duplicateSlots), "output")
+                .hasUniqueInputOccurrencePerKey());
     }
 
     @Test

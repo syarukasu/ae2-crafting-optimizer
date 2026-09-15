@@ -140,8 +140,8 @@ accept the final output:
    accepting a job that can never finish;
 3. with `exactVectorCrafting.verifyStorageRouteBeforeOwnership = false`, the
    previous accept-then-wait behavior returns, and
-   `exactVectorCrafting.logExecutionStalls` reports the waiting reason once per
-   reason change and once per 600 ticks.
+   `exactVectorCrafting.logExecutionStalls` reports each waiting-state transition
+   once without a periodic repeat timer.
 
 ### No Fallback After Ownership
 
@@ -274,6 +274,13 @@ checks because AE2 encoded items require the real mod registry lifecycle.
    reconciles ownership instead of deleting the receipt.
 3. Disable AAC vector execution and confirm its controller delegates performance
    behavior to Neo ECO.
+
+## Issue #103 Backport Checks
+
+- Root Programの循環と複数Producerが別理由になること。
+- 不完全Snapshotだけが一回の再構築対象になること。
+- 公開Wide計画が正確なbyte数を保持し、外部CPUの容量判定へ渡せること。
+- Forge 1.20.1とNeoForge 1.21.1の両方で全JUnitと`clean build`を通すこと。
 
 ## Not Proven by Gradle
 

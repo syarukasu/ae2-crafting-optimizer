@@ -49,7 +49,14 @@ public final class BigIntegerStorageSnapshotBridge {
             storage.getAvailableStacks(target);
             return;
         }
+        collect(storage, target, null);
+    }
 
+    /** Planning captureでは合計をローカルに保持し、最後に一度だけSidecarへ公開する。 */
+    static void collect(
+            MEStorage storage,
+            KeyCounter target,
+            BigKeyCounterSidecars.Accumulator accumulator) {
         ArrayDeque<KeyCounter> pool = TEMPORARY_COUNTERS.get();
         KeyCounter facadeContribution = pool.pollFirst();
         // 同じスレッドの再帰呼出しで空なら一基だけ増やし、通常tickでは既存Counterを再利用する。
@@ -61,7 +68,12 @@ public final class BigIntegerStorageSnapshotBridge {
             BigKeyCounterSidecars.Snapshot exactContribution =
                     captureExactContribution(storage, facadeContribution);
 
-            BigKeyCounterSidecars.merge(target, exactContribution);
+            // 単独呼出しの公開契約は維持し、一括captureだけ全量再コピーを省略する。
+            if (accumulator == null) {
+                BigKeyCounterSidecars.merge(target, exactContribution);
+            } else {
+                accumulator.add(exactContribution);
+            }
             mergeSaturatedFacade(target, exactContribution, facadeContribution);
         } finally {
             // 次のmountへ前回のlong値とBigInteger Sidecarを持ち越さない。

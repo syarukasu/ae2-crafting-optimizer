@@ -14,6 +14,11 @@ import java.util.WeakHashMap;
  * Item・Fluid・Chemicalを巨大な一括Stackへ変換せずにInstant配送できる。</p>
  */
 public final class SequentialInstantDispatcher {
+    /**
+     * issue #74/#102: 1スタック以内の小規模要求は初回probeへ分割せず、
+     * AE2 Pattern Providerの面ラウンドロビンを同じ呼出内で維持する。
+     */
+    private static final int COLD_SMALL_JOB_OPERATIONS = 64;
     private static final Map<Object, CpuTickState> CPU_STATES =
             Collections.synchronizedMap(new WeakHashMap<>());
 
@@ -72,7 +77,9 @@ public final class SequentialInstantDispatcher {
                 sharedLimited,
                 remainingNanos,
                 nanosPerOperation,
-                ACOConfig.getInstantPatternDispatchProbeOperations(),
+                Math.min(
+                        ACOConfig.getInstantPatternDispatchProbeOperations(),
+                        ACOConfig.getInstantPatternDispatchMaximumUnmeasuredWaveOperations()),
                 ACOConfig.getInstantPatternDispatchMaximumWaveOperations());
         if (waveOperations <= 0) {
             recordBudgetStopOnce(state);
@@ -93,18 +100,16 @@ public final class SequentialInstantDispatcher {
             return 0;
         }
         int hardLimit = Math.min(requestedOperations, Math.max(1, maximumWaveOperations));
-        /*
-         * issue #74/#102: 初回計測値が無いだけで小規模ジョブをprobe件数へ縮めると、
-         * AE2標準Pattern Providerの面ラウンドロビンが本来のtick内に完了しない。
-         * 設定済みの一波上限へ全件収まる小口は、その上限自体が安全境界なので分割しない。
-         */
-        if (requestedOperations <= maximumWaveOperations) {
-            return hardLimit;
-        }
+        // 未計測の小規模要求は分割せず、Issue #74/#102で確認したProvider面の順序を維持する。
         if (nanosPerOperation <= 0L) {
+            // 64操作以下はAE2へ一度に渡してもcold-startの大波にならない。
+            if (requestedOperations <= COLD_SMALL_JOB_OPERATIONS) {
+                return hardLimit;
+            }
             return Math.min(hardLimit, Math.max(1, probeOperations));
         }
 
+        // 実測後は小規模要求でも予測を通し、重いProviderが最大wave以下という理由で予算を無視しない。
         // 実測の揺れを吸収するため、残り時間の75%だけを次の波へ割り当てる。
         long usableNanos = Math.max(1L, remainingNanos - remainingNanos / 4L);
         long predicted = Math.max(1L, usableNanos / nanosPerOperation);

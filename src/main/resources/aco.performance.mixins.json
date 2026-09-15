@@ -6,25 +6,17 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "CraftingCalculationMemoLifecycleMixin",
-    "CraftingCpuHelperFluidFastPathMixin",
+    "CraftingCpuHelperCalculationMemoMixin",
+    "CraftingSimulationIngredientSearchMixin",
+    "KeyCounterCalculationIndexMixin",
     "CraftingCpuLogicExecutionBudgetMixin",
     "CraftingProviderRefreshCoalescingMixin",
     "CraftingServiceCalculationDeduplicationMixin",
     "CraftingServiceInvalidationMixin",
-    "CraftingServicePatternLookupCacheMixin",
-    "CraftingTreeCandidatePruningMixin",
     "CraftingTreeCalculationMemoMixin",
-    "ExportBusCandidateCacheMixin",
-    "IOPortSlotWindowMixin",
-    "MultiCraftingTrackerCraftRequestThrottleMixin",
-    "PatternProviderLogicIntentCaptureMixin",
-    "P2PServiceTopologyDeduplicationMixin",
-    "StorageImportScanOrderMixin"
+    "PatternProviderLogicIntentCaptureMixin"
   ],
-  "client": [
-    "Ae2ScrollbarReleaseSafetyMixin",
-    "ClientRepoUpdateCoalescingMixin"
-  ],
+  "client": [],
   "injectors": {
     "defaultRequire": 0
   }

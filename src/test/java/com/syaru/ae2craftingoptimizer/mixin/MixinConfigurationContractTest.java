@@ -29,8 +29,7 @@ class MixinConfigurationContractTest {
                 "aco.integration.extendedae.mixins.json",
                 "aco.integration.neoecoae.mixins.json",
                 "aco.integration.ae2_overclocked.mixins.json",
-                "aco.integration.gtceu.mixins.json",
-                "aco.integration.mekanism.mixins.json")) {
+                "aco.integration.gtceu.mixins.json")) {
             String json = read(name);
             assertTrue(json.contains("\"required\": false"), name);
             assertTrue(json.contains("ConfigPlugin"), name);

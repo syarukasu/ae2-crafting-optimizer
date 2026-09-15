@@ -1,13 +1,13 @@
 package com.syaru.ae2craftingoptimizer.optimization;
 
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
+import com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import appeng.api.networking.crafting.ICraftingCPU;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 import appeng.me.service.CraftingService;
-import com.syaru.ae2craftingoptimizer.scheduler.FairCraftingJobScheduler;
 
 public final class CraftingExecutionBudget {
     private static final Map<Object, AdaptiveState> ADAPTIVE_STATES = Collections.synchronizedMap(new WeakHashMap<>());
@@ -16,13 +16,23 @@ public final class CraftingExecutionBudget {
     private CraftingExecutionBudget() {
     }
 
+    /** Issue #125: ACO所有JobはReceiptで実行し、通常Batchへ同じTaskを渡さない。 */
+    public static int nativeTickOperations(Object job, int availableOperations) {
+        // 設定が実行中に変わっても、取得済みのexact所有権を通常実行へ戻さない。
+        if (job instanceof ExactCraftingJobAccess exact && exact.aco$isExactJob()) {
+            return 0;
+        }
+        return availableOperations;
+    }
+
     public static int limitCoProcessors(Object executionOwner, ICraftingCPU cpu, int originalCoProcessors) {
-        int cappedCoProcessors = limitOperations(executionOwner, originalCoProcessors);
-        if (originalCoProcessors > cappedCoProcessors && ACOConfig.logCraftingExecutionThrottling()) {
+        long exactCoProcessors = StandardAe2CoprocessorCountResolver.resolve(cpu, originalCoProcessors);
+        int cappedCoProcessors = limitOperations(executionOwner, exactCoProcessors);
+        if (exactCoProcessors > cappedCoProcessors && ACOConfig.logCraftingExecutionThrottling()) {
             AE2CraftingOptimizer.LOGGER.debug(
                     "Capped AE2 crafting execution for CPU {} from {} coprocessors to {} effective coprocessors",
                     cpu.getName().getString(),
-                    originalCoProcessors,
+                    exactCoProcessors,
                     cappedCoProcessors);
         }
         return cappedCoProcessors;
@@ -40,18 +50,44 @@ public final class CraftingExecutionBudget {
         return cappedOperations;
     }
 
-    private static int limitOperations(Object executionOwner, int originalOperations) {
+    private static int limitOperations(Object executionOwner, long originalOperations) {
+        // 負数を「処理なし」として黙って通すとCPUが永久停止するため、生成元の不整合として拒否する。
+        if (originalOperations < 0L) {
+            throw new IllegalArgumentException(
+                    "Crafting execution operation count must be non-negative: " + originalOperations);
+        }
+
+        int safelyRepresentable = safelyRepresentableOperations(originalOperations);
         if (!ACOConfig.throttleCraftingExecution()) {
-            return originalOperations;
+            return safelyRepresentable;
         }
 
         int maxCoProcessors = ACOConfig.getMaxEffectiveCoprocessorsPerCpu();
-        int cappedOperations = Math.min(originalOperations, maxCoProcessors);
+        int cappedOperations = Math.min(safelyRepresentable, maxCoProcessors);
 
         if (ACOConfig.adaptiveCraftingExecutionBudget()) {
             cappedOperations = Math.min(cappedOperations, getAdaptiveCap(executionOwner));
         }
         return cappedOperations;
+    }
+
+    static int safelyRepresentableOperations(long originalOperations) {
+        // AE2は直後に+1するため、int経路へ渡せる最大コプロセッサ数はMAX_VALUE-1である。
+        if (originalOperations < 0L) {
+            throw new IllegalArgumentException(
+                    "Crafting execution operation count must be non-negative: " + originalOperations);
+        }
+        return (int) Math.min(
+                originalOperations,
+                (long) ACOConfig.MAX_SAFE_EFFECTIVE_COPROCESSORS);
+    }
+
+    static long measuredNanosPerOperation(int completedOperations, long elapsedNanos) {
+        // 完了0件は高価な失敗探索一回として扱い、次tickも未計測の大波を繰り返さない。
+        if (completedOperations <= 0) {
+            return Math.max(1L, elapsedNanos);
+        }
+        return Math.max(1L, elapsedNanos / completedOperations);
     }
 
     public static void recordExecution(Object executionOwner, int requestedOperations, int completedOperations, long elapsedNanos) {
@@ -67,12 +103,16 @@ public final class CraftingExecutionBudget {
         synchronized (ADAPTIVE_STATES) {
             AdaptiveState state = ADAPTIVE_STATES.computeIfAbsent(key, unused -> new AdaptiveState(hardCap));
             state.currentCap = clamp(state.currentCap, minimumCap, hardCap);
-            if (completedOperations > 0) {
-                long measuredNanosPerOperation = Math.max(1L, elapsedNanos / completedOperations);
-                state.nanosPerOperation = state.nanosPerOperation == 0L
-                        ? measuredNanosPerOperation
-                        : (state.nanosPerOperation * 7L + measuredNanosPerOperation) / 8L;
-            }
+            /*
+             * 完了0件でもProvider探索には実時間が掛かる。未記録のままだと毎tickをcold startとして
+             * 同じ重いwaveを繰り返すため、0件時は一回の失敗探索全体を一操作分として保守的に記録する。
+             */
+            long measuredNanosPerOperation = measuredNanosPerOperation(
+                    completedOperations,
+                    elapsedNanos);
+            state.nanosPerOperation = state.nanosPerOperation == 0L
+                    ? measuredNanosPerOperation
+                    : (state.nanosPerOperation * 7L + measuredNanosPerOperation) / 8L;
 
             if (elapsedNanos > targetNanos && state.currentCap > minimumCap) {
                 state.currentCap = reduceBudget(state.currentCap, requestedOperations, elapsedNanos, targetNanos, minimumCap);
@@ -88,18 +128,7 @@ public final class CraftingExecutionBudget {
             int requestedOperations,
             long gameTick) {
         if (!ACOConfig.sharedCraftingExecutionBudget() || craftingService == null || requestedOperations <= 0) {
-            if (ACOConfig.enableFairCraftingJobScheduler()
-                    && FairCraftingJobScheduler.supports(executionOwner)) {
-                return FairCraftingJobScheduler.grant(
-                        craftingService, executionOwner, requestedOperations, gameTick);
-            }
             return requestedOperations;
-        }
-
-        if (ACOConfig.enableFairCraftingJobScheduler()
-                && FairCraftingJobScheduler.supports(executionOwner)) {
-            return FairCraftingJobScheduler.grant(
-                    craftingService, executionOwner, requestedOperations, gameTick);
         }
 
         long targetNanos = ACOConfig.getSharedCraftingExecutionMillisPerGrid() * 1_000_000L;
@@ -133,11 +162,6 @@ public final class CraftingExecutionBudget {
             Object executionOwner,
             long gameTick,
             long elapsedNanos) {
-        if (ACOConfig.enableFairCraftingJobScheduler()
-                && FairCraftingJobScheduler.supports(executionOwner)) {
-            FairCraftingJobScheduler.recordElapsed(craftingService, gameTick, elapsedNanos);
-            return;
-        }
         if (!ACOConfig.sharedCraftingExecutionBudget() || craftingService == null || elapsedNanos <= 0L) {
             return;
         }
@@ -151,8 +175,7 @@ public final class CraftingExecutionBudget {
     /** Sequential Instantが次のAE2実行波を開始できるGrid共有残時間を返す。 */
     public static long remainingSharedBudgetNanos(CraftingService craftingService, long gameTick) {
         if (!ACOConfig.sharedCraftingExecutionBudget()
-                || craftingService == null
-                || ACOConfig.enableFairCraftingJobScheduler()) {
+                || craftingService == null) {
             return Long.MAX_VALUE;
         }
         long targetNanos = ACOConfig.getSharedCraftingExecutionMillisPerGrid() * 1_000_000L;
@@ -171,7 +194,7 @@ public final class CraftingExecutionBudget {
             SHARED_STATES.clear();
         }
         SequentialInstantDispatcher.clear();
-        FairCraftingJobScheduler.clear();
+        StandardAe2CoprocessorCountResolver.clear();
         if (ACOConfig.logCraftingExecutionThrottling()) {
             AE2CraftingOptimizer.LOGGER.debug("Cleared AE2 crafting execution adaptive state: {}", reason);
         }

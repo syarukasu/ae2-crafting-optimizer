@@ -8,17 +8,18 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.AEKeyType;
 import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
-import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
-import com.syaru.ae2craftingoptimizer.access.DelegatingMEInventoryAccess;
-import com.syaru.ae2craftingoptimizer.access.ExtendedAePlusBigIntegerCellInventoryAccess;
 import com.syaru.ae2craftingoptimizer.api.contract.ExactStorageAmountProvider;
+import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
+import com.syaru.ae2craftingoptimizer.mixin.DelegatingMEInventoryAccessor;
+import com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventoryAccessor;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import java.math.BigInteger;
+import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -27,24 +28,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class BigIntegerStorageSnapshotBridgeTest {
     private static final TestKey TEST_KEY = new TestKey();
+    private static final TestKey UNRELATED_KEY = new TestKey();
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
-    /** tick番号自体に意味を持たせず、同一tick判定だけを検証する固定値。 */
-    private static final long CACHE_TEST_TICK = 42L;
-    /** invalidation前後を同一tickとして比較する固定値。 */
-    private static final long INVALIDATION_TEST_TICK = 7L;
-    /** 入れ子Networkのcapture順序を検証する固定値。 */
-    private static final long NESTED_TEST_TICK = 90L;
-
-    @AfterEach
-    void resetExactNetworkSnapshotCache() {
-        ExactNetworkStorageSnapshotCache.resetForTests();
-    }
-
     @Test
     void saturatesFacadeButKeepsExactSumAcrossMountedStorages() {
         KeyCounter network = new KeyCounter();
@@ -127,6 +116,85 @@ class BigIntegerStorageSnapshotBridgeTest {
     }
 
     @Test
+    void planningBatchRetainsIncompleteAndPerKeyEvidence() {
+        var storages = List.<MEStorage>of(new LongStorage(7L),
+                new LongStorage(UNRELATED_KEY, Long.MIN_VALUE),
+                new FakePublicExactStorage(BigInteger.ZERO, false));
+        var serial = new KeyCounter();
+        // 既知の不正Providerとoverflow済みFacadeを、従来と同じ順序で取り込む。
+        for (var storage : storages) {
+            BigIntegerStorageSnapshotBridge.collect(storage, serial, true);
+        }
+        var batch = PlanningExactInventorySnapshot.captureMountedStorages(List.of(storages));
+        assertEquals(serial.get(TEST_KEY), batch.get(TEST_KEY));
+        assertEquals(serial.get(UNRELATED_KEY), batch.get(UNRELATED_KEY));
+        assertEquals(BigKeyCounterSidecars.snapshot(serial), BigKeyCounterSidecars.snapshot(batch));
+        assertFalse(BigKeyCounterSidecars.snapshot(batch).orElseThrow().isExact(TEST_KEY));
+    }
+
+    @Test
+    void measureMountedPlanningCaptureAgainstIncrementalMerge() {
+        // 256基に異なるキーを置き、同じキーしかない構成では隠れる累積コピーを測る。
+        int mounts = 256;
+        var storages = new ArrayList<MEStorage>();
+        for (int index = 0; index < mounts; index++) {
+            storages.add(new LongStorage(new TestKey(), index + 1L));
+        }
+        var wideAmount = BigInteger.TEN.pow(64);
+        storages.add(new FakePublicExactStorage(wideAmount, true));
+        storages.add(new LongStorage(7L));
+        var baseline = new KeyCounter();
+        // 従来のmountごとmergeを、同一fixtureの比較対象として保持する。
+        for (var storage : storages) {
+            BigIntegerStorageSnapshotBridge.collect(storage, baseline, true);
+        }
+        var expected = BigKeyCounterSidecars.snapshot(baseline);
+        long[] nanos = new long[2];
+        long[] allocated = new long[2];
+        var bean = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+        bean.setThreadAllocatedMemoryEnabled(true);
+        // JIT暖機10回と計測20回を交互に行い、片方だけの先行暖機を避ける。
+        int warmup = 10;
+        int measured = 20;
+        for (int round = -warmup; round < measured; round++) {
+            // 各回の先行経路を交替させる。絶対時間は合否条件に使わない。
+            for (int turn = 0; turn < 2; turn++) {
+                int mode = (round + warmup + turn) % 2;
+                long beforeBytes = bean.getThreadAllocatedBytes(Thread.currentThread().getId());
+                long before = System.nanoTime();
+                KeyCounter result;
+                // mode 0は従来集計、mode 1は実際のPlanning capture入口。
+                if (mode == 0) {
+                    result = new KeyCounter();
+                    for (var storage : storages) {
+                        BigIntegerStorageSnapshotBridge.collect(storage, result, true);
+                    }
+                } else {
+                    result = PlanningExactInventorySnapshot.captureMountedStorages(List.of(storages));
+                }
+                long elapsed = System.nanoTime() - before;
+                long bytes = bean.getThreadAllocatedBytes(Thread.currentThread().getId()) - beforeBytes;
+                assertEquals(expected, BigKeyCounterSidecars.snapshot(result));
+                assertEquals(Long.MAX_VALUE, result.get(TEST_KEY));
+                // Sidecarだけでなく、全キーのlong Facadeも従来集計と一致させる。
+                for (var entry : baseline) {
+                    assertEquals(entry.getLongValue(), result.get(entry.getKey()));
+                }
+                // 暖機を除いた時間とthread割り当て量だけを加算する。
+                if (round >= 0) {
+                    nanos[mode] += elapsed;
+                    allocated[mode] += bytes;
+                }
+            }
+        }
+        assertEquals(wideAmount.add(BigInteger.valueOf(7L)), expected.orElseThrow().amount(TEST_KEY));
+        System.out.printf("ACO-CAPTURE-PERF mounts=%d iterations=%d serialMs=%.3f batchMs=%.3f "
+                        + "serialMiB=%.3f batchMiB=%.3f%n", storages.size(), measured,
+                nanos[0] / 1_000_000.0D, nanos[1] / 1_000_000.0D,
+                allocated[0] / 1_048_576.0D, allocated[1] / 1_048_576.0D);
+    }
+
+    @Test
     void rejectsAPublicProviderThatOmitsAnExposedFacadeKey() {
         KeyCounter network = new KeyCounter();
 
@@ -173,222 +241,41 @@ class BigIntegerStorageSnapshotBridgeTest {
     }
 
     @Test
-    void reusesOneExactNetworkSnapshotWithinTheSameTick() {
-        Object storage = new Object();
-        BigInteger exactAmount = BigInteger.TEN.pow(64);
-        KeyCounter first = new KeyCounter();
+    void keepsExactnessForAReferencedKeyWhenAnUnrelatedContributionIsIncomplete() {
+        KeyCounter network = new KeyCounter();
 
-        assertFalse(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                storage,
-                first,
-                true,
-                CACHE_TEST_TICK));
         BigKeyCounterSidecars.merge(
-                first,
+                network,
                 new BigKeyCounterSidecars.Snapshot(
-                        Map.of(TEST_KEY, exactAmount),
+                        Map.of(TEST_KEY, BigInteger.TEN),
                         true));
-        first.set(TEST_KEY, Long.MAX_VALUE);
-        ExactNetworkStorageSnapshotCache.finishForTests(
-                storage,
-                first,
-                CACHE_TEST_TICK);
-
-        KeyCounter reused = new KeyCounter();
-        assertTrue(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                storage,
-                reused,
-                true,
-                CACHE_TEST_TICK));
-        assertEquals(Long.MAX_VALUE, reused.get(TEST_KEY));
-        assertEquals(
-                exactAmount,
-                BigKeyCounterSidecars.snapshot(reused)
-                        .orElseThrow()
-                        .amount(TEST_KEY));
-    }
-
-    @Test
-    void invalidationRejectsAnEarlierSnapshotInTheSameTick() {
-        Object storage = new Object();
-        KeyCounter first = new KeyCounter();
-
-        assertFalse(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                storage,
-                first,
-                true,
-                INVALIDATION_TEST_TICK));
-        first.set(TEST_KEY, 12L);
-        ExactNetworkStorageSnapshotCache.finishForTests(
-                storage,
-                first,
-                INVALIDATION_TEST_TICK);
-        ExactNetworkStorageSnapshotCache.invalidateForTests();
-
-        assertFalse(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                storage,
-                new KeyCounter(),
-                true,
-                INVALIDATION_TEST_TICK));
-    }
-
-    @Test
-    void invalidationDuringCapturePreventsPublishingAPartialSnapshot() {
-        Object storage = new Object();
-        KeyCounter inProgress = new KeyCounter();
-
-        assertFalse(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                storage,
-                inProgress,
-                true,
-                INVALIDATION_TEST_TICK));
-        inProgress.set(TEST_KEY, 12L);
-
-        // 集計途中の実在庫変更を再現し、その後のRETURNで古い値を公開させない。
-        ExactNetworkStorageSnapshotCache.invalidateForTests();
-        ExactNetworkStorageSnapshotCache.finishForTests(
-                storage,
-                inProgress,
-                INVALIDATION_TEST_TICK);
-
-        assertFalse(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                storage,
-                new KeyCounter(),
-                true,
-                INVALIDATION_TEST_TICK));
-    }
-
-    @Test
-    void neverReusesANetworkSnapshotAcrossServerTicks() {
-        Object storage = new Object();
-        KeyCounter first = new KeyCounter();
-
-        assertFalse(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                storage,
-                first,
-                true,
-                CACHE_TEST_TICK));
-        first.set(TEST_KEY, 3L);
-        ExactNetworkStorageSnapshotCache.finishForTests(
-                storage,
-                first,
-                CACHE_TEST_TICK);
-
-        assertFalse(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                storage,
-                new KeyCounter(),
-                true,
-                CACHE_TEST_TICK + 1L));
-    }
-
-    @Test
-    void nestedNetworkSnapshotCanBeReusedBeforeTheOuterScanFinishes() {
-        Object outerStorage = new Object();
-        Object innerStorage = new Object();
-        KeyCounter outer = new KeyCounter();
-        KeyCounter inner = new KeyCounter();
-
-        assertFalse(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                outerStorage,
-                outer,
-                true,
-                NESTED_TEST_TICK));
-        assertFalse(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                innerStorage,
-                inner,
-                true,
-                NESTED_TEST_TICK));
-        inner.set(TEST_KEY, 64L);
-        ExactNetworkStorageSnapshotCache.finishForTests(
-                innerStorage,
-                inner,
-                NESTED_TEST_TICK);
-
-        KeyCounter repeatedInner = new KeyCounter();
-        assertTrue(ExactNetworkStorageSnapshotCache.reuseOrBeginForTests(
-                innerStorage,
-                repeatedInner,
-                true,
-                NESTED_TEST_TICK));
-        assertEquals(64L, repeatedInner.get(TEST_KEY));
-
-        outer.set(TEST_KEY, 64L);
-        ExactNetworkStorageSnapshotCache.finishForTests(
-                outerStorage,
-                outer,
-                NESTED_TEST_TICK);
-    }
-
-    @Test
-    void gridTerminalUsesAe2CachedSnapshotOnlyForTheSameInventory() {
-        AtomicInteger menuScans = new AtomicInteger();
-        CountingStorage gridStorage = new CountingStorage(8L, menuScans);
-        BigInteger exactAmount = BigInteger.TEN.pow(32);
-        KeyCounter cached = new KeyCounter();
+        // 別キーのadapter失敗だけを再現し、TEST_KEYの正確値まで無効化しないことを確認する。
         BigKeyCounterSidecars.merge(
-                cached,
+                network,
                 new BigKeyCounterSidecars.Snapshot(
-                        Map.of(TEST_KEY, exactAmount),
-                        true));
-        cached.set(TEST_KEY, Long.MAX_VALUE);
+                        Map.of(UNRELATED_KEY, BigInteger.ONE),
+                        false));
 
-        KeyCounter result = GridStorageSnapshotBridge.availableStacksForTests(
-                gridStorage,
-                gridStorage,
-                () -> cached,
-                true);
-
-        assertEquals(0, menuScans.get());
-        assertEquals(Long.MAX_VALUE, result.get(TEST_KEY));
-        assertEquals(
-                exactAmount,
-                BigKeyCounterSidecars.snapshot(result)
-                        .orElseThrow()
-                        .amount(TEST_KEY));
+        BigKeyCounterSidecars.Snapshot snapshot =
+                BigKeyCounterSidecars.snapshot(network).orElseThrow();
+        assertFalse(snapshot.complete());
+        assertTrue(snapshot.isExact(TEST_KEY));
+        assertFalse(snapshot.isExact(UNRELATED_KEY));
     }
 
-    @Test
-    void gridTerminalDoesNotReplaceAddonSpecificInventory() {
-        AtomicInteger menuScans = new AtomicInteger();
-        CountingStorage menuStorage = new CountingStorage(5L, menuScans);
-        MEStorage differentGridStorage = new LongStorage(99L);
-        KeyCounter cached = new KeyCounter();
-        cached.set(TEST_KEY, 99L);
+    private record LongStorage(AEKey key, long amount) implements MEStorage {
+        private LongStorage(long amount) {
+            this(TEST_KEY, amount);
+        }
 
-        KeyCounter result = GridStorageSnapshotBridge.availableStacksForTests(
-                menuStorage,
-                differentGridStorage,
-                () -> cached,
-                true);
-
-        assertEquals(1, menuScans.get());
-        assertEquals(5L, result.get(TEST_KEY));
-    }
-
-    private record LongStorage(long amount) implements MEStorage {
         @Override
         public void getAvailableStacks(KeyCounter out) {
-            out.add(TEST_KEY, amount);
+            out.add(key, amount);
         }
 
         @Override
         public Component getDescription() {
             return Component.literal("long storage");
-        }
-    }
-
-    private record CountingStorage(
-            long amount,
-            AtomicInteger scans) implements MEStorage {
-        @Override
-        public void getAvailableStacks(KeyCounter out) {
-            scans.incrementAndGet();
-            out.add(TEST_KEY, amount);
-        }
-
-        @Override
-        public Component getDescription() {
-            return Component.literal("counting storage");
         }
     }
 
@@ -412,7 +299,7 @@ class BigIntegerStorageSnapshotBridgeTest {
     }
 
     private static final class FakeInfinityBigIntegerCell
-            implements MEStorage, ExtendedAePlusBigIntegerCellInventoryAccess {
+            implements MEStorage, ExtendedAePlusBigIntegerCellInventoryAccessor {
         private final Object2ObjectMap<AEKey, BigInteger> exact =
                 new Object2ObjectOpenHashMap<>();
         private int exactTypes;
@@ -488,7 +375,7 @@ class BigIntegerStorageSnapshotBridgeTest {
 
     /** DriveWatcherと同じくFacade呼出しを内側のセルへ委譲する試験用Wrapper。 */
     private static final class FakeDriveWrapper
-            implements MEStorage, DelegatingMEInventoryAccess {
+            implements MEStorage, DelegatingMEInventoryAccessor {
         private final MEStorage delegate;
 
         private FakeDriveWrapper(MEStorage delegate) {

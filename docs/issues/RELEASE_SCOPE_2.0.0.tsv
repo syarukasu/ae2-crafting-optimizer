@@ -1,0 +1,6 @@
+# release=2.0.0
+# baseline=1.5.33
+# loader=BOTH
+issue	change	automated_guarantee
+176	BigInteger昇格を値の発生位置に依存させない	入力・中間需要・出力・Pattern回数・bytesの各境界を同じexact計画器で検証する
+179	AE2計算workerと外部機械の所有権を二重化しない	ACO独自Planner executorとMekanism recipe横取りが存在しないことを固定する

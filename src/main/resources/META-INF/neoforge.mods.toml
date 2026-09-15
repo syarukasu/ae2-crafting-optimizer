@@ -34,9 +34,6 @@ config = "aco.integration.ae2_overclocked.mixins.json"
 config = "aco.integration.gtceu.mixins.json"
 
 [[mixins]]
-config = "aco.integration.mekanism.mixins.json"
-
-[[mixins]]
 config = "aco.performance.mixins.json"
 
 [[dependencies.ae2_crafting_optimizer]]
@@ -76,20 +73,6 @@ side = "BOTH"
 
 [[dependencies.ae2_crafting_optimizer]]
 modId = "gtceu"
-type = "optional"
-versionRange = "*"
-ordering = "AFTER"
-side = "BOTH"
-
-[[dependencies.ae2_crafting_optimizer]]
-modId = "mekanism"
-type = "optional"
-versionRange = "*"
-ordering = "AFTER"
-side = "BOTH"
-
-[[dependencies.ae2_crafting_optimizer]]
-modId = "appmek"
 type = "optional"
 versionRange = "*"
 ordering = "AFTER"

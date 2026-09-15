@@ -9,6 +9,12 @@
 
 English | [日本語](README_ja.md)
 
+## 2.0.0 Release Candidate
+
+**2.0.0-rc.1 is a prerelease.** See the [release notes](docs/releases/2.0.0-rc.1.md)
+for improvements, migration requirements and known limitations. The new candidate's
+full live completion/cancellation/restart matrix is still pending.
+
 AE2 Crafting Optimizer (ACO) is a NeoForge 1.21.1 optimization and integration
 layer for Applied Energistics 2. It reduces repeated crafting calculations,
 paces very large CPU execution bursts, and provides an exact transaction model
@@ -37,7 +43,7 @@ are not shared between the branches.
 - Applied Energistics 2 `19.2.17`
 - Optional Advanced AE `1.6.x-1.21.1` (NeoForge)
 - Optional Neo ECO AE Extension `21.1.1`
-- Optional 1.21.1 GTCEu, Mekanism, and Applied Mekanistics integrations
+- Optional 1.21.1 GTCEu integration
 - Dedicated server and singleplayer
 
 Install the same ACO JAR on the server and every client. The common config is:
@@ -52,7 +58,7 @@ config/ae2_crafting_optimizer-common.toml
 
 - Generation-keyed compiled Pattern graphs.
 - Calculation-local inventory and candidate memoization.
-- Deterministic missing-material fast paths with conservative fallback.
+- Strict compiled planning only when recipe choice and accounting are proven.
 - Checked `add`, `multiply`, and `ceilDiv` arithmetic.
 - `long` fast paths and bounded `BigInteger` promotion after overflow.
 - Cancellation and stale-result rejection when provider or recipe generations
@@ -78,10 +84,11 @@ how much work may be started in one server tick.
 
 ### Machine Intent
 
-ACO can retain the Pattern Provider's recipe intent so compatible GTCEu and
-Mekanism machines do not rediscover the same recipe from all candidates every
-tick. The machine mod still validates its live inputs, voltage, conditions,
-energy, tanks, and outputs.
+ACO can retain the Pattern Provider's recipe intent so compatible GTCEu
+machines do not rediscover the same recipe from all candidates every tick.
+GTCEu still validates its live inputs, voltage, conditions, energy, tanks, and
+outputs. Mekanism keeps its own `RecipeCacheLookupMonitor` and machine recipe
+lookup; ACO does not add a second cache or intercept `getRecipe`.
 
 ## Physical Crafting Tree
 
@@ -174,8 +181,9 @@ CPUs into BigInteger CPUs.
   never narrowed into a standard AE2 child window and waits when no suitable
   physical executor is available.
 
-AQE is an optional current host integration. AAC is an optional physical
-executor. ACO itself requires neither mod.
+AQE and InsaneAE may consume ACO's versioned exact-plan API while retaining
+their own CPU execution. AAC may register a physical worker contract. ACO
+itself requires none of these mods.
 
 ## Long Root Orders
 
@@ -202,30 +210,37 @@ ACO intentionally does not:
 
 ## Important Configuration
 
-The generated TOML is authoritative. The principal physical-tree settings are:
+The generated TOML is authoritative. The principal standard-AE2 exact settings
+are:
 
 ```toml
 [exactVectorCrafting]
 enabled = true
-enableAqeBigIntegerParents = true
+enablePhysicalExecution = true
 maximumPatternNodes = 1024
 maximumUniqueInputKeys = 128
 maximumUniqueOutputKeys = 128
 maximumStartsPerGridPerTick = 1
 maximumActiveStagesPerGridPerTick = 256
-maximumActiveTransactionsPerGrid = 4
 gridTimeBudgetMillis = 2
-logVectorDiagnostics = false
+logExecutionStalls = true
+verifyStorageRouteBeforeOwnership = true
+
+[diagnostics]
+logCraftingDecisionFlow = true
 ```
 
-`exactVectorCrafting` is retained as the config section name for migration.
-Its implementation is the physical crafting tree described above; the deleted
-direct Vector executor cannot be re-enabled.
+`exactVectorCrafting` is the physical crafting tree described above. External
+CPU add-ons are not selected or configured by this section.
 
 The soft time budget begins when Exact Vector first runs on a grid during that
 server tick. Trees with at most 64 physical recipe nodes are fully scanned
 within the count limit, and dependency-blocked nodes do not consume active-stage
 capacity.
+
+`logCraftingDecisionFlow` writes bounded `ACO-DIAG event=...` records to
+`debug.log`. It records one planning result and lifecycle transitions, not
+per-tick success, complete inventories, or full huge decimal values.
 
 See [Configuration](docs/CONFIGURATION.md),
 [Feature ownership](docs/FEATURE_OWNERSHIP.md),
@@ -250,6 +265,11 @@ researching the actual implementation boundaries:
 - [InsaneAE](https://github.com/taikun24/InsaneAE): one real craft plus exact
   coefficient accounting.
 - Neo ECO AE Extension: persistent physical crafting Workers and Threads.
+
+Issue #164 deliberately removes the former Pattern Batch V1, external-CPU
+execution managers, built-in GTCEu/Mekanism native batching, independent Fair
+Scheduler, and terminal/storage/bus/P2P rewrites. They are not retained as
+legacy fallbacks or no-op configuration keys.
 
 No dependency source code is redistributed.
 

@@ -16,7 +16,6 @@ public final class OptimizationFeatureGate {
     private static final ConcurrentFeatureBits MASTER_DENIALS = diagnosticsBits();
     private static final ConcurrentFeatureBits DOMAIN_DENIALS = diagnosticsBits();
     private static final ConcurrentFeatureBits FEATURE_DENIALS = diagnosticsBits();
-    private static final ConcurrentFeatureBits RETIRED_COMPATIBILITY_KEYS = diagnosticsBits();
 
     private OptimizationFeatureGate() {
     }
@@ -25,25 +24,12 @@ public final class OptimizationFeatureGate {
         Decision decision = evaluate(
                 ACOConfig.enableOptimizer(),
                 ACOConfig.rawDomainEnabled(feature.domain()),
-                individualSwitch,
-                feature.implementationStatus());
+                individualSwitch);
         record(feature, decision);
         return decision == Decision.ENABLED;
     }
 
     static Decision evaluate(boolean masterEnabled, boolean domainEnabled, boolean featureEnabled) {
-        return evaluate(
-                masterEnabled,
-                domainEnabled,
-                featureEnabled,
-                OptimizationImplementationStatus.ACTIVE);
-    }
-
-    static Decision evaluate(
-            boolean masterEnabled,
-            boolean domainEnabled,
-            boolean featureEnabled,
-            OptimizationImplementationStatus implementationStatus) {
         // masterが無効なら、domainや個別設定を評価せず全介入を停止する。
         if (!masterEnabled) {
             return Decision.MASTER_DISABLED;
@@ -56,10 +42,6 @@ public final class OptimizationFeatureGate {
         if (!featureEnabled) {
             return Decision.FEATURE_DISABLED;
         }
-        // 互換Configだけ残る機能は、trueでも実装済みのように振る舞わせない。
-        if (implementationStatus != OptimizationImplementationStatus.ACTIVE) {
-            return Decision.RETIRED_COMPATIBILITY_KEY;
-        }
         return Decision.ENABLED;
     }
 
@@ -70,15 +52,13 @@ public final class OptimizationFeatureGate {
             long masterDenied = 0L;
             long domainDenied = 0L;
             long featureDenied = 0L;
-            long retired = 0L;
             // 同じdomainへ属する拒否済みfeature bitだけを集計する。
             for (OptimizationFeature feature : OptimizationFeatureRegistry.forDomain(domain)) {
                 masterDenied += MASTER_DENIALS.contains(feature.ordinal()) ? 1L : 0L;
                 domainDenied += DOMAIN_DENIALS.contains(feature.ordinal()) ? 1L : 0L;
                 featureDenied += FEATURE_DENIALS.contains(feature.ordinal()) ? 1L : 0L;
-                retired += RETIRED_COMPATIBILITY_KEYS.contains(feature.ordinal()) ? 1L : 0L;
             }
-            snapshot.put(domain, new DenialSnapshot(masterDenied, domainDenied, featureDenied, retired));
+            snapshot.put(domain, new DenialSnapshot(masterDenied, domainDenied, featureDenied));
         }
         return Map.copyOf(snapshot);
     }
@@ -87,7 +67,6 @@ public final class OptimizationFeatureGate {
         MASTER_DENIALS.clear();
         DOMAIN_DENIALS.clear();
         FEATURE_DENIALS.clear();
-        RETIRED_COMPATIBILITY_KEYS.clear();
     }
 
     static void record(OptimizationFeature feature, Decision decision) {
@@ -95,7 +74,6 @@ public final class OptimizationFeatureGate {
             case MASTER_DISABLED -> MASTER_DENIALS.mark(feature.ordinal());
             case DOMAIN_DISABLED -> DOMAIN_DENIALS.mark(feature.ordinal());
             case FEATURE_DISABLED -> FEATURE_DENIALS.mark(feature.ordinal());
-            case RETIRED_COMPATIBILITY_KEY -> RETIRED_COMPATIBILITY_KEYS.mark(feature.ordinal());
             case ENABLED -> {
                 // 有効判定は通常経路なので、診断counterを増やさない。
             }
@@ -172,14 +150,12 @@ public final class OptimizationFeatureGate {
         ENABLED,
         MASTER_DISABLED,
         DOMAIN_DISABLED,
-        FEATURE_DISABLED,
-        RETIRED_COMPATIBILITY_KEY
+        FEATURE_DISABLED
     }
 
     public record DenialSnapshot(
             long masterDisabled,
             long domainDisabled,
-            long featureDisabled,
-            long retiredCompatibilityKey) {
+            long featureDisabled) {
     }
 }

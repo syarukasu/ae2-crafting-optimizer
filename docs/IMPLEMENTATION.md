@@ -197,8 +197,9 @@ retryable and is logged as such.
 
 The standard exact manager records the job, CPU, transaction, step, pattern,
 receipt, wait reason, budget, consumed operations, exact remaining operations,
-remaining physical steps, and exact final output remaining. The same wait
-reason is emitted on change and at most once per 600 ticks.
+remaining physical steps, and exact final output remaining. Planning emits one
+entry event when `CraftingCalculation.run()` is invoked. A wait reason is emitted
+only when the job or reason changes; no periodic timer controls diagnostics.
 
 `ExactNetworkStorageBridge` accesses only audited storage mounts whose complete
 quantity is available as `BigInteger`.
