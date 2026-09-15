@@ -23,6 +23,7 @@ import com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobLedger;
 import com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState;
 import com.syaru.ae2craftingoptimizer.engine.PlanningRuntimeEpoch;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
+import com.syaru.ae2craftingoptimizer.engine.StalePlanningSnapshotException;
 import com.syaru.ae2craftingoptimizer.engine.craftingtable.PhysicalCraftingTreeTransaction;
 import com.syaru.ae2craftingoptimizer.engine.craftingtable.CraftingTableBatchTargetResolver;
 import com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator;
@@ -159,9 +160,16 @@ public final class Ae2BigCraftingExecutionManager {
             if (grid == null || !cluster.isActive()) {
                 return true;
             }
-            var graphSnapshot = Ae2CompiledCraftingGraphCache.getOrCompile(
-                    grid,
-                    cluster.getLevel());
+            Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot;
+            try {
+                graphSnapshot = Ae2CompiledCraftingGraphCache.getOrCompile(
+                        grid,
+                        cluster.getLevel());
+            } catch (StalePlanningSnapshotException deferred) {
+                // Issue #125: 世代変化は会計破損ではない。既存取引を隔離せず、このtickを待機にする。
+                reportWaitingReason(context, "waiting for a stable crafting snapshot", 0);
+                return true;
+            }
             try {
                 restoreOrStart(context, grid, graphSnapshot);
             } catch (PhysicalCraftingTreeTransaction.PatternUnavailableException deferred) {

@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.optimization;
 
 import com.syaru.ae2craftingoptimizer.AE2CraftingOptimizer;
+import com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import appeng.api.networking.crafting.ICraftingCPU;
 import java.util.Collections;
@@ -13,6 +14,15 @@ public final class CraftingExecutionBudget {
     private static final Map<CraftingService, SharedBudgetState> SHARED_STATES = Collections.synchronizedMap(new WeakHashMap<>());
 
     private CraftingExecutionBudget() {
+    }
+
+    /** Issue #125: ACO所有JobはReceiptで実行し、通常Batchへ同じTaskを渡さない。 */
+    public static int nativeTickOperations(Object job, int availableOperations) {
+        // 設定が実行中に変わっても、取得済みのexact所有権を通常実行へ戻さない。
+        if (job instanceof ExactCraftingJobAccess exact && exact.aco$isExactJob()) {
+            return 0;
+        }
+        return availableOperations;
     }
 
     public static int limitCoProcessors(Object executionOwner, ICraftingCPU cpu, int originalCoProcessors) {

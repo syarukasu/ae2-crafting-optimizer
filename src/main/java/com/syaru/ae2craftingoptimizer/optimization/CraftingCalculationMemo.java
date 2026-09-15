@@ -3,7 +3,9 @@ package com.syaru.ae2craftingoptimizer.optimization;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
+import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.GenericStack;
+import com.syaru.ae2craftingoptimizer.access.CraftingCalculationThreadAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import java.util.Collection;
@@ -16,6 +18,10 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.ShapedRecipe;
+import net.minecraft.world.item.crafting.ShapelessRecipe;
 
 /** Calculation-local memoization for values that cannot change while one AE2 job is being solved. */
 public final class CraftingCalculationMemo {
@@ -41,6 +47,19 @@ public final class CraftingCalculationMemo {
         State state = CURRENT.get();
         if (state != null && state.calculation == calculation) {
             CURRENT.remove();
+        }
+    }
+
+    public static boolean isActive() {
+        return CURRENT.get() != null && ACOConfig.memoizeCraftingCalculationQueries();
+    }
+
+    /** Only call between candidates, never while a shared recipe frame is temporarily changed. */
+    public static void checkpointIngredientSearch() throws InterruptedException {
+        State state = CURRENT.get();
+        if (state != null && ACOConfig.memoizeCraftingCalculationQueries()
+                && state.calculation instanceof CraftingCalculationThreadAccess calculation) {
+            calculation.aco$checkpointIngredientSearch();
         }
     }
 
@@ -131,6 +150,44 @@ public final class CraftingCalculationMemo {
         return byCandidate.computeIfAbsent(candidate, ignored -> lookup.getAsBoolean());
     }
 
+    /** Issue #179: extend AE2's validation cache only for exact vanilla recipe/ingredient types. */
+    public static Boolean taggedCraftingResult(Object pattern, CraftingRecipe recipe, int slot, AEItemKey key) {
+        State state = taggedValidationState(recipe, key);
+        if (state == null) {
+            return null;
+        }
+        var results = state.taggedCrafting.get(pattern);
+        return results == null ? null : results.get(new CraftingSlotKey(slot, key));
+    }
+
+    public static void rememberTaggedCraftingResult(
+            Object pattern, CraftingRecipe recipe, int slot, AEItemKey key, boolean result) {
+        State state = taggedValidationState(recipe, key);
+        if (state != null) {
+            state.taggedCrafting.computeIfAbsent(pattern, ignored -> new HashMap<>())
+                    .put(new CraftingSlotKey(slot, key), result);
+        }
+    }
+
+    private static State taggedValidationState(CraftingRecipe recipe, AEItemKey key) {
+        if (key == null || !key.hasTag()) {
+            return null;
+        }
+        State state = currentState();
+        if (state == null || recipe == null) {
+            return null;
+        }
+        boolean eligible = state.vanillaValidation.computeIfAbsent(recipe, candidate -> {
+            // Subclasses may copy energy/NBT or consult mutable world state (Issue #179).
+            Class<?> type = candidate.getClass();
+            return (type == ShapedRecipe.class || type == ShapelessRecipe.class)
+                    && candidate.getIngredients().stream().allMatch(i -> i.getClass() == Ingredient.class);
+        });
+        return eligible ? state : null;
+    }
+
+    private record CraftingSlotKey(int slot, AEItemKey key) { }
+
     private static State state(Object calculation) {
         if (!ACOConfig.memoizeCraftingCalculationQueries()) {
             return null;
@@ -181,6 +238,8 @@ public final class CraftingCalculationMemo {
         private final Map<IPatternDetails.IInput, Map<AEKey, Optional<AEKey>>> remaining = new IdentityHashMap<>();
         private final Map<IPatternDetails.IInput, Map<Level, Map<AEKey, Boolean>>> validInputs =
                 new IdentityHashMap<>();
+        private final Map<CraftingRecipe, Boolean> vanillaValidation = new IdentityHashMap<>();
+        private final Map<Object, Map<CraftingSlotKey, Boolean>> taggedCrafting = new IdentityHashMap<>();
         private long patternGeneration;
         private long recipeGeneration;
 
@@ -205,6 +264,8 @@ public final class CraftingCalculationMemo {
             fuzzy.clear();
             remaining.clear();
             validInputs.clear();
+            vanillaValidation.clear();
+            taggedCrafting.clear();
             patternGeneration = currentPatternGeneration;
             recipeGeneration = currentRecipeGeneration;
         }

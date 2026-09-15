@@ -2,7 +2,16 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [2.0.0-rc.1] - 2026-09-15
+
+Prerelease. See [bilingual release notes](docs/releases/2.0.0-rc.1.md) for the
+full improvements, compatibility changes and runtime limitations.
+
+- Allow independent processing byproducts without losing secondary outputs.
+- Guard output-only and aggregate overflow through BigInteger promotion and child windows.
+- Yield during long ingredient searches and reuse existing candidate indexes.
+- Expose receipt-backed physical execution API v1 and prevent duplicate native ticking.
+- Forge: add a calculation-local tagged vanilla ingredient validation cache.
 
 ### Changed
 

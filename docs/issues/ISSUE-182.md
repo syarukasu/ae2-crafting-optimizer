@@ -3,7 +3,43 @@
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/182
 - Related: syarukasu/advanced-quantum-engineering#33
 - Status: Ready
-- Scope: Forge 1.20.1 / ACO 2.0 development branch. NeoForge port is not part of this PR.
+- Original PR scope: Forge 1.20.1 / ACO 2.0 development branch.
+
+## 2026-09-15 Deployment Follow-Up (Ready)
+
+- User approved backup, synchronized server/client deployment and live verification.
+- Preserve all existing September 14 changes. Integrate only the verified local
+  dependency mapping fix from the isolated PR #183 worktree before rebuilding.
+- The CI failure was reproduced with pinned distribution AE2 at
+  `Component.m_237115_(String)` in `GuiText`. Use `flatDir` plus `fg.deobf`
+  instead of raw `files(...)`; keep the real AEItemKey codec regression.
+- Build the combined tree and the companion AQE revision, verify deployed SHA-256
+  values, and retain old JARs outside the active mods directories.
+- Stop gracefully and back up the world before deployment. Do not cancel or
+  reconstruct existing stopped orders. Validate a new isolated test order.
+- Completion, exact cancellation return and restart recovery remain PENDING
+  until observed in the live runtime, regardless of automated build results.
+
+## 2026-09-14 Loader Parity Follow-Up
+
+- Status: Verified (automated acceptance); external CPU runtime acceptance remains PENDING.
+- Confirmed: Forge contains API version 1; the NeoForge development branch has no
+  `BigCraftingPhysicalExecution` class. A consumer cannot use the same contract on both loaders.
+- Change: port the existing facade and persisted accounting accessor, without another
+  executor, new configuration, public signature changes or external CPU hooks.
+- Preserve exact quantities, receipt custody, native capacity-only validation and
+  the existing loader-specific AEKey codec. No world, storage mutation or GUI changes.
+- Acceptance: both loaders expose identical public signatures; the same wide-count
+  save/restore and unknown-schema tests pass, alongside existing virtual-order tests.
+- Existing NeoForge escrow, accounting, Issue #125 and overflow tests passed before editing.
+- Live external CPU completion remains a separate acceptance item, not proven by NBT tests.
+- Result: API version 1 public signatures match in the two built JARs (`javap -public`).
+  Both loaders pass the real AEItemKey/NBT exact-count round trip and unknown-schema rejection.
+  NeoForge fixture uses its own registry and loaded-config contracts; no product fallback was added.
+- Full validation: Forge 117 suites / 496 tests / 2 skipped; NeoForge 125 suites / 516 tests,
+  zero failures and errors. Both `clean build verifyIssueRegressionManifest --no-build-cache` pass.
+- The standard CPU's transient snapshot-capture quarantine is fixed separately under Issue #125.
+  No external CPU project was edited, and no release or deployment was performed.
 
 ## Evidence
 

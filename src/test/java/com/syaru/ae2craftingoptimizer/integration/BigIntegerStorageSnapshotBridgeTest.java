@@ -15,6 +15,8 @@ import com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventor
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import java.math.BigInteger;
+import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -113,6 +115,85 @@ class BigIntegerStorageSnapshotBridgeTest {
     }
 
     @Test
+    void planningBatchRetainsIncompleteAndPerKeyEvidence() {
+        var storages = List.<MEStorage>of(new LongStorage(7L),
+                new LongStorage(UNRELATED_KEY, Long.MIN_VALUE),
+                new FakePublicExactStorage(BigInteger.ZERO, false));
+        var serial = new KeyCounter();
+        // 既知の不正Providerとoverflow済みFacadeを、従来と同じ順序で取り込む。
+        for (var storage : storages) {
+            BigIntegerStorageSnapshotBridge.collect(storage, serial, true);
+        }
+        var batch = PlanningExactInventorySnapshot.captureMountedStorages(List.of(storages));
+        assertEquals(serial.get(TEST_KEY), batch.get(TEST_KEY));
+        assertEquals(serial.get(UNRELATED_KEY), batch.get(UNRELATED_KEY));
+        assertEquals(BigKeyCounterSidecars.snapshot(serial), BigKeyCounterSidecars.snapshot(batch));
+        assertFalse(BigKeyCounterSidecars.snapshot(batch).orElseThrow().isExact(TEST_KEY));
+    }
+
+    @Test
+    void measureMountedPlanningCaptureAgainstIncrementalMerge() {
+        // 256基に異なるキーを置き、同じキーしかない構成では隠れる累積コピーを測る。
+        int mounts = 256;
+        var storages = new ArrayList<MEStorage>();
+        for (int index = 0; index < mounts; index++) {
+            storages.add(new LongStorage(new TestKey(), index + 1L));
+        }
+        var wideAmount = BigInteger.TEN.pow(64);
+        storages.add(new FakePublicExactStorage(wideAmount, true));
+        storages.add(new LongStorage(7L));
+        var baseline = new KeyCounter();
+        // 従来のmountごとmergeを、同一fixtureの比較対象として保持する。
+        for (var storage : storages) {
+            BigIntegerStorageSnapshotBridge.collect(storage, baseline, true);
+        }
+        var expected = BigKeyCounterSidecars.snapshot(baseline);
+        long[] nanos = new long[2];
+        long[] allocated = new long[2];
+        var bean = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+        bean.setThreadAllocatedMemoryEnabled(true);
+        // JIT暖機10回と計測20回を交互に行い、片方だけの先行暖機を避ける。
+        int warmup = 10;
+        int measured = 20;
+        for (int round = -warmup; round < measured; round++) {
+            // 各回の先行経路を交替させる。絶対時間は合否条件に使わない。
+            for (int turn = 0; turn < 2; turn++) {
+                int mode = (round + warmup + turn) % 2;
+                long beforeBytes = bean.getThreadAllocatedBytes(Thread.currentThread().getId());
+                long before = System.nanoTime();
+                KeyCounter result;
+                // mode 0は従来集計、mode 1は実際のPlanning capture入口。
+                if (mode == 0) {
+                    result = new KeyCounter();
+                    for (var storage : storages) {
+                        BigIntegerStorageSnapshotBridge.collect(storage, result, true);
+                    }
+                } else {
+                    result = PlanningExactInventorySnapshot.captureMountedStorages(List.of(storages));
+                }
+                long elapsed = System.nanoTime() - before;
+                long bytes = bean.getThreadAllocatedBytes(Thread.currentThread().getId()) - beforeBytes;
+                assertEquals(expected, BigKeyCounterSidecars.snapshot(result));
+                assertEquals(Long.MAX_VALUE, result.get(TEST_KEY));
+                // Sidecarだけでなく、全キーのlong Facadeも従来集計と一致させる。
+                for (var entry : baseline) {
+                    assertEquals(entry.getLongValue(), result.get(entry.getKey()));
+                }
+                // 暖機を除いた時間とthread割り当て量だけを加算する。
+                if (round >= 0) {
+                    nanos[mode] += elapsed;
+                    allocated[mode] += bytes;
+                }
+            }
+        }
+        assertEquals(wideAmount.add(BigInteger.valueOf(7L)), expected.orElseThrow().amount(TEST_KEY));
+        System.out.printf("ACO-CAPTURE-PERF mounts=%d iterations=%d serialMs=%.3f batchMs=%.3f "
+                        + "serialMiB=%.3f batchMiB=%.3f%n", storages.size(), measured,
+                nanos[0] / 1_000_000.0D, nanos[1] / 1_000_000.0D,
+                allocated[0] / 1_048_576.0D, allocated[1] / 1_048_576.0D);
+    }
+
+    @Test
     void rejectsAPublicProviderThatOmitsAnExposedFacadeKey() {
         KeyCounter network = new KeyCounter();
 
@@ -181,10 +262,14 @@ class BigIntegerStorageSnapshotBridgeTest {
         assertFalse(snapshot.isExact(UNRELATED_KEY));
     }
 
-    private record LongStorage(long amount) implements MEStorage {
+    private record LongStorage(AEKey key, long amount) implements MEStorage {
+        private LongStorage(long amount) {
+            this(TEST_KEY, amount);
+        }
+
         @Override
         public void getAvailableStacks(KeyCounter out) {
-            out.add(TEST_KEY, amount);
+            out.add(key, amount);
         }
 
         @Override

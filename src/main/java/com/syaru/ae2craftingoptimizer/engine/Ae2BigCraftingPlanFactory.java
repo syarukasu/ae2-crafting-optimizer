@@ -177,6 +177,12 @@ public final class Ae2BigCraftingPlanFactory {
                     .append(pattern == null ? "-" : pattern.id())
                     .append("|output=")
                     .append(program.outputAmountAt(node));
+            if (pattern != null && pattern.outputs().size() > 1) {
+                List<String> outputs = new ArrayList<>();
+                pattern.outputs().forEach((key, amount) -> outputs.add(encodeKey.apply(key) + "@" + amount));
+                outputs.sort(Comparator.naturalOrder());
+                descriptor.append("|outputs=").append(outputs);
+            }
             // 入力slot順とslot内候補順を維持し、全候補のキーと量を指紋へ含める。
             for (int input = 0;
                     input < program.inputCountAt(node);
@@ -223,7 +229,8 @@ public final class Ae2BigCraftingPlanFactory {
                     emptyInventory,
                     PlanningGuard.none(),
                     maximumBits);
-            return allFitSignedLong(child.patternExecutions())
+            return !program.requiresWideOutputCounts(child.patternExecutions(), maximumBits, PlanningGuard.none())
+                    && allFitSignedLong(child.patternExecutions())
                     && allFitSignedLong(child.usedInventory())
                     && allFitSignedLong(child.emitted())
                     && allFitSignedLong(child.missing());

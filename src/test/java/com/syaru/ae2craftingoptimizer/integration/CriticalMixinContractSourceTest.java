@@ -80,8 +80,11 @@ class CriticalMixinContractSourceTest {
     void verifiedAe2CoreOptimizationsDoNotSilentlyDisableTheirInjectionPoints() {
         Map<String, Long> requiredInjectionLines = Map.of(
                 "CraftingCpuLogicTransactionalBatchV2Mixin.java", 1L,
-                "CraftingTreeCalculationMemoMixin.java", 7L,
-                "CraftingCpuHelperCalculationMemoMixin.java", 2L);
+                "CraftingTreeCalculationMemoMixin.java", 9L, // #179: Pattern探索と返却物のServer委譲を追加。
+                "CraftingCpuHelperCalculationMemoMixin.java", 3L,
+                "CraftingSimulationIngredientSearchMixin.java", 1L,
+                "KeyCounterCalculationIndexMixin.java", 1L,
+                "CraftingPatternTaggedValidationMixin.java", 2L);
 
         requiredInjectionLines.forEach((fileName, requiredLines) -> {
             String source = read(MIXIN_ROOT.resolve(fileName));

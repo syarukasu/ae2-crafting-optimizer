@@ -97,10 +97,16 @@ dependencies {
     if (localAe2.isFile() && localGtceu.isFile() && localLdlib.isFile()
             && localAdvancedAe.isFile()) {
         // A checked-out pack can build reproducibly even when an optional mod Maven is unavailable.
-        implementation files(localAe2)
-        compileOnly files(localGtceu)
-        compileOnly files(localLdlib)
-        compileOnly files(localAdvancedAe)
+        repositories.flatDir {
+            name = 'acoLocalMods'
+            dirs localModsDir
+            content { includeGroup 'aco.local' }
+        }
+        // Issue #182: distribution JARs use SRG names, not the names in the test runtime.
+        implementation fg.deobf("aco.local:appliedenergistics2-forge:${ae2Version}")
+        compileOnly fg.deobf('aco.local:gtceu-1.20.1:7.5.3')
+        compileOnly fg.deobf('aco.local:ldlib-forge-1.20.1:1.0.50')
+        compileOnly fg.deobf('aco.local:AdvancedAE:1.3.5-1.20.1')
     } else {
         implementation fg.deobf("appeng:appliedenergistics2-forge:${ae2Version}")
         def gtceuDependency = project.dependencies.create('com.gregtechceu.gtceu:gtceu-1.20.1:7.5.3') {

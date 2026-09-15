@@ -88,8 +88,8 @@ final class Ae2StrictCraftingTopology {
             if (graphPattern != pattern) {
                 return null;
             }
-            // 副産物・返却物を含む複数出力は一巡会計へ入れない。
-            if (pattern.outputs().size() != 1 || pattern.outputAmount(key) <= 0L) {
+            // Issue #179: Root Program has proved that secondary outputs cannot feed this request.
+            if (pattern.outputAmount(key) <= 0L) {
                 return null;
             }
             // Level依存の代替候補を持つPatternは、server threadのcapture時点で除外済みである必要がある。

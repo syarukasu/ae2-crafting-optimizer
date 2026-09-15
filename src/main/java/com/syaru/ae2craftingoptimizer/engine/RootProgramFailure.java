@@ -6,6 +6,7 @@ public enum RootProgramFailure {
     CYCLE,
     MULTIPLE_PRODUCERS,
     MULTIPLE_OUTPUTS,
+    COUPLED_OUTPUTS,
     PROGRAM_TOO_LARGE,
     INCOMPLETE_PATTERN_SNAPSHOT,
     MISSING_FROM_SNAPSHOT;
@@ -15,6 +16,7 @@ public enum RootProgramFailure {
         return this == CYCLE
                 || this == MULTIPLE_PRODUCERS
                 || this == MULTIPLE_OUTPUTS
+                || this == COUPLED_OUTPUTS
                 || this == PROGRAM_TOO_LARGE;
     }
 

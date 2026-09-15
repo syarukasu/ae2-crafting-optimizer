@@ -194,7 +194,7 @@ class CompiledRootProgramTest {
     }
 
     @Test
-    void refusesAmbiguousByproductAndCyclicRoutes() {
+    void refusesAmbiguousAndCyclicRoutesButKeepsIndependentByproducts() {
         var first = new CompiledPattern<>("first", List.of(), Map.of("output", 1L), false);
         var second = new CompiledPattern<>("second", List.of(), Map.of("output", 1L), false);
         assertTrue(CompiledRootProgram.tryCompile(
@@ -212,7 +212,7 @@ class CompiledRootProgramTest {
                         CompiledCraftingGraph.compile(1L, List.of(byproduct)),
                         "output",
                         ignored -> false)
-                .isEmpty());
+                .isPresent());
 
         var a = pattern("a", "b", 1L, "a", 1L);
         var b = pattern("b", "a", 1L, "b", 1L);

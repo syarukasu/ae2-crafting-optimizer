@@ -71,6 +71,41 @@ class PlannerPerformanceProbeTest {
                 allocationReduction(compiled, mapped));
     }
 
+    @Test
+    void measureSharedDependencyTreeConstruction() {
+        List<CompiledPattern<String>> patterns = new ArrayList<>();
+        List<CompiledPattern.InputSlot<String>> branches = new ArrayList<>();
+        // 1,000枝が同じ中間素材へ合流するGraphを、入力生成時間を除いて計測する。
+        for (int index = 0; index < PATTERN_COUNT; index++) {
+            String key = "branch" + index;
+            branches.add(new CompiledPattern.InputSlot<>(List.of(
+                    new CompiledPattern.Stack<>(key, 1L))));
+            patterns.add(new CompiledPattern<>(key, List.of(new CompiledPattern.InputSlot<>(
+                    List.of(new CompiledPattern.Stack<>("shared", 1L)))), Map.of(key, 1L), false));
+        }
+        patterns.add(new CompiledPattern<>("root", branches, Map.of("root", 1L), false));
+        patterns.add(new CompiledPattern<>("shared", List.of(new CompiledPattern.InputSlot<>(
+                List.of(new CompiledPattern.Stack<>("raw", 1L)))), Map.of("shared", 1L), false));
+        Runnable graphConstruction = () -> assertEquals(PATTERN_COUNT + 2,
+                CompiledCraftingGraph.compile(1L, patterns).patterns().size());
+        Runnable treeConstruction = () -> assertEquals(PATTERN_COUNT + 3,
+                CompiledRootProgram.tryCompile(CompiledCraftingGraph.compile(1L, patterns),
+                        "root", ignored -> false).orElseThrow().nodeCount());
+        // 同じfixtureで構築処理を暖機し、cache済み数量計算の時間とは分ける。
+        for (int iteration = 0; iteration < WARMUP_ITERATIONS; iteration++) {
+            graphConstruction.run();
+            treeConstruction.run();
+        }
+        Measurement graph = measure(graphConstruction);
+        Measurement tree = measure(treeConstruction);
+        System.out.printf(
+                "ACO-GRAPH-PERF shape=shared nodes=%d iterations=%d graphMs=%.3f treeMs=%.3f "
+                        + "graphMiB=%.3f treeMiB=%.3f%n",
+                PATTERN_COUNT + 3, MEASURED_ITERATIONS,
+                graph.nanos() / 1_000_000.0D, tree.nanos() / 1_000_000.0D,
+                graph.allocatedBytes() / 1_048_576.0D, tree.allocatedBytes() / 1_048_576.0D);
+    }
+
     private static Measurement measure(Runnable action) {
         long allocatedBefore = allocatedBytes();
         long start = System.nanoTime();

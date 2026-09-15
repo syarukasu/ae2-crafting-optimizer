@@ -59,7 +59,8 @@ final class WideArithmeticPreflight {
                 guard,
                 maximumBits);
         // Pattern回数または各AEKey量が個別にlongを超える場合はWide計画が必須になる。
-        if (containsValuePastLong(fullPlan.patternExecutions())
+        if (program.requiresWideOutputCounts(fullPlan.patternExecutions(), maximumBits, guard)
+                || containsValuePastLong(fullPlan.patternExecutions())
                 || containsValuePastLong(fullPlan.usedInventory())
                 || containsValuePastLong(fullPlan.emitted())
                 || containsValuePastLong(fullPlan.missing())) {
@@ -106,6 +107,7 @@ final class WideArithmeticPreflight {
         long[] visitUpperBound = new long[program.nodeCount()];
         visitUpperBound[rootIndex] = 1L;
         Map<String, Long> executionsByPattern = new LinkedHashMap<>();
+        long producedOutputs = 0L;
         // CompiledRootProgramのトポロジカル順を一度だけ走査して全候補の上界を作る。
         for (int node = 0; node < program.nodeCount(); node++) {
             guard.checkpoint(node + 1);
@@ -137,6 +139,13 @@ final class WideArithmeticPreflight {
                     pattern.id(),
                     executions,
                     WideArithmeticPreflight::saturatedAdd);
+            // Issue #179: the cached certificate must cover secondary outputs too.
+            for (long outputAmount : pattern.outputs().values()) {
+                producedOutputs = saturatedAdd(producedOutputs, saturatedMultiply(outputAmount, executions));
+                if (producedOutputs == Long.MAX_VALUE) {
+                    return true;
+                }
+            }
 
             // 同じslotの候補は相互排他的でも、全候補を足して安全側の上界を作る。
             for (int input = 0; input < program.inputCountAt(node); input++) {

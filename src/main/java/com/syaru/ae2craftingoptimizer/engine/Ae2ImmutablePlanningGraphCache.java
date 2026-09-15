@@ -13,9 +13,11 @@ import com.syaru.ae2craftingoptimizer.optimization.PlanningConfigurationRevision
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import com.syaru.ae2craftingoptimizer.optimization.ServerPlanningThreadGuard;
 import com.syaru.ae2craftingoptimizer.optimization.WeightedLruMap;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -44,8 +46,6 @@ public final class Ae2ImmutablePlanningGraphCache {
     /** capture中に世代を再確認する間隔を表すbit mask。 */
     private static final int CAPTURE_REVISION_CHECK_INTERVAL_MASK = 63;
     private static final AEKeyFilter ALL_KEYS = key -> true;
-    private static final Comparator<AEKey> STABLE_KEY_ORDER = Comparator.comparing(
-            key -> key.toTagGeneric().toString());
     private static final Map<ICraftingService, PublishedServiceState> PUBLISHED =
             Collections.synchronizedMap(new WeakHashMap<>());
     private static final AtomicLong NEXT_RUNTIME_ID = new AtomicLong(1L);
@@ -174,6 +174,20 @@ public final class Ae2ImmutablePlanningGraphCache {
         }
     }
 
+    /** Issue #179: 同じNBTを比較ごとに生成せず、一度固定した文字列で従来通りソートする。 */
+    static void sortCraftableKeys(List<AEKey> craftables) {
+        // 比較不要な0/1キーではシリアライズもしない。
+        if (craftables.size() < 2) {
+            return;
+        }
+        Map<AEKey, String> sortKeys = new IdentityHashMap<>();
+        // ソート中の同一AEKey参照に対してNBT文字列を一度だけ生成する。
+        for (AEKey key : craftables) {
+            sortKeys.put(key, key.toTagGeneric().toString());
+        }
+        craftables.sort(Comparator.comparing(sortKeys::get));
+    }
+
     private static void publish(ICraftingService service, PublishedBuildTarget target) {
         Level level = target.level;
         if (level == null || !ServerPlanningThreadGuard.canCapture(level)) {
@@ -233,7 +247,7 @@ public final class Ae2ImmutablePlanningGraphCache {
             long recipeGeneration,
             long configurationRevision) {
         List<AEKey> craftables = new ArrayList<>(service.getCraftables(ALL_KEYS));
-        craftables.sort(STABLE_KEY_ORDER);
+        sortCraftableKeys(craftables);
         IdentityHashMap<IPatternDetails, Ae2CompiledPatternFactory.Captured> capturedByPattern =
                 new IdentityHashMap<>();
         List<Ae2CompiledPatternFactory.Captured> orderedPatterns = new ArrayList<>();
@@ -427,13 +441,34 @@ public final class Ae2ImmutablePlanningGraphCache {
             return published.configurationRevision;
         }
 
+        /** 通常AE2の開始時在庫Snapshotは保持し、Pattern/recipe/configの変更だけを検出する。 */
+        public boolean isCurrent() {
+            return generationsMatch(patternGeneration(), recipeGeneration(), configurationRevision());
+        }
+
+        /** Server側で実際に照会したServiceを検証する。Requester getterを二度呼ばない。 */
+        public boolean matchesService(ICraftingService service) {
+            synchronized (PUBLISHED) {
+                var state = PUBLISHED.get(service);
+                return state != null && state.runtimeIdentity == runtimeIdentity;
+            }
+        }
+
+        /** 数量計算の置換可否とは分離し、AE2自身が不変Pattern上で計算できるかを検査する。 */
+        public boolean supportsDetachedAe2Planning(PlanningGuard guard) {
+            return isCurrent()
+                    && Ae2ImmutablePlanningGraphCache.supportsDetachedAe2Planning(compile(guard), root, guard)
+                    && isCurrent();
+        }
+
         long runtimeIdentity() {
             return runtimeIdentity;
         }
 
-        /** 公開indexが参照する全キーの読取専用view。 */
+        /** Issue #156: warm rootは注文の依存キーだけを返し、同期compileは行わない。 */
         Iterable<AEKey> referencedKeys() {
-            return published.nodes.keySet();
+            return Ae2ImmutablePlanningGraphCache.referencedKeys(
+                    published.compiled, root, published.nodes.keySet());
         }
 
         /** fingerprint、SCC、配列Programをworker側で初回だけ生成する。 */
@@ -449,6 +484,59 @@ public final class Ae2ImmutablePlanningGraphCache {
         Optional<Ae2PlanningGraphSnapshot> compiledSnapshot() {
             return Optional.ofNullable(published.compiled);
         }
+    }
+
+    static Iterable<AEKey> referencedKeys(
+            @Nullable Ae2PlanningGraphSnapshot snapshot, AEKey root, Iterable<AEKey> allKeys) {
+        // cold公開indexでは、workerが読む可能性のあるキーを削らず開始時在庫を固定する。
+        if (snapshot == null) {
+            return allKeys;
+        }
+        return snapshot.cachedRootProgramOutcome(root)
+                .flatMap(CompiledRootProgram.Outcome::program)
+                .<Iterable<AEKey>>map(CompiledRootProgram::referencedKeys)
+                .orElse(allKeys);
+    }
+
+    static boolean supportsDetachedAe2Planning(
+            Ae2PlanningGraphSnapshot snapshot, AEKey root, PlanningGuard guard) {
+        var pending = new ArrayDeque<AEKey>();
+        var visited = new HashSet<AEKey>();
+        pending.add(root);
+        // 共有中間素材とcycleを一度だけ検査し、AE2の候補集合・順序には触れない。
+        while (!pending.isEmpty()) {
+            AEKey key = pending.removeFirst();
+            // 他の親から検査済みのキーは、候補を再走査しない。
+            if (!visited.add(key)) {
+                continue;
+            }
+            guard.checkpoint(visited.size());
+            // Emitter終端はPatternを実行しない。
+            if (snapshot.isEmittable(key)) {
+                continue;
+            }
+            var candidates = snapshot.graph().patternsFor(key);
+            // 一つでも未captureの候補があれば、その通常計算は従来の同期を維持する。
+            if (snapshot.isIncompletelyCompiled(key)
+                    || snapshot.registeredPatternCount(key) != candidates.size()) {
+                return false;
+            }
+            // 複数Producerや副産物も削除せず、全候補の入力metadataを検査する。
+            for (CompiledPattern<AEKey> pattern : candidates) {
+                // Level依存の入力候補をworkerから評価しない。
+                if (!snapshot.hasExactInputDomain(pattern.id())) {
+                    return false;
+                }
+                // 入力slot順・alternative順を保持したまま依存先へ進む。
+                for (CompiledPattern.InputSlot<AEKey> slot : pattern.inputs()) {
+                    // 代替候補も省略せず、それぞれの不変性を確認する。
+                    for (CompiledPattern.Stack<AEKey> input : slot.alternatives()) {
+                        pending.addLast(input.key());
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     private record NodeCapture(
@@ -529,10 +617,9 @@ public final class Ae2ImmutablePlanningGraphCache {
             }
 
             Map<AEKey, Integer> registeredPatternCounts = new LinkedHashMap<>();
-            Map<AEKey, List<CompiledPattern<AEKey>>> candidatesByOutput = new LinkedHashMap<>();
             Set<AEKey> incompleteOutputs = new LinkedHashSet<>();
             Set<AEKey> emittableKeys = new LinkedHashSet<>();
-            // nodeごとのAE2候補順を、対応するpure Pattern配列へ変換する。
+            // Issue #156: 候補は検証だけ行う。未使用の第二の出力索引を構築しない。
             int compiledNodeCount = 0;
             for (Map.Entry<AEKey, NodeCapture> entry : capture.nodes.entrySet()) {
                 guard.checkpoint(++compiledNodeCount);
@@ -543,19 +630,16 @@ public final class Ae2ImmutablePlanningGraphCache {
                     emittableKeys.add(key);
                 }
                 boolean incomplete = node.incomplete();
-                List<CompiledPattern<AEKey>> candidates = new ArrayList<>(node.candidates().size());
                 for (IPatternDetails details : node.candidates()) {
                     CompiledPattern<AEKey> compiled = compiledByPattern.get(details);
                     if (compiled == null || compiled.outputAmount(key) <= 0L) {
                         incomplete = true;
                         continue;
                     }
-                    candidates.add(compiled);
                 }
                 if (incomplete) {
                     incompleteOutputs.add(key);
                 }
-                candidatesByOutput.put(key, List.copyOf(candidates));
             }
             return new Snapshot(
                     CompiledCraftingGraph.compile(

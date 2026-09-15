@@ -81,7 +81,7 @@ jobs:
       - name: Build
         run: |
           chmod +x gradlew
-          ./gradlew clean build --stacktrace \
+          ./gradlew clean build verifyIssueRegressionReleaseReadiness --stacktrace \
             -Pae2Variant=${{ matrix.ae2Variant }} \
             -PacoLocalModsDir=.ci/mods \
             -PneoEco20_3Jar=.ci/contracts/neoecoae-20.3.0.jar \

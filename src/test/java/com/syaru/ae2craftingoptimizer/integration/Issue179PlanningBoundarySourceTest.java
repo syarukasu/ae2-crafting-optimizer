@@ -30,6 +30,26 @@ class Issue179PlanningBoundarySourceTest {
         assertFalse(lifecycle.contains("stopPlanningExecutor"));
         assertFalse(existsMain(
                 "com/syaru/ae2craftingoptimizer/engine/AsyncPlanningExecutor.java"));
+
+        String mixin = readMain("com/syaru/ae2craftingoptimizer/mixin/CraftingCalculationDiagnosticsMixin.java");
+        assertTrue(mixin.contains("aco$detachedPlanning = true;"));
+        assertTrue(mixin.contains("Ae2AuthoritativeCraftingPlanner.tryPlanDetached("));
+        assertTrue(mixin.contains("aco$waitOnlyForLiveAe2Work(Object monitor)"));
+        assertTrue(mixin.contains("incTime = Integer.MAX_VALUE;"));
+        assertTrue(mixin.contains("this::aco$reattachPlanning"));
+        assertTrue(planner.indexOf("workerYield.beforeResult();")
+                < planner.lastIndexOf("// Emitterまたはrecipe世代が変わった場合も"));
+        assertFalse(mixin.contains("registerCraftingSimulation"));
+        assertTrue(lifecycle.contains("PlanningServerTasks.stop(event.getServer())"));
+        assertTrue(mixin.contains("snapshot.supportsDetachedAe2Planning("));
+        assertTrue(mixin.contains("snapshot.isCurrent()"));
+        assertTrue(mixin.contains("PlanningServerTasks.registerWorker("));
+        assertTrue(mixin.contains("PlanningServerTasks.releaseWorker("));
+        String tree = readMain("com/syaru/ae2craftingoptimizer/mixin/CraftingTreeCalculationMemoMixin.java");
+        assertTrue(tree.contains("nodes == null"));
+        assertTrue(tree.contains(".aco$runPatternLookup(this::aco$buildChildPatterns)"));
+        assertTrue(tree.contains(".aco$observeCraftingService(service)"));
+        assertTrue(mixin.contains("snapshot.isCurrent() && aco$nativeBindingCurrent"));
     }
 
     @Test
