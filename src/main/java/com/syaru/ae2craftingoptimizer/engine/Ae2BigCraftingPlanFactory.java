@@ -189,6 +189,9 @@ public final class Ae2BigCraftingPlanFactory {
                     input++) {
                 descriptor.append("|slot:")
                         .append(input);
+                if (program.usesOrderedAccounting() && pattern.inputs().get(input).templateAmount() != 1) {
+                    descriptor.append("|quantum=").append(pattern.inputs().get(input).templateAmount());
+                }
                 // 同じPattern世代で候補集合や順序が変わった場合も別Programとして検出する。
                 for (int alternative = 0;
                         alternative

@@ -206,7 +206,7 @@ public final class Ae2CraftingShadowValidator {
             long shadowBytes = topology.calculateAe2LongBytes(
                     output,
                     requestedAmount,
-                    shadow.patternExecutions());
+                    shadow.patternExecutions(), shadow.trace());
             var comparison = CraftingPlanShadowComparator.compareComplete(
                     shadow,
                     shadowBytes,

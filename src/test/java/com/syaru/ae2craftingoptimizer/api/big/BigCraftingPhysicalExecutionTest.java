@@ -34,7 +34,9 @@ class BigCraftingPhysicalExecutionTest {
         var bootstrapped = Bootstrap.class.getDeclaredField("isBootstrapped");
         bootstrapped.setAccessible(true);
         bootstrapped.setBoolean(null, true);
-        BuiltInRegistries.bootStrap();
+        if (BuiltInRegistries.PAINTING_VARIANT.size() == 0) {
+            BuiltInRegistries.bootStrap();
+        }
         var builder = new RegistryBuilder<AEKeyType>()
                 .setName(ResourceLocation.fromNamespaceAndPath("ae2", "physical_execution_test_keys"))
                 .disableSaving().disableSync();

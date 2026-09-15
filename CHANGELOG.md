@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [2.0.0-rc.2] - 2026-09-15
+
+Prerelease. See [bilingual release notes](docs/releases/2.0.0-rc.2.md).
+
+- Reuse co-products and rounded surplus across deterministic, acyclic single-candidate branches.
+- Preserve input order, initial-inventory peak reservations and input-template byte accounting.
+- Compare actual AE2 plans, including 500 seeded shared graphs and item/fluid key boundaries.
+- Preserve long/BigInteger promotion and shared-producer output bounds without per-item expansion.
+- Keep unsupported cyclic, dynamic and missing CRAFT_LESS routes guarded; live verification remains pending.
+
 ## [2.0.0-rc.1] - 2026-09-15
 
 Prerelease. See [bilingual release notes](docs/releases/2.0.0-rc.1.md) for the
