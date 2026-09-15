@@ -310,7 +310,9 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.CheckedLongMath` | 通常計画のlong演算をexact検査し、overflow時は昇格用例外を返す。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledCraftingGraph` | 世代内で再利用するPattern候補索引と依存Graph。非再帰Tarjan法で逆Graphを複製せず循環を検査し、候補順を保持する。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledPattern` | 一つのPatternをnode ID、exact係数、候補情報へ正規化した不変値。 |
-| `com.syaru.ae2craftingoptimizer.engine.CompiledRootProgram` | 決定的DAGの配列計算、要求グラフと副産物の独立性証明、全出力の数量境界を所有する。 |
+| `com.syaru.ae2craftingoptimizer.engine.CompiledRootProgram` | 決定的DAGの配列計算、副産物の共有時の順序付き計画への振り分け、全出力の数量境界を所有する。 |
+| `com.syaru.ae2craftingoptimizer.engine.CraftingPlanTrace` | 順序付き計画のCPU容量計算に必要な要求順と入力単位を不変値として保持する。永続取引や実在庫を所有しない。 |
+| `com.syaru.ae2craftingoptimizer.engine.OrderedByproductPlanner` | 単一候補DAGを入力順にまとめて評価し、副産物の再利用、元在庫の最大不足量、容量計算の記録を所有する。実クラフトを実行しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.CompiledRootQualificationRegistry` | AE2標準計画とのShadow一致実績を、世代付きRoot Program単位で記録する。 |
 | `com.syaru.ae2craftingoptimizer.engine.CountOverflowException` | CountOverflowExceptionが示す失敗を呼出側へ型付きで通知する。 |
 | `com.syaru.ae2craftingoptimizer.engine.CraftingPlanShadowComparator` | ACO計画とAE2標準計画の結果・不足・bytesを比較し、不一致なら採用を拒否する。 |

@@ -555,6 +555,12 @@ public final class Ae2AuthoritativeCraftingPlanner {
             boolean widePlan = wideArithmeticRequired
                     || promoted.usesBigInteger()
                     || symbolic == null;
+            if (program.usesOrderedAccounting() && !exactPlan.craftable()
+                    && strategy == CalculationStrategy.CRAFT_LESS) {
+                return declineOrThrow(capture, output, requestedAmount, widePlan,
+                        BigIntegerPlanDeclineReason.UNSUPPORTED_TOPOLOGY,
+                        "partial byproduct search requires AE2 retained-tree accounting");
+            }
             // wide不足はAE2のlong計算へ戻さず、正確なsimulationまたは部分探索へ進める。
             if (!exactPlan.craftable() && widePlan) {
                 if (strategy == CalculationStrategy.CRAFT_LESS) {
@@ -850,7 +856,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         output,
                         requested,
                         exactPlan.patternExecutions(),
-                        ACOConfig.getBigIntegerMaximumBits());
+                        ACOConfig.getBigIntegerMaximumBits(), exactPlan.trace());
         Ae2BigCraftingPlanFactory.PreparedBigRootPlan prepared =
                 Ae2BigCraftingPlanFactory.prepareCompiledRoot(
                         output,
@@ -945,7 +951,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         output,
                         requestedAmount,
                         exactPlan.patternExecutions(),
-                        ACOConfig.getBigIntegerMaximumBits());
+                        ACOConfig.getBigIntegerMaximumBits(), exactPlan.trace());
         return materialize(capture, workerYield, () -> {
             Map<IPatternDetails, BigInteger> exactPatternTimes = resolveExactPatternTimes(
                     graphSnapshot, exactPlan.patternExecutions());
@@ -1063,7 +1069,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 widenLongMap(source.usedInventory()),
                 widenLongMap(source.emitted()),
                 widenLongMap(source.missing()),
-                0);
+                0, source.trace());
     }
 
     private static <K> Map<K, BigInteger> widenLongMap(Map<K, Long> source) {
@@ -1097,13 +1103,14 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         output,
                         BigInteger.valueOf(requestedAmount),
                         symbolic.bigPatternExecutions(),
-                        ACOConfig.getBigIntegerMaximumBits());
+                        ACOConfig.getBigIntegerMaximumBits(), symbolic.trace());
         // bytesのtree走査はbinding確定より前にworker上で完了させる。
         boolean bigCapacity = exactBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0;
         long facadeBytes = bigCapacity ? 0L
                 : fullExpansionRequiresWideArithmetic || wideInputAggregate
                         ? exactBytes.longValueExact()
-                        : topology.calculateAe2LongBytes(output, requestedAmount, symbolic.patternExecutions());
+                        : topology.calculateAe2LongBytes(output, requestedAmount, symbolic.patternExecutions(),
+                                symbolic.trace());
         return materialize(capture, workerYield, () -> {
             Map<IPatternDetails, Long> patternTimes = new LinkedHashMap<>();
             // fingerprint IDを同じ世代Snapshotの実IPatternDetailsへ戻す。
@@ -1263,7 +1270,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         bigPatternCounter(plan.patternExecutions()),
                         plan.usedInventory(),
                         plan.emitted(),
-                        plan.missing());
+                        plan.missing(), plan.trace());
             }
             // overflow昇格後も、AE2へ渡す全個別値がlongへ正確に戻せる場合だけ採用する。
             if (promoted instanceof OverflowPromotingCraftingPlanner.BigResult<AEKey> result) {
@@ -1277,7 +1284,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                         plan.patternExecutions(),
                         exactLongCounter(plan.usedInventory()),
                         exactLongCounter(plan.emitted()),
-                        exactLongCounter(plan.missing()));
+                        exactLongCounter(plan.missing()), plan.trace());
             }
             return null;
         } catch (ArithmeticException invalidLongBoundary) {
@@ -1658,7 +1665,8 @@ public final class Ae2AuthoritativeCraftingPlanner {
             Map<String, BigInteger> bigPatternExecutions,
             Map<AEKey, Long> usedInventory,
             Map<AEKey, Long> emitted,
-            Map<AEKey, Long> missing) {
+            Map<AEKey, Long> missing,
+            CraftingPlanTrace<AEKey> trace) {
         private NormalizedPlan {
             patternExecutions = Map.copyOf(patternExecutions);
             bigPatternExecutions = Map.copyOf(bigPatternExecutions);

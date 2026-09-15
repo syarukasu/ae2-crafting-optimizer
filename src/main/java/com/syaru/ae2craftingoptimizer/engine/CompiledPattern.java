@@ -65,8 +65,17 @@ public final class CompiledPattern<K> {
 
     public static final class InputSlot<K> {
         private final List<Stack<K>> alternatives;
+        private final long templateAmount;
 
         public InputSlot(List<Stack<K>> alternatives) {
+            this(alternatives, 1L);
+        }
+
+        public InputSlot(List<Stack<K>> alternatives, long templateAmount) {
+            if (templateAmount <= 0) {
+                throw new IllegalArgumentException("templateAmount must be positive");
+            }
+            this.templateAmount = templateAmount;
             Objects.requireNonNull(alternatives, "alternatives");
             if (alternatives.isEmpty()) {
                 throw new IllegalArgumentException("input slot must have at least one alternative");
@@ -80,6 +89,10 @@ public final class CompiledPattern<K> {
 
         public List<Stack<K>> alternatives() {
             return alternatives;
+        }
+
+        public long templateAmount() {
+            return templateAmount;
         }
     }
 

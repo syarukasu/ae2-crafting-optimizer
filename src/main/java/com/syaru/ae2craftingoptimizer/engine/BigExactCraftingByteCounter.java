@@ -55,6 +55,25 @@ public final class BigExactCraftingByteCounter<K> {
         return BigCountMath.requireMaximumBits(result, "bytes/result", maximumBits);
     }
 
+    static <K> BigInteger calculate(CraftingPlanTrace<K> trace, ToLongFunction<K> amountPerByte, int maximumBits) {
+        var counter = new BigExactCraftingByteCounter<K>(Map.of(), Map.of(), amountPerByte, maximumBits);
+        for (var charge : trace.charges()) {
+            if (charge.key() == null) {
+                counter.addInteger(charge.amount());
+            } else {
+                long divisor = amountPerByte.applyAsLong(charge.key());
+                if (divisor <= 0) {
+                    throw new IllegalArgumentException("amountPerByte must be positive");
+                }
+                counter.addFraction(BigCountMath.multiply(charge.amount(), BigInteger.valueOf(8),
+                        "byproduct/bytes", maximumBits), BigInteger.valueOf(divisor));
+            }
+        }
+        BigInteger[] divided = counter.numerator.divideAndRemainder(counter.denominator);
+        return BigCountMath.requireMaximumBits(divided[0].add(divided[1].signum() == 0
+                ? BigInteger.ZERO : BigInteger.ONE), "byproduct/bytes", maximumBits);
+    }
+
     private BigInteger visit(K key, BigInteger requestedAmount) {
         // 共有中間素材または循環を枝ごとに再展開してCPU bytesを二重計上しない。
         if (!visitedKeys.add(key)) {

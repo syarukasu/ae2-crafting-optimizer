@@ -47,9 +47,9 @@ final class Ae2StrictCraftingTopology {
         /*
          * Issue #167: 共有中間素材を持つDAGでは数量計画は正しくても、AE2の展開木に対する
          * CPU bytesを固有ノード実行数から再現できない。過大なCPU容量判定を返さないため、
-         * 各入力キーが一度だけ現れる木構造を証明できる場合に限ってexact結果を採用する。
+         * 各入力キーが一度だけ現れる木構造、またはIssue #185の展開順を記録する計画だけを採用する。
          */
-        if (!program.hasUniqueInputOccurrencePerKey()) {
+        if (!program.usesOrderedAccounting() && !program.hasUniqueInputOccurrencePerKey()) {
             return null;
         }
 
@@ -88,7 +88,7 @@ final class Ae2StrictCraftingTopology {
             if (graphPattern != pattern) {
                 return null;
             }
-            // Issue #179: Root Program has proved that secondary outputs cannot feed this request.
+            // Issue #185: coupled outputs use an ordered simulation with its own exact byte trace.
             if (pattern.outputAmount(key) <= 0L) {
                 return null;
             }
@@ -133,6 +133,29 @@ final class Ae2StrictCraftingTopology {
                 executions,
                 key -> key.getType().getAmountPerByte(),
                 maximumBits);
+    }
+
+    BigInteger calculateBigExactBytes(AEKey root, BigInteger requestedAmount,
+            Map<String, BigInteger> executions, int maximumBits, CraftingPlanTrace<AEKey> trace) {
+        if (trace != null) {
+            return BigExactCraftingByteCounter.calculate(trace,
+                    key -> key.getType().getAmountPerByte(), maximumBits);
+        }
+        if (program.usesOrderedAccounting()) {
+            throw new IllegalArgumentException("ordered plan requires its byte accounting trace");
+        }
+        return calculateBigExactBytes(root, requestedAmount, executions, maximumBits);
+    }
+
+    long calculateAe2LongBytes(AEKey root, long requestedAmount, Map<String, Long> executions,
+            CraftingPlanTrace<AEKey> trace) {
+        if (trace != null) {
+            return ExactCraftingByteCounter.calculate(trace, key -> key.getType().getAmountPerByte());
+        }
+        if (program.usesOrderedAccounting()) {
+            throw new IllegalArgumentException("ordered plan requires its byte accounting trace");
+        }
+        return calculateAe2LongBytes(root, requestedAmount, executions);
     }
 
     /** 通常long計画ではAE2 15.4.10と同じdouble加算順と飽和castを維持する。 */
