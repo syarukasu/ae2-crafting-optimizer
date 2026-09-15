@@ -111,8 +111,29 @@ class ReusableByproductAe2OracleTest {
         return new CompiledPattern.InputSlot<>(List.of(new CompiledPattern.Stack<>(key, amount)), quantum);
     }
 
+    @Test
+    void comparesEmitterPrunedRecyclingAgainstActualAe2() throws Exception {
+        AEKey out = AEItemKey.of(Items.DIAMOND), a = AEItemKey.of(Items.IRON_INGOT),
+                b = AEItemKey.of(Items.GOLD_INGOT), raw = AEItemKey.of(Items.COBBLESTONE);
+        for (boolean reverse : new boolean[] {false, true}) {
+            var inputs = reverse ? List.of(slot(b, 5, 1), slot(a, 2, 1))
+                    : List.of(slot(a, 2, 1), slot(b, 5, 1));
+            var root = new CompiledPattern<>("root", inputs, Map.of(out, 1L), true);
+            var split = new CompiledPattern<>("split", List.of(slot(raw, 3, 1)), Map.of(a, 3L, b, 7L), true);
+            var recycle = new CompiledPattern<>("unused-recycle", List.of(slot(out, 1, 1)), Map.of(b, 2L), true);
+            for (long stock : new long[] {0, 2, 200}) {
+                compare(List.of(root, split, recycle), out, 7, Map.of(raw, 30L, b, stock), Set.of(b));
+            }
+        }
+    }
+
     private static void compare(List<CompiledPattern<AEKey>> patterns, AEKey out, long amount,
             Map<AEKey, Long> stock) throws Exception {
+        compare(patterns, out, amount, stock, Set.of());
+    }
+
+    private static void compare(List<CompiledPattern<AEKey>> patterns, AEKey out, long amount,
+            Map<AEKey, Long> stock, Set<AEKey> emitters) throws Exception {
         var byKey = new HashMap<AEKey, List<IPatternDetails>>();
         var ids = new IdentityHashMap<IPatternDetails, String>();
         for (var pattern : patterns) {
@@ -139,7 +160,7 @@ class ReusableByproductAe2OracleTest {
             pattern.outputs().keySet().forEach(key -> byKey.computeIfAbsent(key, k -> new ArrayList<>()).add(detail));
         }
         ICraftingService service = proxy(ICraftingService.class, (method, args) -> switch (method) {
-            case "canEmitFor" -> false;
+            case "canEmitFor" -> emitters.contains(args[0]);
             case "getCraftingFor" -> byKey.getOrDefault(args[0], List.of());
             case "getFuzzyCraftable" -> null;
             default -> throw new AssertionError(method);
@@ -181,7 +202,7 @@ class ReusableByproductAe2OracleTest {
         var expected = (ICraftingPlan) compute.invoke(job);
 
         var program = CompiledRootProgram.tryCompile(CompiledCraftingGraph.compile(1, patterns),
-                out, k -> false).orElseThrow();
+                out, emitters::contains).orElseThrow();
         var actual = program.planLong(amount, program.captureLongInventory(k -> stock.getOrDefault(k, 0L)),
                 PlanningGuard.none());
         Map<String, Long> crafts = new HashMap<>();
