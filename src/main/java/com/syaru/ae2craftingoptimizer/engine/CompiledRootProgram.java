@@ -5,6 +5,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -56,6 +57,7 @@ public final class CompiledRootProgram<K> {
     private final Set<K> emittableKeys;
     private final int patternCount;
     private final boolean hasByproducts;
+    private final boolean orderedAccounting;
 
     private CompiledRootProgram(
             long generation,
@@ -95,6 +97,9 @@ public final class CompiledRootProgram<K> {
         this.emittableKeys = Set.copyOf(emittableKeys);
         this.patternCount = patternCount;
         this.hasByproducts = patternsByOutput.values().stream().anyMatch(pattern -> pattern.outputs().size() > 1);
+        this.orderedAccounting = patternsByOutput.entrySet().stream().anyMatch(entry ->
+                entry.getValue().outputs().keySet().stream().anyMatch(output ->
+                        !output.equals(entry.getKey()) && indexByKey.containsKey(output)));
     }
 
     /**
@@ -186,13 +191,24 @@ public final class CompiledRootProgram<K> {
             dependencies.put(key, Set.copyOf(children));
         }
 
-        // Issue #179: independent byproducts never satisfy this order's inputs. Keep their full Pattern.
+        // Issue #185: coupled outputs require exact ordered inputs, not the aggregate demand evaluator.
         int checkedOutputs = 0;
+        boolean coupled = false;
         for (Map.Entry<K, CompiledPattern<K>> entry : selected.entrySet()) {
             for (K output : entry.getValue().outputs().keySet()) {
                 guard.checkpoint(++checkedOutputs);
                 if (!output.equals(entry.getKey()) && reachable.contains(output)) {
-                    return Outcome.failed(RootProgramFailure.COUPLED_OUTPUTS);
+                    coupled = true;
+                }
+            }
+        }
+        if (coupled) {
+            for (var pattern : selected.values()) {
+                guard.checkpoint(++checkedOutputs);
+                for (var slot : pattern.inputs()) {
+                    if (slot.alternatives().size() != 1) {
+                        return Outcome.failed(RootProgramFailure.COUPLED_OUTPUTS);
+                    }
                 }
             }
         }
@@ -511,6 +527,15 @@ public final class CompiledRootProgram<K> {
         requireSnapshot(inventory);
         Objects.requireNonNull(guard, "guard");
 
+        if (orderedAccounting) {
+            BigInteger[] amounts = new BigInteger[keys.size()];
+            for (int i = 0; i < amounts.length; i++) {
+                amounts[i] = BigInteger.valueOf(inventory.amountAt(i));
+            }
+            return OrderedByproductPlanner.narrow(OrderedByproductPlanner.plan(this,
+                    BigInteger.valueOf(requestedAmount), amounts, guard, BigCountMath.HARD_MAXIMUM_BITS), this, guard);
+        }
+
         int nodeCount = keys.size();
         long[] demand = new long[nodeCount];
         long[] patternExecutions = new long[nodeCount];
@@ -816,6 +841,9 @@ public final class CompiledRootProgram<K> {
             int maximumBits) {
         BigCountMath.requireMaximumBits(requestedAmount, "compiled-root/request", maximumBits);
         Objects.requireNonNull(guard, "guard");
+        if (orderedAccounting) {
+            return OrderedByproductPlanner.plan(this, requestedAmount, inventory, guard, maximumBits);
+        }
 
         int nodeCount = keys.size();
         BigInteger[] demand = new BigInteger[nodeCount];
@@ -903,10 +931,11 @@ public final class CompiledRootProgram<K> {
             return false;
         }
         BigInteger total = BigInteger.ZERO;
+        Set<String> counted = new HashSet<>();
         for (int node = 0; node < nodeCount(); node++) {
             guard.checkpoint(node + 1);
             CompiledPattern<K> pattern = patternAt(node);
-            if (pattern == null) {
+            if (pattern == null || !counted.add(pattern.id())) {
                 continue;
             }
             BigInteger count = executions.getOrDefault(pattern.id(), BigInteger.ZERO);
@@ -1220,6 +1249,10 @@ public final class CompiledRootProgram<K> {
 
     public int nodeCount() {
         return keys.size();
+    }
+
+    boolean usesOrderedAccounting() {
+        return orderedAccounting;
     }
 
     /** 同一Programが参照する不変キー列。発注時の在庫固定で全Graphを走査しない。 */

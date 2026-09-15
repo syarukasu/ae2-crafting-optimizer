@@ -9,7 +9,13 @@ public record LongCraftingPlan<K>(
         Map<String, Long> patternExecutions,
         Map<K, Long> usedInventory,
         Map<K, Long> emitted,
-        Map<K, Long> missing) {
+        Map<K, Long> missing,
+        CraftingPlanTrace<K> trace) {
+    public LongCraftingPlan(K requestedKey, long requestedAmount, Map<String, Long> patternExecutions,
+            Map<K, Long> usedInventory, Map<K, Long> emitted, Map<K, Long> missing) {
+        this(requestedKey, requestedAmount, patternExecutions, usedInventory, emitted, missing, null);
+    }
+
     public LongCraftingPlan {
         Objects.requireNonNull(requestedKey, "requestedKey");
         CheckedLongMath.requireNonNegative(requestedAmount, "plan/requestedAmount");

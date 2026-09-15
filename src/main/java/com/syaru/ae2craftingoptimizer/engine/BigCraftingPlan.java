@@ -11,7 +11,14 @@ public record BigCraftingPlan<K>(
         Map<K, BigInteger> usedInventory,
         Map<K, BigInteger> emitted,
         Map<K, BigInteger> missing,
-        int expandedRequests) {
+        int expandedRequests,
+        CraftingPlanTrace<K> trace) {
+    public BigCraftingPlan(K requestedKey, BigInteger requestedAmount, Map<String, BigInteger> patternExecutions,
+            Map<K, BigInteger> usedInventory, Map<K, BigInteger> emitted, Map<K, BigInteger> missing,
+            int expandedRequests) {
+        this(requestedKey, requestedAmount, patternExecutions, usedInventory, emitted, missing, expandedRequests, null);
+    }
+
     public BigCraftingPlan {
         Objects.requireNonNull(requestedKey, "requestedKey");
         BigCountMath.requireNonNegative(requestedAmount, "plan/requestedAmount");
