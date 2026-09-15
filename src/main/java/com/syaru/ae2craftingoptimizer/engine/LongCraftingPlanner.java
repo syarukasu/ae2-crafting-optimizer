@@ -58,6 +58,7 @@ public final class LongCraftingPlanner<K> {
     private static final class State<K> {
         private final CompiledCraftingGraph<K> graph;
         private final Map<K, Long> available = new HashMap<>();
+        private final Map<K, Long> initial = new HashMap<>();
         private final Map<String, Long> patternExecutions = new LinkedHashMap<>();
         private final Map<K, Long> usedInventory = new LinkedHashMap<>();
         private final Map<K, Long> emitted = new LinkedHashMap<>();
@@ -82,6 +83,7 @@ public final class LongCraftingPlanner<K> {
                 }
                 if (amount > 0L) {
                     available.put(key, amount);
+                    initial.put(key, amount);
                 }
             });
         }
@@ -103,10 +105,6 @@ public final class LongCraftingPlanner<K> {
                         continue;
                     }
                     long fromInventory = takeAvailable(frame.key, frame.amount);
-                    if (fromInventory > 0L) {
-                        CheckedLongMath.merge(
-                                usedInventory, frame.key, fromInventory, frame.path + "/inventory");
-                    }
                     frame.deficit = frame.amount - fromInventory;
                     if (frame.deficit == 0L) {
                         pending.pop();
@@ -243,6 +241,11 @@ public final class LongCraftingPlanner<K> {
             long present = available.getOrDefault(key, 0L);
             long taken = Math.min(present, amount);
             long remaining = present - taken;
+            // Issue #190: simulated surplus is not initial inventory.
+            long deficit = initial.getOrDefault(key, 0L) - remaining;
+            if (deficit > usedInventory.getOrDefault(key, 0L)) {
+                usedInventory.put(key, deficit);
+            }
             if (remaining == 0L) {
                 available.remove(key);
             } else {

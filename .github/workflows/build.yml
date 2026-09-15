@@ -87,6 +87,9 @@ jobs:
             -PneoEco20_3Jar=.ci/contracts/neoecoae-20.3.0.jar \
             -PneoEco20_4Jar=.ci/contracts/neoecoae-20.4.0.jar
 
+      - name: Validate industrial capture audit tooling
+        run: node --test tools/industrial-benchmark/audit.test.mjs
+
       - name: Verify 1.20.1 artifact boundary
         shell: bash
         run: |
