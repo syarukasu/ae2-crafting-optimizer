@@ -1,0 +1,6 @@
+# release=2.0.0-rc.3
+# baseline=2.0.0-rc.2
+# loader=BOTH
+issue	change	automated_guarantee
+190	Emitter pruning, initial-stock accounting and exact ordered shared-input planning	AE2 differential quantities and bytes, BigInteger boundaries, snapshots, cancellation and full loader regression suites; runtime acceptance remains pending
+196	Package merged planner fixes as one prerelease for two Minecraft versions	Embedded version and loader metadata, full CI builds, release scope and SHA-256 artifact verification
