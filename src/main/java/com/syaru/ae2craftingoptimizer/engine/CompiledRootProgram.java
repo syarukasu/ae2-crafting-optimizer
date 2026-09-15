@@ -150,10 +150,8 @@ public final class CompiledRootProgram<K> {
             if (reachable.size() > MAXIMUM_PROGRAM_NODES) {
                 return Outcome.failed(RootProgramFailure.PROGRAM_TOO_LARGE);
             }
-            // SCCに属するキーは数式一巡では安全に解けないため、AE2標準計算へ戻す。
-            if (graph.isCyclic(key)) {
-                return Outcome.failed(RootProgramFailure.CYCLE);
-            }
+            // Issue #190: global SCCs include unused recipes behind emitters.
+            // Validate cycles on the reachable, emitter-pruned graph below.
             // Emitterで供給できるキーは終端として扱い、その先のPatternを展開しない。
             if (canEmit.test(key)) {
                 emitterKeys.add(key);
