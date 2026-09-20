@@ -2,6 +2,8 @@ package com.syaru.ae2craftingoptimizer.engine;
 
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
+import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatch;
+import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatchCodec;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,6 +32,7 @@ public final class ExactCraftingJobState {
     private final String programFingerprint;
     private final ExactCraftingJobLedger<AEItemKey, AEKey> ledger;
     private CompoundTag physicalExecution;
+    private PreparedVectorBatch selectedBranch;
     private boolean cancellationRequested;
     private boolean quarantined;
 
@@ -84,7 +87,7 @@ public final class ExactCraftingJobState {
             }
         });
         var prepared = plan.preparedRoot();
-        return new ExactCraftingJobState(
+        var state = new ExactCraftingJobState(
                 plan.finalOutput().what(),
                 plan.exactBytes(),
                 plan.exactPlan().usedInventory(),
@@ -99,6 +102,9 @@ public final class ExactCraftingJobState {
                 new CompoundTag(),
                 false,
                 false);
+        state.selectedBranch = plan.selectedBranch().orElse(null);
+        state.validateSelectedBranch();
+        return state;
     }
 
     public static ExactCraftingJobState load(
@@ -126,7 +132,7 @@ public final class ExactCraftingJobState {
                         Tag.TAG_COMPOUND)
                 ? owner.getCompound("physicalExecution")
                 : new CompoundTag();
-        return new ExactCraftingJobState(
+        var state = new ExactCraftingJobState(
                 requestedKey,
                 BigIntegerNbtCodec.getNonNegative(
                         owner,
@@ -166,6 +172,13 @@ public final class ExactCraftingJobState {
                 physicalExecution,
                 owner.getBoolean("cancellationRequested"),
                 owner.getBoolean("quarantined"));
+        if (owner.contains("selectedBranch", Tag.TAG_COMPOUND)) {
+            state.selectedBranch = PreparedVectorBatchCodec.decode(owner.getCompound("selectedBranch"));
+            com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator.validate(
+                    state.selectedBranch, maximumBits, MAXIMUM_ENTRIES, MAXIMUM_ENTRIES, MAXIMUM_ENTRIES);
+        }
+        state.validateSelectedBranch();
+        return state;
     }
 
     public synchronized CompoundTag save(int maximumBits) {
@@ -194,6 +207,9 @@ public final class ExactCraftingJobState {
         owner.putLong("recipeGeneration", recipeGeneration);
         owner.putString("planningEpoch", planningEpoch);
         owner.putString("programFingerprint", programFingerprint);
+        if (selectedBranch != null) {
+            owner.put("selectedBranch", PreparedVectorBatchCodec.encode(selectedBranch));
+        }
         owner.put(
                 "taskTotals",
                 writePatternCounts(ledger.taskTotals(), maximumBits));
@@ -222,6 +238,29 @@ public final class ExactCraftingJobState {
             owner.putBoolean("quarantined", true);
         }
         return owner;
+    }
+
+    public java.util.Optional<PreparedVectorBatch> selectedBranch() {
+        return java.util.Optional.ofNullable(selectedBranch);
+    }
+
+    private void validateSelectedBranch() {
+        if (selectedBranch == null) {
+            if (programFingerprint.startsWith(SelectedBranchPhysicalPlan.PREFIX)) {
+                throw new IllegalArgumentException("selected branch execution metadata is missing");
+            }
+            return;
+        }
+        SelectedBranchPhysicalPlan.validateFingerprint(selectedBranch);
+        if (!programFingerprint.equals(selectedBranch.programFingerprint())
+                || !requestedKey.equals(selectedBranch.requestedOutput())
+                || !ledger.requestedAmount().equals(selectedBranch.requestedAmount())
+                || !plannedInventory.equals(SelectedBranchPhysicalPlan.inputCounts(selectedBranch))
+                || patternGeneration != selectedBranch.patternGeneration()
+                || recipeGeneration != selectedBranch.recipeGeneration()
+                || !ledger.initialWaiting().isEmpty()) {
+            throw new IllegalArgumentException("saved selected branch does not match exact job accounting");
+        }
     }
 
     public synchronized void reconcile(

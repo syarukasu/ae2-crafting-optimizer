@@ -12,6 +12,7 @@ import com.syaru.ae2craftingoptimizer.engine.Ae2BigCraftingPlanFactory;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState;
+import com.syaru.ae2craftingoptimizer.engine.SelectedBranchPhysicalPlan;
 import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.StalePlanningSnapshotException;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
@@ -86,18 +87,25 @@ public final class BigCraftingPhysicalExecution {
         }
         var graph = Ae2CompiledCraftingGraphCache.getOrCompile(grid, level);
         var state = ExactCraftingJobState.fromPlan(exact);
-        var program = graph.rootProgram(state.requestedKey()).orElseThrow(
-                () -> new IllegalArgumentException("exact root program is unavailable"));
-        // 計画時と異なるレシピへ入力を引き渡さない。
-        if (!state.programFingerprint().equals(Ae2BigCraftingPlanFactory.programFingerprint(program))) {
-            throw new IllegalArgumentException("exact root program changed");
-        }
         int bits = ACOConfig.getBigIntegerMaximumBits();
-        var inventory = program.captureBigInventory(
-                key -> state.plannedInventory().getOrDefault(key, BigInteger.ZERO), bits);
-        PreparedVectorBatch prepared = VectorBatchPlanner.prepare(UUID.randomUUID(), jobId,
-                program, inventory, state.requestedAmount(), state.programFingerprint(),
-                ProviderPatternGenerationTracker.generation(), graph.recipeGeneration(), bits);
+        PreparedVectorBatch prepared;
+        if (state.selectedBranch().isPresent()) {
+            prepared = SelectedBranchPhysicalPlan.forJob(state.selectedBranch().orElseThrow(), jobId);
+            SelectedBranchPhysicalPlan.validateAccounting(prepared, exact.exactPlan());
+            SelectedBranchPhysicalPlan.validateBindings(prepared, graph::pattern, level, bits);
+        } else {
+            var program = graph.rootProgram(state.requestedKey()).orElseThrow(
+                    () -> new IllegalArgumentException("exact root program is unavailable"));
+            // 計画時と異なるレシピへ入力を引き渡さない。
+            if (!state.programFingerprint().equals(Ae2BigCraftingPlanFactory.programFingerprint(program))) {
+                throw new IllegalArgumentException("exact root program changed");
+            }
+            var inventory = program.captureBigInventory(
+                    key -> state.plannedInventory().getOrDefault(key, BigInteger.ZERO), bits);
+            prepared = VectorBatchPlanner.prepare(UUID.randomUUID(), jobId,
+                    program, inventory, state.requestedAmount(), state.programFingerprint(),
+                    ProviderPatternGenerationTracker.generation(), graph.recipeGeneration(), bits);
+        }
         VectorBatchPlanValidator.validate(prepared, bits,
                 ACOConfig.getExactVectorMaximumPatternNodes(),
                 ACOConfig.getExactVectorMaximumInputKeys(),

@@ -251,6 +251,7 @@ public final class Ae2ImmutablePlanningGraphCache {
         IdentityHashMap<IPatternDetails, Ae2CompiledPatternFactory.Captured> capturedByPattern =
                 new IdentityHashMap<>();
         List<Ae2CompiledPatternFactory.Captured> orderedPatterns = new ArrayList<>();
+        Set<IPatternDetails> rejectedPatterns = Collections.newSetFromMap(new IdentityHashMap<>());
         Map<AEKey, NodeCapture> nodes = new LinkedHashMap<>();
         Set<AEKey> referencedKeys = new LinkedHashSet<>(craftables);
 
@@ -274,17 +275,26 @@ public final class Ae2ImmutablePlanningGraphCache {
             for (IPatternDetails details : candidates) {
                 Ae2CompiledPatternFactory.Captured captured = capturedByPattern.get(details);
                 if (captured == null) {
+                    if (rejectedPatterns.contains(details)) {
+                        incomplete = true;
+                        continue;
+                    }
                     if (AppliedECompatibility.requiresAe2Planner(details)) {
+                        rejectedPatterns.add(details);
                         incomplete = true;
                         OptimizationMetrics.recordAppliedEPatternFallback();
+                        logRejectedPattern(details, key, patternGeneration, "applied_e_live_semantics");
                         continue;
                     }
                     try {
-                        captured = Ae2CompiledPatternFactory.capture(details, level);
+                        captured = Ae2CompiledPatternFactory.capture(details, level,
+                                reason -> logRejectedPattern(details, key, patternGeneration, reason));
                     } catch (CountOverflowException invalidPatternAmount) {
                         captured = null;
+                        logRejectedPattern(details, key, patternGeneration, "pattern_amount_overflow");
                     }
                     if (captured == null) {
+                        rejectedPatterns.add(details);
                         incomplete = true;
                         continue;
                     }
@@ -556,6 +566,14 @@ public final class Ae2ImmutablePlanningGraphCache {
         }
     }
 
+    private static void logRejectedPattern(IPatternDetails pattern, AEKey output, long generation, String reason) {
+        if (ACOConfig.logCraftingDecisionFlow()) {
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event=pattern_capture_rejected output={} implementation={} patternGeneration={} reason={}",
+                    output.getId(), pattern.getClass().getName(), generation, reason);
+        }
+    }
+
     private static final class Snapshot implements Ae2PlanningGraphSnapshot {
         private final CompiledCraftingGraph<AEKey> graph;
         private final IdentityHashMap<IPatternDetails, String> idByPattern;
@@ -564,6 +582,7 @@ public final class Ae2ImmutablePlanningGraphCache {
         private final Set<AEKey> incompleteOutputs;
         private final Set<AEKey> emittableKeys;
         private final Set<String> exactInputDomains;
+        private final Map<AEKey, List<CompiledPattern<AEKey>>> orderedCandidates;
         private final long recipeGeneration;
         private final WeightedLruMap<AEKey, CompiledRootProgram.Outcome<AEKey>> rootOutcomes =
                 new WeightedLruMap<>(
@@ -582,6 +601,20 @@ public final class Ae2ImmutablePlanningGraphCache {
                 Set<AEKey> emittableKeys,
                 Set<String> exactInputDomains,
                 long recipeGeneration) {
+            this(graph, idByPattern, patternById, registeredPatternCounts, incompleteOutputs,
+                    emittableKeys, exactInputDomains, recipeGeneration, Map.of());
+        }
+
+        private Snapshot(
+                CompiledCraftingGraph<AEKey> graph,
+                IdentityHashMap<IPatternDetails, String> idByPattern,
+                Map<String, IPatternDetails> patternById,
+                Map<AEKey, Integer> registeredPatternCounts,
+                Set<AEKey> incompleteOutputs,
+                Set<AEKey> emittableKeys,
+                Set<String> exactInputDomains,
+                long recipeGeneration,
+                Map<AEKey, List<CompiledPattern<AEKey>>> orderedCandidates) {
             this.graph = graph;
             this.idByPattern = new IdentityHashMap<>(idByPattern);
             this.patternById = Map.copyOf(patternById);
@@ -590,6 +623,9 @@ public final class Ae2ImmutablePlanningGraphCache {
             this.emittableKeys = Set.copyOf(emittableKeys);
             this.exactInputDomains = Set.copyOf(exactInputDomains);
             this.recipeGeneration = recipeGeneration;
+            Map<AEKey, List<CompiledPattern<AEKey>>> frozenOrder = new LinkedHashMap<>();
+            orderedCandidates.forEach((key, patterns) -> frozenOrder.put(key, List.copyOf(patterns)));
+            this.orderedCandidates = Map.copyOf(frozenOrder);
         }
 
         private static Snapshot compile(
@@ -619,7 +655,8 @@ public final class Ae2ImmutablePlanningGraphCache {
             Map<AEKey, Integer> registeredPatternCounts = new LinkedHashMap<>();
             Set<AEKey> incompleteOutputs = new LinkedHashSet<>();
             Set<AEKey> emittableKeys = new LinkedHashSet<>();
-            // Issue #156: 候補は検証だけ行う。未使用の第二の出力索引を構築しない。
+            Map<AEKey, List<CompiledPattern<AEKey>>> orderedCandidates = new LinkedHashMap<>();
+            // Issue #190: retain AE2's per-output priority, which can differ for co-products.
             int compiledNodeCount = 0;
             for (Map.Entry<AEKey, NodeCapture> entry : capture.nodes.entrySet()) {
                 guard.checkpoint(++compiledNodeCount);
@@ -630,13 +667,16 @@ public final class Ae2ImmutablePlanningGraphCache {
                     emittableKeys.add(key);
                 }
                 boolean incomplete = node.incomplete();
+                List<CompiledPattern<AEKey>> candidates = new ArrayList<>();
                 for (IPatternDetails details : node.candidates()) {
                     CompiledPattern<AEKey> compiled = compiledByPattern.get(details);
                     if (compiled == null || compiled.outputAmount(key) <= 0L) {
                         incomplete = true;
                         continue;
                     }
+                    candidates.add(compiled);
                 }
+                orderedCandidates.put(key, List.copyOf(candidates));
                 if (incomplete) {
                     incompleteOutputs.add(key);
                 }
@@ -652,7 +692,13 @@ public final class Ae2ImmutablePlanningGraphCache {
                     incompleteOutputs,
                     emittableKeys,
                     exactInputDomains,
-                    capture.recipeGeneration);
+                    capture.recipeGeneration,
+                    orderedCandidates);
+        }
+
+        @Override
+        public List<CompiledPattern<AEKey>> orderedPatternsFor(AEKey output) {
+            return orderedCandidates.getOrDefault(output, graph.patternsFor(output));
         }
 
         @Override

@@ -173,6 +173,31 @@ class ReusableByproductAe2OracleTest {
 
     private static void compare(List<CompiledPattern<AEKey>> patterns, AEKey out, long amount,
             Map<AEKey, Long> stock, Set<AEKey> emitters) throws Exception {
+        var expectedResult = oracle(patterns, out, amount, stock, emitters, CalculationStrategy.REPORT_MISSING_ITEMS);
+        var expected = expectedResult.plan();
+        var ids = expectedResult.ids();
+        var program = CompiledRootProgram.tryCompile(CompiledCraftingGraph.compile(1, patterns),
+                out, emitters::contains).orElseThrow();
+        var actual = program.planLong(amount, program.captureLongInventory(k -> stock.getOrDefault(k, 0L)),
+                PlanningGuard.none());
+        Map<String, Long> crafts = new HashMap<>();
+        expected.patternTimes().forEach((detail, times) -> crafts.put(ids.get(detail), times));
+        assertEquals(crafts, actual.patternExecutions());
+        assertEquals(counts(expected.usedItems()), actual.usedInventory());
+        assertEquals(counts(expected.missingItems()), actual.missing());
+        assertEquals(counts(expected.emittedItems()), actual.emitted());
+        assertEquals(expected.simulation(), !actual.craftable());
+        assertNotNull(actual.trace(), "shared/co-product plans need ordered CPU byte accounting");
+        assertEquals(expected.bytes(), ExactCraftingByteCounter.calculate(actual.trace(),
+                key -> key.getType().getAmountPerByte()));
+        assertEquals(BigInteger.valueOf(expected.bytes()), BigExactCraftingByteCounter.calculate(actual.trace(),
+                key -> key.getType().getAmountPerByte(), 4096));
+    }
+
+    record Oracle(ICraftingPlan plan, Map<IPatternDetails, String> ids) { }
+
+    static Oracle oracle(List<CompiledPattern<AEKey>> patterns, AEKey out, long amount,
+            Map<AEKey, Long> stock, Set<AEKey> emitters, CalculationStrategy strategy) throws Exception {
         var byKey = new HashMap<AEKey, List<IPatternDetails>>();
         var ids = new IdentityHashMap<IPatternDetails, String>();
         for (var pattern : patterns) {
@@ -204,6 +229,11 @@ class ReusableByproductAe2OracleTest {
             case "getFuzzyCraftable" -> null;
             default -> throw new AssertionError(method);
         });
+        return new Oracle(oracleService(service, out, amount, stock, strategy), ids);
+    }
+
+    static ICraftingPlan oracleService(ICraftingService service, AEKey out, long amount,
+            Map<AEKey, Long> stock, CalculationStrategy strategy) throws Exception {
         IGrid grid = proxy(IGrid.class, (method, args) -> switch (method) {
             case "getCraftingService" -> service;
             case "getStorageService" -> null;
@@ -220,7 +250,7 @@ class ReusableByproductAe2OracleTest {
                     default -> throw new AssertionError(method);
                 });
         var job = new CraftingCalculation(null, grid, requester, new GenericStack(out, amount),
-                CalculationStrategy.REPORT_MISSING_ITEMS);
+                strategy);
         for (String name : List.of("running")) {
             var field = CraftingCalculation.class.getDeclaredField(name);
             field.setAccessible(true);
@@ -241,22 +271,7 @@ class ReusableByproductAe2OracleTest {
         compute.setAccessible(true);
         var expected = (ICraftingPlan) compute.invoke(job);
 
-        var program = CompiledRootProgram.tryCompile(CompiledCraftingGraph.compile(1, patterns),
-                out, emitters::contains).orElseThrow();
-        var actual = program.planLong(amount, program.captureLongInventory(k -> stock.getOrDefault(k, 0L)),
-                PlanningGuard.none());
-        Map<String, Long> crafts = new HashMap<>();
-        expected.patternTimes().forEach((detail, times) -> crafts.put(ids.get(detail), times));
-        assertEquals(crafts, actual.patternExecutions());
-        assertEquals(counts(expected.usedItems()), actual.usedInventory());
-        assertEquals(counts(expected.missingItems()), actual.missing());
-        assertEquals(counts(expected.emittedItems()), actual.emitted());
-        assertEquals(expected.simulation(), !actual.craftable());
-        assertNotNull(actual.trace(), "shared/co-product plans need ordered CPU byte accounting");
-        assertEquals(expected.bytes(), ExactCraftingByteCounter.calculate(actual.trace(),
-                key -> key.getType().getAmountPerByte()));
-        assertEquals(BigInteger.valueOf(expected.bytes()), BigExactCraftingByteCounter.calculate(actual.trace(),
-                key -> key.getType().getAmountPerByte(), 4096));
+        return expected;
     }
 
     private static Map<AEKey, Long> counts(KeyCounter counter) {

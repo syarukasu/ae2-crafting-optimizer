@@ -1,18 +1,437 @@
 # Issue #190: Real industrial recipe acceptance
 
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/190
-- Status: Implemented (shared-input and emitter snapshot follow-up; full acceptance remains PENDING)
+- Status: Implemented locally for selected fixed-input acyclic crafting-table branches; runtime acceptance PENDING
 - Target: 2.0.0 prerelease; Forge 1.20.1 modpack capture, shared planner verification on both loaders
 - Related: #156, #179, #185, #167, #176, #182
 
 ## Problem and evidence
 
+### 2026-09-19 AQE CPU capacity alignment (Implemented locally)
+
+The user's target is AQE's actual CPU capacity, not a fixed 10^64 quantity.
+Read-only inspection found the installed server setting big_integer_storage_digits
+is 1024; AQE defines per-core storage as 10^digits - 1 and the shared effective
+structure limit as 10^16384 - 1. ACO already shares that magnitude limit and AQE
+compares exact required bytes with exact available bytes before submission.
+Do not add a second capacity owner or reinterpret logical CPU bytes as Java RAM.
+
+BigExactCraftingByteCounter currently bounds amount * 8 and rational numerators
+before unit division. This can reject an item/fluid/chemical charge whose final
+byte cost fits the CPU. First reproduce near-boundary and mixed-denominator
+cases. Keep integer bytes and the reduced fractional remainder separately,
+round up once at the end, and retain magnitude limits on real counts/bytes.
+Fraction arithmetic must remain bounded; no long/double conversion or truncated
+count, and no changes to AQE-owned capacity, recipes or physical IO ownership.
+
+Verify default 1024-digit and maximum 16384-digit capacity profiles, exact fit,
+one-byte overflow, existing reservations, capacity shrink/reload, and physical
+branch save/complete/cancel at AQE-scale quantities. Update the fixture's 4096-bit
+test parameter to the actual configured ACO magnitude bound. An optional AQE
+JAR bytecode check must verify the configured profiles against the supplied JAR.
+Use both loaders; do not deploy, restart the server or claim live performance.
+
+Pre-fix evidence: two new tests failed. An exact 1024-digit CPU fit with a
+3402-bit magnitude budget was rejected at bytes/stack/item; mixed fractional
+charges were rejected at bytes/fraction-left despite an in-range final cost.
+The XML is retained in ../artifacts/2026-09-19-aqe-capacity/forge-before-fix.xml .
+
+Implementation: BigExactCraftingByteCounter now separates whole bytes from a
+reduced fractional remainder. Divide by the key's unit before scaling the whole
+part, bound actual counts and final bytes, and round the combined fraction once.
+Fraction temporaries are bounded by the configured bit limit plus 64 bits.
+AQE remains the owner of physical/available capacity and admission.
+
+Automated evidence: BigExactCraftingByteCounterTest covers exact boundary fits,
+real magnitude overflow and 40 deterministic mixed-unit rational oracle cases.
+AqeCpuCapacityContractTest checks available capacity with an existing reservation,
+one-byte excess rejection without mutation, save/load and structure shrink.
+PhysicalCraftingLifecycleTest exercises completed and both cancellation outcomes
+with save/load after every tick at 1024/16384-digit profiles (quantity / 64 for
+intermediate headroom). These are production accounting/codec tests with boundary
+doubles, not an in-game AQE/AAC completion or a performance claim. The supplied
+Forge AQE 2.2.7 JAR verifies capacity constants only, without loading its classes.
+Full build evidence belongs in ../artifacts/2026-09-19-aqe-capacity/VERIFICATION.md.
+
+Final local verification: Forge upstream AE2 and UELM each ran 623 tests, with
+621 passed and two optional Neo ECO JAR contract tests skipped. NeoForge ran
+631 tests, all passed. All three test/build/verifyIssueRegressionManifest runs
+succeeded. The same Forge AQE JAR supplied the constant contract in all runs;
+this does not establish NeoForge AQE runtime compatibility. Local artifacts and
+XML reports are retained in the evidence directory. No deployment or release.
+
+### 2026-09-19 physical lifecycle verification (Implemented locally)
+
+Add an isolated contract integration fixture that calls the production physical
+transaction through validation, exact boundary reservation, worker acceptance,
+output receipt, acknowledgement and final return. Exercise long and wide counts,
+save/load between transitions, cancellation and temporarily unloaded workers.
+Only the world, worker and storage boundaries are doubles; the production
+scheduler, formula, escrow, receipt validation and NBT codec run unchanged.
+This does not prove an AAC world execution or processing-machine support.
+
+Fault cases must reject mismatched transaction IDs/digests and unexpected output
+counts rather than crediting another job's receipt. Any demonstrated defect is
+fixed in the existing physical transaction owner on both loaders. No new runtime
+executor, production deployment, restart or release belongs to this increment.
+Test-only Mockito dependency is used for Minecraft boundary doubles.
+
+Pre-fix evidence: the Forge contract test ran four cases, three passed and
+foreignReceiptIsRejectedBeforeOutputCreditOrWorkerRelease failed: EXECUTING_RECIPES
+was returned instead of QUARANTINED for a receipt with a different payload digest.
+The production owner passes identity to the worker but never checks the identity
+returned by that worker. Check every received snapshot before accounting or
+acknowledgement. After output credit, also reject a changed output vector or
+conflicting terminal state before releasing the worker receipt, including cancellation
+and the second snapshot read after a retried acknowledgement.
+This is an injected faulty-worker test, not evidence of this fault in the live
+server or an accusation that AAC returns mismatched receipts.
+
+Recovery review: AAC's worker acknowledgement writes its terminal receipt via
+setChanged separately from the parent transaction. A same-identity RUNNING
+snapshot after parent credit is therefore not evidence that the credited output
+belongs to a different job. Preserve the existing wait-and-retry recovery
+contract: retain credited output, do not re-credit, cancel or forget that running
+worker, and require matching terminal output before release. Cover normal and
+cancelled parents with a worker-save-lag contract test. This is a persistence
+ordering scenario, not a reproduced live-server crash.
+
+Implemented in PhysicalCraftingTreeTransaction on both loaders: every worker
+snapshot is bound to its transaction ID and payload digest. Once credited, its
+terminal state and complete output vector must agree with the saved receipt.
+Both normal execution and cancellation recheck the response after retrying an
+acknowledgement, before forgetting the worker receipt. No API, NBT schema or
+planning algorithm was replaced.
+
+Verification:
+
+- Pre-fix expanded fixture: six tests, three failed on foreign identity before
+  credit, foreign identity after credit, and changed outputs during cancellation.
+  Preserved XML: ../artifacts/2026-09-19-receipt-validation/forge-before-fix.xml .
+- PhysicalCraftingLifecycleTest: nine tests passed on all three configurations.
+  Quantities 1, 100, Long.MAX_VALUE, Long.MAX_VALUE + 1 and 10^64 retain exact
+  branch inputs, shared byproducts and final output. Each quantity uses three
+  accepted worker requests and two storage mutations in this fixture.
+- Every fixture tick round-trips the production NBT codec. Unloaded workers,
+  cancellation before/after output, delayed acknowledgement, foreign receipts
+  and changed terminal receipts retain owned inputs/outputs without double credit.
+  A lagging worker save waits without forgetting or cancelling credited work;
+  subsequent completion and cancellation return exactly the expected inventory.
+- Forge upstream and UELM: each 614 tests, 612 passed, two optional Neo ECO
+  20.3/20.4 JAR fixtures skipped (JARs not supplied); build and manifest passed.
+  NeoForge: 622 passed, zero skipped; build and manifest passed.
+- Build JARs, hashes and per-suite XML are in
+  ../artifacts/2026-09-19-receipt-validation/VERIFICATION.md .
+  These remain local rc.3-version candidates, not published rc.3 artifacts.
+
+The boundaries are contract doubles, not real AAC assembly or ME storage. The
+quantity-independent operation counts are not live TPS/latency measurements.
+General processing-machine wide execution, dynamic/interleaved physical branches,
+real CPU/worker completion and runtime latency remain PENDING. The server was
+not stopped or modified; no deployment, commit, push or release was performed.
+
+### 2026-09-18 lightweight execution follow-up (Implemented locally)
+
+Verification of this increment:
+
+- Forge upstream and Forge UELM: 605 tests each, 604 passed, one optional
+  Neo ECO 20.3 fixture skipped; clean build and regression manifest passed.
+- NeoForge: 613 tests passed, build and regression manifest passed after
+  regenerating a corrupt extracted Minecraft build-cache JAR. The source
+  server JAR matched its expected SHA-1; the old extracted btn.class failed
+  CRC and ASM parsing, while the regenerated 6,148 classes passed both.
+- Actual AE2 processing-pattern item/fluid input comparison passed. During
+  2,000 fixed-slot observations there were zero server calls; adoption used
+  one batch, and a changed input definition was rejected.
+- 10,000 reads reused one immutable receipt accounting snapshot. Cancellation
+  of 1,024 steps at 10^64 executions each was bounded to seven steps per call
+  across 147 save/reload cycles, with no unreceived output credited.
+- A missing provider no longer drops other already-polled cancellation steps.
+  The fixture exercises the cancellation scheduler without a live world.
+
+Artifacts and XML reports: ../artifacts/2026-09-18-lightweight/ .
+These are unreleased local rc.3-version builds, not the published rc.3 artifacts.
+No deployment, restart, live crafting completion, commit, push or release was
+performed. The overall issue remains open: ordinary processing-machine wide
+execution, dynamic/interleaved physical execution, and real-modpack latency
+are not completed by this optimization increment.
+
+The user requests completion using existing AE2/AQE ownership, not a second
+general machine executor. Implement and test these measured code-level gaps:
+
+- Fixed singleton inputs already proven by the immutable snapshot still use
+  per-slot/per-key live server calls in Ae2BranchingInputRules. Use captured
+  exact semantics on the worker and revalidate each used pattern before adoption.
+  Dynamic substitutions/remainders retain server-side observation.
+- Forge's physical transaction rebuilds receipt accounting and saved NBT on
+  idle ticks. Backport the existing NeoForge active-step/revision mechanism,
+  including cached external-CPU accounting. Keep storage intents, receipts,
+  cancellation and crash recovery unchanged.
+- Test idle versus changed receipts, cancellation/reload, dynamic-input exclusion,
+  exact quantities and both loaders. Measure callback/rebuild counts instead of
+  claiming an unmeasured server-wide speedup.
+
+No production restart or new execution protocol is part of this increment.
+Industrial processing receipt support and real-modpack latency remain explicit
+acceptance gates; passing unit tests alone does not close this issue.
+
+### 2026-09-18 selected wide branch execution (implemented locally)
+
+Update purpose: BIGINT_IMPLEMENTATION only. No long optimization, new speed
+algorithm, new addon support, deployment, restart or release in this change.
+
+Observed: tryBranchingPlan explicitly rejects craftable wide quantities.
+BigCraftingPhysicalExecution.prepare and Ae2BigCraftingExecutionManager.prepare
+then independently rebuild a unique-producer CompiledRootProgram. This loses
+the chosen candidate counts and cannot represent an otherwise executable
+multi-producer branch. PhysicalCraftingTreeTransaction already validates a
+PreparedVectorBatch against real pattern formulas, reserves exact escrow,
+requires physical receipts, and owns cancellation/recovery.
+
+Retain selected pattern IDs and exact counts as an immutable physical plan.
+For the existing physical domain, build an acyclic dependency order over the
+SELECTED fixed-input patterns, prove every complete stage against virtual
+escrow, and retain every final surplus. Never run the branching planner again
+during submission or restore, and never select another producer there.
+Persist the prepared branch alongside the exact job before any physical work;
+use the same prepared plan in both standard AE2 and external API consumers.
+Preserve public API v1 and old constructors/NBT compatibility; missing branch
+metadata must fail closed, not revert to a unique-producer plan.
+
+Owners: SelectedBranchPhysicalPlan validates and assembles existing vector steps;
+BigIntegerCraftingPlan carries the optional prepared branch; ExactCraftingJobState
+persists it; the two existing consumers rebind job identity and revalidate real
+patterns. Physical transaction, worker receipts and storage remain their existing
+owners. Storage preflight must cover all final surplus/returned keys, not only
+the requested output.
+
+Keep explicit pre-custody rejection for processing machines without an existing
+physical receipt route, ambiguous slot substitutions without saved concrete
+choices, emitters, and cyclic/interleaved execution not representable by the
+existing one-step-per-pattern contract. These remain unsupported, not completed
+or silently altered. No removal of a guard before its consumer is connected.
+
+Tests: previously rejected selected multiple-producer branches; shared byproduct
+conservation; long boundary and 10^64 exact quantities; no worker-output invention;
+wrong count/changed pattern/missing binding rejection; complete selected plan
+NBT round trip and cancellation/recovery identity; both consumer entry points.
+Build all three configurations and retain existing regression coverage.
+Live completion/cancellation/restart remain unverified until a separate runtime
+test is authorized and performed. Do not close the broader Issue #190.
+
+Local verification of this increment:
+
+- Forge upstream AE2 15.4.10: clean build and regression manifest passed;
+  602 tests, 601 passed, 1 optional Neo ECO 20.3 JAR test skipped.
+- Forge UELM 15.5.0-uelm: clean build and regression manifest passed;
+  602 tests, 601 passed, the same optional test skipped.
+- NeoForge 1.21.1: clean build and regression manifest passed;
+  610 tests, 610 passed, no skips.
+- SelectedBranchPhysicalPlanTest now sends the real OrderedBranchingPlanner
+  result into the physical-plan assembler for 1, Long.MAX_VALUE,
+  Long.MAX_VALUE + 1, and 10^64 quantities. It independently replays every
+  debit/credit, verifies both chosen producers and every surplus, and exercises
+  exact-job NBT, missing/corrupt metadata, changed counts, bounds and rejection.
+- BigCraftingPhysicalExecutionTest adds real transaction/receipt serialization
+  for multiple selected producers and cancellation intent, without crediting
+  an unreceived output. It does NOT tick a real CPU, storage or worker.
+- SelectedBranchConsumerContractTest is a source-wiring guard for both entry
+  points and surplus preflight; it is NOT runtime completion evidence.
+
+Unreleased build hashes (the existing rc.3 filename/version is unchanged):
+
+- Forge upstream: EC28EFE917BD128FF76C67E2CECB896BAFAD7FC4B3F643F23CD3B313ECE0B891
+- Forge UELM: 67A382937FBC0FF95ACCFE4232B36E72271425984589396F7A0A3E74365F8C01
+- NeoForge: 052C8C44900DC0A96DF14AEC0FE36D2229F423B7605CDBF9431B03E71B8AF8DA
+
+Remaining acceptance is explicit: run a branched order with intermediate counts
+above signed long using loaded receipt-backed crafting workers; compare storage
+before/after including surplus; cancel and restart at different ownership phases
+and prove no double debit, lost output or replay. Exercise standard AE2 and the
+external physical API consumer separately. These checks have not been run.
+The AE2 request entry still takes a long root order; this increment connects
+wide INTERMEDIATE quantities and pattern counts, not a new above-long order UI.
+Processing machines, dynamic/substituted slot choices and interleaved/cyclic
+physical execution are still outside this implemented domain.
+No server/client restart, deployment, commit, push, release or Issue closure.
+
+
+### 2026-09-18 input semantics follow-up
+
+The user authorized fixing substitute inputs, remaining containers, and addon
+pattern formats. Registered patterns must not be discarded merely for their
+implementation class. Capture the immutable public IPatternDetails arrays and
+their ordered template amounts; preserve the existing overflow checks. Keep the
+old DAG/physical consumers restricted to proven exact single-input domains.
+
+Extend OrderedBranchingPlanner with an input-rules boundary for alternate template
+units, AE2 fuzzy inventory order, crafted substitute selection, and delayed
+remainders. A new request-local AE2 input-rules adapter owns memoized isValid and
+getRemainingKey observations and structural revalidation. Live calls execute only
+on the server thread through the existing planning task/handshake boundary; the
+worker owns exact simulation only. Do not retain mutable Level or input callbacks
+in a global compiled program. Revalidate observed input semantics before adoption.
+Bound distinct observations and cancellation, and avoid one server call per craft.
+
+Use AE2's KeyCounter solely as a key-order index, not as the exact quantity ledger.
+Maintain parent/child fuzzy-cache ordering, including zero keys. In repeated blocks,
+new fuzzy members invalidate skipping until membership stabilizes. Containers are
+returned only after all inputs succeed and contribute to CPU bytes. Preserve AE2's
+primary-template rule for quantity limiting, not an invented alternate recipe.
+
+Tests must compare the actual AE2 calculator for substitution priority, NBT variants,
+mixed fluid/item template units, fuzzy craftable selection, remainder reuse, rollback,
+and missing quantities. Unknown addon classes are tested through their public API,
+with changed/malformed semantics rejected explicitly. Keep AppliedE's separately
+documented live-EMC boundary and quantity-wide branching execution out of this change.
+
+
+### 2026-09-18 implemented and locally verified
+
+- Ae2CompiledPatternFactory captures unknown public IPatternDetails structures
+  instead of rejecting their class. Exact-only DAG and physical consumers keep
+  their existing eligibility checks. Checked EAEP scaling and the explicit
+  AppliedE live-EMC boundary are retained.
+- BranchingInputRules separates immutable simulation from Ae2BranchingInputRules'
+  request-local, memoized server observations. Alternate units and actual AE2
+  fuzzy candidate order are preserved, including NBT and damage variants.
+- OrderedBranchingPlanner returns containers after successful input collection,
+  retains tool reservations, rolls back failed candidates, and aggregates only
+  repeated transitions with stable stock-read intervals and fuzzy membership.
+- Ae2PlanningInventorySnapshot freezes referenced fuzzy variants and key order;
+  it excludes the requested output without dropping other variants.
+  Ae2AuthoritativeCraftingPlanner revalidates observations in batches of at most
+  64 through the server boundary before materializing the result. No whole
+  observation set is scheduled as one server task, and no live API runs on the
+  calculation worker. This is not a measured per-tick time guarantee.
+
+BranchingInputSemanticsTest has 12 passing tests on each loader. It compares the
+actual AE2 calculator for alternate stocks, fuzzy craftable selection, NBT order,
+mixed fluid/bucket units, delayed returns, failed candidates, and changing tool
+damage with replacement. Comparisons include exact used/missing/emitted amounts,
+pattern executions, requested output, multiplePaths and native CPU bytes.
+The tool test includes 20,000 operations. A separate 10^64 request proves exact
+arithmetic and repetition skipping while reserving one reusable tool; it is a
+calculation-only proof, not a physical execution test. Snapshot immutability,
+invalid remainder callbacks, changed validity/shape, and server-thread callbacks
+are also covered. Test registry bootstrap on NeoForge is shared/idempotent so
+isolated and full-suite runs do not depend on class execution order.
+
+Clean build and verifyIssueRegressionManifest:
+- Forge / upstream AE2: 594 tests, 593 passed, one skipped, no failures/errors.
+- Forge / UELM: 594 tests, 593 passed, one skipped, no failures/errors.
+- NeoForge 1.21.1: 602 tests, all passed, none skipped.
+The Forge skip is the optional NeoECO 20.3 fixture whose JAR is unavailable.
+ExtendedAE Plus 1.5.5 and NeoECO 20.4 optional JAR fixtures were supplied.
+These fixtures do not establish full addon runtime or EAEP post-plan smart-scaling
+compatibility.
+
+No Minecraft launch, production server restart, deployment, merge, or release
+was performed. Version metadata remains the existing rc.3 for this local work.
+The observed 80 incomplete snapshots were 80 calculation declines, not 80
+identified unique patterns. Their live class identities and acceptance rate,
+whole-pack latency, and quantity-wide branching physical execution remain
+PENDING. Do not close Issue #190 or claim end-to-end completion from these tests.
+
+
+### 2026-09-16 live follow-up
+
+ACO rc.3 recorded 54 planning starts in the current Forge 1.20.1 server run.
+All declined the authoritative route: 40 MULTIPLE_PRODUCERS, 13 incomplete
+pattern snapshots, one generation change. These are not 54 failed crafts.
+The absolute control circuit order of 100 at 21:58:59 declined solely because
+the root program cannot represent multiple producers. Preserve server uptime.
+
+AE2 15.4.10 CraftingTreeNode tries producers in service order, rolls back failed
+child inventories, and exhausts a candidate one operation at a time before
+trying the next. Picking the first candidate or merely deleting the compiler
+guard is not equivalent. CraftingTreeProcess preserves input order; recursion
+exclusion depends on ancestor keys, not a global SCC.
+
+New scope: add an immutable, exact-input ordered branching evaluator alongside
+the single-producer DAG evaluator. It owns only calculation-local simulation,
+candidate trials, stock minima and CPU charges, never real inventory. Coalesce
+repeated successful trials only with a proof: all recorded inventory reads must
+stay within the same full/partial extraction intervals under the repeated net
+delta. Include failed trial reads in that proof; discard their writes. Keep
+node overhead separate from repeated work. Bound exploration and cancellation.
+No quantity clamp, inventory-dependent cache reuse, live worker reads, inferred
+recipe outputs, or execution ownership changes. Unsupported input domains must
+remain explicitly diagnosed, not silently treated as terminals or empty inputs.
+
+Owners: OrderedBranchingPlanner (pure exact simulation); the existing immutable
+snapshot (candidate order/completeness); Ae2AuthoritativeCraftingPlanner (adoption
+and binding). Inspection found that the physical consumers rebuild a single-
+producer root program; publishing a wide-count branching job would therefore
+create another stuck order. Do not change execution ownership or publish that
+job as executable. Retain exact arithmetic and report this boundary explicitly
+before submission; quantity-wide physical branching remains PENDING. Capacity-
+only overflow can use the existing BigCapacityCraftingPlan contract.
+Tests compare actual AE2 CraftingCalculation, not a
+second copied solver, for partial stock, missing inputs, candidate switches,
+recycling, byproducts, templates, and NBT. Wide-count tests independently replay
+conservation and check quantity-independent repeats. Both loaders must retain
+the same semantics. Runtime acceptance and current unsupported patterns remain
+PENDING until observed; tests alone cannot close this issue.
+
+Installed AdvancedAE 1.3.6's AdvProcessingPattern inherits AEProcessingPattern's
+getInputs/getOutputs unchanged (javap inspection). Accept processing subclasses
+only when reflection confirms both declarations are AE2's implementation. Do
+not whitelist arbitrary overridden input semantics or assume every incomplete
+snapshot was caused by this class. The per-output candidate order is also lost
+by the existing global discovery index: retain the captured service order for
+the branching evaluator, including shared co-products.
+
+Capture diagnostics will record the actual rejected pattern class and input-slot
+reason once per pattern identity per publication. Do not attribute the 13
+incomplete snapshots to an addon without this evidence. Wide missing plans may
+use the existing non-submittable BigIntegerSimulationPlan, with multiplePaths
+preserved. This does not authorize quantity-wide branching execution.
+
+Generation changes in ordinary planning will retry ACO with a fresh coordinated
+capture, at most three attempts. Reacquire storage, graph, recipe and configuration
+revisions together on the owning server thread; never relabel the old stock.
+Do not synchronously rebuild the full pattern index as part of an order. If the
+published index is not ready or changes keep racing, surface the stale failure
+rather than starting AE2's expensive standard calculation. Preserve explicit
+wide rejection and cancellation. A detached worker must remember whether it
+has resumed AE2's pause handshake before scheduling another server capture.
+If refreshed planning declines, do not return to vanilla with the caller's old
+inventory: preserve the stale failure and require a new request. Initial unsupported
+captures keep their existing pre-custody fallback contract.
+
+2026-09-17 refresh: the last 100 declines (20:26:25 through 22:15:15) contain
+80 incomplete snapshots, 19 multiple-producer declines and one generation change.
+This later sample supersedes the 54-request sample for current frequency, not
+for individual causes. No pattern-class evidence exists in the deployed logs.
+
+Installed ExtendedAE Plus 1.5.5 ScaledProcessingPattern/ScaledProcessingPatternAdv
+were inspected with javap. They are exact processing wrappers with final input
+and output methods, but use unchecked long multiplication. Accept only these
+known wrappers around unchanged AE2 processing inputs, verifying reflection
+declarations and every multiplier/output product BEFORE reading wrapped values.
+Retain the real wrapper as the execution binding. Never accept a positive value
+that wrapped through long overflow. Test the actual optional Forge JAR through
+an isolated class loader, without starting Minecraft; no dependency is mandatory.
+This removes a proven unsupported class, but does not prove it caused every
+incomplete live snapshot or validate the full addon on NeoForge.
+
+EAEP's CraftingSimulationStateMixin.onBuildCraftingPlan also applies smart scaling
+AFTER planning. ACO's direct CraftingPlan construction does not run that optional
+postprocessor. The wrapper capture tests do not establish equivalent smart-scaling
+finalization or runtime performance. The wrappers may be created only at this later
+stage and are not evidence of the current live capture failures. This compatibility
+boundary requires separate end-to-end validation before claiming full EAEP support.
+
+### Earlier offline acceptance experiment
+
 Synthetic thousand-node tests exclude recipe capture and do not prove real industrial
 end-to-end planning latency. The current pack has multiple creative circuit routes,
 non-consumable catalysts, alternative ingredients and mod-generated recipes. Gameplay
 progression and encoded ME patterns are incomplete. Source scripts alone are not the
-final RecipeManager state. The server is stopped; no Java processes were running at
-inspection. No production world or recipe changes are authorized by this experiment.
+final RecipeManager state. The server was stopped at that earlier inspection.
+The September 16-17 follow-up above runs against an active server, kept running
+throughout local implementation. No production world or recipe changes are authorized.
 
 ## Expected result
 
@@ -61,6 +480,35 @@ an observed failing test and a specification update before implementation.
 - Failing malformed/unsupported fixtures must be reported explicitly.
 - Small quantity comparison with actual AE2, independent wide integer replay.
 - Stage timing and concurrent isolated planning; no double reservation claim from pure tests.
+
+## 2026-09-17 local implementation and verification
+
+- Added `engine/OrderedBranchingPlanner.java`: ordered exact-input trials, rollback,
+  stock minima, byproduct reuse, proven repeated intervals and AE2 byte rounding.
+- Updated `engine/Ae2ImmutablePlanningGraphCache.java` and `Ae2PlanningGraphSnapshot.java`:
+  immutable output-specific priority and rejected-pattern diagnostics.
+- Updated `engine/Ae2CompiledPatternFactory.java`: inherited AE2 processing inputs
+  and checked EAEP scaled wrappers, without accepting unknown dynamic inputs.
+- Updated `engine/Ae2AuthoritativeCraftingPlanner.java` and `BigIntegerSimulationPlan.java`:
+  adoption, exact missing plans, binding before reattachment and bounded recapture.
+- Added `OrderedBranchingPlannerTest` and `OrderedBranchingSnapshotTest`; expanded
+  the actual AE2 oracle and planner policy tests. Randomized comparison includes
+  700 generated graph cases, plus 20,000-operation repeats and 10^64 conservation.
+- Forge-only `ScaledProcessingPatternCaptureTest` uses the installed EAEP 1.5.5 JAR;
+  `testsupport/TestKeyTypes` shares idempotent registry setup with physical API tests.
+- Clean `build verifyIssueRegressionManifest` passed on all three local configurations:
+  Forge upstream AE2 15.4.10: 582 tests, 581 passed, one skipped;
+  Forge AE2 UELM 15.5.0: 582 tests, 581 passed, one skipped;
+  NeoForge 1.21.1: 590 tests, all passed. Zero failures/errors.
+- The skipped Forge test requires the unavailable NeoECO 20.3 JAR. NeoECO 20.4 and
+  all three real EAEP wrapper tests ran. Their optional JAR flags were supplied.
+- Source version remains 2.0.0-rc.3: these local artifacts are NOT a new release
+  and have NOT replaced deployed JARs. No server restart, client launch, world edit,
+  new-runtime log capture, PR, merge or release was performed.
+- Still PENDING: identify the actual uncaptured live patterns using the new
+  diagnostics; dynamic/alternative input coverage; EAEP smart-scaling finalization;
+  quantity-wide branching physical execution; real craft completion and latency.
+  Do not close #190 or claim that every standard-path fallback has been removed.
 - Build/regression manifests on every affected loader.
 - Runtime acceptance (world orders, refunds, restart and tick cost): PENDING.
 

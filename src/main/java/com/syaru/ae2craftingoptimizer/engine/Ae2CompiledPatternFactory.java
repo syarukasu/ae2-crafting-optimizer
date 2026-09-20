@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,26 +27,41 @@ final class Ae2CompiledPatternFactory {
      */
     @Nullable
     static Captured capture(IPatternDetails details, Level level) {
-        // Level依存の代替候補を持つPatternは高速経路で証明できないため、API走査前にAE2へ返す。
+        return capture(details, level, ignored -> { });
+    }
+
+    @Nullable
+    static Captured capture(IPatternDetails details, Level level, Consumer<String> rejected) {
+        // Issue #190: capture public structure; dynamic validity is observed per request on the server.
         boolean exactInputDomain = hasExactInputDomain(details);
-        if (!exactInputDomain) {
+        String implementation = details.getClass().getName();
+        if (!exactInputDomain && (implementation.equals("com.extendedae_plus.api.crafting.ScaledProcessingPattern")
+                || implementation.equals("com.extendedae_plus.api.crafting.ScaledProcessingPatternAdv"))) {
+            // The known wrapper multiplies unchecked; an unverified original must never bypass its adapter.
+            rejected.accept("unsupported_input_domain");
             return null;
         }
         AEItemKey definition = details.getDefinition();
         String definitionId = definition.getId().toString();
         List<CompiledPattern.InputSlot<AEKey>> inputs = new ArrayList<>();
         List<FingerprintInput> fingerprintInputs = new ArrayList<>();
+        int slot = -1;
         for (IPatternDetails.IInput input : details.getInputs()) {
+            slot++;
             if (input.getMultiplier() <= 0L) {
+                rejected.accept("nonpositive_multiplier slot=" + slot);
                 return null;
             }
             List<CompiledPattern.Stack<AEKey>> alternatives = new ArrayList<>();
             List<GenericStack> capturedAlternatives = new ArrayList<>();
             for (GenericStack possible : input.getPossibleInputs()) {
-                if (possible.amount() <= 0L
-                        || !input.isValid(possible.what(), level)
-                        || input.getRemainingKey(possible.what()) != null) {
+                if (possible.amount() <= 0L) {
+                    rejected.accept("nonpositive_template slot=" + slot);
                     return null;
+                }
+                if (exactInputDomain && (!input.isValid(possible.what(), level)
+                        || input.getRemainingKey(possible.what()) != null)) {
+                    exactInputDomain = false;
                 }
                 capturedAlternatives.add(new GenericStack(possible.what(), possible.amount()));
                 alternatives.add(new CompiledPattern.Stack<>(
@@ -56,6 +72,7 @@ final class Ae2CompiledPatternFactory {
                                 definitionId + "/input")));
             }
             if (alternatives.isEmpty()) {
+                rejected.accept("empty_input slot=" + slot);
                 return null;
             }
             inputs.add(new CompiledPattern.InputSlot<>(alternatives, capturedAlternatives.get(0).amount()));
@@ -67,6 +84,7 @@ final class Ae2CompiledPatternFactory {
         List<GenericStack> fingerprintOutputs = new ArrayList<>();
         for (GenericStack produced : details.getOutputs()) {
             if (produced.amount() <= 0L) {
+                rejected.accept("nonpositive_output key=" + produced.what().getId());
                 return null;
             }
             fingerprintOutputs.add(new GenericStack(produced.what(), produced.amount()));
@@ -76,9 +94,11 @@ final class Ae2CompiledPatternFactory {
                     produced.amount(),
                     definitionId + "/output");
         }
-        return outputs.isEmpty()
-                ? null
-                : new Captured(
+        if (outputs.isEmpty()) {
+            rejected.accept("empty_outputs");
+            return null;
+        }
+        return new Captured(
                         details,
                         inputs,
                         outputs,
@@ -94,7 +114,10 @@ final class Ae2CompiledPatternFactory {
     /** Issue #167: Level依存の代替候補をworkerで再評価しない、検査済みAE2 Patternだけを許可する。 */
     private static boolean hasExactInputDomain(IPatternDetails details) {
         Class<?> implementation = details.getClass();
-        if (implementation == AEProcessingPattern.class) {
+        if (inheritsExactProcessingInputs(implementation)) {
+            return true;
+        }
+        if (isExactScaledProcessingPattern(details)) {
             return true;
         }
         if (implementation == AECraftingPattern.class) {
@@ -113,6 +136,61 @@ final class Ae2CompiledPatternFactory {
             return !((AESmithingTablePattern) details).canSubstitute();
         }
         return false;
+    }
+
+    /** AdvancedAE's directional processing pattern inherits these exact AE2 inputs unchanged. */
+    static boolean inheritsExactProcessingInputs(Class<?> implementation) {
+        if (!AEProcessingPattern.class.isAssignableFrom(implementation)) return false;
+        try {
+            return implementation.getMethod("getInputs").getDeclaringClass() == AEProcessingPattern.class
+                    && implementation.getMethod("getOutputs").getDeclaringClass() == AEProcessingPattern.class;
+        } catch (NoSuchMethodException missingContract) {
+            return false;
+        }
+    }
+
+    /** Issue #190: checked adapter for EAEP's final, exact processing wrappers. */
+    private static boolean isExactScaledProcessingPattern(IPatternDetails details) {
+        String base = "com.extendedae_plus.api.crafting.ScaledProcessingPattern";
+        Class<?> implementation = details.getClass();
+        if (!implementation.getName().equals(base) && !implementation.getName().equals(base + "Adv")) {
+            return false;
+        }
+        try {
+            for (String method : List.of("getDefinition", "getInputs", "getOutputs")) {
+                var declaration = implementation.getMethod(method);
+                if (!declaration.getDeclaringClass().getName().equals(base)
+                        || !java.lang.reflect.Modifier.isFinal(declaration.getModifiers())) return false;
+            }
+            var originalGetter = implementation.getMethod("getOriginal");
+            var multiplierGetter = implementation.getMethod("getMultiplier");
+            if (!originalGetter.getDeclaringClass().getName().equals(base)
+                    || !multiplierGetter.getDeclaringClass().getName().equals(base)
+                    || originalGetter.getReturnType() != AEProcessingPattern.class
+                    || multiplierGetter.getReturnType() != long.class) return false;
+            AEProcessingPattern original = (AEProcessingPattern) originalGetter.invoke(details);
+            if (original == null || !inheritsExactProcessingInputs(original.getClass())) return false;
+            validateScale(original, (Long) multiplierGetter.invoke(details));
+            return true;
+        } catch (java.lang.reflect.InvocationTargetException failed) {
+            if (failed.getCause() instanceof Error fatal) throw fatal;
+            throw new IllegalStateException("scaled processing pattern accessor failed", failed.getCause());
+        } catch (ReflectiveOperationException unsupportedVersion) {
+            return false;
+        }
+    }
+
+    static void validateScale(IPatternDetails original, long scale) {
+        if (scale <= 0) throw new IllegalArgumentException("scaled pattern multiplier must be positive");
+        for (var input : original.getInputs()) {
+            long multiplied = CheckedLongMath.multiply(input.getMultiplier(), scale, "scaled pattern/input multiplier");
+            for (var possible : input.getPossibleInputs()) {
+                CheckedLongMath.multiply(possible.amount(), multiplied, "scaled pattern/input amount");
+            }
+        }
+        for (var output : original.getOutputs()) {
+            CheckedLongMath.multiply(output.amount(), scale, "scaled pattern/output amount");
+        }
     }
 
     static final class Captured {
