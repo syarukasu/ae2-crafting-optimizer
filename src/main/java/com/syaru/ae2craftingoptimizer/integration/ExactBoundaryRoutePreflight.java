@@ -91,9 +91,16 @@ public final class ExactBoundaryRoutePreflight {
         Map<AEKey, BigInteger> inputs = positiveCounts(exact.exactPlan().usedInventory());
         AEKey outputKey = exact.finalOutput().what();
         BigInteger requestedAmount = exact.exactPlan().requestedAmount();
+        Map<AEKey, BigInteger> outputs = new LinkedHashMap<>();
+        outputs.put(outputKey, requestedAmount);
+        exact.selectedBranch().ifPresent(branch -> {
+            outputs.clear();
+            branch.finalOutputs().forEach(s -> outputs.merge(s.key(), s.amount(), BigInteger::add));
+            branch.remainingOutputs().forEach(s -> outputs.merge(s.key(), s.amount(), BigInteger::add));
+        });
 
         Set<AEKey> boundaryKeys = new LinkedHashSet<>(inputs.keySet());
-        boundaryKeys.add(outputKey);
+        boundaryKeys.addAll(outputs.keySet());
         Optional<Map<AEKey, BigInteger>> stored =
                 ExactNetworkStorageBridge.exactStoredAmounts(grid, boundaryKeys);
         if (stored.isEmpty()) {
@@ -119,10 +126,10 @@ public final class ExactBoundaryRoutePreflight {
         if (requestedAmount.signum() > 0
                 && !ExactNetworkStorageBridge.canInsertAll(
                         grid,
-                        Map.of(outputKey, requestedAmount),
+                        outputs,
                         source)) {
             return Result.blocked(
-                    "no audited exact storage cell accepts the final output " + outputKey);
+                    "audited exact storage cannot accept every final and remaining output: " + outputs.keySet());
         }
         return Result.ok();
     }

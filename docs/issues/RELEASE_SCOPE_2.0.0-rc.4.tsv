@@ -1,0 +1,6 @@
+# release=2.0.0-rc.4
+# baseline=2.0.0-rc.3
+# loader=BOTH
+issue	change	automated_guarantee
+190	Ordered branching, exact physical handoff, receipt recovery, AQE byte-capacity alignment	Differential accounting, fixed-input acyclic branch lifecycle, exact capacity and codec tests; real-world acceptance remains pending
+199	Publish current work as one two-loader prerelease	Version and loader metadata, full suites and CI, source traceability, hashes and explicit remaining tasks

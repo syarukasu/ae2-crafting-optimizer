@@ -317,9 +317,19 @@ public final class Ae2AuthoritativeCraftingPlanner {
             throw new IllegalStateException("detached planning requires the calculation worker");
         }
         Objects.requireNonNull(resume, "resume");
-        return tryPlanAttempt(capture, output, requestedAmount, strategy, new PlanningWorkerYield() {
+        return tryPlanAttempt(capture, output, requestedAmount, strategy, detachedWorkerYield(resume));
+    }
+
+    static PlanningWorkerYield detachedWorkerYield(PlanningWorkerYield resume) {
+        return new PlanningWorkerYield() {
+            private boolean resumed;
+
             @Override
             public void yieldToServerThread() throws InterruptedException {
+                if (resumed) {
+                    resume.yieldToServerThread();
+                    return;
+                }
                 // 不変計算はtickを待たず、既存checkpointで取消だけを受け取る。
                 if (Thread.currentThread().isInterrupted()) {
                     throw new InterruptedException();
@@ -328,11 +338,13 @@ public final class Ae2AuthoritativeCraftingPlanner {
 
             @Override
             public boolean waitsForServerTick() {
-                return false;
+                return resumed;
             }
 
             @Override
             public void beforeResult() {
+                if (resumed) return;
+                resumed = true;
                 try {
                     resume.yieldToServerThread();
                 } catch (InterruptedException interrupted) {
@@ -340,7 +352,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     throw new PlanningCancelledException(0);
                 }
             }
-        });
+        };
     }
 
     /**
@@ -363,6 +375,78 @@ public final class Ae2AuthoritativeCraftingPlanner {
 
     @Nullable
     private static ICraftingPlan tryPlanAttempt(
+            @Nullable Capture capture,
+            AEKey output,
+            long requestedAmount,
+            CalculationStrategy strategy,
+            @Nullable PlanningWorkerYield workerYield) {
+        return retryStalePlan(capture,
+                current -> tryPlanOnce(current, output, requestedAmount, strategy, workerYield),
+                current -> refreshCapture(current, output, requestedAmount, workerYield));
+    }
+
+    /** Issue #190: each retry owns a new inventory/graph pair, not a new label on old data. */
+    static <C, T> T retryStalePlan(C capture, Function<C, T> plan, Function<C, C> refresh) {
+        C current = capture;
+        StalePlanningSnapshotException lastStale = null;
+        for (int attempt = 0; ; attempt++) {
+            if (Thread.currentThread().isInterrupted()) throw new PlanningCancelledException(0);
+            T result;
+            try {
+                if (attempt > 0) current = refresh.apply(current);
+                result = plan.apply(current);
+            } catch (StalePlanningSnapshotException stale) {
+                if (attempt >= 2) throw stale;
+                lastStale = stale;
+                continue;
+            }
+            // The caller's vanilla inventory still belongs to the initial capture.
+            if (attempt > 0 && result == null) throw lastStale;
+            return result;
+        }
+    }
+
+    private static Capture refreshCapture(Capture previous, AEKey output, long requestedAmount,
+            @Nullable PlanningWorkerYield workerYield) {
+        Supplier<Capture> action = () -> {
+            StorageRevisionTracker.RevisionToken storage = StorageRevisionTracker.refreshAndCapture(previous.grid());
+            long pattern = ProviderPatternGenerationTracker.generation();
+            long recipe = RecipeGenerationTracker.generation();
+            long configuration = PlanningConfigurationRevisionTracker.current();
+            Capture fresh = Ae2PlanningCaptureCoordinator.capture(previous.level(), previous.grid(), previous.source(),
+                    previous.grid().getStorageService().getCachedInventory(), output, requestedAmount,
+                    storage, pattern, recipe, configuration).authoritative();
+            if (fresh == null) {
+                throw new StalePlanningSnapshotException(
+                        new PlanningGenerationSnapshot(pattern, storage.revision(), recipe), 0);
+            }
+            fresh.requireCurrentGenerations();
+            return fresh;
+        };
+        if (Thread.currentThread() == previous.serverThread()) return action.get();
+        if (previous.server() == null) throw new IllegalStateException("recapture requires a server level");
+        if (workerYield != null && !workerYield.waitsForServerTick()) {
+            return PlanningServerTasks.call(previous.server(), action);
+        }
+        java.util.concurrent.FutureTask<Capture> task = new java.util.concurrent.FutureTask<>(action::get);
+        previous.server().execute(task);
+        try {
+            cooperativelyAwait(task, workerYield, true);
+            return task.get();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new PlanningCancelledException(0);
+        } catch (ExecutionException failed) {
+            if (failed.getCause() instanceof RuntimeException runtime) throw runtime;
+            if (failed.getCause() instanceof Error fatal) throw fatal;
+            throw new IllegalStateException("planning recapture failed", failed.getCause());
+        } finally {
+            task.cancel(false);
+        }
+    }
+
+    @Nullable
+    private static ICraftingPlan tryPlanOnce(
             @Nullable Capture capture,
             AEKey output,
             long requestedAmount,
@@ -427,6 +511,12 @@ public final class Ae2AuthoritativeCraftingPlanner {
             wideArithmeticRequired = preparation.wideArithmeticRequired();
             // 構造上コンパイル不能なルートは、理由を保持してAE2へ戻す。
             if (!preparation.ready()) {
+                // Issue #190: a branching graph is not an ambiguous plan. Preserve AE2's trial order.
+                if (ACOConfig.enableProofQualifiedLongPlans()) {
+                    ICraftingPlan branching = tryBranchingPlan(capture, immutableCapture.compile(guard),
+                            output, requestedAmount, strategy, workerYield, guard);
+                    if (branching != null) return branching;
+                }
                 if (preparation.rootFailure() != RootProgramFailure.NONE) {
                     logRootProgramFailureOnce(output, preparation.rootFailure(), capture);
                 }
@@ -721,9 +811,9 @@ public final class Ae2AuthoritativeCraftingPlanner {
                     requestedAmount,
                     BigIntegerPlanDeclineReason.GENERATION_CHANGED,
                     stale.getMessage() + "; recovery=" + action);
-            // 通常long計画は入力を動かす前に辞退し、呼出元のAE2標準計算へ戻す。
-            if (action == StaleSnapshotAction.FALLBACK_TO_AE2) {
-                return null;
+            // Issue #190: retry with a fresh capture, never run the expensive standard path on a stale index.
+            if (action == StaleSnapshotAction.REFRESH_CAPTURE) {
+                throw stale;
             }
             throw new WidePlanUnavailableException(
                     output,
@@ -796,6 +886,232 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 program,
                 topology,
                 wideArithmeticRequired);
+    }
+
+    @Nullable
+    private static ICraftingPlan tryBranchingPlan(Capture capture, Ae2PlanningGraphSnapshot snapshot,
+            AEKey output, long requestedAmount, CalculationStrategy strategy,
+            @Nullable PlanningWorkerYield workerYield, PlanningGuard guard) {
+        capture.requireCurrentGenerations();
+        Ae2BranchingInputRules rules = branchingRules(capture, snapshot, capture.inventorySnapshot(), workerYield, guard);
+        boolean[] saturatedStock = {false};
+        Function<AEKey, BigInteger> stock = key -> {
+            long amount = capture.inventorySnapshot().amount(key);
+            saturatedStock[0] |= amount == Long.MAX_VALUE;
+            return BigInteger.valueOf(amount);
+        };
+        OrderedBranchingPlanner.Result<AEKey> result;
+        try {
+            result = evaluateBranching(snapshot, output, requestedAmount, strategy, stock, guard,
+                    ACOConfig.getBigIntegerMaximumBits(), rules);
+        } catch (UncapturedBranch unsupported) {
+            recordDecline(capture, output, requestedAmount, BigIntegerPlanDeclineReason.INCOMPLETE_GRAPH_SNAPSHOT,
+                    "branch input unavailable: " + unsupported.getMessage());
+            return null;
+        }
+        boolean wide = branchingRequiresWide(result.plan(), snapshot);
+        if (wide || saturatedStock[0]) {
+            KeyCounter exactInventory = capture.exactInventorySnapshot() != null
+                    ? capture.exactInventorySnapshot() : captureExactInventorySnapshot(capture, workerYield);
+            var exact = BigKeyCounterSidecars.snapshot(exactInventory).orElse(null);
+            if (exact == null) throw new WidePlanUnavailableException(output, "branching exact inventory unavailable");
+            rules = branchingRules(capture, snapshot, Ae2PlanningInventorySnapshot.capture(exactInventory), workerYield, guard);
+            try {
+                result = evaluateBranching(snapshot, output, requestedAmount, strategy, key -> {
+                    if (!exact.isExact(key)) throw new UncapturedBranch("unproven exact inventory: " + key.getId());
+                    return exact.amount(key);
+                }, guard, ACOConfig.getBigIntegerMaximumBits(), rules);
+            } catch (UncapturedBranch unavailable) {
+                throw new WidePlanUnavailableException(output, unavailable.getMessage());
+            }
+            wide = branchingRequiresWide(result.plan(), snapshot);
+        }
+        if (wide && !ACOConfig.enableBigIntegerGameplayExecution()) {
+            throw new WidePlanUnavailableException(output, "exact branching simulation is disabled");
+        }
+        BigCraftingPlan<AEKey> plan = result.plan();
+        BigInteger bytes = BigExactCraftingByteCounter.calculate(plan.trace(),
+                key -> key.getType().getAmountPerByte(), ACOConfig.getBigIntegerMaximumBits());
+        OrderedBranchingPlanner.Result<AEKey> completed = result;
+        boolean wideSimulation = wide;
+        com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatch selectedBranch = null;
+        if (wide && plan.craftable()) {
+            // Issue #190: preserve the selected DAG; never re-plan it at CPU submission.
+            if (!ACOConfig.enableExactBigIntegerPhysicalExecution()) {
+                throw new WidePlanUnavailableException(output, "selected branch physical execution is disabled");
+            }
+            if (plan.patternExecutions().size() > ACOConfig.getExactVectorMaximumPatternNodes()) {
+                throw new WidePlanUnavailableException(output, "selected branch exceeds the physical pattern bound");
+            }
+            for (String id : plan.patternExecutions().keySet()) {
+                if (!snapshot.hasExactInputDomain(id)) {
+                    throw new WidePlanUnavailableException(output, "selected branch has unbound dynamic inputs: " + id);
+                }
+            }
+            try {
+                selectedBranch = SelectedBranchPhysicalPlan.prepare(plan, snapshot.graph().patterns(),
+                        capture.patternGeneration(), capture.recipeGeneration(), ACOConfig.getBigIntegerMaximumBits());
+                com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator.validate(selectedBranch,
+                        ACOConfig.getBigIntegerMaximumBits(), ACOConfig.getExactVectorMaximumPatternNodes(),
+                        ACOConfig.getExactVectorMaximumInputKeys(), ACOConfig.getExactVectorMaximumOutputKeys());
+            } catch (IllegalArgumentException unsupported) {
+                throw new WidePlanUnavailableException(output, unsupported.getMessage());
+            }
+        }
+        var physicalBranch = selectedBranch;
+        // Validate bounded batches while detached; never put the whole observation set in one server task.
+        rules.revalidate();
+        ICraftingPlan materialized = materialize(capture, workerYield, () -> {
+            capture.requireCurrentGenerations();
+            Map<IPatternDetails, BigInteger> exactTimes = resolveExactPatternTimes(snapshot, plan.patternExecutions());
+            if (exactTimes == null) throw new IllegalStateException("branching pattern binding unavailable");
+            if (wideSimulation) {
+                if (physicalBranch != null) {
+                    try {
+                        SelectedBranchPhysicalPlan.validateBindings(physicalBranch, snapshot::pattern,
+                                capture.level(), ACOConfig.getBigIntegerMaximumBits());
+                    } catch (IllegalArgumentException unsupported) {
+                        throw new WidePlanUnavailableException(output, unsupported.getMessage());
+                    }
+                    var prepared = new Ae2BigCraftingPlanFactory.PreparedBigRootPlan(null, plan, bytes,
+                            capture.patternGeneration(), capture.recipeGeneration(),
+                            Ae2BigCraftingPlanFactory.ExecutionMode.EXACT_PATTERN_EXECUTOR, 0L,
+                            PlanningRuntimeEpoch.current(), physicalBranch.programFingerprint());
+                    return Ae2CraftingPlanSidecars.expose(new BigIntegerCraftingPlan(
+                            new GenericStack(output, plan.requestedAmount().longValueExact()), plan, exactTimes,
+                            prepared, true, physicalBranch, completed.multiplePaths()));
+                }
+                return Ae2CraftingPlanSidecars.expose(new BigIntegerSimulationPlan(
+                        new GenericStack(output, plan.requestedAmount().longValueExact()), plan, exactTimes,
+                        bytes, ACOConfig.getBigIntegerMaximumBits(), completed.multiplePaths()));
+            }
+            Map<IPatternDetails, Long> times = new LinkedHashMap<>();
+            exactTimes.forEach((pattern, count) -> times.put(pattern, count.longValueExact()));
+            GenericStack finalOutput = new GenericStack(output, plan.requestedAmount().longValueExact());
+            KeyCounter used = keyCounter(exactLongCounter(plan.usedInventory()));
+            KeyCounter emitted = keyCounter(exactLongCounter(plan.emitted()));
+            KeyCounter missing = keyCounter(exactLongCounter(plan.missing()));
+            ICraftingPlan facade;
+            if (bytes.bitLength() > 63) {
+                if (!ACOConfig.enableAtomicBigCapacityPlans()) {
+                    throw new WidePlanUnavailableException(output, "exact capacity plans are disabled");
+                }
+                facade = Ae2CraftingPlanSidecars.expose(new BigCapacityCraftingPlan(finalOutput,
+                        !plan.craftable(), completed.multiplePaths(), used, emitted, missing, Map.copyOf(times),
+                        bytes, capture.patternGeneration(), capture.recipeGeneration()));
+            } else {
+                long normalBytes = completed.ae2Bytes();
+                facade = new CraftingPlan(finalOutput, normalBytes, !plan.craftable(), completed.multiplePaths(),
+                        used, emitted, missing, Map.copyOf(times));
+            }
+            return facade;
+        });
+        // Issue #179/#190: bind while detached, before AE2 resumes waiting for this worker.
+        if (workerYield != null) workerYield.beforeResult();
+        capture.requireCurrentGenerations();
+        if (ACOConfig.logCraftingDecisionFlow()) {
+            AE2CraftingOptimizer.LOGGER.debug(
+                    "ACO-DIAG event=planning_accepted route=ordered-branching output={} requested={} "
+                            + "patterns={} expanded={} skippedIterations={} simulation={}",
+                    output.getId(), requestedAmount, plan.patternExecutions().size(), plan.expandedRequests(),
+                    completed.skippedIterations(), materialized.simulation());
+        }
+        return materialized;
+    }
+
+    static OrderedBranchingPlanner.Result<AEKey> evaluateBranching(Ae2PlanningGraphSnapshot snapshot,
+            AEKey output, long requestedAmount, CalculationStrategy strategy,
+            Function<AEKey, BigInteger> stock, PlanningGuard guard, int maximumBits) {
+        return evaluateBranching(snapshot, output, requestedAmount, strategy, stock, guard, maximumBits, null);
+    }
+
+    static OrderedBranchingPlanner.Result<AEKey> evaluateBranching(Ae2PlanningGraphSnapshot snapshot,
+            AEKey output, long requestedAmount, CalculationStrategy strategy,
+            Function<AEKey, BigInteger> stock, PlanningGuard guard, int maximumBits,
+            BranchingInputRules<AEKey> rules) {
+        return new OrderedBranchingPlanner<>(output, key -> {
+            var candidates = snapshot.orderedPatternsFor(key);
+            if (snapshot.isIncompletelyCompiled(key) || snapshot.registeredPatternCount(key) != candidates.size()) {
+                throw new UncapturedBranch(key.getId() + " (registered=" + snapshot.registeredPatternCount(key)
+                        + ", captured=" + candidates.size() + ")");
+            }
+            for (var pattern : candidates) {
+                if (rules == null && !snapshot.hasExactInputDomain(pattern.id())) {
+                    throw new UncapturedBranch("dynamic input: " + pattern.id());
+                }
+            }
+            return candidates;
+        }, snapshot::isEmittable, stock, key -> key.getType().getAmountPerByte(), guard,
+                maximumBits, rules).plan(BigInteger.valueOf(requestedAmount),
+                        strategy == CalculationStrategy.CRAFT_LESS);
+    }
+
+    private static Ae2BranchingInputRules branchingRules(Capture capture, Ae2PlanningGraphSnapshot snapshot,
+            Ae2PlanningInventorySnapshot inventory, PlanningWorkerYield workerYield, PlanningGuard guard) {
+        return new Ae2BranchingInputRules(snapshot, inventory, () -> capture.grid().getCraftingService(),
+                capture.level(), new Ae2BranchingInputRules.ServerCall() {
+                    @Override public <T> T call(Supplier<T> action) {
+                        return inputObservationOnServer(capture, workerYield, action);
+                    }
+                }, guard);
+    }
+
+    private static <T> T inputObservationOnServer(Capture capture, PlanningWorkerYield workerYield,
+            Supplier<T> action) {
+        Supplier<T> checked = () -> {
+            capture.requireCurrentGenerations();
+            T value = action.get();
+            capture.requireCurrentGenerations();
+            return value;
+        };
+        if (Thread.currentThread() == capture.serverThread()) return checked.get();
+        if (capture.server() == null) throw new IllegalStateException("input capture requires a server level");
+        if (workerYield != null && !workerYield.waitsForServerTick()) {
+            return PlanningServerTasks.call(capture.server(), checked);
+        }
+        var task = new java.util.concurrent.FutureTask<T>(checked::get);
+        capture.server().execute(task);
+        try {
+            cooperativelyAwait(task, workerYield, true);
+            return task.get();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new PlanningCancelledException(0);
+        } catch (ExecutionException failed) {
+            if (failed.getCause() instanceof RuntimeException runtime) throw runtime;
+            if (failed.getCause() instanceof Error fatal) throw fatal;
+            throw new IllegalStateException("input capture failed", failed.getCause());
+        } finally {
+            task.cancel(false);
+        }
+    }
+
+    private static boolean branchingRequiresWide(BigCraftingPlan<AEKey> plan, Ae2PlanningGraphSnapshot snapshot) {
+        for (Map<?, BigInteger> values : List.of(plan.patternExecutions(), plan.usedInventory(),
+                plan.emitted(), plan.missing())) {
+            if (values.values().stream().anyMatch(value -> value.bitLength() > 63)) return true;
+        }
+        Map<AEKey, BigInteger> totals = new LinkedHashMap<>();
+        Map<String, CompiledPattern<AEKey>> patterns = new LinkedHashMap<>();
+        snapshot.graph().patterns().forEach(pattern -> patterns.put(pattern.id(), pattern));
+        for (var entry : plan.patternExecutions().entrySet()) {
+            CompiledPattern<AEKey> pattern = patterns.get(entry.getKey());
+            if (pattern == null) throw new IllegalStateException("branching pattern disappeared");
+            for (var slot : pattern.inputs()) {
+                BigInteger amount = entry.getValue().multiply(BigInteger.valueOf(slot.alternatives().get(0).amount()));
+                if (amount.bitLength() > 63) return true;
+            }
+            for (var produced : pattern.outputs().entrySet()) {
+                BigInteger total = totals.merge(produced.getKey(),
+                        entry.getValue().multiply(BigInteger.valueOf(produced.getValue())), BigInteger::add);
+                if (total.bitLength() > 63) return true;
+            }
+        }
+        return false;
+    }
+
+    private static final class UncapturedBranch extends RuntimeException {
+        private UncapturedBranch(String detail) { super(detail); }
     }
 
     private static PlanningGuard planningGuard(
@@ -1216,7 +1532,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
     }
 
     enum StaleSnapshotAction {
-        FALLBACK_TO_AE2,
+        REFRESH_CAPTURE,
         REJECT_WIDE,
         CANCEL
     }
@@ -1235,7 +1551,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
         if (wideArithmeticRequired) {
             return StaleSnapshotAction.REJECT_WIDE;
         }
-        return StaleSnapshotAction.FALLBACK_TO_AE2;
+        return StaleSnapshotAction.REFRESH_CAPTURE;
     }
 
     private static boolean normalLongReplacementEnabled() {

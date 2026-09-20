@@ -3,6 +3,7 @@ package com.syaru.ae2craftingoptimizer.engine;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.stacks.AEKey;
 import java.util.Optional;
+import java.util.List;
 
 /** Plannerが読む、同一Pattern/recipe revisionへ固定した不変グラフ境界。 */
 interface Ae2PlanningGraphSnapshot {
@@ -23,6 +24,10 @@ interface Ae2PlanningGraphSnapshot {
     boolean hasExactlyOneFullyCompiledPattern(AEKey output);
 
     boolean hasExactInputDomain(String patternId);
+
+    default List<CompiledPattern<AEKey>> orderedPatternsFor(AEKey output) {
+        return graph().patternsFor(output);
+    }
 
     CompiledRootProgram.Outcome<AEKey> rootProgramOutcome(AEKey root);
 

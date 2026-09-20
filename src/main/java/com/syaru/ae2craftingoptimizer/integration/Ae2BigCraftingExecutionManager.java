@@ -202,6 +202,7 @@ public final class Ae2BigCraftingExecutionManager {
                         0);
                 return true;
             }
+            long revisionBefore = transaction.transactionRevision();
             if (state.cancellationRequested()) {
                 transaction.requestCancellation();
             }
@@ -216,7 +217,6 @@ public final class Ae2BigCraftingExecutionManager {
                 return true;
             }
             long startedNanos = System.nanoTime();
-            long revisionBefore = transaction.transactionRevision();
             PhysicalCraftingTreeTransaction.TickOutcome outcome;
             try {
                 outcome = transaction.tick(
@@ -233,11 +233,8 @@ public final class Ae2BigCraftingExecutionManager {
             }
             ExactVectorDiagnostics.activeTick(System.nanoTime() - startedNanos);
             boolean changed = transaction.transactionRevision() != revisionBefore;
-            if (outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
+            if (!changed && outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
                 ExactVectorDiagnostics.dirtyCallAvoided();
-                if (transaction.tickDiagnostics().activeStepsProcessed() == 0L) {
-                    ExactVectorDiagnostics.zeroAllocationWait();
-                }
             }
             if (outcome.kind() == PhysicalCraftingTreeTransaction.Kind.WAITING) {
                 reportStall(context, outcome.detail(), operationBudget);
@@ -379,28 +376,36 @@ public final class Ae2BigCraftingExecutionManager {
                 Ae2CompiledCraftingGraphCache.Snapshot graphSnapshot) {
             long patternGeneration = ProviderPatternGenerationTracker.generation();
             long recipeGeneration = RecipeGenerationTracker.generation();
-            CompiledRootProgram<AEKey> program = graphSnapshot.rootProgram(state.requestedKey())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "standard AE2 exact CPU root program is unavailable"));
-            if (!state.programFingerprint().equals(
-                    Ae2BigCraftingPlanFactory.programFingerprint(program))) {
-                throw new IllegalArgumentException("standard AE2 exact CPU fingerprint changed");
-            }
             int maximumBits = ACOConfig.getBigIntegerMaximumBits();
-            CompiledRootProgram.BigInventorySnapshot<AEKey> inventory =
-                    program.captureBigInventory(
-                            key -> state.plannedInventory().getOrDefault(key, BigInteger.ZERO),
-                            maximumBits);
-            PreparedVectorBatch plan = VectorBatchPlanner.prepare(
-                    UUID.randomUUID(),
-                    jobId,
-                    program,
-                    inventory,
-                    state.requestedAmount(),
-                    state.programFingerprint(),
-                    patternGeneration,
-                    recipeGeneration,
-                    maximumBits);
+            PreparedVectorBatch plan;
+            if (state.selectedBranch().isPresent()) {
+                plan = com.syaru.ae2craftingoptimizer.engine.SelectedBranchPhysicalPlan.forJob(
+                        state.selectedBranch().orElseThrow(), jobId);
+                com.syaru.ae2craftingoptimizer.engine.SelectedBranchPhysicalPlan.validateBindings(
+                        plan, graphSnapshot::pattern, cluster.getLevel(), maximumBits);
+            } else {
+                CompiledRootProgram<AEKey> program = graphSnapshot.rootProgram(state.requestedKey())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "standard AE2 exact CPU root program is unavailable"));
+                if (!state.programFingerprint().equals(
+                        Ae2BigCraftingPlanFactory.programFingerprint(program))) {
+                    throw new IllegalArgumentException("standard AE2 exact CPU fingerprint changed");
+                }
+                CompiledRootProgram.BigInventorySnapshot<AEKey> inventory =
+                        program.captureBigInventory(
+                                key -> state.plannedInventory().getOrDefault(key, BigInteger.ZERO),
+                                maximumBits);
+                plan = VectorBatchPlanner.prepare(
+                        UUID.randomUUID(),
+                        jobId,
+                        program,
+                        inventory,
+                        state.requestedAmount(),
+                        state.programFingerprint(),
+                        patternGeneration,
+                        recipeGeneration,
+                        maximumBits);
+            }
             VectorBatchPlanValidator.validate(
                     plan,
                     maximumBits,
@@ -498,11 +503,23 @@ public final class Ae2BigCraftingExecutionManager {
                     state.programFingerprint())) {
                 return false;
             }
-            CompiledRootProgram<AEKey> current = graphSnapshot.rootProgram(state.requestedKey())
-                    .orElse(null);
-            boolean matches = current != null
-                    && state.programFingerprint().equals(
-                            Ae2BigCraftingPlanFactory.programFingerprint(current));
+            boolean matches;
+            if (state.selectedBranch().isPresent()) {
+                try {
+                    com.syaru.ae2craftingoptimizer.engine.SelectedBranchPhysicalPlan.validateBindings(
+                            state.selectedBranch().orElseThrow(), graphSnapshot::pattern,
+                            cluster.getLevel(), ACOConfig.getBigIntegerMaximumBits());
+                    matches = true;
+                } catch (RuntimeException invalid) {
+                    matches = false;
+                }
+            } else {
+                CompiledRootProgram<AEKey> current = graphSnapshot.rootProgram(state.requestedKey())
+                        .orElse(null);
+                matches = current != null
+                        && state.programFingerprint().equals(
+                                Ae2BigCraftingPlanFactory.programFingerprint(current));
+            }
             if (matches) {
                 revalidatedPrograms.record(
                         patternGeneration,
