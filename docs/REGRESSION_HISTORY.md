@@ -25,6 +25,51 @@
 
 ## 2.0.0開発版の再発記録
 
+- [Issue #190](issues/ISSUE-190.md), 2026-09-19 / AQE capacity alignment:
+  Byte accounting bounded amount * 8 and unreduced rational numerators before
+  unit conversion; tests reproduced rejection despite an in-range final cost.
+  Split whole bytes and reduced fractional remainder, ceil once, and keep real
+  count/byte limits. Tests cover AQE default and maximum capacities, existing
+  reservations, exact fit, one-byte overflow, NBT and physical branch cancellation.
+  No AQE capacity ownership change, deployment or live performance claim.
+
+- [Issue #190](issues/ISSUE-190.md), 2026-09-19 / receipt validation:
+  Worker snapshots were trusted without checking the returned transaction ID
+  and digest. After output credit, cancellation could also release a changed
+  receipt. Validate identity on every read and persisted outputs/state before
+  acknowledgement retry or receipt removal. Keep waiting for a same-identity
+  running worker after a lagging save, without crediting it twice or forgetting
+  owned work. Nine contract integration tests
+  cover exact completion, unload, cancellation, NBT and faulty receipts on both
+  loaders. This is injected-fault evidence, not a reproduced live-server fault.
+  Build passed; no deployment or runtime acceptance.
+
+- [Issue #190](issues/ISSUE-190.md), 2026-09-18 / lightweight follow-up:
+  fixed singleton inputs used redundant server observations; Forge rebuilt exact
+  accounting and persistence on idle ticks. Reuse immutable input semantics with
+  adoption revalidation and the existing active-step/revision implementation.
+  Also retain polled cancellation steps when another provider is unloaded, and
+  share receipt accounting across external CPU reads. Tests cover 10,000 repeated
+  reads (one rebuild), bounded cancellation/reload of 1,024 wide steps, missing
+  providers, and item/fluid input parity with actual AE2. Runtime acceptance pending.
+
+- [Issue #190](issues/ISSUE-190.md), 2026-09-18 / BigInteger実装:
+  複数の製造方法を選んだ巨大計画を、実行時に単一製造方法へ作り直していた。
+  固定入力・非循環の作業台分岐について、選択済み回数・投入素材・全余剰を保存し、
+  標準AE2と外部物理APIへ同じ計画を渡す。既存のReceipt、取消・復旧の所有者は変更しない。
+  Forge通常AE2/UELMは各602件中601成功・任意JAR検査1件未実施、NeoForgeは610件成功。
+  未配置。実設備での完了・途中取消・再起動復旧と、加工機械/循環分岐は未確認・未対応。
+
+- [Issue #190](issues/ISSUE-190.md), 2026-09-18: 代替素材、返却容器、独自Pattern形式を
+  一律に取得対象外としていた。公開APIの構造取得とサーバー側での入力判定を分離し、
+  NBT・耐久値・液体の単位・返却順をAE2に合わせて計算する。
+  両版のAE2比較試験とビルドは完了。未配置、実環境の採用率と巨大分岐の物理実行は未確認。
+
+- [Issue #190](issues/ISSUE-190.md), 2026-09-17: 複数の製造候補を一律に拒否して標準計算へ戻る。
+  AE2順の候補試行、失敗の巻戻し、読取区間の証明による反復短縮を追加。
+  世代変更は新しい在庫とグラフで最大3回試行し、古い在庫の標準計算へ戻さない。
+  未取得Patternの実体、数量がlongを超える分岐計画の物理実行、実環境の採用率は未確認。
+
 - [Issue #190](issues/ISSUE-190.md): Emitterで切れる循環の誤拒否、および従来Map計算で
   生成済み副産物を元在庫として数える不具合。局所DAG検証と元在庫の最大不足量へ修正。
   共有素材を持つ単一出力DAGにも順序付き会計を使い、Snapshotの再検証でEmitterを誤拒否しない。

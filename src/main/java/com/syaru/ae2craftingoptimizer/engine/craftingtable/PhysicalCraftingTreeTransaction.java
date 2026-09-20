@@ -438,6 +438,8 @@ public final class PhysicalCraftingTreeTransaction {
         // 各tickの実消費数を0から数え直し、依存待ちの未使用Claimを呼出側へ返せるようにする。
         lastConsumedOperations =
                 0;
+        lastStepsScanned = 0L;
+        lastActiveStepsProcessed = 0L;
         State stateBeforeTick = state;
         String detailBeforeTick = detail;
         try {
@@ -656,6 +658,11 @@ public final class PhysicalCraftingTreeTransaction {
         Objects.requireNonNull(level, "level");
         // schema 2保存だけは、Providerが戻った時に一度だけ不変identityへ移行する。
         ensurePatternIdentities(snapshot, level);
+        return accountingSnapshot();
+    }
+
+    /** Read-only receipt accounting for all CPU consumers; unchanged receipts share one snapshot. */
+    public AccountingSnapshot accountingSnapshot() {
         if (cachedAccountingSnapshot != null
                 && cachedAccountingRevision == accountingRevision) {
             return cachedAccountingSnapshot;
@@ -666,11 +673,6 @@ public final class PhysicalCraftingTreeTransaction {
         cachedAccountingSnapshot = result;
         cachedAccountingRevision = accountingRevision;
         return result;
-    }
-
-    /** Issue #182: 外部CPUへ、live Gridを読まないReceipt由来の会計を公開する。 */
-    public AccountingSnapshot accountingSnapshot() {
-        return accountingSnapshotFromPersistedIdentities();
     }
 
     /**
@@ -879,7 +881,7 @@ public final class PhysicalCraftingTreeTransaction {
             lastConsumedOperations = consumedOperations;
             lastProcessedIndex = index;
             StepAdvance advance = advanceOneRecipe(grid, level, receipt, resolved);
-            if (advance.changed()) {
+            if (advance.changed() || stateBefore != receipt.state()) {
                 changed++;
                 markTransactionChanged();
             }
@@ -903,8 +905,11 @@ public final class PhysicalCraftingTreeTransaction {
         // 今tick内の二重処理を防ぎつつ、未完了段だけを次tickへ戻す。
         requeue.forEach(this::enqueueStep);
         if (lastProcessedIndex >= 0) {
-            schedulerCursor = Math.floorMod(lastProcessedIndex + 1, steps.size());
-            markTransactionChanged();
+            int nextCursor = Math.floorMod(lastProcessedIndex + 1, steps.size());
+            if (schedulerCursor != nextCursor) {
+                schedulerCursor = nextCursor;
+                markTransactionChanged();
+            }
         }
 
         // 全段の実出力がEscrowへ入り、Thread解放まで終わった後だけME返却へ進む。
@@ -1052,9 +1057,7 @@ public final class PhysicalCraftingTreeTransaction {
         if (receipt.state()
                 == StepState.ACCEPTED) {
             Optional<CraftingTableBatchSnapshot> physical =
-                    target.aco$craftingTableBatchSnapshot(
-                            receipt.transactionId(),
-                            receipt.payloadDigest());
+                    checkedPhysicalSnapshot(target, receipt);
             // 所有中ならSnapshot生成を待ち、所有を失った時だけ別Targetへ再投入する。
             if (physical.isEmpty()) {
                 // 同じTargetがまだ所有している間は、二重投入せず待つ。
@@ -1166,9 +1169,7 @@ public final class PhysicalCraftingTreeTransaction {
         if (receipt.state()
                 == StepState.OUTPUT_CREDITED) {
             Optional<CraftingTableBatchSnapshot> physical =
-                    target.aco$craftingTableBatchSnapshot(
-                            receipt.transactionId(),
-                            receipt.payloadDigest());
+                    checkedPhysicalSnapshot(target, receipt);
             // ThreadがまだOUTPUT_READYなら、終端Receipt作成と解放を冪等に再送する。
             if (physical.isPresent()
                     && physical.orElseThrow()
@@ -1179,9 +1180,13 @@ public final class PhysicalCraftingTreeTransaction {
                         receipt.transactionId(),
                         receipt.payloadDigest());
                 physical =
-                        target.aco$craftingTableBatchSnapshot(
-                                receipt.transactionId(),
-                                receipt.payloadDigest());
+                        checkedPhysicalSnapshot(target, receipt);
+            }
+            // Issue #190: a lagging worker save may still be running; keep its ownership.
+            if (physical.isPresent()
+                    && physical.orElseThrow().state() == CraftingTableBatchSnapshot.State.RUNNING) {
+                detail = "waiting for credited crafting-table worker recovery";
+                return StepAdvance.waiting();
             }
             // 終端Receiptの実出力も、保存済みEscrow会計と同じ式であることを確認する。
             if (physical.isPresent()
@@ -1218,6 +1223,34 @@ public final class PhysicalCraftingTreeTransaction {
         }
 
         return StepAdvance.waiting();
+    }
+
+    private static Optional<CraftingTableBatchSnapshot> checkedPhysicalSnapshot(
+            CraftingTableBatchTarget target,
+            StepReceipt receipt) {
+        Optional<CraftingTableBatchSnapshot> physical =
+                target.aco$craftingTableBatchSnapshot(
+                        receipt.transactionId(),
+                        receipt.payloadDigest());
+        if (physical.isEmpty()) {
+            return physical;
+        }
+        CraftingTableBatchSnapshot snapshot = physical.orElseThrow();
+        // Issue #190: never credit or release a receipt returned for another job.
+        if (!receipt.transactionId().equals(snapshot.transactionId())
+                || !receipt.payloadDigest().equals(snapshot.payloadDigest())) {
+            throw new IllegalStateException(
+                    "crafting-table snapshot identity differs from its owned request");
+        }
+        if (receipt.outputCredited()
+                && snapshot.state() != CraftingTableBatchSnapshot.State.RUNNING
+                && (snapshot.state() != CraftingTableBatchSnapshot.State.OUTPUT_READY
+                        && snapshot.state() != CraftingTableBatchSnapshot.State.ACKNOWLEDGED
+                        || !receipt.observedOutputs().equals(snapshot.exactOutputs()))) {
+            throw new IllegalStateException(
+                    "crafting-table receipt changed after output accounting");
+        }
+        return physical;
     }
 
     private static SchedulingLane schedulingLane(
@@ -1304,6 +1337,7 @@ public final class PhysicalCraftingTreeTransaction {
             lastConsumedOperations =
                     inspected;
             StepState stateBefore = receipt.state();
+            boolean creditedBefore = receipt.outputCredited();
             try {
             // 未受理段は外部所有者がいないため、予約入力を即座に戻せる。
             if (receipt.state()
@@ -1400,9 +1434,7 @@ public final class PhysicalCraftingTreeTransaction {
             if (receipt.state()
                     == StepState.ACCEPTED) {
                 Optional<CraftingTableBatchSnapshot> physical =
-                        target.aco$craftingTableBatchSnapshot(
-                                receipt.transactionId(),
-                                receipt.payloadDigest());
+                        checkedPhysicalSnapshot(target, receipt);
                 // Snapshot待ちの所有中Threadは、二重取消せず次tickまで保持する。
                 if (physical.isEmpty()
                         && target.aco$ownsCraftingTableBatch(
@@ -1470,9 +1502,7 @@ public final class PhysicalCraftingTreeTransaction {
             if (receipt.state()
                     == StepState.OUTPUT_CREDITED) {
                 Optional<CraftingTableBatchSnapshot> physical =
-                        target.aco$craftingTableBatchSnapshot(
-                                receipt.transactionId(),
-                                receipt.payloadDigest());
+                        checkedPhysicalSnapshot(target, receipt);
                 // 生きた完了Threadには、終端Receipt作成を冪等に再送する。
                 if (physical.isPresent()
                         && physical.orElseThrow()
@@ -1482,6 +1512,13 @@ public final class PhysicalCraftingTreeTransaction {
                     target.aco$acknowledgeCraftingTableBatch(
                             receipt.transactionId(),
                             receipt.payloadDigest());
+                    // Issue #190: validate the retried acknowledgement before forgetting it.
+                    physical = checkedPhysicalSnapshot(target, receipt);
+                }
+                if (physical.isPresent()
+                        && physical.orElseThrow().state() == CraftingTableBatchSnapshot.State.RUNNING) {
+                    detail = "cancellation waits for credited crafting-table worker recovery";
+                    continue;
                 }
                 boolean forgotten =
                         target.aco$forgetCraftingTableBatch(
@@ -1515,7 +1552,13 @@ public final class PhysicalCraftingTreeTransaction {
                         receipt);
                 changed++;
             }
+            } catch (PatternUnavailableException unavailable) {
+                // Keep other polled steps reachable when one provider is unloaded.
+                detail = checkedDetail(unavailable.getMessage());
             } finally {
+                if (stateBefore != receipt.state() || creditedBefore != receipt.outputCredited()) {
+                    markAccountingChanged();
+                }
                 recordStepStateTransition(stateBefore, receipt.state());
                 if (!isTerminal(receipt.state())) {
                     enqueueStep(index);
@@ -2303,6 +2346,7 @@ public final class PhysicalCraftingTreeTransaction {
         detail =
                 checkedDetail(
                         reason);
+        markAccountingChanged();
         markStatusChanged();
     }
 
@@ -2479,6 +2523,9 @@ public final class PhysicalCraftingTreeTransaction {
     private void ensurePatternIdentities(
             Ae2CompiledCraftingGraphCache.Snapshot snapshot,
             Level level) {
+        if (patternIdentities.size() == plan.craftingSteps().size()) {
+            return;
+        }
         // schema 2で欠けているidentityだけをlive graphから一度復元する。
         for (int index = 0; index < plan.craftingSteps().size(); index++) {
             ExactCraftingStep step = plan.craftingSteps().get(index);

@@ -2,6 +2,7 @@ package com.syaru.ae2craftingoptimizer.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -77,9 +78,9 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
     }
 
     @Test
-    void ordinaryStaleSnapshotFallsBackWithoutRelabelingInventory() {
+    void ordinaryStaleSnapshotRefreshesWithoutRelabelingInventory() {
         assertEquals(
-                Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.FALLBACK_TO_AE2,
+                Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.REFRESH_CAPTURE,
                 Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
                         false,
                         false));
@@ -96,12 +97,64 @@ class Ae2AuthoritativeCraftingPlannerPolicyTest {
     }
 
     @Test
-    void fallsBackToAe2AfterARepeatedOrdinaryStaleSnapshot() {
-        assertEquals(
-                Ae2AuthoritativeCraftingPlanner.StaleSnapshotAction.FALLBACK_TO_AE2,
-                Ae2AuthoritativeCraftingPlanner.staleSnapshotAction(
-                        false,
-                        false));
+    void repeatedStaleCaptureIsBoundedAndDoesNotReturnAFallback() {
+        AtomicInteger plans = new AtomicInteger();
+        AtomicInteger captures = new AtomicInteger();
+        StalePlanningSnapshotException stale = new StalePlanningSnapshotException(
+                new PlanningGenerationSnapshot(1, 1, 1), 0);
+        assertEquals(stale, assertThrows(StalePlanningSnapshotException.class,
+                () -> Ae2AuthoritativeCraftingPlanner.retryStalePlan("initial",
+                        snapshot -> { plans.incrementAndGet(); throw stale; },
+                        snapshot -> "fresh-" + captures.incrementAndGet())));
+        assertEquals(3, plans.get());
+        assertEquals(2, captures.get());
+    }
+
+    @Test
+    void retryUsesFreshSnapshotAndDoesNotSwallowOtherFailures() {
+        AtomicInteger captures = new AtomicInteger();
+        StalePlanningSnapshotException stale = new StalePlanningSnapshotException(
+                new PlanningGenerationSnapshot(1, 1, 1), 0);
+        String result = Ae2AuthoritativeCraftingPlanner.retryStalePlan("initial", snapshot -> {
+            if (snapshot.equals("initial")) throw stale;
+            return snapshot;
+        }, old -> "fresh-" + captures.incrementAndGet());
+        assertEquals("fresh-1", result);
+        assertEquals(1, captures.get());
+        assertThrows(PlanningCancelledException.class,
+                () -> Ae2AuthoritativeCraftingPlanner.retryStalePlan("initial",
+                        snapshot -> { throw new PlanningCancelledException(0); },
+                        old -> { captures.incrementAndGet(); return "wrong"; }));
+        assertEquals(1, captures.get());
+    }
+
+    @Test
+    void resumedDetachedWorkerCooperatesWhenRecapturing() throws Exception {
+        AtomicInteger yields = new AtomicInteger();
+        var detached = Ae2AuthoritativeCraftingPlanner.detachedWorkerYield(yields::incrementAndGet);
+        assertFalse(detached.waitsForServerTick());
+        detached.yieldToServerThread();
+        assertEquals(0, yields.get());
+        detached.beforeResult();
+        assertTrue(detached.waitsForServerTick());
+        detached.beforeResult();
+        assertEquals(1, yields.get());
+        detached.yieldToServerThread();
+        assertEquals(2, yields.get());
+    }
+
+    @Test
+    void refreshedUnsupportedPlanCannotResumeVanillaWithOldInventory() {
+        var stale = new StalePlanningSnapshotException(new PlanningGenerationSnapshot(1, 1, 1), 0);
+        AtomicInteger captures = new AtomicInteger();
+        assertEquals(stale, assertThrows(StalePlanningSnapshotException.class,
+                () -> Ae2AuthoritativeCraftingPlanner.retryStalePlan("initial", snapshot -> {
+                    if (snapshot.equals("initial")) throw stale;
+                    return null;
+                }, old -> "fresh-" + captures.incrementAndGet())));
+        assertEquals(1, captures.get());
+        assertNull(Ae2AuthoritativeCraftingPlanner.retryStalePlan("initial", snapshot -> null,
+                old -> { throw new AssertionError("initial unsupported plans do not require recapture"); }));
     }
 
     @Test
