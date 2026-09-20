@@ -19,6 +19,7 @@ public final class BigExactCraftingByteCounter<K> {
     private final ToLongFunction<K> amountPerByte;
     private final int maximumBits;
     private final Set<K> visitedKeys = new HashSet<>();
+    private BigInteger wholeBytes = BigInteger.ZERO;
     private BigInteger numerator = BigInteger.ZERO;
     private BigInteger denominator = BigInteger.ONE;
 
@@ -47,12 +48,7 @@ public final class BigExactCraftingByteCounter<K> {
         BigInteger nodes = counter.visit(root, requestedAmount);
         counter.addInteger(BigCountMath.multiply(
                 nodes, BigInteger.valueOf(8L), "bytes/nodeOverhead", maximumBits));
-        BigInteger[] divided = counter.numerator.divideAndRemainder(counter.denominator);
-        BigInteger result = divided[1].signum() == 0
-                ? divided[0]
-                : BigCountMath.add(
-                        divided[0], BigInteger.ONE, "bytes/finalCeil", maximumBits);
-        return BigCountMath.requireMaximumBits(result, "bytes/result", maximumBits);
+        return counter.roundedBytes();
     }
 
     static <K> BigInteger calculate(CraftingPlanTrace<K> trace, ToLongFunction<K> amountPerByte, int maximumBits) {
@@ -61,17 +57,10 @@ public final class BigExactCraftingByteCounter<K> {
             if (charge.key() == null) {
                 counter.addInteger(charge.amount());
             } else {
-                long divisor = amountPerByte.applyAsLong(charge.key());
-                if (divisor <= 0) {
-                    throw new IllegalArgumentException("amountPerByte must be positive");
-                }
-                counter.addFraction(BigCountMath.multiply(charge.amount(), BigInteger.valueOf(8),
-                        "byproduct/bytes", maximumBits), BigInteger.valueOf(divisor));
+                counter.addStackAmount(charge.amount(), amountPerByte.applyAsLong(charge.key()));
             }
         }
-        BigInteger[] divided = counter.numerator.divideAndRemainder(counter.denominator);
-        return BigCountMath.requireMaximumBits(divided[0].add(divided[1].signum() == 0
-                ? BigInteger.ZERO : BigInteger.ONE), "byproduct/bytes", maximumBits);
+        return counter.roundedBytes();
     }
 
     private BigInteger visit(K key, BigInteger requestedAmount) {
@@ -84,13 +73,7 @@ public final class BigExactCraftingByteCounter<K> {
         if (divisor <= 0L) {
             throw new IllegalArgumentException("amountPerByte must be positive");
         }
-        addFraction(
-                BigCountMath.multiply(
-                        requestedAmount,
-                        BigInteger.valueOf(8L),
-                        "bytes/stack/" + key,
-                        maximumBits),
-                BigInteger.valueOf(divisor));
+        addStackAmount(requestedAmount, divisor);
         BigInteger nodes = BigInteger.ONE;
         CompiledPattern<K> pattern = patterns.get(key);
         if (pattern == null) {
@@ -118,28 +101,44 @@ public final class BigExactCraftingByteCounter<K> {
     }
 
     private void addInteger(BigInteger amount) {
-        addFraction(amount, BigInteger.ONE);
+        wholeBytes = BigCountMath.add(wholeBytes, amount, "bytes/integer", maximumBits);
+    }
+
+    private BigInteger roundedBytes() {
+        return numerator.signum() == 0 ? BigCountMath.requireMaximumBits(wholeBytes, "bytes/result", maximumBits)
+                : BigCountMath.add(wholeBytes, BigInteger.ONE, "bytes/finalCeil", maximumBits);
+    }
+
+    private void addStackAmount(BigInteger amount, long divisor) {
+        BigCountMath.requireMaximumBits(amount, "bytes/stackAmount", maximumBits);
+        if (divisor <= 0) {
+            throw new IllegalArgumentException("amountPerByte must be positive");
+        }
+        BigInteger unit = BigInteger.valueOf(divisor);
+        BigInteger[] parts = amount.divideAndRemainder(unit);
+        // Issue #190: only the converted byte cost, not amount * 8, consumes CPU capacity.
+        addInteger(BigCountMath.multiply(parts[0], BigInteger.valueOf(8), "bytes/wholeStack", maximumBits));
+        // The remainder is below a positive long unit; scaling it needs at most 66 bits.
+        addFraction(parts[1].multiply(BigInteger.valueOf(8)), unit);
     }
 
     private void addFraction(BigInteger addNumerator, BigInteger addDenominator) {
-        BigCountMath.requireMaximumBits(addNumerator, "bytes/numerator", maximumBits);
-        if (addDenominator.signum() <= 0) {
-            throw new IllegalArgumentException("byte denominator must be positive");
-        }
+        BigInteger[] parts = addNumerator.divideAndRemainder(addDenominator);
+        addInteger(parts[0]);
+        if (parts[1].signum() == 0) return;
         BigInteger gcd = denominator.gcd(addDenominator);
         BigInteger leftMultiplier = addDenominator.divide(gcd);
         BigInteger rightMultiplier = denominator.divide(gcd);
-        BigInteger nextNumerator = BigCountMath.add(
-                BigCountMath.multiply(
-                        numerator, leftMultiplier, "bytes/fraction-left", maximumBits),
-                BigCountMath.multiply(
-                        addNumerator, rightMultiplier, "bytes/fraction-right", maximumBits),
-                "bytes/fraction-add",
-                maximumBits);
-        BigInteger nextDenominator = BigCountMath.multiply(
-                denominator, leftMultiplier, "bytes/denominator", maximumBits);
+        // Both operands are fractions below one. Temporaries need at most maximumBits + 64.
+        BigInteger nextNumerator = numerator.multiply(leftMultiplier)
+                .add(parts[1].multiply(rightMultiplier));
+        BigInteger nextDenominator = denominator.multiply(leftMultiplier);
         BigInteger reduction = nextNumerator.gcd(nextDenominator);
-        numerator = nextNumerator.divide(reduction);
-        denominator = nextDenominator.divide(reduction);
+        BigInteger reducedDenominator = BigCountMath.requireMaximumBits(
+                nextDenominator.divide(reduction), "bytes/denominator", maximumBits);
+        BigInteger[] normalized = nextNumerator.divide(reduction).divideAndRemainder(reducedDenominator);
+        addInteger(normalized[0]);
+        numerator = normalized[1];
+        denominator = reducedDenominator;
     }
 }

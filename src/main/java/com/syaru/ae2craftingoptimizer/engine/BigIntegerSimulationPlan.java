@@ -23,6 +23,7 @@ public final class BigIntegerSimulationPlan implements WideCraftingPlan {
     private final KeyCounter missingItems;
     private final Map<IPatternDetails, Long> patternTimes;
     private final BigInteger exactBytes;
+    private final boolean multiplePaths;
 
     public BigIntegerSimulationPlan(
             GenericStack finalOutput,
@@ -43,6 +44,17 @@ public final class BigIntegerSimulationPlan implements WideCraftingPlan {
             Map<IPatternDetails, BigInteger> exactPatternTimes,
             BigInteger exactBytes,
             int maximumBits) {
+        this(finalOutput, exactPlan, exactPatternTimes, exactBytes, maximumBits, false);
+    }
+
+    BigIntegerSimulationPlan(
+            GenericStack finalOutput,
+            BigCraftingPlan<AEKey> exactPlan,
+            Map<IPatternDetails, BigInteger> exactPatternTimes,
+            BigInteger exactBytes,
+            int maximumBits,
+            boolean multiplePaths) {
+        this.multiplePaths = multiplePaths;
         this.finalOutput = Objects.requireNonNull(finalOutput, "finalOutput");
         this.exactPlan = Objects.requireNonNull(exactPlan, "exactPlan");
         // simulationは不足計画だけを表し、実行可能計画を誤って提出境界へ流さない。
@@ -84,7 +96,7 @@ public final class BigIntegerSimulationPlan implements WideCraftingPlan {
 
     @Override
     public boolean multiplePaths() {
-        return false;
+        return multiplePaths;
     }
 
     @Override

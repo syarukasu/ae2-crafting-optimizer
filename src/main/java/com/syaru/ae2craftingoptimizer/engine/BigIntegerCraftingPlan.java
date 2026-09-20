@@ -5,6 +5,7 @@ import appeng.api.networking.IGrid;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
+import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatch;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import java.math.BigInteger;
 import java.util.Map;
@@ -28,6 +29,8 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
     private final KeyCounter missingItems;
     private final Map<IPatternDetails, Long> patternTimes;
     private final AtomicBoolean submissionClaimed = new AtomicBoolean();
+    private final PreparedVectorBatch selectedBranch;
+    private final boolean multiplePaths;
 
     public BigIntegerCraftingPlan(
             GenericStack finalOutput,
@@ -43,11 +46,32 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
             Map<IPatternDetails, BigInteger> exactPatternTimes,
             Ae2BigCraftingPlanFactory.PreparedBigRootPlan preparedRoot,
             boolean requiresBigIntegerExecution) {
+        this(finalOutput, exactPlan, exactPatternTimes, preparedRoot, requiresBigIntegerExecution, null, false);
+    }
+
+    public BigIntegerCraftingPlan(
+            GenericStack finalOutput, BigCraftingPlan<AEKey> exactPlan,
+            Map<IPatternDetails, BigInteger> exactPatternTimes,
+            Ae2BigCraftingPlanFactory.PreparedBigRootPlan preparedRoot,
+            boolean requiresBigIntegerExecution, PreparedVectorBatch selectedBranch, boolean multiplePaths) {
         this.finalOutput = Objects.requireNonNull(finalOutput, "finalOutput");
         this.exactPlan = Objects.requireNonNull(exactPlan, "exactPlan");
         this.exactPatternTimes = BigIntegerPlanProjection.immutablePositiveCounts(
                 exactPatternTimes, "exactPatternTimes");
         this.preparedRoot = Objects.requireNonNull(preparedRoot, "preparedRoot");
+        this.selectedBranch = selectedBranch;
+        this.multiplePaths = multiplePaths;
+        if (selectedBranch != null) {
+            SelectedBranchPhysicalPlan.validateAccounting(selectedBranch, exactPlan);
+            if (!preparedRoot.programFingerprint().equals(selectedBranch.programFingerprint())
+                    || preparedRoot.patternGeneration() != selectedBranch.patternGeneration()
+                    || preparedRoot.recipeGeneration() != selectedBranch.recipeGeneration()
+                    || preparedRoot.rootWindowJob() != null) {
+                throw new IllegalArgumentException("selected branch metadata is inconsistent");
+            }
+        } else if (preparedRoot.programFingerprint().startsWith(SelectedBranchPhysicalPlan.PREFIX)) {
+            throw new IllegalArgumentException("selected branch execution metadata is missing");
+        }
         // 表示対象とBig親Jobが別注文を指す状態は、提出前に構築エラーとして止める。
         if (!finalOutput.what().equals(exactPlan.requestedKey())
                 || !BigInteger.valueOf(finalOutput.amount()).equals(exactPlan.requestedAmount())
@@ -87,7 +111,7 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
 
     @Override
     public boolean multiplePaths() {
-        return false;
+        return multiplePaths;
     }
 
     @Override
@@ -122,12 +146,17 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
      * 実行できる通常注文まで物理Target待ちのまま停止する。</p>
      */
     public boolean fitsStandardLongExecution() {
-        return exactBytes().compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0
+        return selectedBranch == null
+                && exactBytes().compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0
                 && !containsWideCounter(exactPlan, exactPatternTimes);
     }
 
     public BigCraftingPlan<AEKey> exactPlan() {
         return exactPlan;
+    }
+
+    public java.util.Optional<PreparedVectorBatch> selectedBranch() {
+        return java.util.Optional.ofNullable(selectedBranch);
     }
 
     public Map<IPatternDetails, BigInteger> exactPatternTimes() {

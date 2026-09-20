@@ -20,7 +20,10 @@ import com.syaru.ae2craftingoptimizer.api.vector.PreparedVectorBatchCodec;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
 import com.syaru.ae2craftingoptimizer.util.StableFingerprint;
 import java.math.BigInteger;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +51,7 @@ public final class PhysicalCraftingTreeTransaction {
     public static final String ENGINE_ID =
             "aco:physical-crafting-table-tree-v4";
     private static final int SCHEMA_VERSION = 3;
+    /** pattern identityを持たない旧保存を安全に遅延移行するためのschema。 */
     private static final int LEGACY_SCHEMA_VERSION = 2;
     /** 一つの物理レシピ段をGUI進捗へ換算する固定単位。 */
     private static final int PROGRESS_UNITS_PER_STEP = 100;
@@ -57,7 +61,7 @@ public final class PhysicalCraftingTreeTransaction {
     private static final int MAXIMUM_DETAIL_LENGTH = 2_048;
 
     private final PreparedVectorBatch plan;
-    /** Immutable accounting identity captured before physical ownership begins. */
+    /** 物理所有開始前に固定し、live graph消失後も会計へ使うPattern正本。 */
     private final Map<String, PatternAccountingIdentity> patternIdentities;
     private final ExactCraftingEscrow<AEKey> escrow;
     private final List<StepReceipt> steps;
@@ -78,6 +82,23 @@ public final class PhysicalCraftingTreeTransaction {
      * <p>Pattern実体をNBTへ保存せず、ロード後または世代変更後に一度だけ再構築する。</p>
      */
     private List<ResolvedStep> resolvedStepCache;
+    /** 各Laneに一度だけ登録された、次に処理可能な物理Stepの索引。 */
+    private final EnumMap<SchedulingLane, ArrayDeque<Integer>> activeQueues =
+            new EnumMap<>(SchedulingLane.class);
+    private boolean[] queuedSteps;
+    /** 生成済み中間素材ごとの依存待ちStep。出力会計時だけ下流を再キューする。 */
+    private Map<AEKey, List<Integer>> dependencyWaiters = Map.of();
+    private long planRevision;
+    private long transactionRevision;
+    private long accountingRevision;
+    private long statusRevision;
+    private long cachedAccountingRevision = -1L;
+    private AccountingSnapshot cachedAccountingSnapshot;
+    private long lastStepsScanned;
+    private long lastActiveStepsProcessed;
+    private long accountingSnapshotRebuilds;
+    private int nonTerminalSteps;
+    private int acknowledgedSteps;
 
     private PhysicalCraftingTreeTransaction(
             PreparedVectorBatch plan,
@@ -137,6 +158,28 @@ public final class PhysicalCraftingTreeTransaction {
                 List.of();
         this.lastConsumedOperations =
                 0;
+        this.planRevision = 0L;
+        this.transactionRevision = 0L;
+        this.accountingRevision = 0L;
+        this.statusRevision = 0L;
+        this.lastStepsScanned = 0L;
+        this.lastActiveStepsProcessed = 0L;
+        this.accountingSnapshotRebuilds = 0L;
+        this.nonTerminalSteps = 0;
+        this.acknowledgedSteps = 0;
+        for (StepReceipt receipt : this.steps) {
+            if (!isTerminal(receipt.state())) {
+                nonTerminalSteps++;
+            }
+            if (receipt.state() == StepState.ACKNOWLEDGED) {
+                acknowledgedSteps++;
+            }
+        }
+        for (SchedulingLane lane : SchedulingLane.values()) {
+            activeQueues.put(lane, new ArrayDeque<>());
+        }
+        this.queuedSteps = new boolean[this.steps.size()];
+        rebuildActiveQueues();
         validateState();
     }
 
@@ -245,7 +288,8 @@ public final class PhysicalCraftingTreeTransaction {
                                 owner.getCompound(
                                         "pendingNetworkMutation"))
                         : null;
-        return new PhysicalCraftingTreeTransaction(
+        PhysicalCraftingTreeTransaction restored =
+                new PhysicalCraftingTreeTransaction(
                 plan,
                 schema == SCHEMA_VERSION
                         ? decodePatternIdentities(owner, plan)
@@ -272,6 +316,8 @@ public final class PhysicalCraftingTreeTransaction {
                         "cancellationRequested"),
                 owner.getString(
                         "detail"));
+        restored.restoreRevisions(owner);
+        return restored;
     }
 
     public CompoundTag save() {
@@ -316,6 +362,10 @@ public final class PhysicalCraftingTreeTransaction {
         owner.putString(
                 "detail",
                 detail);
+        owner.putLong("planRevision", planRevision);
+        owner.putLong("transactionRevision", transactionRevision);
+        owner.putLong("accountingRevision", accountingRevision);
+        owner.putLong("statusRevision", statusRevision);
         // 適用前のME境界操作を親NBTへ先に保存し、停止後にbefore/afterを再照合する。
         if (pendingNetworkMutation != null) {
             owner.put(
@@ -346,6 +396,7 @@ public final class PhysicalCraftingTreeTransaction {
         if (patternIdentities.size() != plan.craftingSteps().size()) {
             return false;
         }
+        // 各物理Stepに対応する保存済みidentityが一件ずつ存在するか確認する。
         for (ExactCraftingStep step : plan.craftingSteps()) {
             if (!patternIdentities.containsKey(step.patternId())) {
                 return false;
@@ -385,6 +436,10 @@ public final class PhysicalCraftingTreeTransaction {
         // 各tickの実消費数を0から数え直し、依存待ちの未使用Claimを呼出側へ返せるようにする。
         lastConsumedOperations =
                 0;
+        lastStepsScanned = 0L;
+        lastActiveStepsProcessed = 0L;
+        State stateBeforeTick = state;
+        String detailBeforeTick = detail;
         try {
             /*
              * ME境界操作は、親NBTへpendingを保存した次のtickにだけ適用する。
@@ -449,6 +504,12 @@ public final class PhysicalCraftingTreeTransaction {
                             + failure);
             return TickOutcome.quarantined(
                     detail);
+        } finally {
+            // 待機理由やGUI状態だけが変わったtickも保存対象にする。
+            if (state != stateBeforeTick
+                    || !detail.equals(detailBeforeTick)) {
+                markStatusChanged();
+            }
         }
     }
 
@@ -480,6 +541,7 @@ public final class PhysicalCraftingTreeTransaction {
                     true;
             detail =
                     "cancellation waits for pending storage reconciliation";
+            markStatusChanged();
             return true;
         }
         beginCancellation();
@@ -498,6 +560,8 @@ public final class PhysicalCraftingTreeTransaction {
                 State.CANCELLING_THREADS;
         detail =
                 "cancellation requested";
+        rebuildActiveQueues();
+        markStatusChanged();
     }
 
     public PreparedVectorBatch plan() {
@@ -548,6 +612,30 @@ public final class PhysicalCraftingTreeTransaction {
         return lastConsumedOperations;
     }
 
+    /** 状態不変tickを呼出側が保存しないためのrevision。 */
+    public long transactionRevision() {
+        return transactionRevision;
+    }
+
+    public long accountingRevision() {
+        return accountingRevision;
+    }
+
+    public long planRevision() {
+        return planRevision;
+    }
+
+    public long statusRevision() {
+        return statusRevision;
+    }
+
+    public TickDiagnostics tickDiagnostics() {
+        return new TickDiagnostics(
+                lastStepsScanned,
+                lastActiveStepsProcessed,
+                accountingSnapshotRebuilds);
+    }
+
     public Map<AEKey, BigInteger> escrowSnapshot() {
         return escrow.snapshot();
     }
@@ -565,7 +653,20 @@ public final class PhysicalCraftingTreeTransaction {
         Objects.requireNonNull(level, "level");
         // schema 2保存だけは、Providerが戻った時に一度だけ不変identityへ移行する。
         ensurePatternIdentities(snapshot, level);
-        return accountingSnapshotFromPersistedIdentities();
+        return accountingSnapshot();
+    }
+
+    /** Read-only receipt accounting for all CPU consumers; unchanged receipts share one snapshot. */
+    public AccountingSnapshot accountingSnapshot() {
+        if (cachedAccountingSnapshot != null
+                && cachedAccountingRevision == accountingRevision) {
+            return cachedAccountingSnapshot;
+        }
+        accountingSnapshotRebuilds++;
+        AccountingSnapshot result = accountingSnapshotFromPersistedIdentities();
+        cachedAccountingSnapshot = result;
+        cachedAccountingRevision = accountingRevision;
+        return result;
     }
 
     /**
@@ -589,7 +690,8 @@ public final class PhysicalCraftingTreeTransaction {
             PatternAccountingIdentity identity = patternIdentities.get(step.patternId());
             if (identity == null) {
                 throw new PatternUnavailableException(
-                        "saved accounting identity is not available for pattern " + step.patternId());
+                        "saved accounting identity is not available for pattern "
+                                + step.patternId());
             }
             BigInteger executions = step.executions();
             mergePositive(
@@ -625,11 +727,6 @@ public final class PhysicalCraftingTreeTransaction {
                 introducedOutputs,
                 creditedOutputs,
                 finalOutputReturned);
-    }
-
-    /** Read-only receipt accounting for the external CPU API, without live grid reads. */
-    public AccountingSnapshot accountingSnapshot() {
-        return accountingSnapshotFromPersistedIdentities();
     }
 
     /** GUIへ渡す進捗は、実BatchTargetの進捗と完了済み物理段から求める。 */
@@ -693,6 +790,7 @@ public final class PhysicalCraftingTreeTransaction {
                 State.RESERVING_BOUNDARY_INPUTS;
         detail =
                 "";
+        markTransactionChanged();
         return TickOutcome.changed();
     }
 
@@ -707,6 +805,8 @@ public final class PhysicalCraftingTreeTransaction {
                     State.EXECUTING_RECIPES;
             detail =
                     "";
+            rebuildActiveQueues();
+            markTransactionChanged();
             return TickOutcome.changed();
         }
         return prepareNetworkMutationBatch(
@@ -745,87 +845,65 @@ public final class PhysicalCraftingTreeTransaction {
         validatedRecipeGeneration =
                 snapshot.recipeGeneration();
 
-        int consumedOperations =
-                0;
-        int changed =
-                0;
-        int stepCount =
-                steps.size();
-        int lastProcessedIndex =
-                -1;
-        /*
-         * 物理Thread所有中、投入準備済み、依存入力が揃った段の順に処理する。
-         * 各Laneでは保存Cursorから巡回し、独立枝同士の公平性を維持する。
-         */
-        scheduling:
-        for (SchedulingLane lane :
-                SchedulingLane.RUNNABLE_ORDER) {
-            // 同じLaneの全段を一巡し、注文数量ではなく固有Pattern数だけを確認する。
-            for (int offset = 0;
-                    offset < stepCount;
-                    offset++) {
-                // 実際に処理した段数がGridから借りた上限へ達したら、残りを次tickへ送る。
-                if (consumedOperations >= operationBudget) {
-                    break scheduling;
-                }
-                int index =
-                        Math.floorMod(
-                                schedulerCursor
-                                        + offset,
-                                stepCount);
-                StepReceipt receipt =
-                        steps.get(
-                                index);
-                // 現在の状態を担当しないLaneでは設備やレシピ解決へ触れない。
-                if (schedulingLane(
-                                receipt.state())
-                        != lane) {
-                    continue;
-                }
-                ResolvedStep resolved =
-                        resolveStep(
-                                snapshot,
-                                level,
-                                receipt.index());
-                /*
-                 * 中間素材が未完成の親段は走査だけで待機させる。
-                 * この判定は設備I/Oを行わないため、Gridの実行予算を消費しない。
-                 */
-                if (lane == SchedulingLane.DEPENDENCY_READY
-                        && !escrow.containsAll(
-                                resolved.inputTotals())) {
-                    continue;
-                }
-                consumedOperations++;
-                lastConsumedOperations =
-                        consumedOperations;
-                lastProcessedIndex =
-                        index;
-                StepAdvance advance =
-                        advanceOneRecipe(
-                                grid,
-                                level,
-                                receipt,
-                                resolved);
-                // 一段でも状態が変われば、親NBTをdirtyにする結果を返す。
-                if (advance.changed()) {
-                    changed++;
-                }
-                // 物理所有権が不確定な一段を見つけたら、他段を進めず親全体を隔離する。
-                if (advance.quarantined()) {
-                    quarantine(
-                            advance.detail());
-                    return TickOutcome.quarantined(
-                            detail);
-                }
+        int consumedOperations = 0;
+        int changed = 0;
+        int lastProcessedIndex = -1;
+        lastStepsScanned = 0L;
+        lastActiveStepsProcessed = 0L;
+        List<Integer> requeue = new ArrayList<>();
+        while (consumedOperations < operationBudget) {
+            Integer index = pollActiveStep();
+            if (index == null) {
+                break;
+            }
+            lastStepsScanned++;
+            StepReceipt receipt = steps.get(index);
+            if (isTerminal(receipt.state())) {
+                continue;
+            }
+            ResolvedStep resolved = resolveStep(snapshot, level, index);
+            // 依存未達成の段は捨て、出力会計時にだけ下流を再キューする。
+            if (receipt.state() == StepState.WAITING_FOR_INPUTS
+                    && !escrow.containsAll(resolved.inputTotals())) {
+                continue;
+            }
+            boolean dispatchedBefore = receipt.dispatched();
+            boolean creditedBefore = receipt.outputCredited();
+            StepState stateBefore = receipt.state();
+            consumedOperations++;
+            lastActiveStepsProcessed++;
+            lastConsumedOperations = consumedOperations;
+            lastProcessedIndex = index;
+            StepAdvance advance = advanceOneRecipe(grid, level, receipt, resolved);
+            if (advance.changed() || stateBefore != receipt.state()) {
+                changed++;
+                markTransactionChanged();
+            }
+            if ((!dispatchedBefore && receipt.dispatched())
+                    || (!creditedBefore && receipt.outputCredited())) {
+                markAccountingChanged();
+            }
+            if (receipt.outputCredited() && !creditedBefore) {
+                enqueueDependents(resolved.expectedOutputs().keySet());
+            }
+            if (advance.quarantined()) {
+                quarantine(advance.detail());
+                return TickOutcome.quarantined(detail);
+            }
+            recordStepStateTransition(stateBefore, receipt.state());
+            if (!isTerminal(receipt.state())
+                    && receipt.state() != StepState.WAITING_FOR_INPUTS) {
+                requeue.add(index);
             }
         }
-        // 一段以上を処理した場合だけ、次回の同一Lane開始位置を一つ先へ進める。
+        // 今tick内の二重処理を防ぎつつ、未完了段だけを次tickへ戻す。
+        requeue.forEach(this::enqueueStep);
         if (lastProcessedIndex >= 0) {
-            schedulerCursor =
-                    Math.floorMod(
-                            lastProcessedIndex + 1,
-                            stepCount);
+            int nextCursor = Math.floorMod(lastProcessedIndex + 1, steps.size());
+            if (schedulerCursor != nextCursor) {
+                schedulerCursor = nextCursor;
+                markTransactionChanged();
+            }
         }
 
         // 全段の実出力がEscrowへ入り、Thread解放まで終わった後だけME返却へ進む。
@@ -845,6 +923,7 @@ public final class PhysicalCraftingTreeTransaction {
                     State.RETURNING_RESULTS;
             detail =
                     "";
+            markTransactionChanged();
             return TickOutcome.changed();
         }
         return changed > 0
@@ -972,9 +1051,7 @@ public final class PhysicalCraftingTreeTransaction {
         if (receipt.state()
                 == StepState.ACCEPTED) {
             Optional<CraftingTableBatchSnapshot> physical =
-                    target.aco$craftingTableBatchSnapshot(
-                            receipt.transactionId(),
-                            receipt.payloadDigest());
+                    checkedPhysicalSnapshot(target, receipt);
             // 所有中ならSnapshot生成を待ち、所有を失った時だけ別Targetへ再投入する。
             if (physical.isEmpty()) {
                 // 同じTargetがまだ所有している間は、二重投入せず待つ。
@@ -1086,9 +1163,7 @@ public final class PhysicalCraftingTreeTransaction {
         if (receipt.state()
                 == StepState.OUTPUT_CREDITED) {
             Optional<CraftingTableBatchSnapshot> physical =
-                    target.aco$craftingTableBatchSnapshot(
-                            receipt.transactionId(),
-                            receipt.payloadDigest());
+                    checkedPhysicalSnapshot(target, receipt);
             // ThreadがまだOUTPUT_READYなら、終端Receipt作成と解放を冪等に再送する。
             if (physical.isPresent()
                     && physical.orElseThrow()
@@ -1099,9 +1174,13 @@ public final class PhysicalCraftingTreeTransaction {
                         receipt.transactionId(),
                         receipt.payloadDigest());
                 physical =
-                        target.aco$craftingTableBatchSnapshot(
-                                receipt.transactionId(),
-                                receipt.payloadDigest());
+                        checkedPhysicalSnapshot(target, receipt);
+            }
+            // Issue #190: a lagging worker save may still be running; keep its ownership.
+            if (physical.isPresent()
+                    && physical.orElseThrow().state() == CraftingTableBatchSnapshot.State.RUNNING) {
+                detail = "waiting for credited crafting-table worker recovery";
+                return StepAdvance.waiting();
             }
             // 終端Receiptの実出力も、保存済みEscrow会計と同じ式であることを確認する。
             if (physical.isPresent()
@@ -1138,6 +1217,34 @@ public final class PhysicalCraftingTreeTransaction {
         }
 
         return StepAdvance.waiting();
+    }
+
+    private static Optional<CraftingTableBatchSnapshot> checkedPhysicalSnapshot(
+            CraftingTableBatchTarget target,
+            StepReceipt receipt) {
+        Optional<CraftingTableBatchSnapshot> physical =
+                target.aco$craftingTableBatchSnapshot(
+                        receipt.transactionId(),
+                        receipt.payloadDigest());
+        if (physical.isEmpty()) {
+            return physical;
+        }
+        CraftingTableBatchSnapshot snapshot = physical.orElseThrow();
+        // Issue #190: never credit or release a receipt returned for another job.
+        if (!receipt.transactionId().equals(snapshot.transactionId())
+                || !receipt.payloadDigest().equals(snapshot.payloadDigest())) {
+            throw new IllegalStateException(
+                    "crafting-table snapshot identity differs from its owned request");
+        }
+        if (receipt.outputCredited()
+                && snapshot.state() != CraftingTableBatchSnapshot.State.RUNNING
+                && (snapshot.state() != CraftingTableBatchSnapshot.State.OUTPUT_READY
+                        && snapshot.state() != CraftingTableBatchSnapshot.State.ACKNOWLEDGED
+                        || !receipt.observedOutputs().equals(snapshot.exactOutputs()))) {
+            throw new IllegalStateException(
+                    "crafting-table receipt changed after output accounting");
+        }
+        return physical;
     }
 
     private static SchedulingLane schedulingLane(
@@ -1178,6 +1285,7 @@ public final class PhysicalCraftingTreeTransaction {
                     State.COMPLETE;
             detail =
                     "";
+            markAccountingChanged();
             return TickOutcome.complete();
         }
         // Escrowに実在しない成果物を、計画値から直接生成してはならない。
@@ -1206,19 +1314,25 @@ public final class PhysicalCraftingTreeTransaction {
         int changed =
                 0;
         // 物理所有権のある段を解放し、未完成段の予約入力をEscrowへ戻す。
-        for (StepReceipt receipt :
-                steps) {
-            // 終端段またはこのtickの予算を使い切った後は追加処理しない。
-            if (receipt.state()
-                            == StepState.ACKNOWLEDGED
-                    || receipt.state()
-                            == StepState.CANCELLED
-                    || inspected >= operationBudget) {
+        List<Integer> candidates = new ArrayList<>();
+        while (candidates.size() < operationBudget) {
+            Integer index = pollActiveStep();
+            if (index == null) {
+                break;
+            }
+            candidates.add(index);
+        }
+        for (Integer index : candidates) {
+            StepReceipt receipt = steps.get(index);
+            if (isTerminal(receipt.state())) {
                 continue;
             }
             inspected++;
             lastConsumedOperations =
                     inspected;
+            StepState stateBefore = receipt.state();
+            boolean creditedBefore = receipt.outputCredited();
+            try {
             // 未受理段は外部所有者がいないため、予約入力を即座に戻せる。
             if (receipt.state()
                             == StepState.WAITING_FOR_INPUTS
@@ -1314,9 +1428,7 @@ public final class PhysicalCraftingTreeTransaction {
             if (receipt.state()
                     == StepState.ACCEPTED) {
                 Optional<CraftingTableBatchSnapshot> physical =
-                        target.aco$craftingTableBatchSnapshot(
-                                receipt.transactionId(),
-                                receipt.payloadDigest());
+                        checkedPhysicalSnapshot(target, receipt);
                 // Snapshot待ちの所有中Threadは、二重取消せず次tickまで保持する。
                 if (physical.isEmpty()
                         && target.aco$ownsCraftingTableBatch(
@@ -1384,9 +1496,7 @@ public final class PhysicalCraftingTreeTransaction {
             if (receipt.state()
                     == StepState.OUTPUT_CREDITED) {
                 Optional<CraftingTableBatchSnapshot> physical =
-                        target.aco$craftingTableBatchSnapshot(
-                                receipt.transactionId(),
-                                receipt.payloadDigest());
+                        checkedPhysicalSnapshot(target, receipt);
                 // 生きた完了Threadには、終端Receipt作成を冪等に再送する。
                 if (physical.isPresent()
                         && physical.orElseThrow()
@@ -1396,6 +1506,13 @@ public final class PhysicalCraftingTreeTransaction {
                     target.aco$acknowledgeCraftingTableBatch(
                             receipt.transactionId(),
                             receipt.payloadDigest());
+                    // Issue #190: validate the retried acknowledgement before forgetting it.
+                    physical = checkedPhysicalSnapshot(target, receipt);
+                }
+                if (physical.isPresent()
+                        && physical.orElseThrow().state() == CraftingTableBatchSnapshot.State.RUNNING) {
+                    detail = "cancellation waits for credited crafting-table worker recovery";
+                    continue;
                 }
                 boolean forgotten =
                         target.aco$forgetCraftingTableBatch(
@@ -1429,6 +1546,18 @@ public final class PhysicalCraftingTreeTransaction {
                         receipt);
                 changed++;
             }
+            } catch (PatternUnavailableException unavailable) {
+                // Keep other polled steps reachable when one provider is unloaded.
+                detail = checkedDetail(unavailable.getMessage());
+            } finally {
+                if (stateBefore != receipt.state() || creditedBefore != receipt.outputCredited()) {
+                    markAccountingChanged();
+                }
+                recordStepStateTransition(stateBefore, receipt.state());
+                if (!isTerminal(receipt.state())) {
+                    enqueueStep(index);
+                }
+            }
         }
         // 全物理所有権を解放した後からだけ、Escrow全量をMEへ返す。
         if (allRecipesTerminalForCancellation()) {
@@ -1436,7 +1565,11 @@ public final class PhysicalCraftingTreeTransaction {
                     State.RETURNING_CANCELLED_ESCROW;
             detail =
                     "";
+            markAccountingChanged();
             return TickOutcome.changed();
+        }
+        if (changed > 0) {
+            markAccountingChanged();
         }
         return changed > 0
                 ? TickOutcome.changed()
@@ -1455,6 +1588,7 @@ public final class PhysicalCraftingTreeTransaction {
                     State.CANCELLED;
             detail =
                     "";
+            markAccountingChanged();
             return TickOutcome.cancelled();
         }
         return prepareNetworkMutationBatch(
@@ -1628,6 +1762,7 @@ public final class PhysicalCraftingTreeTransaction {
                     null;
             detail =
                     "";
+            markTransactionChanged();
             return TickOutcome.changed();
         }
         /*
@@ -1668,6 +1803,7 @@ public final class PhysicalCraftingTreeTransaction {
                 inputCursor =
                         plan.totalInputs()
                                 .size();
+                rebuildActiveQueues();
             }
             case FINAL_OUTPUT -> {
                 Map<AEKey, BigInteger> expected =
@@ -1700,6 +1836,7 @@ public final class PhysicalCraftingTreeTransaction {
                         amounts);
             }
         }
+        markAccountingChanged();
     }
 
     private void restoreReservedInputsAndCancel(
@@ -1780,6 +1917,10 @@ public final class PhysicalCraftingTreeTransaction {
                 resolvedStepCache =
                         List.copyOf(
                                 resolvedSteps);
+                rebuildDependencyWaiters();
+                rebuildActiveQueues();
+                planRevision = Math.incrementExact(planRevision);
+                markAccountingChanged();
             }
             return valid;
         } catch (PatternUnavailableException unavailable) {
@@ -1798,6 +1939,119 @@ public final class PhysicalCraftingTreeTransaction {
                                 .generation()
                 && validatedRecipeGeneration
                         == snapshot.recipeGeneration();
+    }
+
+    private void rebuildActiveQueues() {
+        activeQueues.values().forEach(ArrayDeque::clear);
+        queuedSteps = new boolean[steps.size()];
+        for (int offset = 0; offset < steps.size(); offset++) {
+            int index = Math.floorMod(schedulerCursor + offset, steps.size());
+            enqueueStep(index);
+        }
+    }
+
+    private void rebuildDependencyWaiters() {
+        Map<AEKey, List<Integer>> result = new LinkedHashMap<>();
+        for (int index = 0; index < resolvedStepCache.size(); index++) {
+            for (AEKey key : resolvedStepCache.get(index).inputTotals().keySet()) {
+                result.computeIfAbsent(key, ignored -> new ArrayList<>()).add(index);
+            }
+        }
+        Map<AEKey, List<Integer>> immutable = new LinkedHashMap<>();
+        result.forEach((key, indexes) -> immutable.put(key, List.copyOf(indexes)));
+        dependencyWaiters = Collections.unmodifiableMap(immutable);
+    }
+
+    private void enqueueDependents(Iterable<AEKey> outputs) {
+        for (AEKey key : outputs) {
+            for (Integer index : dependencyWaiters.getOrDefault(key, List.of())) {
+                enqueueStep(index);
+            }
+        }
+    }
+
+    private void enqueueStep(int index) {
+        if (index < 0 || index >= steps.size() || queuedSteps[index]) {
+            return;
+        }
+        StepState stepState = steps.get(index).state();
+        if (isTerminal(stepState)) {
+            return;
+        }
+        SchedulingLane lane = schedulingLane(stepState);
+        if (lane == SchedulingLane.TERMINAL) {
+            return;
+        }
+        activeQueues.get(lane).addLast(index);
+        queuedSteps[index] = true;
+    }
+
+    private Integer pollActiveStep() {
+        for (SchedulingLane lane : SchedulingLane.RUNNABLE_ORDER) {
+            ArrayDeque<Integer> queue = activeQueues.get(lane);
+            Integer index = queue.pollFirst();
+            if (index != null) {
+                queuedSteps[index] = false;
+                return index;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isTerminal(StepState state) {
+        return state == StepState.ACKNOWLEDGED || state == StepState.CANCELLED;
+    }
+
+    private void recordStepStateTransition(StepState before, StepState after) {
+        if (before == after) {
+            return;
+        }
+        if (!isTerminal(before) && isTerminal(after)) {
+            nonTerminalSteps--;
+        } else if (isTerminal(before) && !isTerminal(after)) {
+            nonTerminalSteps++;
+        }
+        if (before == StepState.ACKNOWLEDGED) {
+            acknowledgedSteps--;
+        }
+        if (after == StepState.ACKNOWLEDGED) {
+            acknowledgedSteps++;
+        }
+        if (nonTerminalSteps < 0 || acknowledgedSteps < 0) {
+            throw new IllegalStateException("physical step state counters underflowed");
+        }
+    }
+
+    private void restoreRevisions(CompoundTag owner) {
+        planRevision = nonNegativeRevision(owner, "planRevision");
+        transactionRevision = nonNegativeRevision(owner, "transactionRevision");
+        accountingRevision = nonNegativeRevision(owner, "accountingRevision");
+        statusRevision = nonNegativeRevision(owner, "statusRevision");
+        cachedAccountingSnapshot = null;
+        cachedAccountingRevision = -1L;
+    }
+
+    private static long nonNegativeRevision(CompoundTag owner, String key) {
+        long value = owner.contains(key, Tag.TAG_LONG) ? owner.getLong(key) : 0L;
+        if (value < 0L) {
+            throw new IllegalArgumentException("negative transaction revision: " + key);
+        }
+        return value;
+    }
+
+    private void markTransactionChanged() {
+        transactionRevision = Math.incrementExact(transactionRevision);
+    }
+
+    private void markAccountingChanged() {
+        accountingRevision = Math.incrementExact(accountingRevision);
+        markTransactionChanged();
+        cachedAccountingSnapshot = null;
+    }
+
+    private void markStatusChanged() {
+        statusRevision = Math.incrementExact(statusRevision);
+        markTransactionChanged();
     }
 
     private ResolvedStep resolveStep(
@@ -1832,7 +2086,8 @@ public final class PhysicalCraftingTreeTransaction {
                         step.patternId());
         if (pattern == null || pattern.getDefinition() == null) {
             throw new PatternUnavailableException(
-                    "saved crafting-table pattern is temporarily unavailable: " + step.patternId());
+                    "saved crafting-table pattern is temporarily unavailable: "
+                            + step.patternId());
         }
         ExactPatternFormula formula =
                 ExactPatternFormula.tryCreate(
@@ -1840,25 +2095,31 @@ public final class PhysicalCraftingTreeTransaction {
                                 level,
                                 step.selectedInputs())
                         .orElse(null);
-        // A present but changed definition is a proven identity conflict; it is not a retryable unload.
+        // 存在するPatternの式が変わった場合は、一時unloadではなく正本競合として扱う。
         if (formula == null) {
             throw new PatternIdentityConflictException(
-                    "saved crafting-table pattern is no longer deterministic: " + step.patternId());
+                    "saved crafting-table pattern is no longer deterministic: "
+                            + step.patternId());
         }
-        PatternAccountingIdentity current = PatternAccountingIdentity.from(
-                step,
-                (AEItemKey) pattern.getDefinition(),
-                formula.exactInputTotals(step.executions()),
-                formula.exactExpectedOutputTotals(step.executions()));
+        Map<AEKey, BigInteger> inputTotals =
+                formula.exactInputTotals(
+                        step.executions());
+        Map<AEKey, BigInteger> expectedOutputs =
+                formula.exactExpectedOutputTotals(
+                        step.executions());
+        PatternAccountingIdentity current =
+                PatternAccountingIdentity.from(
+                        step,
+                        (AEItemKey) pattern.getDefinition(),
+                        inputTotals,
+                        expectedOutputs);
         rememberOrVerifyPatternIdentity(current);
         return new ResolvedStep(
                 step,
                 pattern,
                 formula,
-                formula.exactInputTotals(
-                        step.executions()),
-                formula.exactExpectedOutputTotals(
-                        step.executions()));
+                inputTotals,
+                expectedOutputs);
     }
 
     /**
@@ -2063,31 +2324,13 @@ public final class PhysicalCraftingTreeTransaction {
     }
 
     private boolean allRecipesAcknowledged() {
-        // 全段がOUTPUT_CREDITEDを経由してACKNOWLEDGEDになった場合だけ成功扱いする。
-        for (StepReceipt receipt :
-                steps) {
-            // 一段でも未承認なら、最終出力をMEへ返さない。
-            if (receipt.state()
-                    != StepState.ACKNOWLEDGED) {
-                return false;
-            }
-        }
-        return true;
+        // ACKカウンタはStep状態遷移時に更新され、tickごとの全Step走査を避ける。
+        return acknowledgedSteps == steps.size();
     }
 
     private boolean allRecipesTerminalForCancellation() {
-        // ACKNOWLEDGEDまたはCANCELLEDだけが、外部物理所有権のない終端状態。
-        for (StepReceipt receipt :
-                steps) {
-            // 一段でも実Threadを所有し得る状態なら、Escrow返却へ進まない。
-            if (receipt.state()
-                            != StepState.ACKNOWLEDGED
-                    && receipt.state()
-                            != StepState.CANCELLED) {
-                return false;
-            }
-        }
-        return true;
+        // 非終端Step数は状態遷移時に更新され、取消tickでも全Step走査を行わない。
+        return nonTerminalSteps == 0;
     }
 
     private void quarantine(
@@ -2097,6 +2340,8 @@ public final class PhysicalCraftingTreeTransaction {
         detail =
                 checkedDetail(
                         reason);
+        markAccountingChanged();
+        markStatusChanged();
     }
 
     private void validateState() {
@@ -2247,6 +2492,7 @@ public final class PhysicalCraftingTreeTransaction {
             throw new IllegalArgumentException("too many saved pattern identities");
         }
         Map<String, PatternAccountingIdentity> result = new LinkedHashMap<>();
+        // 保存IDとidentity本体を一対一で検証し、重複定義をその場で拒否する。
         for (Map.Entry<String, PatternAccountingIdentity> entry : source.entrySet()) {
             String id = Objects.requireNonNull(entry.getKey(), "pattern identity id");
             PatternAccountingIdentity identity = Objects.requireNonNull(
@@ -2257,6 +2503,7 @@ public final class PhysicalCraftingTreeTransaction {
                 throw new IllegalArgumentException("invalid or duplicate pattern identity");
             }
         }
+        // 別計画のidentityを同じTransactionへ混入させない。
         for (ExactCraftingStep step : plan.craftingSteps()) {
             PatternAccountingIdentity identity = result.get(step.patternId());
             if (identity != null && !identity.matchesStep(step)) {
@@ -2270,6 +2517,10 @@ public final class PhysicalCraftingTreeTransaction {
     private void ensurePatternIdentities(
             Ae2CompiledCraftingGraphCache.Snapshot snapshot,
             Level level) {
+        if (patternIdentities.size() == plan.craftingSteps().size()) {
+            return;
+        }
+        // schema 2で欠けているidentityだけをlive graphから一度復元する。
         for (int index = 0; index < plan.craftingSteps().size(); index++) {
             ExactCraftingStep step = plan.craftingSteps().get(index);
             if (!patternIdentities.containsKey(step.patternId())) {
@@ -2296,6 +2547,7 @@ public final class PhysicalCraftingTreeTransaction {
         PatternAccountingIdentity saved = patternIdentities.get(current.patternId());
         if (saved == null) {
             patternIdentities.put(current.patternId(), current);
+            markAccountingChanged();
             return;
         }
         if (!saved.equals(current)) {
@@ -2307,6 +2559,7 @@ public final class PhysicalCraftingTreeTransaction {
     private Map<AEItemKey, BigInteger> patternDefinitions(
             Map<String, BigInteger> patternExecutions) {
         Map<AEItemKey, BigInteger> definitions = new LinkedHashMap<>();
+        // 安定IDをTransaction保存済みのencoded pattern itemへ一対一で変換する。
         for (Map.Entry<String, BigInteger> entry : patternExecutions.entrySet()) {
             PatternAccountingIdentity identity = patternIdentities.get(entry.getKey());
             if (identity == null) {
@@ -2329,6 +2582,7 @@ public final class PhysicalCraftingTreeTransaction {
         Objects.requireNonNull(snapshot, "snapshot");
         Objects.requireNonNull(level, "level");
         Map<String, PatternAccountingIdentity> result = new LinkedHashMap<>();
+        // 物理所有開始前に全Patternの定義と正確な式を固定する。
         for (ExactCraftingStep step : plan.craftingSteps()) {
             IPatternDetails pattern = snapshot.pattern(step.patternId());
             if (pattern == null || pattern.getDefinition() == null) {
@@ -2392,6 +2646,7 @@ public final class PhysicalCraftingTreeTransaction {
                 throw new IllegalArgumentException("duplicate saved pattern identity");
             }
         }
+        // 保存identity集合が物理計画のPattern集合と完全一致するか確認する。
         for (ExactCraftingStep step : plan.craftingSteps()) {
             if (!result.containsKey(step.patternId())) {
                 throw new IllegalArgumentException(
@@ -3323,6 +3578,7 @@ public final class PhysicalCraftingTreeTransaction {
         }
     }
 
+    /** 一時的なProvider unloadを正本競合と区別し、所有権を保持したまま待機させる。 */
     public static final class PatternUnavailableException extends RuntimeException {
         public PatternUnavailableException(String message) {
             super(message);
@@ -3520,6 +3776,19 @@ public final class PhysicalCraftingTreeTransaction {
                             creditedOutputs)) {
                 throw new IllegalArgumentException(
                         "physical accounting snapshot exceeds its plan");
+            }
+        }
+    }
+
+    public record TickDiagnostics(
+            long stepsScanned,
+            long activeStepsProcessed,
+            long accountingSnapshotRebuilds) {
+        public TickDiagnostics {
+            if (stepsScanned < 0L
+                    || activeStepsProcessed < 0L
+                    || accountingSnapshotRebuilds < 0L) {
+                throw new IllegalArgumentException("negative physical transaction diagnostics");
             }
         }
     }
