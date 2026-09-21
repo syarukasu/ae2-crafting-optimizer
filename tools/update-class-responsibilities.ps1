@@ -39,6 +39,7 @@ $packageRoles = [ordered]@{
 }
 
 $overrides = @{
+    'com.syaru.ae2craftingoptimizer.engine.LinearWidePlanning' = 'Proves unit-output wide DAG eligibility and aggregates detached demand with exact logical CPU overhead; no live inventory or execution ownership.'
     'com.syaru.ae2craftingoptimizer.engine.SelectedBranchPhysicalPlan' = '選択済み分岐の固定入力、回数、順序と全余剰を既存の物理実行契約へ保持する。実在庫やWorkerの実行は所有しない。'
     'com.syaru.ae2craftingoptimizer.engine.BranchingInputRules' = '計画内の入力候補、返却物、NBT候補の順序索引を計算核へ渡す契約。実在庫を所有しない。'
     'com.syaru.ae2craftingoptimizer.engine.Ae2BranchingInputRules' = '固定入力は不変snapshotから計算し、動的入力と返却物だけserver threadで取得・記憶する。採用前に同じ意味を再検証する。'
