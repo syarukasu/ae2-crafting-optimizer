@@ -45,7 +45,7 @@ mixin + access  ->  integration  ->  optimization
 |---|---:|---|
 | `PhysicalCraftingTreeTransaction` | 3795 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
 | `Ae2AuthoritativeCraftingPlanner` | 2007 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
-| `CompiledRootProgram` | 1584 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
+| `CompiledRootProgram` | 1588 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
 | `BigCraftingJob` | 1215 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
 | `TransactionalCraftingExecutorV2` | 958 | 高。所有権移転後の処理。見た目の短縮目的では分割せず、phase単位の試験を先に増やす。 |
 | `BigCraftingHostRuntime` | 912 | 高。外部Host容量と予約を所有。複数Job仕様を勝手に導入しない。 |
@@ -88,7 +88,7 @@ mixin + access  ->  integration  ->  optimization
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **320件**
+本版の本番トップレベル型: **321件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -321,6 +321,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobLedger` | AE2実JobのBigIntegerカウンタを再起動後も検証する永続Journal。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState` | 標準AE2の実Jobへ付随するexact task、waiting、output、Receiptのsidecar正本。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator` | Exact計画が参照するPatternだけを、CPU提出直前のCraftingServiceへ再照合する。 |
+| `com.syaru.ae2craftingoptimizer.engine.LinearWidePlanning` | Proves unit-output wide DAG eligibility and aggregates detached demand with exact logical CPU overhead; no live inventory or execution ownership. |
 | `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlan` | LongCraftingPlanが示すクラフト計画またはコンパイル済みプログラムを不変値として保持する。 |
 | `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlanner` | Map方式のchecked long試算。元在庫の最大不足量と生成した副産物を区別する。 |
 | `com.syaru.ae2craftingoptimizer.engine.OrderedBranchingPlanner` | AE2順の候補試行、失敗の巻戻し、元在庫の最大不足量、読取区間で証明した反復短縮を所有する純粋計算。実在庫や実行は所有しない。 |
