@@ -7,6 +7,90 @@
 
 ## Problem and evidence
 
+### 2026-09-21 real AE2 runtime baseline (Implemented; full acceptance pending)
+
+The requested acceptance scope is industrial planning, wide physical execution,
+accounting verification and runtime cost reduction. The sub-ten-second full-pack
+benchmark remains a final goal, not a replacement for these correctness gates.
+
+Source inspection confirms that selected external processing patterns and
+interleaved/dynamic physical branches are still rejected before custody by
+SelectedBranchPhysicalPlan and ExactPatternFormula. Do not remove these guards:
+AAC's existing receipt-backed target executes molecular-assembler formulas, not
+arbitrary industrial machine recipes. Pure planner and boundary-double tests do
+not prove real-machine completion.
+
+First add an opt-in Forge GameTest server run using AE2's shipped test plots.
+Its world and logs live only under build/gametest-ae2; no production server,
+client, pack recipes, saved inventories or deployed JARs are modified. Enable
+AE2's own appeng.tests registration and report actual test failures. This is a
+Forge runtime harness, not shared production logic; NeoForge needs its own run
+configuration before equivalent runtime coverage can be claimed.
+
+Ownership stays unchanged: AE2 owns real storage, machines and normal CPU jobs;
+ACO retains its existing planner/receipt responsibilities. No new execution API,
+count clamping, output synthesis or post-custody fallback is allowed here.
+Completion of the baseline means a real GameTest process exits successfully and
+its report lists executed tests, not merely a successful Gradle compilation.
+BigInteger AAC/AQE execution, restart/cancel/concurrent reservations and live
+performance remain pending until individually measured with those actual mods.
+
+Pre-implementation: charter, regression history, class ownership, issue workflow,
+testing matrix and AE2 GameTestPlotAdapter/AppEngBase registration were read.
+The existing matrix row #190 remains RUNTIME/PENDING until the full gate passes.
+
+First runtime attempt: Forge exits normally after mod loading fails because
+AE2's GuideME dependency is absent, and Gradle reports BUILD SUCCESSFUL. Add
+AE2's published GuideME 20.1.7 runtime dependency, explicitly load ACO's Mixin
+configuration in userdev, and require a non-empty completed runtime test report.
+An exit code alone must not mark acceptance as passed.
+
+Add a separate gameTest source set and test-only mod (never included in the
+distribution JAR). It registers real finite-stock processing completion,
+cancellation before machine delivery, and two simultaneous plans competing for
+the same finite inputs. Use AE2's real inscriber, pattern provider, cell and CPU,
+not a fabricated worker receipt. The test mod installs Minecraft's JUnit reporter;
+the Gradle task rejects missing, empty, failed, skipped or stale reports. Require
+an ACO-injected interface on the real CPU so an accidental no-Mixin run fails.
+These long-quantity tests establish a baseline only, not wide industrial execution.
+
+Runtime evidence: 56 actual AE2 GameTests ran. All three new ACO plots passed;
+the existing import_from_cauldron test failed (lava cauldron not drained).
+Do not attribute that failure to ACO without a comparison run. Two ACO menu
+Mixins logged unapplied injections because their selectors name only production
+SRG m_38946_, not userdev broadcastChanges. Add the verified userdev alias while
+retaining the production selector and require=1; do not weaken injection guards.
+Owners are MEStorageMenuDisplaySaturationMixin and CraftConfirmMenuLongAmountMixin;
+no inventory or GUI behavior changes. First require both selectors in a failing
+boundary test, then rerun the real server without unapplied-Mixin warnings.
+NeoForge already uses its runtime named namespace; this alias is Forge-specific.
+
+The runtime harness will expose explicit `aco` (focused acceptance, default) and
+`all` (all upstream AE2 plots plus ACO acceptance) scopes; it must not silently
+exclude a failing upstream test from the all scope. The reporter records expected
+test names, and the verifier requires exactly that set with no skipped/failed
+tests, plus the ACO acceptance tests. Add real molecular-assembler cake crafting
+to verify returned buckets and finite ingredients. Maintain the all-scope failure
+and the optimizer-disabled comparison as separate evidence, not a passing gate.
+
+Results: focused real GameTests passed on both upstream AE2 15.4.10 and UELM
+15.5.0. Actual inscriber completion, pre-delivery cancellation/refund, competing
+finite-stock submissions and molecular-assembler returned buckets all passed.
+The two menu Mixins now apply in userdev; the new source-boundary checks failed
+before the alias fix (2/5) and are part of the regression suite afterward.
+
+The first cake fixture initialized ingredients through a structure callback that
+replayed: with ACO disabled it left eight milk buckets, two cakes and six empty
+buckets, consistent with two initial deposits of seven and six consumed. Move
+initialization to a once-only test sequence and assert empty initial ingredients;
+do not change recipe/accounting code to compensate for a faulty fixture.
+
+The all-AE2 suite still has import_from_cauldron failing with ACO enabled and
+disabled. An unlinked simulation requester also exposes a planner behavior
+difference; the valid concurrency fixture now uses AE2's grid-linked MachineSource.
+See docs/testing/ISSUE190_GAME_TESTS.md for exact scope and remaining work.
+No production deployment, server restart, release or full #190 completion claim.
+
 ### 2026-09-19 AQE CPU capacity alignment (Implemented locally)
 
 The user's target is AQE's actual CPU capacity, not a fixed 10^64 quantity.

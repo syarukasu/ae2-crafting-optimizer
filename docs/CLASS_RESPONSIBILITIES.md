@@ -88,7 +88,7 @@ mixin + access  ->  integration  ->  optimization
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **321件**
+本版の本番トップレベル型: **322件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -507,6 +507,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.optimization.PatternProviderBatchEligibility` | Pattern ProviderをBatch対象にできるか、所有権・入力・target能力から保守的に判定する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.PatternPushContext` | PatternPushContextが示す一回の要求に必要な入力、所有者、実行条件を保持する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.PlanningConfigurationRevisionTracker` | Plannerの判断へ影響するACO設定の単調revisionを管理する。 |
+| `com.syaru.ae2craftingoptimizer.optimization.PlanningLogSummary` | Bounded interval diagnostics for planning outcomes, routes and measured duration; owns no live jobs or inventory. |
 | `com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker` | AE2のProvider索引更新後に内容世代を確定し、Compiled Graphの再利用境界を管理する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.ReactionChamberRecipeCache` | ReactionChamberRecipeCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.ReflectionLookupCache` | ReflectionLookupCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |

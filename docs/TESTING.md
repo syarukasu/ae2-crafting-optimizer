@@ -1,5 +1,11 @@
 # Testing
 
+## Isolated Forge Runtime Baseline
+
+See [Issue #190 GameTests](testing/ISSUE190_GAME_TESTS.md) for real finite-stock
+processing, cancellation, competing reservations and returned-container tests.
+The focused suite is not a replacement for the required live BigInteger matrix.
+
 ## Automated
 
 Run:
@@ -231,6 +237,11 @@ checks because AE2 encoded items require the real mod registry lifecycle.
 - Forge 1.20.1とNeoForge 1.21.1の両方で全JUnitと`clean build`を通すこと。
 
 ## Not Proven by Gradle
+
+See [Issue #208](issues/ISSUE-208.md) for the creative-control-circuit stock and
+quantity matrix, and [Issue #209](issues/ISSUE-209.md) for diagnostic verification.
+Planning completion is not physical craft completion. No real matrix result
+is available yet.
 
 Gradle tests do not prove:
 

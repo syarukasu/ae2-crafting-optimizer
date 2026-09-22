@@ -192,7 +192,7 @@ public abstract class CraftConfirmMenuLongAmountMixin
         ci.cancel();
     }
 
-    @Inject(method = "m_38946_", at = @At("RETURN"), require = 1)
+    @Inject(method = {"m_38946_", "broadcastChanges"}, at = @At("RETURN"), require = 1)
     private void aco$syncExactCraftingPlanSummary(CallbackInfo ci) {
         CraftConfirmMenu menu = (CraftConfirmMenu) (Object) this;
         if (menu.isClientSide()

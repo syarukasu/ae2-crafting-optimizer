@@ -493,6 +493,23 @@ public final class OptimizationMetrics {
         return List.copyOf(lines);
     }
 
+    /** Cumulative measured work, not a hypothetical saved-time estimate. */
+    public static long planningActivityCount() {
+        return COMPLETED_PLAN_CACHE_HITS.sum() + ACTIVE_CALCULATION_DEDUP_HITS.sum()
+                + PLANNING_CAPTURE_ATTEMPTS.sum() + AUTHORITATIVE_PLANNER_ATTEMPTS.sum();
+    }
+
+    public static String planningSummary() {
+        return "plannerAdopted=" + AUTHORITATIVE_PLANNER_ADOPTIONS.sum()
+                + "/" + AUTHORITATIVE_PLANNER_ATTEMPTS.sum()
+                + " completedCacheHits=" + COMPLETED_PLAN_CACHE_HITS.sum()
+                + " inFlightReuse=" + ACTIVE_CALCULATION_DEDUP_HITS.sum()
+                + " graphCompileHits=" + PLANNING_GRAPH_COMPILE_HITS.sum()
+                + " graphCompileMisses=" + PLANNING_GRAPH_COMPILE_MISSES.sum()
+                + " captureTotalUs=" + PLANNING_CAPTURE_NANOS.sum() / 1_000L
+                + " plannerTotalUs=" + AUTHORITATIVE_PLANNER_NANOS.sum() / 1_000L;
+    }
+
     public static void reset() {
         OptimizationFeatureGate.resetDiagnostics();
         SHARED_BUDGET_LIMITS.reset();

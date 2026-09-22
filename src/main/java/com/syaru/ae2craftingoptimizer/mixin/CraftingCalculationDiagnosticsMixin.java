@@ -83,6 +83,9 @@ public abstract class CraftingCalculationDiagnosticsMixin implements CraftingCal
     @Unique
     private long aco$calculationStartedAt;
 
+    @Unique private long aco$summaryEpoch = -1;
+    @Unique private boolean aco$terminalObserved;
+
     @Unique
     private long aco$calculationId;
 
@@ -282,6 +285,8 @@ public abstract class CraftingCalculationDiagnosticsMixin implements CraftingCal
     @Inject(method = "run", at = @At("HEAD"))
     private void aco$startCalculationTimer(CallbackInfoReturnable<ICraftingPlan> cir) {
         aco$calculationStartedAt = System.nanoTime();
+        aco$summaryEpoch = CraftingCalculationDiagnostics.beginSummary();
+        aco$terminalObserved = false;
         CraftingCalculationDiagnostics.logStarted(
                 aco$calculationId,
                 aco$gridIdentity,
@@ -453,6 +458,11 @@ public abstract class CraftingCalculationDiagnosticsMixin implements CraftingCal
 
     @Inject(method = "finish", at = @At("HEAD"), require = 1)
     private void aco$clearPlanningHandoff(CallbackInfo ci) {
+        if (!aco$terminalObserved) {
+            CraftingCalculationDiagnostics.finishSummary(aco$summaryEpoch, null, null,
+                    System.nanoTime() - aco$calculationStartedAt);
+            aco$terminalObserved = true;
+        }
         // AE2 finallyと同時に解除し、poolへ戻ったworkerへ停止通知が遅れて届かないようにする。
         if (aco$workerRegistered) {
             PlanningServerTasks.releaseWorker(aco$authoritativeCapture.server());
@@ -508,20 +518,33 @@ public abstract class CraftingCalculationDiagnosticsMixin implements CraftingCal
     }
 
     @Inject(method = "run", at = @At("RETURN"))
-    private void aco$logSlowCalculation(CallbackInfoReturnable<ICraftingPlan> cir) {
+    private void aco$aliasReturnedPlan(CallbackInfoReturnable<ICraftingPlan> cir) {
         ICraftingPlan returned = cir.getReturnValue();
         // AE2の外側がFacadeを再構築しても、同じ計算インスタンスのSidecarだけを引き継ぐ。
         if (aco$authoritativePlan != null && returned != null && returned != aco$authoritativePlan) {
             Ae2CraftingPlanSidecars.alias(returned, aco$authoritativePlan);
+        }
+        // Keep shadow-validation ownership and timing at its original RETURN boundary.
+        if (!aco$usedAuthoritativePlan) {
+            Ae2CraftingShadowValidator.validate(aco$shadowCapture, output, requestedAmount, strategy, returned);
+        }
+    }
+
+    // Issue #209: cancellable RETURN handlers from other mods can skip our RETURN observer.
+    @Inject(method = "logCraftingJob", at = @At("HEAD"), require = 1)
+    private void aco$observeCalculatedPlan(ICraftingPlan returned, CallbackInfo ci) {
+        String route = CraftingCalculationDiagnostics.route(aco$usedAuthoritativePlan, aco$usedNativeSnapshot);
+        if (!aco$terminalObserved) {
+            CraftingCalculationDiagnostics.finishSummary(aco$summaryEpoch, returned, route,
+                    System.nanoTime() - aco$calculationStartedAt);
+            aco$terminalObserved = true;
         }
         CraftingCalculationDiagnostics.logIfSlow(
                 output,
                 requestedAmount,
                 returned,
                 System.nanoTime() - aco$calculationStartedAt,
-                aco$usedAuthoritativePlan
-                        ? "compiled-strict"
-                        : "ae2-fallback");
+                route);
         CraftingCalculationDiagnostics.logDecision(
                 aco$calculationId,
                 aco$gridIdentity,
@@ -529,8 +552,7 @@ public abstract class CraftingCalculationDiagnosticsMixin implements CraftingCal
                 requestedAmount,
                 returned,
                 System.nanoTime() - aco$calculationStartedAt,
-                aco$usedAuthoritativePlan ? "compiled-strict"
-                        : aco$usedNativeSnapshot ? "ae2-snapshot" : "ae2-standard",
+                route,
                 aco$authoritativeCapture == null
                         ? -1L
                         : aco$authoritativeCapture.storageGeneration(),
@@ -543,14 +565,5 @@ public abstract class CraftingCalculationDiagnosticsMixin implements CraftingCal
                 aco$authoritativeCapture == null
                         ? -1L
                         : aco$authoritativeCapture.configurationRevision());
-        // Authoritative結果を自分自身と比較して一致回数を水増しせず、AE2標準結果だけを教材にする。
-        if (!aco$usedAuthoritativePlan) {
-            Ae2CraftingShadowValidator.validate(
-                    aco$shadowCapture,
-                    output,
-                    requestedAmount,
-                    strategy,
-                    returned);
-        }
     }
 }
