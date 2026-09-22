@@ -15,11 +15,25 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
  * same behavior. The plugin has no hard reference to UELM classes.
  */
 public final class AcoMixinPlugin implements IMixinConfigPlugin {
+    private static final Set<String> NATIVE_VM_EXCLUDED = Set.of(
+            "CraftingCalculationDiagnosticsMixin", "CraftingCalculationCheckedMathMixin",
+            "CraftingCalculationMemoLifecycleMixin", "CraftingCpuHelperCalculationMemoMixin",
+            "CraftingSimulationIngredientSearchMixin", "KeyCounterCalculationIndexMixin",
+            "CraftingPatternTaggedValidationMixin", "CraftingProviderRefreshCoalescingMixin",
+            "CraftingServiceCalculationDeduplicationMixin", "CraftingTreeCalculationMemoMixin",
+            "CraftingTreeNodeCheckedMathMixin", "CraftingTreeProcessCheckedMathMixin",
+            "CraftingSimulationStateCheckedMathMixin", "CraftingCpuLogicExecutionBudgetMixin");
+
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         String simpleName = simpleMixinName(mixinClassName);
         // Issue #129: 責務台帳にないMixinは通常AE2へ刺さる根拠がないため適用しない。
         if (!MixinFeatureCatalog.contains(simpleName)) {
+            return false;
+        }
+        // VM owns calculation; ordinary AE2 dispatch keeps its own waves and face rotation.
+        if (NATIVE_VM_EXCLUDED.contains(simpleName)
+                && FMLLoader.getLoadingModList().getModFileById("ae2vm_aco") != null) {
             return false;
         }
         // Neo ECO 20.3/20.4は実行メソッドの記述子が異なるため、一致する片方だけを読み込む。

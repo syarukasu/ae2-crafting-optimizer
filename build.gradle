@@ -5,6 +5,19 @@ plugins {
 group = mod_group
 version = mod_version
 
+// Issue #208: isolated fork library only; never run the upstream mod build.
+def exactVmProjectDir = file(findProperty('acoExactVmDir')
+        ?: '../../references/AE2-VM-aco-exact/exact-engine')
+def exactVmVersion = '0.1.2'
+def nativeVmProjectDir = new File(exactVmProjectDir.parentFile, 'native-engine')
+def nativeVmVersion = '0.2.0'
+def gameTestBaseline = (findProperty('acoGameTestBaseline') ?: 'false').toString().toBoolean()
+def exactVmJar = new File(exactVmProjectDir, "build/libs/aco-exact-vm-${exactVmVersion}.jar")
+tasks.register('buildExactVm', GradleBuild) {
+    dir = exactVmProjectDir
+    tasks = ['test', 'jar', 'sourcesJar']
+}
+
 base {
     archivesName = "aco${mod_version}_${minecraft_version}"
 }
@@ -13,10 +26,50 @@ java {
     toolchain.languageVersion = JavaLanguageVersion.of(17)
 }
 
+sourceSets {
+    vmNative {
+        java.srcDir new File(nativeVmProjectDir, 'src/main/java')
+        resources.srcDir new File(nativeVmProjectDir, 'src/main/resources')
+        compileClasspath = configurations.compileClasspath
+        runtimeClasspath += configurations.runtimeClasspath
+    }
+    gameTest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+sourceSets.main.compileClasspath += sourceSets.vmNative.output
+sourceSets.main.runtimeClasspath += sourceSets.vmNative.output
+sourceSets.test.compileClasspath += sourceSets.vmNative.output
+sourceSets.test.runtimeClasspath += sourceSets.vmNative.output
+sourceSets.gameTest.compileClasspath += sourceSets.vmNative.output
+sourceSets.gameTest.runtimeClasspath += sourceSets.vmNative.output
+
 minecraft {
     mappings channel: 'official', version: '1.20.1'
 
     runs {
+        gameTestServer {
+            workingDirectory project.file('build/gametest-ae2')
+            if (!gameTestBaseline) {
+                args '--mixin', 'ae2_crafting_optimizer.mixins.json'
+                args '--mixin', 'ae2vm-aco-native.mixins.json'
+            }
+            property 'aco.gametest.baseline', gameTestBaseline.toString()
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', project.file('build/createSrgToMcp/output.srg').absolutePath
+            property 'aco.gametest.report', project.file('build/gametest-ae2/results.xml').absolutePath
+            property 'forge.logging.console.level', 'info'
+            property 'forge.enabledGameTestNamespaces', 'ae2'
+            property 'aco.gametest.scope', (findProperty('acoGameTestScope') ?: 'aco').toString()
+            mods {
+                if (!gameTestBaseline) {
+                    ae2_crafting_optimizer { source sourceSets.main }
+                    ae2vm_aco { source sourceSets.vmNative }
+                }
+                aco_gametest { source sourceSets.gameTest }
+            }
+        }
         client {
             workingDirectory project.file('run')
             property 'forge.logging.markers', 'REGISTRIES'
@@ -43,6 +96,12 @@ minecraft {
 
 repositories {
     mavenCentral()
+    flatDir {
+        name = 'acoExactVmFork'
+        dirs new File(exactVmProjectDir, 'build/libs')
+        dirs new File(nativeVmProjectDir, 'build/libs')
+        content { includeGroup 'com.syaru.ae2vm' }
+    }
     maven {
         name = 'ModMaven'
         url = 'https://modmaven.dev/'
@@ -82,6 +141,19 @@ repositories {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.18'
+    gameTestRuntimeOnly fg.deobf('org.appliedenergistics:guideme:20.1.7')
+    if (findProperty('acoThunderboltJar')) {
+        def partner = file(property('acoThunderboltJar'))
+        if (!partner.isFile() || !partner.name.endsWith('.jar'))
+            throw new GradleException('acoThunderboltJar must name the exact runtime partner JAR')
+        repositories.flatDir {
+            name = 'acoRuntimePartner'
+            dirs partner.parentFile
+            content { includeGroup 'aco.runtime.partner' }
+        }
+        gameTestRuntimeOnly fg.deobf("aco.runtime.partner:${partner.name.take(partner.name.length() - 4)}:local")
+    }
+    implementation files(exactVmJar).builtBy(tasks.named('buildExactVm'))
 
     def ae2Variant = (findProperty('ae2Variant') ?: 'upstream').toString().toLowerCase()
     if (!(ae2Variant in ['upstream', 'uelm'])) {
@@ -161,7 +233,57 @@ tasks.register('verifyMixinPackageBoundary') {
 }
 
 tasks.named('compileJava') {
-    dependsOn 'verifyMixinPackageBoundary'
+    dependsOn 'verifyMixinPackageBoundary', 'buildExactVm'
+}
+tasks.named('compileVmNativeJava') { dependsOn 'buildExactVm' }
+tasks.register('vmNativeJar', Jar) {
+    from sourceSets.vmNative.output
+    from(exactVmProjectDir.parentFile) {
+        include 'LICENSE'
+        into 'META-INF'
+    }
+    archiveFileName = "aco-vm-native-${nativeVmVersion}.jar"
+    destinationDirectory = new File(nativeVmProjectDir, 'build/libs')
+    manifest { attributes 'MixinConfigs': 'ae2vm-aco-native.mixins.json' }
+}
+reobf {
+    vmNativeJar { }
+}
+
+tasks.register('vmBundleMetadata') {
+    def target = layout.buildDirectory.file('vm-metadata/META-INF/jarjar/metadata.json')
+    outputs.file target
+    inputs.property 'exactVersion', exactVmVersion
+    inputs.property 'nativeVersion', nativeVmVersion
+    doLast {
+        def artifacts = [
+                ['aco-exact-vm', exactVmVersion, '0.2.0'],
+                ['aco-vm-native', nativeVmVersion, '0.3.0']]
+        def metadata = [jars: artifacts.collect { artifact, selected, upper ->
+            [identifier: [group: 'com.syaru.ae2vm', artifact: artifact],
+             version: [range: "[${selected},${upper})", artifactVersion: selected],
+             path: "META-INF/jarjar/${artifact}-${selected}.jar", isObfuscated: false]
+        }]
+        target.get().asFile.parentFile.mkdirs()
+        target.get().asFile.setText(groovy.json.JsonOutput.prettyPrint(
+                groovy.json.JsonOutput.toJson(metadata)), 'UTF-8')
+    }
+}
+
+// Both nested artifacts are built before packaging; no pre-existing flatDir JAR is required.
+tasks.register('bundleVm', Jar) {
+    dependsOn 'reobfJar', 'reobfVmNativeJar', 'buildExactVm', 'vmBundleMetadata'
+    from({ zipTree(tasks.named('jar').get().archiveFile.get().asFile) }) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+    from(exactVmJar) { into 'META-INF/jarjar' }
+    from(tasks.named('vmNativeJar').flatMap { it.archiveFile }) { into 'META-INF/jarjar' }
+    from(layout.buildDirectory.dir('vm-metadata'))
+    manifest.from(tasks.named('jar').get().manifest)
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    destinationDirectory = layout.buildDirectory.dir("distributions/${mod_version}")
+    archiveFileName = "aco${mod_version}_${minecraft_version}.jar"
 }
 
 test {
@@ -306,6 +428,8 @@ processResources {
 }
 
 jar {
+    destinationDirectory = layout.buildDirectory.dir('intermediates/jars')
+    archiveClassifier = 'NOT-FOR-INSTALLATION'
     // 配布JAR内のMinecraft参照を、本番環境で使われる難読化名へ必ず変換する。
     finalizedBy 'reobfJar'
     manifest {
@@ -321,32 +445,102 @@ jar {
     }
 }
 
-tasks.register('normalizeReobfJarName') {
-    dependsOn 'reobfJar'
+tasks.named('build') {
+    dependsOn 'bundleVm'
+    finalizedBy 'verifyExactVmBundle'
+}
+
+tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    doFirst {
+        java.nio.file.Files.deleteIfExists(file('build/gametest-ae2/results.xml').toPath())
+        java.nio.file.Files.deleteIfExists(file('build/gametest-ae2/results.xml.expected.json').toPath())
+    }
     doLast {
-        def expected = file("$buildDir/libs/aco${mod_version}_${minecraft_version}.jar")
-        def sources = fileTree("$buildDir/libs").matching {
-            include "aco${mod_version}_${minecraft_version}-*.jar"
-        }.files
-        def source = sources.find { it.name != expected.name }
-        if (source != null && source.exists()) {
-            try {
-                java.nio.file.Files.move(
-                        source.toPath(),
-                        expected.toPath(),
-                        java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-            } catch (java.io.IOException exception) {
-                throw new GradleException(
-                        "Could not normalize ${source.name} to ${expected.name}",
-                        exception)
-            }
+        def report = file('build/gametest-ae2/results.xml')
+        if (!report.isFile()) throw new GradleException('GameTest did not produce its runtime report')
+        def xml = new groovy.util.XmlSlurper().parse(report)
+        def cases = xml.depthFirst().findAll { it.name() == 'testcase' }
+        def failed = cases.findAll { !it.failure.isEmpty() || !it.error.isEmpty() || !it.skipped.isEmpty() }
+        def required = ['ae2.aco_processing_completion', 'ae2.aco_cancel_before_delivery',
+                        'ae2.aco_competing_reservations', 'ae2.aco_returned_containers',
+                        'ae2.aco_snapshot_stock_churn', 'ae2.aco_snapshot_stock_consumed',
+                        'ae2.aco_native_wide_missing']
+        def names = cases.collect { it.@name.text() }
+        def expected = new groovy.json.JsonSlurper().parse(file('build/gametest-ae2/results.xml.expected.json'))
+        def runtimeLog = file('build/gametest-ae2/logs/latest.log').getText('UTF-8')
+        if (cases.isEmpty() || !failed.isEmpty() || (!gameTestBaseline && !names.containsAll(required))
+                || names.sort(false) != expected.sort(false)
+                || runtimeLog.contains('Mixin apply failed ae2_crafting_optimizer')
+                || (!gameTestBaseline && (!runtimeLog.contains('ACO active: true')
+                    || !runtimeLog.contains('event=quantity_calculated route=vm-native')))
+                || (gameTestBaseline && runtimeLog.contains('ACO active: true'))) {
+            throw new GradleException("GameTest acceptance failed: ${cases.size()} tests, ${failed.size()} failed/skipped")
         }
-        if (!expected.isFile()) {
-            throw new GradleException("Expected distribution JAR was not produced: ${expected}")
-        }
+        logger.lifecycle("Verified ${cases.size()} real AE2 GameTests")
     }
 }
 
-tasks.named('build') {
-    finalizedBy 'normalizeReobfJarName'
+tasks.register('verifyExactVmBundle') {
+
+    dependsOn 'bundleVm'
+    doLast {
+        def distribution = tasks.named('bundleVm').get().archiveFile.get().asFile
+        if (distribution.parentFile.listFiles().findAll { it.name.endsWith('.jar') }.size() != 1)
+            throw new GradleException('Distribution directory must contain only the installable VM bundle')
+        new java.util.zip.ZipFile(distribution).withCloseable { outer ->
+            def metadataEntry = outer.getEntry('META-INF/jarjar/metadata.json')
+            if (metadataEntry == null) throw new GradleException('Missing Jar-in-Jar metadata')
+            def metadata = outer.getInputStream(metadataEntry).withCloseable {
+                new groovy.json.JsonSlurper().parse(it)
+            }
+            def entries = metadata.jars.findAll {
+                it.identifier.group == 'com.syaru.ae2vm' && it.identifier.artifact == 'aco-exact-vm'
+            }
+            if (entries.size() != 1 || entries[0].version.artifactVersion != exactVmVersion)
+                throw new GradleException('Exact VM library version is missing or ambiguous')
+            def libraryEntry = outer.getEntry(entries[0].path)
+            if (libraryEntry == null) throw new GradleException('Embedded exact VM library is missing')
+            byte[] library = outer.getInputStream(libraryEntry).withCloseable { it.readAllBytes() }
+            if (!java.util.Arrays.equals(library, exactVmJar.bytes))
+                throw new GradleException('Embedded VM differs from the tested local library')
+            new java.util.jar.JarInputStream(new ByteArrayInputStream(library)).withCloseable { inner ->
+                def attributes = inner.manifest?.mainAttributes
+                if (attributes?.getValue('FMLModType') != 'GAMELIBRARY'
+                        || attributes.getValue('MixinConfigs') != null)
+                    throw new GradleException('VM must be a library without a second mod interception')
+                def names = [] as Set
+                for (def entry = inner.nextJarEntry; entry != null; entry = inner.nextJarEntry) names.add(entry.name)
+                if (!names.containsAll(['com/syaru/ae2vm/exact/ExactCraftingVM.class',
+                        'com/syaru/ae2vm/exact/ExactBranchVM.class', 'com/syaru/ae2vm/exact/ExactBranchBytecode.class',
+                        'com/syaru/ae2vm/exact/ExactBytecode.class', 'META-INF/LICENSE-AE2-VM', 'META-INF/NOTICE.txt'])
+                        || names.any { it == 'META-INF/mods.toml' || it.endsWith('.mixins.json')
+                            || it.startsWith('com/ae2vm/addon/') })
+                    throw new GradleException('VM library content/license boundary violated')
+            }
+            def nativeEntries = metadata.jars.findAll {
+                it.identifier.group == 'com.syaru.ae2vm' && it.identifier.artifact == 'aco-vm-native'
+            }
+            if (nativeEntries.size() != 1 || nativeEntries[0].version.artifactVersion != nativeVmVersion)
+                throw new GradleException('Native VM mod is missing or ambiguous')
+            def nativeEntry = outer.getEntry(nativeEntries[0].path)
+            if (nativeEntry == null) throw new GradleException('Native VM JAR is missing')
+            byte[] nativeBytes = outer.getInputStream(nativeEntry).withCloseable { it.readAllBytes() }
+            if (!java.util.Arrays.equals(nativeBytes, tasks.named('vmNativeJar').get().archiveFile.get().asFile.bytes))
+                throw new GradleException('Native VM differs from the reobfuscated local artifact')
+            new java.util.jar.JarInputStream(new ByteArrayInputStream(nativeBytes)).withCloseable { inner ->
+                if (inner.manifest?.mainAttributes?.getValue('MixinConfigs') != 'ae2vm-aco-native.mixins.json')
+                    throw new GradleException('Native VM bootstrap is not declared')
+                def names = [] as Set
+                for (def entry = inner.nextJarEntry; entry != null; entry = inner.nextJarEntry) names.add(entry.name)
+                if (!names.containsAll(['META-INF/mods.toml', 'META-INF/LICENSE',
+                        'ae2vm-aco-native.mixins.json',
+                        'com/ae2vm/addon/nativeengine/NativeVm.class',
+                        'com/ae2vm/addon/nativeengine/NativeVmCapture.class',
+                        'com/ae2vm/addon/nativeengine/mixin/NativeCraftingServiceMixin.class'])
+                        || names.any { it.startsWith('com/syaru/ae2craftingoptimizer/') })
+                    throw new GradleException('Native VM content/license boundary violated')
+            }
+        }
+        logger.lifecycle("Verified exact VM ${exactVmVersion} and native VM ${nativeVmVersion}: nested bytes, bootstrap, classes, licenses")
+    }
 }

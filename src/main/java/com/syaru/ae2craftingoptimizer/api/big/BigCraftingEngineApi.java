@@ -127,6 +127,12 @@ public final class BigCraftingEngineApi {
             return Optional.empty();
         }
 
+        if (metadata instanceof com.syaru.ae2craftingoptimizer.engine.VmCalculatedCraftingPlan vm) {
+            return Optional.of(new BigIntegerCraftingPlanView(vm.finalOutput(), vm.exactBytes(), vm.simulation(),
+                    vm.exactPatternTimes(), vm.exactPlan().usedInventory(), vm.exactPlan().emitted(),
+                    vm.exactPlan().missing(), vm.exactPlan().requestedAmount()));
+        }
+
         // 個別数量までlongを超えた計画は、従来どおりBigInteger正本をそのまま公開する。
         if (metadata instanceof BigIntegerCraftingPlan bigPlan) {
             return Optional.of(viewOf(bigPlan));
@@ -152,7 +158,8 @@ public final class BigCraftingEngineApi {
                 bigPlan.exactPatternTimes(),
                 bigPlan.exactPlan().usedInventory(),
                 bigPlan.exactPlan().emitted(),
-                bigPlan.exactPlan().missing());
+                bigPlan.exactPlan().missing(),
+                bigPlan.exactPlan().requestedAmount());
     }
 
     private static BigIntegerCraftingPlanView viewOf(
@@ -164,7 +171,8 @@ public final class BigCraftingEngineApi {
                 simulationPlan.exactPatternTimes(),
                 simulationPlan.exactPlan().usedInventory(),
                 simulationPlan.exactPlan().emitted(),
-                simulationPlan.exactPlan().missing());
+                simulationPlan.exactPlan().missing(),
+                simulationPlan.exactPlan().requestedAmount());
     }
 
     private static BigIntegerCraftingPlanView viewOf(BigCapacityCraftingPlan capacityPlan) {

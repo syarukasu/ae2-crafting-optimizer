@@ -270,7 +270,7 @@ class ReusableByproductAe2OracleTest {
         var compute = CraftingCalculation.class.getDeclaredMethod("computePlan");
         compute.setAccessible(true);
         var expected = (ICraftingPlan) compute.invoke(job);
-
+        com.ae2vm.addon.nativeengine.NativeVmOracleHarness.compare(service, out, amount, stock, strategy, expected);
         return expected;
     }
 

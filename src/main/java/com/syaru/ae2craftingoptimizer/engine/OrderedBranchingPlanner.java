@@ -13,7 +13,7 @@ import java.util.function.ToLongFunction;
 final class OrderedBranchingPlanner<K> {
     private static final BigInteger ZERO = BigInteger.ZERO;
     private static final BigInteger ONE = BigInteger.ONE;
-    private static final int MAX_WORK = 1_048_576;
+    private static final int MAX_NODES = 1_048_576;
     private final Function<K, List<CompiledPattern<K>>> candidates;
     private final Predicate<K> emitter;
     private final Function<K, BigInteger> inventory;
@@ -211,7 +211,7 @@ final class OrderedBranchingPlanner<K> {
             this.parent = parent;
             this.input = input;
             this.depth = parent == null ? 0 : parent.depth + 1;
-            if (++nodes > MAX_WORK || depth > 256) {
+            if (++nodes > MAX_NODES || depth > 256) {
                 throw new UnsupportedOperationException("branching tree expansion limit exceeded");
             }
         }
@@ -464,8 +464,10 @@ final class OrderedBranchingPlanner<K> {
     }
 
     private void checkpoint() {
-        guard.checkpoint(++work);
-        if (work > MAX_WORK) throw new UnsupportedOperationException("branching planning work limit exceeded");
+        // Issue #190: cumulative work is not resident memory. Keep yielding/cancellation
+        // beyond the old cutoff. Only this diagnostic counter saturates, never quantities.
+        if (work < Integer.MAX_VALUE) work++;
+        guard.checkpoint(work);
     }
 
     private BigInteger check(BigInteger value) {

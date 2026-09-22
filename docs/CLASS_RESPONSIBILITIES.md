@@ -44,8 +44,8 @@ mixin + access  ->  integration  ->  optimization
 | クラス | 行数 | 判断 |
 |---|---:|---|
 | `PhysicalCraftingTreeTransaction` | 3795 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
-| `Ae2AuthoritativeCraftingPlanner` | 2007 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
-| `CompiledRootProgram` | 1584 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
+| `Ae2AuthoritativeCraftingPlanner` | 2043 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
+| `CompiledRootProgram` | 1585 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
 | `BigCraftingJob` | 1215 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
 | `TransactionalCraftingExecutorV2` | 958 | 高。所有権移転後の処理。見た目の短縮目的では分割せず、phase単位の試験を先に増やす。 |
 | `BigCraftingHostRuntime` | 912 | 高。外部Host容量と予約を所有。複数Job仕様を勝手に導入しない。 |
@@ -88,7 +88,7 @@ mixin + access  ->  integration  ->  optimization
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **320件**
+本版の本番トップレベル型: **323件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -337,6 +337,9 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.SelectedBranchPhysicalPlan` | 選択済み分岐の固定入力、回数、順序と全余剰を既存の物理実行契約へ保持する。実在庫やWorkerの実行は所有しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.StalePlanningSnapshotException` | StalePlanningSnapshotExceptionが示す失敗を呼出側へ型付きで通知する。 |
 | `com.syaru.ae2craftingoptimizer.engine.SymbolicCraftingPlanner` | 決定的なPattern DAGを CompiledRootProgram へ変換し、数式一巡で計画する公開Facade。 |
+| `com.syaru.ae2craftingoptimizer.engine.VmBigIntegerAccounting` | VMへ正確な在庫量を提供し、完成済み計算結果をBigInteger会計と既存の実行契約へ結び付ける。パターン取得や計算をVMへ入力しない。 |
+| `com.syaru.ae2craftingoptimizer.engine.VmCalculatedCraftingPlan` | VMの完了済み数量と元Pattern参照を保持する。CPU実行の準備は計算完了条件にしない。 |
+| `com.syaru.ae2craftingoptimizer.engine.VmPhysicalPlanBinding` | 提出時だけVMの完了済み計画を既存Receipt実行へ結び付ける。数量計算やVMへのグラフ入力は行わない。 |
 | `com.syaru.ae2craftingoptimizer.engine.WideArithmeticPreflight` | 通常計画へBigInteger Plannerを重ねる前に、全量クラフト時の安全な上限だけを調べる。 |
 | `com.syaru.ae2craftingoptimizer.engine.WideCraftingPlan` | AE2のsigned long APIだけでは表現できない真値を持つACO内部計画。 |
 | `com.syaru.ae2craftingoptimizer.engine.WidePlanUnavailableException` | wide計画を正確に作れず、AE2のoverflowするlong計算へ戻してはいけないことを示す例外。 |

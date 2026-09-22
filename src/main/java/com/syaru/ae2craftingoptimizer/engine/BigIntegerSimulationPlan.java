@@ -69,7 +69,7 @@ public final class BigIntegerSimulationPlan implements WideCraftingPlan {
                 maximumBits);
         // 表示する注文とBigInteger正本が異なる計画を外へ出さない。
         if (!finalOutput.what().equals(exactPlan.requestedKey())
-                || !BigInteger.valueOf(finalOutput.amount()).equals(exactPlan.requestedAmount())) {
+                || finalOutput.amount() != BigIntegerPlanProjection.saturatedLong(exactPlan.requestedAmount())) {
             throw new IllegalArgumentException("BigInteger simulation metadata is inconsistent");
         }
         this.usedItems = BigIntegerPlanProjection.projectKeyCounter(exactPlan.usedInventory());

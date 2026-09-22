@@ -23,6 +23,20 @@
 
 ## 2.0.0開発版の再発記録
 
+- [Issue #190](issues/ISSUE-190.md), 2026-09-23: supreme circuit x1 aborts at
+  1,048,576 branch checkpoints. Remove the cumulative cutoff, keep cancellation
+  and resident-tree bounds. Nested-branch accounting and cancellation tests
+  reproduce then pass. [Issue #208](issues/ISSUE-208.md): separate thin JARs
+  from the installable VM bundle and record actual routes at INFO. Not deployed.
+
+- [Issue #190](issues/ISSUE-190.md), 2026-09-22 / rc.4 VM rebuild:
+  Detached immutable planning was rejected on every live storage mutation.
+  Real AE2 stock-churn tests fail before and pass after separating planning
+  consistency from live reservation. Keep strict deferred exact snapshot
+  validation and cache revisions. The production incident's old log does not
+  identify the changed revision; new failures include per-revision diagnostics.
+  This condition also exists in rc.4, not only rc.5. Production acceptance pending.
+
 - [Issue #190](issues/ISSUE-190.md), 2026-09-19 / AQE capacity alignment:
   Byte accounting bounded amount * 8 and unreduced rational numerators before
   unit conversion; tests reproduced rejection despite an in-range final cost.

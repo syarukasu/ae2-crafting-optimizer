@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 @Mixin(value = MEStorageMenu.class, priority = 900, remap = false)
 public abstract class MEStorageMenuDisplaySaturationMixin {
     @Redirect(
-            method = "m_38946_",
+            method = {"m_38946_", "broadcastChanges"},
             at = @At(
                     value = "INVOKE",
                     target = "Lappeng/api/storage/MEStorage;getAvailableStacks()Lappeng/api/stacks/KeyCounter;"),

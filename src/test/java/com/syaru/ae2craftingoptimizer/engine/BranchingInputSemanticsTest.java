@@ -25,6 +25,7 @@ class BranchingInputSemanticsTest {
     static AEKey OUT, A, B, RAW, BUCKET;
     @BeforeAll static void bootstrap() throws Exception {
         ReusableByproductAe2OracleTest.bootstrap();
+        com.syaru.ae2craftingoptimizer.testsupport.TestKeyTypes.initialize();
         OUT = AEItemKey.of(Items.DIAMOND);
         A = AEItemKey.of(Items.IRON_INGOT);
         B = AEItemKey.of(Items.GOLD_INGOT);

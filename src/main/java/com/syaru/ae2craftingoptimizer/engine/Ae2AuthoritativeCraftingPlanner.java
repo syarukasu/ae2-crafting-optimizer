@@ -513,6 +513,9 @@ public final class Ae2AuthoritativeCraftingPlanner {
             if (!preparation.ready()) {
                 // Issue #190: a branching graph is not an ambiguous plan. Preserve AE2's trial order.
                 if (ACOConfig.enableProofQualifiedLongPlans()) {
+                    AE2CraftingOptimizer.LOGGER.info(
+                            "ACO-DIAG event=planning_route route=ordered-branching output={} requested={} reason={} detail={}",
+                            output.getId(), requestedAmount, preparation.rootFailure(), preparation.detail());
                     ICraftingPlan branching = tryBranchingPlan(capture, immutableCapture.compile(guard),
                             output, requestedAmount, strategy, workerYield, guard);
                     if (branching != null) return branching;
@@ -618,6 +621,9 @@ public final class Ae2AuthoritativeCraftingPlanner {
                                     BigInteger.valueOf(requestedAmount),
                                     longInventorySnapshot,
                                     guard);
+            AE2CraftingOptimizer.LOGGER.info(
+                    "ACO-DIAG event=quantity_calculated route={} output={} requested={} bigint={}",
+                    "aco-fixed", output.getId(), requestedAmount, promoted.usesBigInteger());
             capture.requireCurrentGenerations();
             // 実際にlong計算からBigへ昇格した場合、exact在庫なしの結果は正本にならない。
             if (promoted.usesBigInteger() && exactPlanningInventory == null) {
@@ -893,6 +899,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
             AEKey output, long requestedAmount, CalculationStrategy strategy,
             @Nullable PlanningWorkerYield workerYield, PlanningGuard guard) {
         capture.requireCurrentGenerations();
+        guard = reportingBranchGuard(output, requestedAmount, guard);
         Ae2BranchingInputRules rules = branchingRules(capture, snapshot, capture.inventorySnapshot(), workerYield, guard);
         boolean[] saturatedStock = {false};
         Function<AEKey, BigInteger> stock = key -> {
@@ -1010,7 +1017,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
         if (workerYield != null) workerYield.beforeResult();
         capture.requireCurrentGenerations();
         if (ACOConfig.logCraftingDecisionFlow()) {
-            AE2CraftingOptimizer.LOGGER.debug(
+            AE2CraftingOptimizer.LOGGER.info(
                     "ACO-DIAG event=planning_accepted route=ordered-branching output={} requested={} "
                             + "patterns={} expanded={} skippedIterations={} simulation={}",
                     output.getId(), requestedAmount, plan.patternExecutions().size(), plan.expandedRequests(),
@@ -1044,6 +1051,24 @@ public final class Ae2AuthoritativeCraftingPlanner {
         }, snapshot::isEmittable, stock, key -> key.getType().getAmountPerByte(), guard,
                 maximumBits, rules).plan(BigInteger.valueOf(requestedAmount),
                         strategy == CalculationStrategy.CRAFT_LESS);
+    }
+
+    private static PlanningGuard reportingBranchGuard(AEKey output, long requested, PlanningGuard delegate) {
+        return new PlanningGuard() {
+            private final long started = System.nanoTime();
+            private long nextLog = started + 5_000_000_000L;
+
+            @Override public void checkpoint(int expanded) {
+                delegate.checkpoint(expanded);
+                if ((expanded & 1023) != 0 && expanded != Integer.MAX_VALUE) return;
+                long now = System.nanoTime();
+                if (now < nextLog) return;
+                nextLog = now + 5_000_000_000L;
+                AE2CraftingOptimizer.LOGGER.info(
+                        "ACO-DIAG event=planning_running route=ordered-branching output={} requested={} work={} elapsedMs={}",
+                        output.getId(), requested, expanded, (now - started) / 1_000_000L);
+            }
+        };
     }
 
     private static Ae2BranchingInputRules branchingRules(Capture capture, Ae2PlanningGraphSnapshot snapshot,
@@ -1713,10 +1738,10 @@ public final class Ae2AuthoritativeCraftingPlanner {
     private static KeyCounter captureExactInventoryOnServer(Capture capture) {
         StorageRevisionTracker.refreshAndCapture(capture.grid());
         // 外部mountの変更がAE2 cache更新で見つかった場合、旧long snapshotと混在させない。
-        capture.requireCurrentGenerations();
+        capture.requireCurrentInventory("exact-capture-before");
         KeyCounter exact = PlanningExactInventorySnapshot.capture(capture.grid());
         // capture中の再入で在庫が変わった値も、旧revisionの計画へ公開しない。
-        capture.requireCurrentGenerations();
+        capture.requireCurrentInventory("exact-capture-after");
         return exact;
     }
 
@@ -1874,19 +1899,30 @@ public final class Ae2AuthoritativeCraftingPlanner {
         private void requireCurrentGenerations() {
             long currentPattern = ProviderPatternGenerationTracker.generation();
             long currentRecipe = RecipeGenerationTracker.generation();
-            // Provider、recipe、参照在庫のいずれかが変わった計算結果は古いため破棄する。
+            // Issue #190: immutable stock remains a valid planning input while a factory runs.
+            // Cache reuse and real submission still validate/reserve current stock separately.
             if (currentPattern != patternGeneration
                     || currentRecipe != recipeGeneration
-                    || !StorageRevisionTracker.isCurrent(storageRevision)
                     || !PlanningConfigurationRevisionTracker.isCurrent(
                             configurationRevision)) {
-                throw new StalePlanningSnapshotException(
-                        new PlanningGenerationSnapshot(
-                                patternGeneration,
-                                storageRevision.revision(),
-                                recipeGeneration),
-                        0);
+                throw stale("planning", currentPattern, currentRecipe);
             }
+        }
+
+        private void requireCurrentInventory(String stage) {
+            requireCurrentGenerations();
+            if (!StorageRevisionTracker.isCurrent(storageRevision)) {
+                throw stale(stage, ProviderPatternGenerationTracker.generation(), RecipeGenerationTracker.generation());
+            }
+        }
+
+        private StalePlanningSnapshotException stale(String stage, long currentPattern, long currentRecipe) {
+            return new StalePlanningSnapshotException(
+                    new PlanningGenerationSnapshot(patternGeneration, storageRevision.revision(), recipeGeneration), 0,
+                    "stage=" + stage + " pattern=" + patternGeneration + "->" + currentPattern
+                            + " recipe=" + recipeGeneration + "->" + currentRecipe
+                            + " storage=" + storageRevision.revision() + "->" + storageRevision.owner().aco$currentStorageRevision()
+                            + " config=" + configurationRevision + "->" + PlanningConfigurationRevisionTracker.current());
         }
 
         private Capture withExactInventorySnapshot(KeyCounter exactSnapshot) {
