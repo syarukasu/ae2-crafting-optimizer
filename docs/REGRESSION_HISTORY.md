@@ -25,6 +25,13 @@
 
 ## 2.0.0開発版の再発記録
 
+- [Issue #202](issues/ISSUE-202.md), 2026-09-21 / wide shared-DAG optimization:
+  The ordered evaluator repeats shared dependency paths even for unit-output,
+  fixed-input graphs without intermediate stock. Preserve the exact logical CPU
+  overhead while aggregating proven linear wide demands. Keep ordered handling
+  for stock/rounding/co-products and compression-only count-limit overflow.
+  Local regression evidence is not live industrial-order acceptance.
+
 - [Issue #190](issues/ISSUE-190.md), 2026-09-19 / AQE capacity alignment:
   Byte accounting bounded amount * 8 and unreduced rational numerators before
   unit conversion; tests reproduced rejection despite an in-range final cost.
