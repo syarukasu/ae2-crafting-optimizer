@@ -1,0 +1,6 @@
+# release=2.0.0-rc.6-rc4-vm.4
+# baseline=2.0.0-rc.4
+# loader=FORGE_1_20_1
+issue	change	automated_guarantee
+190	Preserve branch calculation across stock changes and cumulative work without removing cancellation	Differential AE2 accounting and stock-churn GameTests; production speed remains unmeasured
+208	Use bundled native VM and expose unchanged exact quantities through the BigInteger API	Wide coefficient and stock matrix bridge tests, ordinary machinery GameTests, no long-executor fallback for unprepared wide results; existing wide physical consumer limits remain

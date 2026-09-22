@@ -23,19 +23,19 @@
 
 ## 2.0.0開発版の再発記録
 
-- [Issue #207](issues/ISSUE-207.md), 2026-09-21 / ordinary repeat planning:
-  Remove quantity-only barriers to proven repeat batching for both craftable and
-  missing plans. A failed nested non-transactional block must propagate its read
-  intervals before throwing, or an outer repeat may miss a newly enabled producer.
-  Keep failed mutations discarded, exact CPU addition order and recipe priority.
-  Actual AE2 oracle comparisons are not live creative-circuit latency evidence.
+- [Issue #190](issues/ISSUE-190.md), 2026-09-23: supreme circuit x1 aborts at
+  1,048,576 branch checkpoints. Remove the cumulative cutoff, keep cancellation
+  and resident-tree bounds. Nested-branch accounting and cancellation tests
+  reproduce then pass. [Issue #208](issues/ISSUE-208.md): separate thin JARs
+  from the installable VM bundle and record actual routes at INFO. Not deployed.
 
-- [Issue #202](issues/ISSUE-202.md), 2026-09-21 / wide shared-DAG optimization:
-  The ordered evaluator repeats shared dependency paths even for unit-output,
-  fixed-input graphs without intermediate stock. Preserve the exact logical CPU
-  overhead while aggregating proven linear wide demands. Keep ordered handling
-  for stock/rounding/co-products and compression-only count-limit overflow.
-  Local regression evidence is not live industrial-order acceptance.
+- [Issue #190](issues/ISSUE-190.md), 2026-09-22 / rc.4 VM rebuild:
+  Detached immutable planning was rejected on every live storage mutation.
+  Real AE2 stock-churn tests fail before and pass after separating planning
+  consistency from live reservation. Keep strict deferred exact snapshot
+  validation and cache revisions. The production incident's old log does not
+  identify the changed revision; new failures include per-revision diagnostics.
+  This condition also exists in rc.4, not only rc.5. Production acceptance pending.
 
 - [Issue #190](issues/ISSUE-190.md), 2026-09-19 / AQE capacity alignment:
   Byte accounting bounded amount * 8 and unreduced rational numerators before
@@ -91,16 +91,6 @@
   通常実行予算の確定位置で排他化する。Taskの再生成・不一致の握り潰しは禁止。
 
 ## 運用
-
-- [Issue #209](issues/ISSUE-209.md), 2026-09-22: Observe calculated plans before
-  cancellable outer RETURN handlers can hide completion logs. Preserve sidecar
-  and shadow-validation ownership. Add bounded INFO statistics and a read-only
-  historical audit. Production wrapper compatibility/performance remain unverified.
-
-- [Issue #190](issues/ISSUE-190.md), 2026-09-21: Forge userdev silently left two
-  menu Mixins unapplied because they selected only SRG `m_38946_`. Add the named
-  `broadcastChanges` alias without weakening `require=1`. Real GameTests now
-  reject missing reports and unapplied Mixins; this is not wide runtime acceptance.
 
 - 修正前に`docs/ISSUE_WORKFLOW.md`を実行します。
 - 再発しやすい局所条件だけをJavaコメントへ残します。

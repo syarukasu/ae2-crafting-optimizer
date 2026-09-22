@@ -58,6 +58,8 @@ public final class AE2CraftingOptimizer {
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
+        com.ae2vm.addon.nativeengine.NativeVm.installAccounting(
+                new com.syaru.ae2craftingoptimizer.engine.VmBigIntegerAccounting());
         IntegrationCapabilities capabilities = IntegrationCapabilities.forAco(ExactCountLimits.defaults());
         IntegrationCapabilitiesRegistry.initializeOnce(capabilities);
         LOGGER.info("{} initialized", MOD_NAME);

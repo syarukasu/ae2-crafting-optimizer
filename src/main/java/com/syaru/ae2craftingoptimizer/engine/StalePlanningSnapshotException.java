@@ -7,7 +7,13 @@ public final class StalePlanningSnapshotException extends RuntimeException {
     public StalePlanningSnapshotException(
             PlanningGenerationSnapshot snapshot,
             int expandedRequests) {
-        super("crafting calculation snapshot became stale after " + expandedRequests + " expanded requests");
+        this(snapshot, expandedRequests, null);
+    }
+
+    public StalePlanningSnapshotException(
+            PlanningGenerationSnapshot snapshot, int expandedRequests, String detail) {
+        super("crafting calculation snapshot became stale after " + expandedRequests + " expanded requests"
+                + (detail == null ? "" : "; " + detail));
         this.snapshot = snapshot;
         this.expandedRequests = expandedRequests;
     }

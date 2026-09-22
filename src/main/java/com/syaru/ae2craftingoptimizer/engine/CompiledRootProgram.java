@@ -844,10 +844,6 @@ public final class CompiledRootProgram<K> {
         BigCountMath.requireMaximumBits(requestedAmount, "compiled-root/request", maximumBits);
         Objects.requireNonNull(guard, "guard");
         if (orderedAccounting) {
-            // Issue #202: aggregate only proven linear wide graphs; preserve the ordered fallback.
-            BigCraftingPlan<K> linear = LinearWidePlanning.tryPlan(
-                    this, requestedAmount, inventory, guard, maximumBits);
-            if (linear != null) return linear;
             return OrderedByproductPlanner.plan(this, requestedAmount, inventory, guard, maximumBits);
         }
 

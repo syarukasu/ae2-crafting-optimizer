@@ -27,7 +27,7 @@ public final class AcoGameTestMod {
         } catch (ParserConfigurationException e) {
             throw new IllegalStateException("Cannot initialize runtime report", e);
         }
-        TestPlots.addPlotClass(AcoCraftingPlots.class);
+        if (!Boolean.getBoolean("aco.gametest.baseline")) TestPlots.addPlotClass(AcoCraftingPlots.class);
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerTests);
     }
 

@@ -74,7 +74,7 @@ public final class BigIntegerCraftingPlan implements WideCraftingPlan {
         }
         // 表示対象とBig親Jobが別注文を指す状態は、提出前に構築エラーとして止める。
         if (!finalOutput.what().equals(exactPlan.requestedKey())
-                || !BigInteger.valueOf(finalOutput.amount()).equals(exactPlan.requestedAmount())
+                || finalOutput.amount() != BigIntegerPlanProjection.saturatedLong(exactPlan.requestedAmount())
                 || !preparedRoot.symbolicPlan().equals(exactPlan)
                 || (preparedRoot.rootWindowJob() != null
                         && !preparedRoot.reservedBytes().equals(

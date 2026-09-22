@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class CraftingServiceInvalidationMixin {
     @Inject(method = "refreshNodeCraftingProvider", at = @At("TAIL"))
     private void ae2CraftingOptimizer$clearAdaptiveBudgetOnProviderRefresh(IGridNode node, CallbackInfo ci) {
+        ae2CraftingOptimizer$nativeIndexChanged(node);
         ae2CraftingOptimizer$clearAdaptiveBudget("crafting provider refresh");
     }
 
@@ -23,6 +24,7 @@ public abstract class CraftingServiceInvalidationMixin {
 
     @Inject(method = "removeNode", at = @At("TAIL"))
     private void ae2CraftingOptimizer$clearAdaptiveBudgetOnNodeRemove(IGridNode node, CallbackInfo ci) {
+        ae2CraftingOptimizer$nativeIndexChanged(node);
         ae2CraftingOptimizer$clearAdaptiveBudget("crafting node removed");
     }
 
@@ -32,5 +34,12 @@ public abstract class CraftingServiceInvalidationMixin {
          * 消去する必要はない。旧世代Entryは一致せず、bounded cacheから自然に退避される。
          */
         CraftingExecutionBudget.clearAdaptiveState(reason);
+    }
+
+    private static void ae2CraftingOptimizer$nativeIndexChanged(IGridNode node) {
+        if (net.minecraftforge.fml.ModList.get().isLoaded("ae2vm_aco")
+                && node.getService(appeng.api.networking.crafting.ICraftingProvider.class) != null) {
+            com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker.nativeIndexChanged();
+        }
     }
 }

@@ -1,95 +1,66 @@
 # Issue #190: Real industrial recipe acceptance
 
+## 2026-09-23 cumulative-work abort (Implemented; production pending)
+
+Production debug.log: supreme_quantum_control_circuit x1 started at 00:40:03.507
+and failed at 00:40:35.401. The root cause is UnsupportedOperationException:
+branching planning work limit exceeded, OrderedBranchingPlanner.checkpoint.
+This is the rc.4 ordered branch evaluator, not a VM timeout or storage staleness.
+
+Separate cumulative work from resident tree bounds. Do not reject a valid order
+only for crossing 1,048,576 checkpoints. Keep cancellation/yield on every
+checkpoint and retain actual node/depth/count bounds. The int work field is
+diagnostic only: saturate that statistic at INT_MAX, never any quantity or
+recipe execution counter. No rc.5 repeat optimizer import in this change.
+Test nested small-count branches whose total work exceeds the old bound, exact
+stock/missing/executions, and cancellation beyond that boundary. Add INFO route
+and periodic running diagnostics so branch execution cannot be mistaken for VM.
+No live server stop, deployment or production latency claim is authorized.
+
+Before-fix evidence: a nested 1024-by-1024 two-producer fixture reproduces the
+same work-limit exception. After removing the cumulative cutoff, its exact
+1,048,576 raw consumption and producer counts pass. A separate test cancels
+beyond the old limit. A third verifies the diagnostic counter cannot wrap or
+affect 10^30+1 missing units. 630 unit tests: 624 passed, 6 existing skips,
+no failures/errors. Six real AE2 GameTests pass. The production supreme-circuit
+request has not been rerun on this JAR and is not newly VM-eligible.
+
+## rc.4 rebuild stock-churn follow-up (Implemented; production pending)
+
+The production rc.6 log rejected minecraft:diamond_block x1 at 2026-09-22
+23:34:57 with three stale snapshot errors from inputObservationOnServer.
+The old log cannot distinguish storage, pattern, recipe or config changes.
+Inspection finds the same blanket storage revision rejection in rc.4.
+
+Before changing behavior, use real AE2 storage mutations on every result
+handoff to reproduce starvation. Fix only this proven condition: detached
+planning uses an immutable point-in-time inventory, while real submission
+checks and reserves current stock. Retain pattern/recipe/config validation,
+strict same-revision deferred exact capture, cache invalidation and execution
+reservation. Add informative stale revision diagnostics, not extra retries.
+
+Owners: Ae2AuthoritativeCraftingPlanner and StalePlanningSnapshotException.
+Do not change actual stock, CPU execution, receipts, cancellation or fallback
+ownership. Tests must cover unrelated changes allowing real completion and
+consumed required stock rejecting submission without phantom output. Forge
+only in this worktree; other acceptance criteria below remain pending.
+
+Both new real AE2 tests failed before the fix with StalePlanningSnapshotException.
+After separating immutable planning from live storage validation, both pass:
+unrelated insertions at every handoff allow one real output with 31/32 inputs
+remaining; removal of all 32 inputs leaves the captured plan intact but actual
+submission fails with zero phantom output. Both also prove deferred exact stock
+capture still rejects a changed epoch and names its stage in the exception.
+All six runtime tests and the 627-test unit suite pass (6 existing unit skips).
+The live incident's old log cannot uniquely identify the changed revision; the
+new diagnostics report pattern, recipe, storage and config before/after values.
+
 - GitHub Issue: https://github.com/syarukasu/ae2-crafting-optimizer/issues/190
 - Status: Implemented locally for selected fixed-input acyclic crafting-table branches; runtime acceptance PENDING
 - Target: 2.0.0 prerelease; Forge 1.20.1 modpack capture, shared planner verification on both loaders
 - Related: #156, #179, #185, #167, #176, #182
 
 ## Problem and evidence
-
-### 2026-09-21 real AE2 runtime baseline (Implemented; full acceptance pending)
-
-The requested acceptance scope is industrial planning, wide physical execution,
-accounting verification and runtime cost reduction. The sub-ten-second full-pack
-benchmark remains a final goal, not a replacement for these correctness gates.
-
-Source inspection confirms that selected external processing patterns and
-interleaved/dynamic physical branches are still rejected before custody by
-SelectedBranchPhysicalPlan and ExactPatternFormula. Do not remove these guards:
-AAC's existing receipt-backed target executes molecular-assembler formulas, not
-arbitrary industrial machine recipes. Pure planner and boundary-double tests do
-not prove real-machine completion.
-
-First add an opt-in Forge GameTest server run using AE2's shipped test plots.
-Its world and logs live only under build/gametest-ae2; no production server,
-client, pack recipes, saved inventories or deployed JARs are modified. Enable
-AE2's own appeng.tests registration and report actual test failures. This is a
-Forge runtime harness, not shared production logic; NeoForge needs its own run
-configuration before equivalent runtime coverage can be claimed.
-
-Ownership stays unchanged: AE2 owns real storage, machines and normal CPU jobs;
-ACO retains its existing planner/receipt responsibilities. No new execution API,
-count clamping, output synthesis or post-custody fallback is allowed here.
-Completion of the baseline means a real GameTest process exits successfully and
-its report lists executed tests, not merely a successful Gradle compilation.
-BigInteger AAC/AQE execution, restart/cancel/concurrent reservations and live
-performance remain pending until individually measured with those actual mods.
-
-Pre-implementation: charter, regression history, class ownership, issue workflow,
-testing matrix and AE2 GameTestPlotAdapter/AppEngBase registration were read.
-The existing matrix row #190 remains RUNTIME/PENDING until the full gate passes.
-
-First runtime attempt: Forge exits normally after mod loading fails because
-AE2's GuideME dependency is absent, and Gradle reports BUILD SUCCESSFUL. Add
-AE2's published GuideME 20.1.7 runtime dependency, explicitly load ACO's Mixin
-configuration in userdev, and require a non-empty completed runtime test report.
-An exit code alone must not mark acceptance as passed.
-
-Add a separate gameTest source set and test-only mod (never included in the
-distribution JAR). It registers real finite-stock processing completion,
-cancellation before machine delivery, and two simultaneous plans competing for
-the same finite inputs. Use AE2's real inscriber, pattern provider, cell and CPU,
-not a fabricated worker receipt. The test mod installs Minecraft's JUnit reporter;
-the Gradle task rejects missing, empty, failed, skipped or stale reports. Require
-an ACO-injected interface on the real CPU so an accidental no-Mixin run fails.
-These long-quantity tests establish a baseline only, not wide industrial execution.
-
-Runtime evidence: 56 actual AE2 GameTests ran. All three new ACO plots passed;
-the existing import_from_cauldron test failed (lava cauldron not drained).
-Do not attribute that failure to ACO without a comparison run. Two ACO menu
-Mixins logged unapplied injections because their selectors name only production
-SRG m_38946_, not userdev broadcastChanges. Add the verified userdev alias while
-retaining the production selector and require=1; do not weaken injection guards.
-Owners are MEStorageMenuDisplaySaturationMixin and CraftConfirmMenuLongAmountMixin;
-no inventory or GUI behavior changes. First require both selectors in a failing
-boundary test, then rerun the real server without unapplied-Mixin warnings.
-NeoForge already uses its runtime named namespace; this alias is Forge-specific.
-
-The runtime harness will expose explicit `aco` (focused acceptance, default) and
-`all` (all upstream AE2 plots plus ACO acceptance) scopes; it must not silently
-exclude a failing upstream test from the all scope. The reporter records expected
-test names, and the verifier requires exactly that set with no skipped/failed
-tests, plus the ACO acceptance tests. Add real molecular-assembler cake crafting
-to verify returned buckets and finite ingredients. Maintain the all-scope failure
-and the optimizer-disabled comparison as separate evidence, not a passing gate.
-
-Results: focused real GameTests passed on both upstream AE2 15.4.10 and UELM
-15.5.0. Actual inscriber completion, pre-delivery cancellation/refund, competing
-finite-stock submissions and molecular-assembler returned buckets all passed.
-The two menu Mixins now apply in userdev; the new source-boundary checks failed
-before the alias fix (2/5) and are part of the regression suite afterward.
-
-The first cake fixture initialized ingredients through a structure callback that
-replayed: with ACO disabled it left eight milk buckets, two cakes and six empty
-buckets, consistent with two initial deposits of seven and six consumed. Move
-initialization to a once-only test sequence and assert empty initial ingredients;
-do not change recipe/accounting code to compensate for a faulty fixture.
-
-The all-AE2 suite still has import_from_cauldron failing with ACO enabled and
-disabled. An unlinked simulation requester also exposes a planner behavior
-difference; the valid concurrency fixture now uses AE2's grid-linked MachineSource.
-See docs/testing/ISSUE190_GAME_TESTS.md for exact scope and remaining work.
-No production deployment, server restart, release or full #190 completion claim.
 
 ### 2026-09-19 AQE CPU capacity alignment (Implemented locally)
 

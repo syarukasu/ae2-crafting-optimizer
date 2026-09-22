@@ -13,43 +13,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public final class CraftingCalculationDiagnostics {
     private static final AtomicLong NEXT_CALCULATION_ID = new AtomicLong();
-    private static final PlanningLogSummary SUMMARY = new PlanningLogSummary(TimeUnit.SECONDS.toNanos(60));
-    private static long previousActivity;
 
     private CraftingCalculationDiagnostics() {
-    }
-
-    public static void resetSummary() {
-        SUMMARY.reset(System.nanoTime());
-        previousActivity = 0;
-    }
-
-    public static long beginSummary() {
-        return ACOConfig.logPlanningStatistics() ? SUMMARY.begin() : -1;
-    }
-
-    public static void finishSummary(long token, ICraftingPlan plan, String route, long elapsedNanos) {
-        if (token < 0) return;
-        SUMMARY.finish(token, plan == null ? null : route,
-                plan != null && Ae2CraftingPlanSidecars.metadata(plan).isPresent(),
-                plan != null && plan.simulation(), elapsedNanos);
-    }
-
-    public static void logPeriodicSummary() {
-        // No formatting, counter traversal or log entry on ordinary ticks.
-        long now = System.nanoTime();
-        if (!SUMMARY.isDue(now)) return;
-        long activity = OptimizationMetrics.planningActivityCount();
-        var report = SUMMARY.poll(now, activity != previousActivity);
-        previousActivity = activity;
-        if (report == null || !ACOConfig.logPlanningStatistics()) return;
-        AE2CraftingOptimizer.LOGGER.info("{}", report.line());
-        AE2CraftingOptimizer.LOGGER.info("[ACO Stats cumulative] {} declines={}",
-                OptimizationMetrics.planningSummary(), BigIntegerPlanDiagnostics.compactSummary());
-    }
-
-    public static String route(boolean compiled, boolean detachedAe2) {
-        return compiled ? "compiled-strict" : detachedAe2 ? "ae2-snapshot" : "ae2-standard";
     }
 
     /** 同一ログ内で計画開始と結果を相関する、プロセス内だけの単調IDを発行する。 */

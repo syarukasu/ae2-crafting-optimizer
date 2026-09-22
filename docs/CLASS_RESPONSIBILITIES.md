@@ -44,8 +44,8 @@ mixin + access  ->  integration  ->  optimization
 | クラス | 行数 | 判断 |
 |---|---:|---|
 | `PhysicalCraftingTreeTransaction` | 3795 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
-| `Ae2AuthoritativeCraftingPlanner` | 2007 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
-| `CompiledRootProgram` | 1588 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
+| `Ae2AuthoritativeCraftingPlanner` | 2043 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
+| `CompiledRootProgram` | 1585 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
 | `BigCraftingJob` | 1215 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
 | `TransactionalCraftingExecutorV2` | 958 | 高。所有権移転後の処理。見た目の短縮目的では分割せず、phase単位の試験を先に増やす。 |
 | `BigCraftingHostRuntime` | 912 | 高。外部Host容量と予約を所有。複数Job仕様を勝手に導入しない。 |
@@ -88,7 +88,7 @@ mixin + access  ->  integration  ->  optimization
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **322件**
+本版の本番トップレベル型: **323件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -321,7 +321,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobLedger` | AE2実JobのBigIntegerカウンタを再起動後も検証する永続Journal。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactCraftingJobState` | 標準AE2の実Jobへ付随するexact task、waiting、output、Receiptのsidecar正本。 |
 | `com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator` | Exact計画が参照するPatternだけを、CPU提出直前のCraftingServiceへ再照合する。 |
-| `com.syaru.ae2craftingoptimizer.engine.LinearWidePlanning` | Proves unit-output wide DAG eligibility and aggregates detached demand with exact logical CPU overhead; no live inventory or execution ownership. |
 | `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlan` | LongCraftingPlanが示すクラフト計画またはコンパイル済みプログラムを不変値として保持する。 |
 | `com.syaru.ae2craftingoptimizer.engine.LongCraftingPlanner` | Map方式のchecked long試算。元在庫の最大不足量と生成した副産物を区別する。 |
 | `com.syaru.ae2craftingoptimizer.engine.OrderedBranchingPlanner` | AE2順の候補試行、失敗の巻戻し、元在庫の最大不足量、読取区間で証明した反復短縮を所有する純粋計算。実在庫や実行は所有しない。 |
@@ -338,6 +337,9 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.SelectedBranchPhysicalPlan` | 選択済み分岐の固定入力、回数、順序と全余剰を既存の物理実行契約へ保持する。実在庫やWorkerの実行は所有しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.StalePlanningSnapshotException` | StalePlanningSnapshotExceptionが示す失敗を呼出側へ型付きで通知する。 |
 | `com.syaru.ae2craftingoptimizer.engine.SymbolicCraftingPlanner` | 決定的なPattern DAGを CompiledRootProgram へ変換し、数式一巡で計画する公開Facade。 |
+| `com.syaru.ae2craftingoptimizer.engine.VmBigIntegerAccounting` | VMへ正確な在庫量を提供し、完成済み計算結果をBigInteger会計と既存の実行契約へ結び付ける。パターン取得や計算をVMへ入力しない。 |
+| `com.syaru.ae2craftingoptimizer.engine.VmCalculatedCraftingPlan` | VMの完了済み数量と元Pattern参照を保持する。CPU実行の準備は計算完了条件にしない。 |
+| `com.syaru.ae2craftingoptimizer.engine.VmPhysicalPlanBinding` | 提出時だけVMの完了済み計画を既存Receipt実行へ結び付ける。数量計算やVMへのグラフ入力は行わない。 |
 | `com.syaru.ae2craftingoptimizer.engine.WideArithmeticPreflight` | 通常計画へBigInteger Plannerを重ねる前に、全量クラフト時の安全な上限だけを調べる。 |
 | `com.syaru.ae2craftingoptimizer.engine.WideCraftingPlan` | AE2のsigned long APIだけでは表現できない真値を持つACO内部計画。 |
 | `com.syaru.ae2craftingoptimizer.engine.WidePlanUnavailableException` | wide計画を正確に作れず、AE2のoverflowするlong計算へ戻してはいけないことを示す例外。 |
@@ -507,7 +509,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.optimization.PatternProviderBatchEligibility` | Pattern ProviderをBatch対象にできるか、所有権・入力・target能力から保守的に判定する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.PatternPushContext` | PatternPushContextが示す一回の要求に必要な入力、所有者、実行条件を保持する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.PlanningConfigurationRevisionTracker` | Plannerの判断へ影響するACO設定の単調revisionを管理する。 |
-| `com.syaru.ae2craftingoptimizer.optimization.PlanningLogSummary` | Bounded interval diagnostics for planning outcomes, routes and measured duration; owns no live jobs or inventory. |
 | `com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker` | AE2のProvider索引更新後に内容世代を確定し、Compiled Graphの再利用境界を管理する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.ReactionChamberRecipeCache` | ReactionChamberRecipeCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.ReflectionLookupCache` | ReflectionLookupCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |

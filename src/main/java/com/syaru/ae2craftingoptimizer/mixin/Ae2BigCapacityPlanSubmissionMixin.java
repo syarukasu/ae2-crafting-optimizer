@@ -58,6 +58,18 @@ public abstract class Ae2BigCapacityPlanSubmissionMixin {
             ICraftingRequester requester,
             CallbackInfoReturnable<ICraftingSubmitResult> cir) {
         ACO_SUBMISSION.remove();
+        if (Ae2CraftingPlanSidecars.metadata(plan).orElse(null)
+                instanceof com.syaru.ae2craftingoptimizer.engine.VmCalculatedCraftingPlan) {
+            try {
+                com.syaru.ae2craftingoptimizer.engine.VmPhysicalPlanBinding.resolve(plan, grid,
+                        ((CraftingCPUCluster) (Object) this).getLevel());
+            } catch (IllegalArgumentException | IllegalStateException | ArithmeticException failure) {
+                AE2CraftingOptimizer.LOGGER.warn("VM calculation completed; selected CPU cannot prepare this exact plan: {}",
+                        failure.getMessage());
+                cir.setReturnValue(CraftingSubmitResult.INCOMPLETE_PLAN);
+                return;
+            }
+        }
         BigIntegerCraftingPlan exact = Ae2CraftingPlanSidecars.bigInteger(plan).orElse(null);
         // 通常long計画は、ACOが物理Targetを要求せずAE2本来の提出経路へ完全に委譲する。
         if (exact == null || exact.fitsStandardLongExecution()) {

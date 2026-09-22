@@ -27,6 +27,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Check out pinned VM fork
+        uses: actions/checkout@v6
+        with:
+          repository: syarukasu/AE2-VM-ACO
+          ref: babfca55a9b4364a623536b771e1345fcf664f72
+          path: .ci/vm
+
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
@@ -82,10 +89,18 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew clean build verifyIssueRegressionReleaseReadiness --stacktrace \
+            -PacoExactVmDir=.ci/vm/exact-engine \
             -Pae2Variant=${{ matrix.ae2Variant }} \
             -PacoLocalModsDir=.ci/mods \
             -PneoEco20_3Jar=.ci/contracts/neoecoae-20.3.0.jar \
             -PneoEco20_4Jar=.ci/contracts/neoecoae-20.4.0.jar
+
+      - name: Verify native VM in AE2 GameTests
+        run: |
+          ./gradlew runGameTestServer verifyExactVmBundle --stacktrace \
+            -PacoExactVmDir=.ci/vm/exact-engine \
+            -Pae2Variant=${{ matrix.ae2Variant }} \
+            -PacoLocalModsDir=.ci/mods
 
       - name: Validate industrial capture audit tooling
         run: node --test tools/industrial-benchmark/audit.test.mjs
@@ -95,7 +110,7 @@ jobs:
         run: |
           set -euo pipefail
           version="$(grep '^mod_version=' gradle.properties | cut -d= -f2)"
-          artifact="build/libs/aco${version}_1.20.1.jar"
+          artifact="build/distributions/${version}/aco${version}_1.20.1.jar"
           test -f "$artifact"
           ! jar tf "$artifact" | grep -q '^META-INF/neoforge.mods.toml$'
           jar tf "$artifact" | grep -q '^META-INF/mods.toml$'
@@ -105,5 +120,5 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: aco-1.20.1-${{ matrix.ae2Variant }}-${{ github.sha }}
-          path: build/libs/aco*_1.20.1.jar
+          path: build/distributions/*/aco*_1.20.1.jar
           if-no-files-found: error

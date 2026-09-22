@@ -13,7 +13,7 @@ import java.util.function.ToLongFunction;
 final class OrderedBranchingPlanner<K> {
     private static final BigInteger ZERO = BigInteger.ZERO;
     private static final BigInteger ONE = BigInteger.ONE;
-    private static final int MAX_WORK = 1_048_576;
+    private static final int MAX_NODES = 1_048_576;
     private final Function<K, List<CompiledPattern<K>>> candidates;
     private final Predicate<K> emitter;
     private final Function<K, BigInteger> inventory;
@@ -143,22 +143,24 @@ final class OrderedBranchingPlanner<K> {
 
     private BigInteger repeat(Process process, K output, State parent, BigInteger deficit,
             boolean transactional) {
-        // Issue #207: the read-interval proof also applies to ordinary quantities.
-        // ByteRepeat retains AE2's addition order even for short repeated blocks.
-        if (deficit.compareTo(BigInteger.valueOf(process.pattern.outputAmount(output))) <= 0) {
-            checkpoint();
-            State trial = transactional ? new State(parent) : parent;
-            try {
-                process.request(trial, ONE);
-            } catch (Unavailable failure) {
-                if (!transactional) throw failure;
-                parent.inheritReads(trial, ONE);
-                return deficit;
+        if (deficit.divide(BigInteger.valueOf(process.pattern.outputAmount(output)))
+                .compareTo(BigInteger.valueOf(4096)) <= 0) {
+            while (deficit.signum() > 0) {
+                checkpoint();
+                State trial = transactional ? new State(parent) : parent;
+                try {
+                    process.request(trial, ONE);
+                } catch (Unavailable failure) {
+                    if (!transactional) throw failure;
+                    parent.inheritReads(trial, ONE);
+                    break;
+                }
+                BigInteger extracted = trial.extract(output, deficit, 1);
+                if (extracted.signum() <= 0) throw new IllegalStateException("producer supplied no output");
+                if (transactional) parent.apply(trial, ONE);
+                deficit = deficit.subtract(extracted);
             }
-            BigInteger extracted = trial.extract(output, deficit, 1);
-            if (extracted.signum() <= 0) throw new IllegalStateException("producer supplied no output");
-            if (transactional) parent.apply(trial, ONE);
-            return deficit.subtract(extracted);
+            return deficit;
         }
         State block = new State(parent);
         BigInteger removed = ZERO;
@@ -169,11 +171,7 @@ final class OrderedBranchingPlanner<K> {
             try {
                 process.request(trial, ONE);
             } catch (Unavailable failure) {
-                if (!transactional) {
-                    // Issue #207: an outer trial still needs the failed nested block's read proof.
-                    parent.inheritReads(block, ONE);
-                    throw failure;
-                }
+                if (!transactional) throw failure;
                 block.inheritReads(trial, ONE);
                 parent.applyBlock(block, ONE);
                 return deficit;
@@ -185,6 +183,8 @@ final class OrderedBranchingPlanner<K> {
             removed = removed.add(extracted);
             iterations++;
             BigInteger extra = block.repeats(deficit.divide(removed));
+            // Keep small oracle comparisons in AE2's original floating-point addition order.
+            if (extra.compareTo(BigInteger.valueOf(4096)) < 0) extra = ZERO;
             if (extra.signum() > 0 || iterations == 256 || deficit.signum() == 0) {
                 parent.applyBlock(block, extra.add(ONE));
                 deficit = deficit.subtract(check(removed.multiply(extra)));
@@ -211,7 +211,7 @@ final class OrderedBranchingPlanner<K> {
             this.parent = parent;
             this.input = input;
             this.depth = parent == null ? 0 : parent.depth + 1;
-            if (++nodes > MAX_WORK || depth > 256) {
+            if (++nodes > MAX_NODES || depth > 256) {
                 throw new UnsupportedOperationException("branching tree expansion limit exceeded");
             }
         }
@@ -464,8 +464,10 @@ final class OrderedBranchingPlanner<K> {
     }
 
     private void checkpoint() {
-        guard.checkpoint(++work);
-        if (work > MAX_WORK) throw new UnsupportedOperationException("branching planning work limit exceeded");
+        // Issue #190: cumulative work is not resident memory. Keep yielding/cancellation
+        // beyond the old cutoff. Only this diagnostic counter saturates, never quantities.
+        if (work < Integer.MAX_VALUE) work++;
+        guard.checkpoint(work);
     }
 
     private BigInteger check(BigInteger value) {

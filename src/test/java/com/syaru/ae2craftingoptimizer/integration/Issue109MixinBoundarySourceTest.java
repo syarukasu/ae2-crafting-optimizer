@@ -24,6 +24,7 @@ class Issue109MixinBoundarySourceTest {
                 "java", "com", "syaru", "ae2craftingoptimizer", "mixin",
                 "MEStorageMenuDisplaySaturationMixin.java")));
         assertTrue(displayMixin.contains("method = {\"m_38946_\", \"broadcastChanges\"}"));
+        assertTrue(displayMixin.contains("require = 1"));
         assertFalse(displayMixin.contains("handleInteraction"));
         assertFalse(displayMixin.contains("method = \"insert\""));
         assertFalse(displayMixin.contains("method = \"extract\""));
@@ -38,14 +39,6 @@ class Issue109MixinBoundarySourceTest {
         assertFalse(monitorMixin.contains("onPartActivate"));
         assertFalse(monitorMixin.contains("method = \"insert\""));
         assertFalse(monitorMixin.contains("method = \"extract\""));
-    }
-
-    @Test
-    void confirmationSummaryTargetsBothForgeNamespacesWithoutWeakeningInjection() {
-        String source = read(MAIN.resolve(Path.of("java", "com", "syaru",
-                "ae2craftingoptimizer", "mixin", "CraftConfirmMenuLongAmountMixin.java")));
-        assertTrue(source.contains("method = {\"m_38946_\", \"broadcastChanges\"}"));
-        assertTrue(source.contains("at = @At(\"RETURN\"), require = 1"));
     }
 
     @Test

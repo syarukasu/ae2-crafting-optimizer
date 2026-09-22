@@ -162,4 +162,15 @@ public abstract class Ae2ExactCraftingLogicMixin implements ExactCraftingLogicAc
         }
         return required;
     }
+
+    @Inject(method = "trySubmitJob", at = @At("HEAD"), cancellable = true, require = 1)
+    private void aco$guardUnpreparedVmPlan(appeng.api.networking.IGrid grid, ICraftingPlan plan,
+            appeng.api.networking.security.IActionSource source,
+            appeng.api.networking.crafting.ICraftingRequester requester,
+            CallbackInfoReturnable<appeng.api.networking.crafting.ICraftingSubmitResult> cir) {
+        // Issue #208: callers bypassing cluster submission must not execute the long display projection.
+        if (com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars.metadata(plan).orElse(null)
+                instanceof com.syaru.ae2craftingoptimizer.engine.VmCalculatedCraftingPlan)
+            cir.setReturnValue(appeng.crafting.execution.CraftingSubmitResult.INCOMPLETE_PLAN);
+    }
 }

@@ -28,19 +28,24 @@ public final class ExperimentalCompatibilityValidator {
 
     public static void validateEnabledFeatures() {
         List<String> failures = new ArrayList<>();
+        boolean nativeVm = ModList.get().isLoaded("ae2vm_aco");
+        if (nativeVm) {
+            require(failures, "appeng.me.service.CraftingService",
+                    com.ae2vm.addon.nativeengine.NativeVmHook.class);
+        }
         // compiled plannerを有効化した場合だけ、対象AE2版の内部契約を監査する。
         boolean strictCraftingProfile = ACOConfig.enableCompiledCraftingGraph();
         if (strictCraftingProfile) {
             requireSupportedAe2Version(failures);
         }
         // 計算共有と完了Cacheは同じCraftingService Mixinを使用する。
-        if (ACOConfig.deduplicateActiveCraftingCalculations()
-                || ACOConfig.cacheCompletedCraftingPlans()) {
+        if (!nativeVm && (ACOConfig.deduplicateActiveCraftingCalculations()
+                || ACOConfig.cacheCompletedCraftingPlans())) {
             require(failures, "appeng.me.service.CraftingService",
                     CraftingServiceCalculationHookAccess.class);
         }
         // long境界検査は四つのAE2計算段階がそろった場合だけ安全に有効化できる。
-        if (ACOConfig.enableCheckedAe2CraftingArithmetic()) {
+        if (!nativeVm && ACOConfig.enableCheckedAe2CraftingArithmetic()) {
             require(failures, "appeng.crafting.CraftingCalculation",
                     CheckedCraftingArithmeticHookAccess.class);
             require(failures, "appeng.crafting.CraftingTreeNode",

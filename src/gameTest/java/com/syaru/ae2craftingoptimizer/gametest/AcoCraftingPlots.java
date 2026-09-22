@@ -36,6 +36,131 @@ public final class AcoCraftingPlots {
 
     private AcoCraftingPlots() {}
 
+    @TestPlot("aco_native_wide_api_bridge")
+    public static void nativeWideApiBridge(PlotBuilder plot) {
+        // A planning-only large-output pattern. No machine is installed and no
+        // output is generated; this verifies the bridge, not wide machine execution.
+        network(plot, 32, false);
+        plot.test(helper -> {
+            var request = java.math.BigInteger.valueOf(Long.MAX_VALUE).add(java.math.BigInteger.ONE);
+            var future = new java.util.concurrent.atomic.AtomicReference<Future<ICraftingPlan>>();
+            helper.startSequence().thenWaitUntil(() -> checkRuntime(helper))
+                    .thenExecute(() -> {
+                        var provider = (PatternProviderBlockEntity) helper.getBlockEntity(new BlockPos(0, 0, -3));
+                        provider.getLogic().getPatternInv().setItemDirect(0, PatternDetailsHelper.encodeProcessingPattern(
+                                new GenericStack[] {new GenericStack(INPUT, 1)},
+                                new GenericStack[] {new GenericStack(OUTPUT, Long.MAX_VALUE)}));
+                    }).thenIdle(2).thenExecute(() -> {
+                        var grid = helper.getGrid(ORIGIN);
+                        future.set(com.ae2vm.addon.nativeengine.NativeVm.calculate(grid, helper.getLevel(),
+                                () -> new MachineSource(grid::getPivot), OUTPUT, request,
+                                CalculationStrategy.REPORT_MISSING_ITEMS));
+                    }).thenWaitUntil(() -> helper.check(future.get().isDone(), "Wide stocked VM calculation pending"))
+                    .thenExecute(() -> {
+                        try {
+                            var plan = future.get().get();
+                            var api = com.syaru.ae2craftingoptimizer.api.big.BigCraftingEngineApi
+                                    .inspectBigIntegerPlan(plan).orElseThrow();
+                            helper.check(!api.simulation(), "Stocked processing plan became a missing simulation");
+                            helper.check(api.exactRequestedAmount().equals(request), "Bridge narrowed the request");
+                            helper.check(api.usedItems().equals(Map.of(INPUT, java.math.BigInteger.TWO)), "Wrong VM inputs");
+                            helper.check(api.patternTimes().values().stream().reduce(java.math.BigInteger.ZERO,
+                                    java.math.BigInteger::add).equals(java.math.BigInteger.TWO), "Wrong VM executions");
+                            var metadata = com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars.metadata(plan).orElseThrow();
+                            var summary = com.syaru.ae2craftingoptimizer.engine.BigCraftingPlanSummary.from(metadata);
+                            helper.check(summary.entries().get(OUTPUT).craft().equals(
+                                    java.math.BigInteger.valueOf(Long.MAX_VALUE).multiply(java.math.BigInteger.TWO)),
+                                    "Bridge narrowed the planned outputs");
+                            var grid = helper.getGrid(ORIGIN);
+                            var cpu = (appeng.me.cluster.implementations.CraftingCPUCluster)
+                                    grid.getCraftingService().getCpus().iterator().next();
+                            var rejected = cpu.craftingLogic.trySubmitJob(grid, plan, new BaseActionSource(), null);
+                            helper.check(!rejected.successful(), "Unprepared wide projection reached the long executor");
+                            checkStock(helper, 32, 0);
+                        } catch (Exception failure) { helper.fail("Wide API bridge failed: " + failure); }
+                    }).thenSucceed();
+        }).maxTicks(800);
+    }
+
+    @TestPlot("aco_native_wide_missing")
+    public static void nativeWideMissing(PlotBuilder plot) {
+        network(plot, 32, true);
+        plot.test(helper -> {
+            var request = java.math.BigInteger.TEN.pow(64);
+            var future = new java.util.concurrent.atomic.AtomicReference<Future<ICraftingPlan>>();
+            helper.startSequence().thenWaitUntil(() -> checkRuntime(helper))
+                    .thenExecute(() -> {
+                        var grid = helper.getGrid(ORIGIN);
+                        future.set(com.ae2vm.addon.nativeengine.NativeVm.calculate(grid, helper.getLevel(),
+                                () -> new MachineSource(grid::getPivot), OUTPUT, request,
+                                CalculationStrategy.REPORT_MISSING_ITEMS));
+                    }).thenWaitUntil(() -> helper.check(future.get().isDone(), "Wide VM calculation pending"))
+                    .thenExecute(() -> {
+                        try {
+                            var plan = future.get().get();
+                            var exact = com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars
+                                    .bigIntegerSimulation(plan).orElseThrow().exactPlan();
+                            helper.check(exact.requestedAmount().equals(request), "Requested amount narrowed");
+                            helper.check(exact.usedInventory().get(INPUT).equals(java.math.BigInteger.valueOf(32)),
+                                    "Exact used quantity incorrect");
+                            helper.check(exact.missing().get(INPUT).equals(request.subtract(java.math.BigInteger.valueOf(32))),
+                                    "Exact missing quantity incorrect");
+                            helper.check(exact.patternExecutions().values().stream().reduce(java.math.BigInteger.ZERO,
+                                    java.math.BigInteger::add).equals(request), "VM execution count narrowed");
+                        } catch (Exception failure) { helper.fail("Wide native calculation failed: " + failure); }
+                    }).thenSucceed();
+        }).maxTicks(800);
+    }
+
+    @TestPlot("aco_snapshot_stock_churn")
+    public static void snapshotStockChurn(PlotBuilder plot) {
+        snapshotStockChange(plot, false);
+    }
+
+    @TestPlot("aco_snapshot_stock_consumed")
+    public static void snapshotStockConsumed(PlotBuilder plot) {
+        snapshotStockChange(plot, true);
+    }
+
+    private static void snapshotStockChange(PlotBuilder plot, boolean removeRequiredStock) {
+        network(plot, 32, true);
+        plot.test(helper -> {
+            var future = new java.util.concurrent.atomic.AtomicReference<Future<ICraftingPlan>>();
+            helper.startSequence().thenWaitUntil(() -> checkRuntime(helper)).thenIdle(5)
+                    .thenExecute(() -> {
+                        var grid = helper.getGrid(ORIGIN);
+                        future.set(grid.getCraftingService().beginCraftingCalculation(helper.getLevel(),
+                                () -> new MachineSource(grid::getPivot), OUTPUT, 1,
+                                CalculationStrategy.REPORT_MISSING_ITEMS));
+                    }).thenWaitUntil(() -> {
+                        var grid = helper.getGrid(ORIGIN);
+                        var source = new MachineSource(grid::getPivot);
+                        helper.check(grid.getStorageService().getInventory().insert(AEItemKey.of(Items.REDSTONE),
+                                1, Actionable.MODULATE, source) == 1, "Stock churn insert failed");
+                        helper.check(future.get().isDone(), "Native VM is still calculating during stock churn");
+                    }).thenExecute(() -> {
+                        var grid = helper.getGrid(ORIGIN);
+                        var source = new MachineSource(grid::getPivot);
+                        var storage = grid.getStorageService().getInventory();
+                        if (removeRequiredStock) {
+                            helper.check(storage.extract(INPUT, 32, Actionable.MODULATE, source) == 32,
+                                    "Failed to remove fixture stock");
+                        }
+                        try {
+                            var plan = future.get().get();
+                            helper.check(plan != null && !plan.simulation(), "Captured stock should produce a plan");
+                            helper.check(plan.usedItems().get(INPUT) == 1, "Snapshot stock accounting changed");
+                            var submitted = grid.getCraftingService().submitJob(plan, null, null, true, source);
+                            helper.check(submitted.successful() != removeRequiredStock,
+                                    "Live reservation decision incorrect: " + submitted.errorCode());
+                        } catch (Exception failure) {
+                            helper.fail("Snapshot stock-change order failed: " + failure);
+                        }
+                    }).thenWaitUntil(() -> checkStock(helper, removeRequiredStock ? 0 : 31,
+                            removeRequiredStock ? 0 : 1)).thenSucceed();
+        }).maxTicks(800);
+    }
+
     private static void network(PlotBuilder plot, int stock, boolean machine) {
         plot.block("0 0 0", AEBlocks.CRAFTING_STORAGE_64K);
         plot.cable("1 0 0");
@@ -59,6 +184,8 @@ public final class AcoCraftingPlots {
         helper.check(cpus.size() == 2, "Expected two separate real CPUs");
         helper.check(cpus.stream().allMatch(c -> c instanceof CraftingOwnerTransactionAccess),
                 "ACO CPU Mixins were not applied");
+        helper.check(helper.getGrid(ORIGIN).getCraftingService()
+                instanceof com.ae2vm.addon.nativeengine.NativeVmHook, "Native VM entry point was not applied");
     }
 
     private static void checkStock(PlotTestHelper helper, long input, long output) {

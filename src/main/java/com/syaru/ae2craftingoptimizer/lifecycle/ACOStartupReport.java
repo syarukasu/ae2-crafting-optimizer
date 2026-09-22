@@ -18,14 +18,20 @@ final class ACOStartupReport {
 
     static void logActiveConfiguration() {
         AE2CraftingOptimizer.LOGGER.info("ACO active: {}", ACOConfig.enableOptimizer());
-        AE2CraftingOptimizer.LOGGER.info(
+        if (net.minecraftforge.fml.ModList.get().isLoaded("ae2vm_aco")) {
+            AE2CraftingOptimizer.LOGGER.info(
+                    "ACO planning owner: vm-native; ACO capture/dedup/compiled replacement disabled; exact accounting retained");
+        } else AE2CraftingOptimizer.LOGGER.info(
                 "ACO planning core: deduplicate {}, completed cache {}, calculation-local memo {}, compiled graph {}, shadow {}",
                 ACOConfig.deduplicateActiveCraftingCalculations(),
                 ACOConfig.cacheCompletedCraftingPlans(),
                 ACOConfig.memoizeCraftingCalculationQueries(),
                 ACOConfig.enableCompiledCraftingGraph(),
                 ACOConfig.enableCraftingEngineShadowMode());
-        AE2CraftingOptimizer.LOGGER.info(
+        if (net.minecraftforge.fml.ModList.get().isLoaded("ae2vm_aco")) {
+            AE2CraftingOptimizer.LOGGER.info(
+                    "ACO normal AE2 dispatch: native wave scheduling retained; legacy wave override disabled");
+        } else AE2CraftingOptimizer.LOGGER.info(
                 "ACO execution budget: throttle {}, adaptive {}, shared-grid {}, instant dispatch {}, V2 adapters {}",
                 ACOConfig.throttleCraftingExecution(),
                 ACOConfig.adaptiveCraftingExecutionBudget(),
