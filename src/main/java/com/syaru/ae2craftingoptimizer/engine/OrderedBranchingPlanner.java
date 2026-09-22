@@ -143,24 +143,22 @@ final class OrderedBranchingPlanner<K> {
 
     private BigInteger repeat(Process process, K output, State parent, BigInteger deficit,
             boolean transactional) {
-        if (deficit.divide(BigInteger.valueOf(process.pattern.outputAmount(output)))
-                .compareTo(BigInteger.valueOf(4096)) <= 0) {
-            while (deficit.signum() > 0) {
-                checkpoint();
-                State trial = transactional ? new State(parent) : parent;
-                try {
-                    process.request(trial, ONE);
-                } catch (Unavailable failure) {
-                    if (!transactional) throw failure;
-                    parent.inheritReads(trial, ONE);
-                    break;
-                }
-                BigInteger extracted = trial.extract(output, deficit, 1);
-                if (extracted.signum() <= 0) throw new IllegalStateException("producer supplied no output");
-                if (transactional) parent.apply(trial, ONE);
-                deficit = deficit.subtract(extracted);
+        // Issue #207: the read-interval proof also applies to ordinary quantities.
+        // ByteRepeat retains AE2's addition order even for short repeated blocks.
+        if (deficit.compareTo(BigInteger.valueOf(process.pattern.outputAmount(output))) <= 0) {
+            checkpoint();
+            State trial = transactional ? new State(parent) : parent;
+            try {
+                process.request(trial, ONE);
+            } catch (Unavailable failure) {
+                if (!transactional) throw failure;
+                parent.inheritReads(trial, ONE);
+                return deficit;
             }
-            return deficit;
+            BigInteger extracted = trial.extract(output, deficit, 1);
+            if (extracted.signum() <= 0) throw new IllegalStateException("producer supplied no output");
+            if (transactional) parent.apply(trial, ONE);
+            return deficit.subtract(extracted);
         }
         State block = new State(parent);
         BigInteger removed = ZERO;
@@ -171,7 +169,11 @@ final class OrderedBranchingPlanner<K> {
             try {
                 process.request(trial, ONE);
             } catch (Unavailable failure) {
-                if (!transactional) throw failure;
+                if (!transactional) {
+                    // Issue #207: an outer trial still needs the failed nested block's read proof.
+                    parent.inheritReads(block, ONE);
+                    throw failure;
+                }
                 block.inheritReads(trial, ONE);
                 parent.applyBlock(block, ONE);
                 return deficit;
@@ -183,8 +185,6 @@ final class OrderedBranchingPlanner<K> {
             removed = removed.add(extracted);
             iterations++;
             BigInteger extra = block.repeats(deficit.divide(removed));
-            // Keep small oracle comparisons in AE2's original floating-point addition order.
-            if (extra.compareTo(BigInteger.valueOf(4096)) < 0) extra = ZERO;
             if (extra.signum() > 0 || iterations == 256 || deficit.signum() == 0) {
                 parent.applyBlock(block, extra.add(ONE));
                 deficit = deficit.subtract(check(removed.multiply(extra)));

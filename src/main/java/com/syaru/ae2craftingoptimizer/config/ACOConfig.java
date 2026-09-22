@@ -145,6 +145,7 @@ public final class ACOConfig {
     private static final ModConfigSpec.IntValue SLOW_CRAFT_CALCULATION_MILLIS;
     private static final ModConfigSpec.BooleanValue LOG_CACHE_STATISTICS;
     private static final ModConfigSpec.BooleanValue LOG_CRAFTING_DECISION_FLOW;
+    private static final ModConfigSpec.BooleanValue LOG_PLANNING_STATISTICS;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -471,6 +472,9 @@ public final class ACOConfig {
         builder.pop();
 
         builder.push("diagnostics");
+        LOG_PLANNING_STATISTICS = builder
+                .comment("Write bounded planning statistics to the console/latest.log every 60 seconds while active. Durations are measured, not claimed speedups.")
+                .define("logPlanningStatistics", true);
         LOG_SLOW_CRAFT_CALCULATIONS = builder
                 .comment("Log crafting calculations above the configured duration.")
                 .define("logSlowCraftCalculations", true);
@@ -644,4 +648,5 @@ public final class ACOConfig {
     public static int getSlowCraftCalculationMillis() { return SLOW_CRAFT_CALCULATION_MILLIS.get(); }
     public static boolean logCacheStatistics() { return enableOptimizer() && LOG_CACHE_STATISTICS.get(); }
     public static boolean logCraftingDecisionFlow() { return enableOptimizer() && LOG_CRAFTING_DECISION_FLOW.get(); }
+    public static boolean logPlanningStatistics() { return enableOptimizer() && LOG_PLANNING_STATISTICS.get(); }
 }
