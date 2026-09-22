@@ -284,6 +284,11 @@ checks because AE2 encoded items require the real mod registry lifecycle.
 
 ## Not Proven by Gradle
 
+See [Issue #208](issues/ISSUE-208.md) for the creative-control-circuit stock and
+quantity matrix, and [Issue #209](issues/ISSUE-209.md) for diagnostic verification.
+Planning completion is not physical craft completion. No real matrix result
+is available yet.
+
 Gradle tests do not prove:
 
 - Forge client startup;

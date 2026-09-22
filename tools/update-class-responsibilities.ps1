@@ -39,6 +39,7 @@ $packageRoles = [ordered]@{
 }
 
 $overrides = @{
+    'com.syaru.ae2craftingoptimizer.optimization.PlanningLogSummary' = 'Bounded interval diagnostics for planning outcomes, routes and measured duration; owns no live jobs or inventory.'
     'com.syaru.ae2craftingoptimizer.engine.LinearWidePlanning' = 'Proves unit-output wide DAG eligibility and aggregates detached demand with exact logical CPU overhead; no live inventory or execution ownership.'
     'com.syaru.ae2craftingoptimizer.engine.SelectedBranchPhysicalPlan' = '選択済み分岐の固定入力、回数、順序と全余剰を既存の物理実行契約へ保持する。実在庫やWorkerの実行は所有しない。'
     'com.syaru.ae2craftingoptimizer.engine.BranchingInputRules' = '計画内の入力候補、返却物、NBT候補の順序索引を計算核へ渡す契約。実在庫を所有しない。'

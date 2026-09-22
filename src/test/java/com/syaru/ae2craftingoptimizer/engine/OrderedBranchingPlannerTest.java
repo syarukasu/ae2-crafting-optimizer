@@ -173,6 +173,54 @@ class OrderedBranchingPlannerTest {
     }
 
     @Test
+    void ordinaryRepeatBoundariesKeepActualAe2FluidBytesAndProducerPriority() throws Exception {
+        AEKey out = AEItemKey.of(Items.DIAMOND), a = AEItemKey.of(Items.IRON_INGOT),
+                b = AEItemKey.of(Items.GOLD_INGOT), water = AEFluidKey.of(net.minecraft.world.level.material.Fluids.WATER);
+        var patterns = List.of(recipe("first", List.of(slot(a, 2), slot(water, 7)), Map.of(out, 1L)),
+                recipe("second", List.of(slot(b, 3), slot(water, 13)), Map.of(out, 2L)));
+        for (long amount : new long[] {1, 2, 100, 4095, 4096, 4097}) {
+            for (long available : new long[] {0, 25, 20000}) {
+                compare(patterns, out, amount, Map.of(a, available, b, available, water, 123457L), Set.of(), false);
+                compare(patterns, out, amount, Map.of(a, available, b, available, water, 123457L), Set.of(), true);
+            }
+        }
+    }
+
+    @Test
+    void failedNestedReusableProcessKeepsReadsWhenOuterOutputEnablesIt() throws Exception {
+        AEKey out = AEItemKey.of(Items.DIAMOND), part = AEItemKey.of(Items.IRON_INGOT),
+                b = AEItemKey.of(Items.GOLD_INGOT), raw = AEItemKey.of(Items.COBBLESTONE),
+                tool = AEItemKey.of(Items.STICK), fuel = AEItemKey.of(Items.COAL),
+                latch = AEItemKey.of(Items.REDSTONE);
+        var patterns = List.of(
+                recipe("root", List.of(slot(part, 1), slot(latch, 1)), Map.of(out, 1L, tool, 1L, latch, 1L)),
+                recipe("first", List.of(slot(b, 2)), Map.of(part, 1L)),
+                recipe("second", List.of(slot(raw, 1)), Map.of(part, 1L)),
+                recipe("b", List.of(slot(tool, 1), slot(fuel, 1)), Map.of(b, 1L, tool, 1L)));
+        for (long amount : new long[] {2, 100, 5000}) {
+            for (long availableFuel : new long[] {0, 3, 20000}) {
+                compare(patterns, out, amount, Map.of(latch, 1L, raw, amount, fuel, availableFuel), Set.of(), false);
+            }
+        }
+        var count = BigInteger.TEN.pow(64);
+        var graph = CompiledCraftingGraph.compile(1, patterns);
+        var stock = Map.of(latch, BigInteger.ONE, raw, count, fuel, count.multiply(BigInteger.TWO));
+        var result = new OrderedBranchingPlanner<>(out, graph::patternsFor, k -> false,
+                k -> stock.getOrDefault(k, BigInteger.ZERO), k -> k.getType().getAmountPerByte(),
+                PlanningGuard.none(), 4096).plan(count, false);
+        var remaining = count.subtract(BigInteger.ONE);
+        assertTrue(result.plan().craftable());
+        assertEquals(Map.of("root", count, "first", remaining, "second", BigInteger.ONE,
+                "b", remaining.multiply(BigInteger.TWO)), result.plan().patternExecutions());
+        assertEquals(Map.of(latch, BigInteger.ONE, raw, BigInteger.ONE,
+                fuel, remaining.multiply(BigInteger.TWO)), result.plan().usedInventory());
+        // The first catalyst transition may fill the existing 256-observation block.
+        System.out.printf("Issue207 nested-wide work=%d skipped=%s%n",
+                result.plan().expandedRequests(), result.skippedIterations());
+        assertTrue(result.plan().expandedRequests() < 8192);
+    }
+
+    @Test
     void repeatedDoubleByteAdditionsPreserveRoundingAndExponentTransitions() {
         Random random = new Random(190754);
         for (int sample = 0; sample < 200; sample++) {

@@ -84,6 +84,25 @@ public final class BigIntegerPlanDiagnostics {
         return List.copyOf(lines);
     }
 
+    public static String compactSummary() {
+        StringBuilder result = new StringBuilder();
+        int shown = 0;
+        long other = 0;
+        for (var reason : BigIntegerPlanDeclineReason.values()) {
+            LongAdder counter = COUNTERS.get(reason);
+            long count = counter == null ? 0 : counter.sum();
+            if (count == 0) continue;
+            if (shown++ < 3) {
+                if (result.length() > 0) result.append(',');
+                result.append(reason).append(':').append(count);
+            } else {
+                other += count;
+            }
+        }
+        if (other > 0) result.append(",other:").append(other);
+        return result.length() == 0 ? "none" : result.toString();
+    }
+
     public static void reset() {
         // 現在の理由カウンタだけをリセットし、参照中のMapを差し替えない。
         COUNTERS.values().forEach(LongAdder::reset);
