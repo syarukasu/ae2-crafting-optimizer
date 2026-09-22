@@ -3,6 +3,7 @@ plugins {
 }
 
 group = mod_group
+apply from: 'gradle/vm-probe.gradle'
 version = mod_version
 
 base {
@@ -11,6 +12,13 @@ base {
 
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+sourceSets {
+    gameTest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
 }
 
 minecraft {
@@ -38,6 +46,51 @@ minecraft {
                 }
             }
         }
+        gameTestServer {
+            workingDirectory project.file('build/gametest-ae2')
+            args '--mixin', 'ae2_crafting_optimizer.mixins.json'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', project.file('build/createSrgToMcp/output.srg').absolutePath
+            property 'aco.gametest.report', project.file('build/gametest-ae2/results.xml').absolutePath
+            property 'forge.logging.console.level', 'info'
+            property 'forge.enabledGameTestNamespaces', 'ae2'
+            property 'aco.gametest.scope', (findProperty('acoGameTestScope') ?: 'aco').toString()
+            mods {
+                ae2_crafting_optimizer {
+                    source sourceSets.main
+                }
+                aco_gametest {
+                    source sourceSets.gameTest
+                }
+            }
+        }
+    }
+}
+
+tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    doFirst {
+        // Issue #190: Forge can exit with code zero before executing any tests.
+        java.nio.file.Files.deleteIfExists(file('build/gametest-ae2/results.xml').toPath())
+        java.nio.file.Files.deleteIfExists(file('build/gametest-ae2/results.xml.expected.json').toPath())
+    }
+    doLast {
+        def report = file('build/gametest-ae2/results.xml')
+        if (!report.isFile()) throw new GradleException('GameTest did not produce its runtime report')
+        def xml = new groovy.util.XmlSlurper().parse(report)
+        def cases = xml.depthFirst().findAll { it.name() == 'testcase' }
+        def failed = cases.findAll { !it.failure.isEmpty() || !it.error.isEmpty() || !it.skipped.isEmpty() }
+        def required = ['ae2.aco_processing_completion', 'ae2.aco_cancel_before_delivery',
+                        'ae2.aco_competing_reservations', 'ae2.aco_returned_containers']
+        def names = cases.collect { it.@name.text() }
+        def expected = new groovy.json.JsonSlurper().parse(file('build/gametest-ae2/results.xml.expected.json'))
+        def runtimeLog = file('build/gametest-ae2/logs/latest.log').getText('UTF-8')
+        if (cases.isEmpty() || !failed.isEmpty() || !names.containsAll(required)
+                || names.sort(false) != expected.sort(false)
+                || runtimeLog.contains('Mixin apply failed ae2_crafting_optimizer')
+                || !runtimeLog.contains('ACO active: true')) {
+            throw new GradleException("GameTest acceptance failed: ${cases.size()} tests, ${failed.size()} failed/skipped; required=${required}, actual=${names}")
+        }
+        logger.lifecycle("Verified ${cases.size()} real AE2 GameTests, including all ACO acceptance plots")
     }
 }
 
@@ -82,6 +135,7 @@ repositories {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.18'
+    runtimeOnly fg.deobf('org.appliedenergistics:guideme:20.1.7')
 
     def ae2Variant = (findProperty('ae2Variant') ?: 'upstream').toString().toLowerCase()
     if (!(ae2Variant in ['upstream', 'uelm'])) {

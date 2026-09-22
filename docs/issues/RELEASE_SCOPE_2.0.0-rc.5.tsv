@@ -1,0 +1,10 @@
+# release=2.0.0-rc.5
+# baseline=2.0.0-rc.4
+# loader=BOTH
+issue	change	automated_guarantee
+190	Forge menu selectors and isolated GameTest baseline	Four isolated AE2 tests; wide production execution and recovery remain pending
+202	Aggregate proven wide shared graphs	Exact quantities and CPU bytes against ordered reference; not live timing
+207	Reuse proven ordinary repeated work and preserve failed branch reads	Actual AE2 oracle parity and bounded synthetic work tests; real circuit matrix pending
+208	Isolated pinned VM arithmetic probe only	Five local real-interpreter tests; no VM activation or bundled runtime
+209	Bounded visible planning diagnostics	Observer source checks, summary tests and isolated completion logs; Arclight pending
+210	Publish rc.5 two-loader prerelease	Full loader tests and CI, artifact audit, hashes and explicit runtime limitations
