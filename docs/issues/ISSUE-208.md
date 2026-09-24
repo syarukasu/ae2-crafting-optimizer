@@ -3,9 +3,159 @@
 - GitHub: https://github.com/syarukasu/ae2-crafting-optimizer/issues/208
 - Status: Implemented
 - Baseline: v2.0.0-rc.4, 9973a8e (Forge 1.20.1)
-- Local candidate: 2.0.0-rc.6-rc4-vm.4; awaiting prerelease checks, not deployed
+- Local candidate: 2.0.0-rc.6-rc4-vm.5; VM compiler/interpreter migration; not deployed
+- VM source pin: f821f3e9b5e1e9c0a000c2a02835140a285fba97 (syarukasu/AE2-VM-ACO)
 
 ## Current Scope: VM Engine And Exact API Bridge
+
+### Current Implementation (supersedes the foundation staging below)
+
+The shipped request route now invokes the fork's PatternCompiler, exact
+CraftingBytecode and CraftingVM/VmInstructionExecution. The copied rc.4
+ExactBranchVM and its evaluator-specific tests are removed; the unchanged
+actual-AE2 oracle cases now exercise this VM route instead. The original
+unconditional one-craft aggregation failed 19 oracle cases after the arithmetic
+port, so it was replaced inside the fork with slot-aware bytecode and guarded
+ordered block replay. This is a substantive VM semantic change, not merely a
+BigInteger type substitution and not a claim of unchanged upstream algorithms.
+
+Replay guards cover failed trials as well as successful extractions, retain
+whole-template units, delayed containers and peak reservation, and support
+periodic damaged-tool states. Scratch quantities and rational byte costs stay
+BigInteger. Read-only initial stock is shared; trials copy touched-key deltas,
+and fuzzy indices use family-level copy-on-write rather than copying the entire
+network. Pattern compilation is request-scoped. No stock-dependent plan is
+shared across orders. Shared-DAG worst-case latency still needs measurement.
+
+Capture/validation use bounded server-thread batches. Changed pattern/recipe
+epochs retry with cancellable bounded backoff rather than failing the third
+attempt. Storage changes alone do not invalidate the snapshot. Final adoption
+still validates provider bindings; normal reservation and physical execution
+remain AE2/add-on owned. ACO does not capture patterns for this route.
+
+Local automated evidence (including the sparse-stock follow-up):
+- 654 unit tests, 648 passed, 6 existing optional skips, zero failures.
+- Actual AE2 oracle checks include 500 seeded shared DAGs, alternative ordering,
+  fluid/bucket units, NBT identity, byproducts, container returns and byte cost.
+- Closed-form tests execute orders through 10^1024; additional 10^64 tests cover
+  alternate producers, byproduct reuse, reusable seeds and changing tool damage.
+- Eight real AE2 GameTests pass on upstream 15.4.10 and UELM 15.5.0, including completion, cancellation, competing
+  reservations, stock changes and an exact wide missing plan.
+- Jar-in-Jar class/license/byte audit passes and forbids ExactBranchVM. Sources
+  for the native compiler/interpreter and adapter are packaged separately.
+- Evidence: build-vm-period-gate.log, build-vm5-acceptance.log,
+  build-vm5-uelm.log and build-vm5-final.log. Final upstream test/build/GameTest/
+  release-readiness tasks pass after removing redundant post-VM emitter rewriting.
+  CI pins the exact committed fork revision above and must pass before publication.
+
+Unverified: production Jar-in-Jar load, the live supreme/creative circuit
+latency and server load, arbitrary external CPU wide execution/recovery, and
+the 10-second end target. No production JAR was replaced or server restarted.
+
+### 2026-09-24: Historical Migration Staging (superseded above)
+
+The user explicitly rejects the rc.4-derived ExactBranchVM, not just its log
+output. The target is the upstream CraftingVM's compiled-pattern/bundle demand
+aggregation with BigInteger quantities throughout, and the existing exact
+inventory/result bridge. Do not rename/copy the old recursive planner and
+claim this implements the upstream VM. The source baseline is upstream
+1.20.1-forge f9e083732ee654a99a1679bcdee7f864eb90be94, already in the fork.
+
+Production evidence from 2026-09-24: supreme circuit x1, orders 9567/9737,
+102649/135769 ms. Thread captures show sequential server round trips during
+capture and validation, and repeated fuzzy-index allocation. Diagnostics
+are in build/diagnostics-vm-20260924. Logging changes below remain intact.
+
+Implementation stages and owners:
+- The upstream core owns exact counters, its detached simulation and an exact
+  result value. These replace AE2's long-only simulation/plan types inside the
+  VM, not at its inventory or physical execution boundary. Mechanical numeric
+  migration must retain the upstream instruction, bundle and aggregation flow;
+  verify the changed expressions and compare ordinary and wide quantities.
+- Port the upstream CraftingBytecode/PatternCompiler quantity boundaries,
+  retaining its opcodes and direct pattern references; add a BigInteger literal
+  pool and exact request metadata. Keep old long entry points checked, never
+  silently projecting an unrepresentable quantity.
+- Port CraftingVM inventory, aggregation, counts and result accounting. Preserve
+  upstream shared-demand aggregation, variant/return semantics and caches;
+  fix incorrect accounting rather than copying unsafe saturating operations.
+- Supply worker-safe captured VM inputs, not ACO graphs. Remove fine-grained
+  server waits through bounded server-owned acquisition and validation batches.
+- Wire the original compiled VM into NativeVm and remove the rc.4-derived
+  planner from the installable JAR after the result-equivalence gates pass.
+- Preserve ACO exact-stock/API/CPU integration and receipt ownership. Do not
+  change physical CPU execution, restart production or release a partial port.
+
+Tests before cutover: actual upstream compiler with long and BigInteger orders,
+coefficients greater than long, shared DAGs, byproducts, containers, fuzzy/NBT,
+missing/partial/full stock; same result through ACO's exact API. Keep the actual
+AE2 oracle and processing GameTests; do not remove incompatible test cases.
+The old route remains unmodified until the new engine passes those gates.
+Uncommitted legacy CraftingVM.java edits predate this stage and must be kept.
+
+Local verification for the migration foundation:
+- `test verifyExactVmBundle verifyIssueRegressionManifest` succeeds. 650 unit
+  tests, 644 passed, 6 existing skips, no failures/errors. Log:
+  `build-upstream-migration-foundation.log`.
+- Six compiler tests exercise exact metadata/literals for 1, 2, Long.MAX_VALUE,
+  MAX+1 and 10^1024, exact division, coefficient products and encoded indices.
+  These prove bytecode construction, NOT execution of those huge orders.
+- Four tests execute the actual upstream CraftingVM with AE2 simulation state:
+  empty/partial/full leaves, shared dependency batch rounding, intermediate
+  stock increase/decrease and no direct calls to a mocked IGrid.
+- `upstreamVmCompiler` is a test-only source set. The current installable bundle
+  still contains ExactBranchVM; the passing bundle audit verifies that existing
+  packaging, not replacement by the original upstream engine.
+- Remaining: convert the core's long counters/simulation/results, port the
+  existing exact result bridge, batch capture/validation, verify industrial
+  variants/cycles/byproducts and actual CPU handoff, then remove the old engine.
+  No production deployment, restart, prerelease or in-game performance claim.
+- The fork changes are not yet committed/pinned for CI. Do not publish the ACO
+  tests alone against the old fork pin, which lacks the new compiler API.
+
+### 2026-09-24: Bounded VM Diagnostics
+
+The current production rc.6-rc4-vm.4 logs started, quantities_ready and
+quantity_calculated at INFO for every order. In the latest 5,000 server log
+lines, 4,899 were those events (1,633 of each), mostly bio_fuel x120 orders.
+DEBUG alone is not sufficient: Forge also writes debug.log by default.
+
+This follow-up changes diagnostics only, independently of the requested
+replacement of the rc.4-derived calculation engine (still pending). VM owns
+these diagnostics; no ACO planner, arithmetic, snapshot, execution, or receipt
+contract changes are authorized by this logging fix.
+
+- Routine events are silent by default, including DEBUG. Explicitly opt in
+  with -Dae2vm.diagnostics.verbose=true for per-order DEBUG traces.
+- Aggregate started/completed/missing/cancelled/failed/recaptured/slow counts
+  and completion mean/max milliseconds at INFO at most once per 60 seconds,
+  on activity. No timer thread or world/provider access for diagnostics.
+- Orders lasting at least 5 seconds are slow. Globally limit running reports
+  and slow completion reports to one each per 30 seconds, not per order.
+- Keep failure exceptions and stack traces at ERROR without masking failure
+  propagation. Do not suppress accounting errors as routine cancellations.
+- Constant-size synchronized counters only; no retained keys, jobs or worlds.
+- Regression tests: thousands of routine events generate no per-order logs;
+  one interval produces one accurate summary; concurrent callers cannot
+  bypass the global rates; slow events remain visible; errors retain causes;
+  verbose traces require explicit opt-in; cancellation/recapture are counted.
+- Preserve the fork's pre-existing CraftingVM.java edits. Do not deploy or
+  restart production. Build/unit evidence is not live-server verification.
+
+Implementation owners: fork native-engine NativeVm (event call sites), new
+NativeVmDiagnostics (bounded output only), ACO test source set (unit harness).
+Existing Issue #208 regression registration remains the release tracking row.
+
+Verification: NativeVmDiagnosticsTest (8 tests) and NativeVmCaptureTest
+(2 tests) pass. The full upstream AE2 unit suite passes: 640 tests, 634 passed,
+6 skipped, 0 failures/errors. verifyExactVmBundle and
+verifyIssueRegressionManifest pass. Evidence: build-vm-diagnostics-test.log,
+build-vm-diagnostics-verify.log and build/test-results/test/TEST-*.xml.
+There was no production restart/deployment, new release, or live check of the
+changed logger. The rc.4-derived calculation engine has NOT been replaced by
+this diagnostics patch. Existing CraftingVM.java working-copy edits remain
+untouched. Local tests use the modified native module; a future release must
+commit it and advance the CI fork pin, not ship the old pinned module.
 
 The user clarified that ACO remains a crafting optimization mod using VM as
 its engine. Implement the bridge, not a replacement industrial executor.
@@ -234,7 +384,52 @@ LGPL license/provenance and produces a source archive as well as the library.
 The embedded JAR must match the tested JAR byte-for-byte and contain no second
 mod entry point, config or mixins.
 
+## Upstream migration regression: partially replenished stock
+
+The original upstream `CraftingVM.tryFastPath` reused a missing plan whenever
+current stock still did not cover the old missing amount. Reproduction with
+the actual upstream compiler and VM: one diamond needs 16 iron; first request
+has zero iron, second request has one iron. The second plan returned used=0
+and missing=16 instead of used=1 and missing=15. This is an isolated Java test,
+not evidence of the current deployed native adapter executing this code.
+The missing-plan cache must revalidate the exact consumed stock, including
+partial replenishment, not merely ask whether the old deficit is covered.
+Gate: `UpstreamVmAccountingTest` stock matrix and shared-dependency rounding.
+
+The upstream core also queried `IGrid.getStorageService()` lazily during
+aggregation and swallowed any exception as empty stock. The fork must instead
+reuse the initial inventory of the supplied simulation. This removes the core's
+direct live-grid access; it does not itself prove that the caller supplies a
+detached simulation or that every pattern resolver is worker-safe.
+
+The actual upstream execution test also reproduces stale complete-plan reuse:
+diamond needs 16 gold; gold needs 2 iron; iron stock is 1000. After first
+calculating with zero gold, adding one gold still returns used(gold)=0 rather
+than 1. Warm reuse must check all reachable craftable-key stock, including
+keys with zero stock at capture time, not just the old plan's used-item keys.
+
 ## Owners and invariants
+
+### 2026-09-24 migration acceptance correction (Ready)
+
+Connecting the actual upstream CraftingVM, rather than ExactBranchVM, passes
+wide arithmetic through 10^1024 but fails 19 of 651 regression tests (6 skips).
+Failures include scaled fuzzy-stock consumption, fluid/bucket template units,
+returned-container timing, byproduct reuse, alternate-producer rollback,
+emitter pruning, CRAFT_LESS and byte accounting. No production JAR was changed.
+The original one-craft bundle aggregation is not valid for state-dependent
+inputs. Merely changing its numeric types does not establish AE2 correctness.
+
+Fix these semantics inside the fork's compiler/VM instruction execution, not
+by copying or invoking the rc.4 planner. Input instructions must preserve their
+slot, template unit, accepted keys and delayed returns. Ordered execution must
+consume prior byproducts and roll back failed producer trials. Bundle replay
+is permitted only with guards proving the same inventory decisions remain
+valid; the request, recipe coefficients, temporary quantities and byte charges
+remain exact. Read live pattern observations only through the VM capture's
+server-thread boundary. ACO remains a result/accounting adapter. The unchanged
+AE2 oracle suite is the gate; do not relax comparisons or publish a failing
+candidate. Runtime submission/completion remains a separate gate.
 
 ExactVmPlanning translates immutable CompiledRootProgram data. The VM evaluates
 eligible fixed single-output, single-candidate non-shared acyclic graphs using
