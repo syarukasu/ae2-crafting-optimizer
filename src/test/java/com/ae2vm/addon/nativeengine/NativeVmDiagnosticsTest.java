@@ -127,6 +127,21 @@ class NativeVmDiagnosticsTest {
         assertTrue(new NativeVmDiagnostics(log, clock::get, true).verbose());
     }
 
+    @Test void recentSamplesAreBoundedExactImmutableAndDoNotLog() {
+        var quantity = java.math.BigInteger.TEN.pow(64);
+        for (int i = 0; i < 100; i++) diagnostics.record(new NativeVm.CalculationSample(i,
+                "emextras:supreme_quantum_control_circuit", quantity, i, i == 99 ? "failed" : "ready"));
+        var samples = diagnostics.recent();
+        assertEquals(64, samples.size());
+        assertEquals(36, samples.get(0).order());
+        assertEquals(quantity, samples.get(63).requested());
+        assertEquals("failed", samples.get(63).status());
+        assertThrows(UnsupportedOperationException.class, samples::clear);
+        diagnostics.record(new NativeVm.CalculationSample(100, "other", quantity, 1, "cancelled"));
+        assertEquals(36, samples.get(0).order(), "Caller has an immutable snapshot");
+        verifyNoInteractions(log);
+    }
+
     @Test void monotonicClockMayStartNegative() {
         var negativeClock = new AtomicLong(-TimeUnit.SECONDS.toNanos(120));
         var negative = new NativeVmDiagnostics(log, negativeClock::get, false);

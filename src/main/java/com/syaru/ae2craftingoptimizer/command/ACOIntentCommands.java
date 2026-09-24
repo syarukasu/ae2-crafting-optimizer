@@ -21,6 +21,11 @@ public final class ACOIntentCommands {
             CommandBuildContext buildContext) {
         dispatcher.register(Commands.literal("aco")
                 .requires(source -> source.hasPermission(2))
+                .then(Commands.literal("vm")
+                        .then(Commands.literal("recent")
+                                .executes(context -> recentVm(context.getSource(), 10))
+                                .then(Commands.argument("limit", IntegerArgumentType.integer(1, 64))
+                                        .executes(context -> recentVm(context.getSource(), IntegerArgumentType.getInteger(context, "limit"))))))
                 .then(Commands.literal("stats")
                         .executes(context -> showStats(context.getSource()))
                         .then(Commands.literal("reset")
@@ -44,6 +49,20 @@ public final class ACOIntentCommands {
             source.sendSuccess(() -> Component.literal(line), false);
         }
         return lines.size();
+    }
+
+    private static int recentVm(CommandSourceStack source, int limit) {
+        var samples = com.ae2vm.addon.nativeengine.NativeVm.recentCalculations();
+        source.sendSuccess(() -> Component.literal("VM recent calculations (not physical craft completion):"), false);
+        int first = Math.max(0, samples.size() - limit);
+        for (int i = first; i < samples.size(); i++) {
+            var sample = samples.get(i);
+            var amount = sample.requested().bitLength() <= 1024 ? sample.requested().toString()
+                    : "BigInteger(" + sample.requested().bitLength() + " bits)";
+            source.sendSuccess(() -> Component.literal("order=" + sample.order() + " " + sample.output()
+                    + " x" + amount + " status=" + sample.status() + " elapsedMs=" + sample.elapsedMillis()), false);
+        }
+        return samples.size() - first;
     }
 
     private static int resetStats(CommandSourceStack source) {

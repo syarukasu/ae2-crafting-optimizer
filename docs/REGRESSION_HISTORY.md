@@ -23,6 +23,15 @@
 
 ## 2.0.0開発版の再発記録
 
+- [Issue #215](issues/ISSUE-215.md), 2026-09-24, rc.6-rc4-vm.5:
+  Production supreme quantum circuit x1 (order 248) failed at 1,048,576 captured
+  slot/key observations. The eager future-return closure is independent of
+  requested quantity. Replace it with demanded, bounded server-owned input
+  observations; do not simply raise the cap or ignore NBT/return rules.
+  Keep final revalidation and latched cancellation. Add bounded recent-order
+  diagnostics so aggregate timings cannot be confused with a failed manual order.
+  Runtime acceptance of the replacement remains pending.
+
 - [Issue #208](issues/ISSUE-208.md), 2026-09-24, rc.6-rc4-vm.5:
   The native bundle now uses the fork's BigInteger compiler/bytecode executor;
   the copied rc.4 ExactBranchVM is removed. AE2 oracle failures in the upstream

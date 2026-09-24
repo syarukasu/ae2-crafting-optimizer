@@ -1,0 +1,5 @@
+# release=2.0.0-rc.6-rc4-vm.6
+# baseline=2.0.0-rc.6-rc4-vm.5
+# loader=FORGE_1_20_1
+issue	change	automated_guarantee
+215	Replace eager input-return closure with demand-driven bounded observations and expose bounded per-order diagnostics	Long-lived tool and unused producer regressions, industrial variant cross-product bound, native wide-period matrix, server-only callbacks, cancellation latch, revalidation and existing AE2 oracle

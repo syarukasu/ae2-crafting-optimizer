@@ -256,7 +256,7 @@ mixin + access  ->  integration  ->  optimization
 
 | クラス | 仕事 |
 |---|---|
-| `com.syaru.ae2craftingoptimizer.command.ACOIntentCommands` | Recipe Intent、cache、Batch、計算統計を表示・安全に失効するserver commandを登録する。 |
+| `com.syaru.ae2craftingoptimizer.command.ACOIntentCommands` | Recipe Intent、cache、Batch、計算統計とVMの直近計算履歴を表示・安全に失効するserver commandを登録する。 |
 
 ### `com.syaru.ae2craftingoptimizer.config`
 
