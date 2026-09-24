@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: syarukasu/AE2-VM-ACO
-          ref: f821f3e9b5e1e9c0a000c2a02835140a285fba97
+          ref: 6d9ed984afd680eb8bdfd8bdd12e12ded2a084e1
           path: .ci/vm
 
       - name: Set up Java 17

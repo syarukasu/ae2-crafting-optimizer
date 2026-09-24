@@ -10,7 +10,7 @@ def exactVmProjectDir = file(findProperty('acoExactVmDir')
         ?: '../../references/AE2-VM-aco-exact/exact-engine')
 def exactVmVersion = '0.1.3'
 def nativeVmProjectDir = new File(exactVmProjectDir.parentFile, 'native-engine')
-def nativeVmVersion = '0.3.0'
+def nativeVmVersion = '0.3.1'
 def gameTestBaseline = (findProperty('acoGameTestBaseline') ?: 'false').toString().toBoolean()
 def exactVmJar = new File(exactVmProjectDir, "build/libs/aco-exact-vm-${exactVmVersion}.jar")
 tasks.register('buildExactVm', GradleBuild) {
