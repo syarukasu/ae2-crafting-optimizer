@@ -1,0 +1,5 @@
+# release=2.0.0-rc.6-rc4-vm.7-dev.1
+# baseline=2.0.0-rc.6-rc4-vm.6
+# loader=FORGE_1_20_1
+issue	change	automated_guarantee
+217	Omit local replay snapshots for unique bulk producers	64-stage chain with wide quantity and stock matrix; exact bytes and counts; enclosing branch replay, byproducts, return seeds, cancellation and existing accounting oracle
