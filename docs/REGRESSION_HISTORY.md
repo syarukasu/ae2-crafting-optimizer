@@ -23,6 +23,30 @@
 
 ## 2.0.0開発版の再発記録
 
+- [Issue #208](issues/ISSUE-208.md), 2026-09-24, rc.6-rc4-vm.5:
+  The native bundle now uses the fork's BigInteger compiler/bytecode executor;
+  the copied rc.4 ExactBranchVM is removed. AE2 oracle failures in the upstream
+  one-craft aggregation required ordered slot instructions and guarded periodic
+  replay. Preserve variant units, delayed returns, failed-branch rollback and
+  peak reservations. Bounded capture/validation, sparse stock trials and logging
+  are verified locally on upstream AE2 and UELM. Production latency, bundled
+  loading and arbitrary external CPU execution/recovery remain unverified.
+
+- [Issue #208](issues/ISSUE-208.md), 2026-09-24, upstream migration gates:
+  The original VM reused stale missing quantities after partial leaf replenishment
+  and stale craft counts after intermediate stock changed. Both are reproduced
+  against its real compiler/core and covered by stock-churn tests. Use the
+  supplied simulation snapshot instead of querying the live IGrid from the VM.
+  At that foundation stage the original core was test-only and the rc.4-derived
+  engine was still bundled. This staging limitation is superseded by the entry
+  above; it is not a description of the rc.6-rc4-vm.5 artifact.
+
+- [Issue #208](issues/ISSUE-208.md), 2026-09-24: native VM logged three INFO
+  messages per routine order. Default to bounded activity summaries and slow
+  samples; per-order DEBUG now requires explicit opt-in, because Forge writes
+  debug.log too. Failure exceptions remain visible. Eight logging tests and
+  the full upstream unit suite pass; production deployment remains pending.
+
 - [Issue #190](issues/ISSUE-190.md), 2026-09-23: supreme circuit x1 aborts at
   1,048,576 branch checkpoints. Remove the cumulative cutoff, keep cancellation
   and resident-tree bounds. Nested-branch accounting and cancellation tests

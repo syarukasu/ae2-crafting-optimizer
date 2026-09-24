@@ -1,0 +1,6 @@
+# release=2.0.0-rc.6-rc4-vm.5
+# baseline=2.0.0-rc.6-rc4-vm.4
+# loader=FORGE_1_20_1
+issue	change	automated_guarantee
+190	Keep pattern-change retries cancellable without aborting at the third attempt; preserve storage snapshot ownership	Stock-change, cancellation and competing-reservation GameTests; production performance remains unmeasured
+208	Replace the copied rc.4 branch evaluator with VM compiled slot instructions and exact guarded replay; bound diagnostics	AE2 oracle parity, BigInteger coefficient/stock/API matrices, wide alternative/byproduct/container/damage tests, native GameTests and Jar-in-Jar old-evaluator exclusion

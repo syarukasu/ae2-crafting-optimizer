@@ -8,9 +8,9 @@ version = mod_version
 // Issue #208: isolated fork library only; never run the upstream mod build.
 def exactVmProjectDir = file(findProperty('acoExactVmDir')
         ?: '../../references/AE2-VM-aco-exact/exact-engine')
-def exactVmVersion = '0.1.2'
+def exactVmVersion = '0.1.3'
 def nativeVmProjectDir = new File(exactVmProjectDir.parentFile, 'native-engine')
-def nativeVmVersion = '0.2.0'
+def nativeVmVersion = '0.3.0'
 def gameTestBaseline = (findProperty('acoGameTestBaseline') ?: 'false').toString().toBoolean()
 def exactVmJar = new File(exactVmProjectDir, "build/libs/aco-exact-vm-${exactVmVersion}.jar")
 tasks.register('buildExactVm', GradleBuild) {
@@ -29,6 +29,12 @@ java {
 sourceSets {
     vmNative {
         java.srcDir new File(nativeVmProjectDir, 'src/main/java')
+        java.srcDir new File(exactVmProjectDir.parentFile, 'src/main/java')
+        java.include 'com/ae2vm/addon/nativeengine/**'
+        java.include 'com/ae2vm/addon/vm/CraftingBytecode.java', 'com/ae2vm/addon/vm/Opcode.java',
+                'com/ae2vm/addon/compiler/PatternCompiler.java', 'com/ae2vm/addon/compiler/IFiniteUseInput.java',
+                'com/ae2vm/addon/vm/CraftingVM.java'
+        java.include 'com/ae2vm/addon/vm/Vm*.java'
         resources.srcDir new File(nativeVmProjectDir, 'src/main/resources')
         compileClasspath = configurations.compileClasspath
         runtimeClasspath += configurations.runtimeClasspath
@@ -56,6 +62,7 @@ minecraft {
                 args '--mixin', 'ae2vm-aco-native.mixins.json'
             }
             property 'aco.gametest.baseline', gameTestBaseline.toString()
+            property 'ae2vm.diagnostics.verbose', 'true'
             property 'mixin.env.remapRefMap', 'true'
             property 'mixin.env.refMapRemappingFile', project.file('build/createSrgToMcp/output.srg').absolutePath
             property 'aco.gametest.report', project.file('build/gametest-ae2/results.xml').absolutePath
@@ -246,6 +253,15 @@ tasks.register('vmNativeJar', Jar) {
     destinationDirectory = new File(nativeVmProjectDir, 'build/libs')
     manifest { attributes 'MixinConfigs': 'ae2vm-aco-native.mixins.json' }
 }
+tasks.register('vmNativeSourcesJar', Jar) {
+    from sourceSets.vmNative.allSource
+    from(exactVmProjectDir.parentFile) { include 'LICENSE'; into 'META-INF' }
+    from(nativeVmProjectDir) { include 'README.md' }
+    archiveFileName = "aco-vm-native-${nativeVmVersion}-sources.jar"
+    destinationDirectory = layout.buildDirectory.dir('vm-sources')
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
 reobf {
     vmNativeJar { }
 }
@@ -258,7 +274,7 @@ tasks.register('vmBundleMetadata') {
     doLast {
         def artifacts = [
                 ['aco-exact-vm', exactVmVersion, '0.2.0'],
-                ['aco-vm-native', nativeVmVersion, '0.3.0']]
+                ['aco-vm-native', nativeVmVersion, '0.4.0']]
         def metadata = [jars: artifacts.collect { artifact, selected, upper ->
             [identifier: [group: 'com.syaru.ae2vm', artifact: artifact],
              version: [range: "[${selected},${upper})", artifactVersion: selected],
@@ -446,7 +462,7 @@ jar {
 }
 
 tasks.named('build') {
-    dependsOn 'bundleVm'
+    dependsOn 'bundleVm', 'vmNativeSourcesJar'
     finalizedBy 'verifyExactVmBundle'
 }
 
@@ -468,11 +484,12 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
         def names = cases.collect { it.@name.text() }
         def expected = new groovy.json.JsonSlurper().parse(file('build/gametest-ae2/results.xml.expected.json'))
         def runtimeLog = file('build/gametest-ae2/logs/latest.log').getText('UTF-8')
+        def diagnosticLog = file('build/gametest-ae2/logs/debug.log').getText('UTF-8')
         if (cases.isEmpty() || !failed.isEmpty() || (!gameTestBaseline && !names.containsAll(required))
                 || names.sort(false) != expected.sort(false)
                 || runtimeLog.contains('Mixin apply failed ae2_crafting_optimizer')
                 || (!gameTestBaseline && (!runtimeLog.contains('ACO active: true')
-                    || !runtimeLog.contains('event=quantity_calculated route=vm-native')))
+                    || !diagnosticLog.contains('event=quantity_calculated route=vm-native')))
                 || (gameTestBaseline && runtimeLog.contains('ACO active: true'))) {
             throw new GradleException("GameTest acceptance failed: ${cases.size()} tests, ${failed.size()} failed/skipped")
         }
@@ -511,10 +528,10 @@ tasks.register('verifyExactVmBundle') {
                 def names = [] as Set
                 for (def entry = inner.nextJarEntry; entry != null; entry = inner.nextJarEntry) names.add(entry.name)
                 if (!names.containsAll(['com/syaru/ae2vm/exact/ExactCraftingVM.class',
-                        'com/syaru/ae2vm/exact/ExactBranchVM.class', 'com/syaru/ae2vm/exact/ExactBranchBytecode.class',
+                        'com/syaru/ae2vm/exact/ExactBranchBytecode.class',
                         'com/syaru/ae2vm/exact/ExactBytecode.class', 'META-INF/LICENSE-AE2-VM', 'META-INF/NOTICE.txt'])
                         || names.any { it == 'META-INF/mods.toml' || it.endsWith('.mixins.json')
-                            || it.startsWith('com/ae2vm/addon/') })
+                            || it.startsWith('com/ae2vm/addon/') || it.contains('ExactBranchVM') })
                     throw new GradleException('VM library content/license boundary violated')
             }
             def nativeEntries = metadata.jars.findAll {
@@ -536,6 +553,9 @@ tasks.register('verifyExactVmBundle') {
                         'ae2vm-aco-native.mixins.json',
                         'com/ae2vm/addon/nativeengine/NativeVm.class',
                         'com/ae2vm/addon/nativeengine/NativeVmCapture.class',
+                        'com/ae2vm/addon/vm/CraftingVM.class',
+                        'com/ae2vm/addon/vm/VmInstructionExecution.class',
+                        'com/ae2vm/addon/compiler/PatternCompiler.class',
                         'com/ae2vm/addon/nativeengine/mixin/NativeCraftingServiceMixin.class'])
                         || names.any { it.startsWith('com/syaru/ae2craftingoptimizer/') })
                     throw new GradleException('Native VM content/license boundary violated')

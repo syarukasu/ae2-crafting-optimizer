@@ -9,7 +9,6 @@ import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
-import com.syaru.ae2vm.exact.ExactBranchVM;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -38,9 +37,7 @@ public final class NativeVmOracleHarness {
             }
         };
         var capture = new NativeVmCapture(grid, level, accounting);
-        var result = new ExactBranchVM<>(output, capture::candidates, capture::emittable, capture::amount,
-                k -> k.getType().getAmountPerByte(), ignored -> {}, accounting.maximumCount(), capture)
-                .plan(BigInteger.valueOf(requested), strategy == CalculationStrategy.CRAFT_LESS);
+        var result = capture.plan(output, BigInteger.valueOf(requested), strategy == CalculationStrategy.CRAFT_LESS);
         capture.validate();
         Map<IPatternDetails, BigInteger> times = new LinkedHashMap<>(), expectedTimes = new LinkedHashMap<>();
         result.crafts().forEach((id, count) -> times.merge(capture.bindings().get(id), count, BigInteger::add));

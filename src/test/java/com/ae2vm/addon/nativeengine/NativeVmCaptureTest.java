@@ -9,7 +9,6 @@ import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
-import com.syaru.ae2vm.exact.ExactBranchVM;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
@@ -71,8 +70,7 @@ class NativeVmCaptureTest {
                 }
             };
             var capture = new NativeVmCapture(grid, level, accounting);
-            var result = new ExactBranchVM<>(out, capture::candidates, capture::emittable, capture::amount,
-                    k -> 1, ignored -> {}, accounting.maximumCount(), capture).plan(multiplier, false);
+            var result = capture.plan(out, multiplier, false);
             capture.validate();
             assertEquals(multiplier, result.requested());
             assertEquals(multiplier, result.crafts().get("vm-0"));

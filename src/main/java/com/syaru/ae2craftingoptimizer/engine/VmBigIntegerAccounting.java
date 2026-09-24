@@ -55,7 +55,7 @@ public final class VmBigIntegerAccounting implements VmAccounting {
         trace.add(new CraftingPlanTrace.Charge<>(null, amounts.integerCharges(), 1));
         amounts.stackCharges().forEach((key, count) -> trace.add(new CraftingPlanTrace.Charge<>(key, count, 1)));
         var plan = new BigCraftingPlan<>(amounts.root(), amounts.requested(), amounts.crafts(),
-                amounts.used(), amounts.emitted(), amounts.missing(), amounts.work(), new CraftingPlanTrace<>(trace));
+                amounts.used(), amounts.emitted(), amounts.missing(), amounts.crafts().size(), new CraftingPlanTrace<>(trace));
         if (!plan.craftable()) return Ae2CraftingPlanSidecars.expose(new BigIntegerSimulationPlan(
                 display, plan, times, result.bytes(), bits, amounts.multiplePaths()));
 
