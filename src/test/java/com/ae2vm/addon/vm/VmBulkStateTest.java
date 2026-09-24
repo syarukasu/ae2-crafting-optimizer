@@ -120,6 +120,115 @@ class VmBulkStateTest {
         } finally { Thread.interrupted(); }
     }
 
+    @Test void unchangedKindsAvoidFullScansDespiteQuantityChanges() throws Exception {
+        var execution = execution(key(0), BigInteger.ONE, Map.of(), Map.of());
+        var before = newState(execution);
+        for (int i = 0; i < 256; i++) insert(before, key(i), BigInteger.ONE);
+        var after = call(before, "copy", new Class<?>[0]);
+        for (int i = 0; i < 2000; i++) {
+            insert(after, key(i % 256), BigInteger.TEN.pow(64));
+            assertTrue(sameKinds(before, after));
+        }
+        System.out.println("Issue217 quantityOnlyComparisons=2000 fullDomainScans=" + execution.stockKeyScans());
+        assertEquals(0, execution.stockKeyScans());
+    }
+
+    @Test void siblingKindsRollbackAndZeroQuantityReadsRemainExact() throws Exception {
+        var execution = execution(key(0), BigInteger.ONE, Map.of(), Map.of());
+        var base = newState(execution);
+        insert(base, key(0), BigInteger.ONE);
+        var left = call(base, "copy", new Class<?>[0]);
+        var right = call(base, "copy", new Class<?>[0]);
+        insert(left, key(1), BigInteger.ZERO);
+        insert(right, key(2), BigInteger.ZERO);
+        assertFalse(sameKinds(left, right), "Same-size sibling branches have different NBT domains");
+        call(left, "adopt", new Class<?>[]{base.getClass()}, base);
+        assertTrue(sameKinds(left, base), "Rollback restores the base domain");
+        assertFalse(sameKinds(left, right));
+        call(left, "read", new Class<?>[]{AEKey.class, BigInteger.class}, key(3), BigInteger.ONE);
+        assertFalse(sameKinds(left, right), "Reading an absent key still changes the observed domain");
+        call(left, "adopt", new Class<?>[]{base.getClass()}, base);
+        call(left, "extract", new Class<?>[]{AEKey.class, BigInteger.class}, key(4), BigInteger.ONE);
+        assertFalse(sameKinds(left, base), "An absent extraction must invalidate membership too");
+        assertTrue(sameKinds(base, base));
+    }
+
+    @Test void independentlyBuiltEqualKindsAreCheckedOnceThenShared() throws Exception {
+        var execution = execution(key(0), BigInteger.ONE, Map.of(), Map.of());
+        var a = newState(execution);
+        var b = newState(execution);
+        insert(a, key(1), BigInteger.ONE); insert(a, key(2), BigInteger.TWO);
+        insert(b, key(2), BigInteger.TEN); insert(b, key(1), BigInteger.ZERO);
+        assertTrue(sameKinds(a, b));
+        long checked = execution.stockKeyScans();
+        assertEquals(1, checked, "Independent histories require an exact comparison");
+        for (int i = 0; i < 100; i++) assertTrue(sameKinds(a, b));
+        assertEquals(checked, execution.stockKeyScans());
+        insert(b, key(3), BigInteger.ZERO);
+        assertFalse(sameKinds(a, b), "A shared token must not survive a new key");
+    }
+
+    @Test @org.junit.jupiter.api.Timeout(30)
+    void lowWaterSnapshotsAreOnlyCreatedForPositiveReplays() {
+        int period = 16;
+        var toolInput = mock(IPatternDetails.IInput.class);
+        when(toolInput.getPossibleInputs()).thenReturn(new GenericStack[]{new GenericStack(tool(0), 1)});
+        when(toolInput.getMultiplier()).thenReturn(1L);
+        when(toolInput.isValid(any(), any())).thenAnswer(call -> call.getArgument(0) instanceof AEItemKey item
+                && item.getItem() == Items.NETHERITE_PICKAXE);
+        when(toolInput.getRemainingKey(any())).thenAnswer(call -> {
+            int damage = ((AEItemKey) call.getArgument(0)).toStack().getDamageValue();
+            return damage + 1 < period ? tool(damage + 1) : null;
+        });
+        var recipe = pattern(key(0), Map.of(key(1), 1L));
+        var rawInput = recipe.getInputs()[0];
+        when(recipe.getInputs()).thenReturn(new IPatternDetails.IInput[]{toolInput, rawInput});
+        for (var order : List.of(BigInteger.ONE, BigInteger.TWO, BigInteger.valueOf(Long.MAX_VALUE),
+                BigInteger.ONE.shiftLeft(63), BigInteger.TEN.pow(64))) {
+            var requiredTools = order.add(BigInteger.valueOf(period - 1)).divide(BigInteger.valueOf(period));
+            for (var available : List.of(BigInteger.ZERO, BigInteger.ONE, requiredTools)) {
+                try (var scope = PatternCompiler.openScope()) {
+                    var execution = execution(key(0), order, Map.of(key(0), List.of(recipe)),
+                            Map.of(tool(0), available, key(1), order));
+                    var result = execution.execute(order, false);
+                    assertEquals(order, result.finalOutput().amount());
+                    assertEquals(order, result.patternTimes().get(recipe));
+                    assertEquals(available, result.usedItems().get(tool(0)));
+                    assertEquals(requiredTools.subtract(available), result.missingItems().get(tool(0)));
+                    assertEquals(order, result.usedItems().get(key(1)));
+                    System.out.println("Issue217 period=" + period + " order=" + order + " seeds=" + available
+                            + " minimumSnapshots=" + execution.minimumSnapshots() + " replays=" + execution.replays()
+                            + " keyScans=" + execution.stockKeyScans());
+                    assertEquals(execution.replays(), execution.minimumSnapshots(), "No copy on unsuccessful replay checks");
+                    assertEquals(0, execution.stockKeyScans(), "Inherited domains or changed sizes need no full scans");
+                }
+            }
+        }
+    }
+
+    private static AEItemKey tool(int damage) {
+        var stack = new ItemStack(Items.NETHERITE_PICKAXE);
+        stack.setDamageValue(damage);
+        return AEItemKey.of(stack);
+    }
+    private static Object newState(VmInstructionExecution execution) throws Exception {
+        var type = Class.forName("com.ae2vm.addon.vm.VmInstructionExecution$State");
+        var constructor = type.getDeclaredConstructor(VmInstructionExecution.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(execution);
+    }
+    private static Object call(Object receiver, String name, Class<?>[] types, Object... args) throws Exception {
+        var method = receiver.getClass().getDeclaredMethod(name, types);
+        method.setAccessible(true);
+        return method.invoke(receiver, args);
+    }
+    private static boolean sameKinds(Object a, Object b) throws Exception {
+        return (boolean) call(a, "sameStockKeys", new Class<?>[]{a.getClass()}, b);
+    }
+    private static void insert(Object state, AEKey key, BigInteger count) throws Exception {
+        call(state, "insert", new Class<?>[]{AEKey.class, BigInteger.class}, key, count);
+    }
+
     private static VmInstructionExecution execution(AEKey root, BigInteger order,
             Map<AEKey, List<IPatternDetails>> recipes, Map<AEKey, BigInteger> stock) {
         return new VmInstructionExecution(PatternCompiler.compileRequest(root, order), new VmSimulationState(stock),

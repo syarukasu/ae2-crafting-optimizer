@@ -1,11 +1,11 @@
 # Issue #217: Avoid replay-state copies for bulk VM producers
 
 - GitHub: https://github.com/syarukasu/ae2-crafting-optimizer/issues/217
-- Status: Implemented
+- Status: Implemented (phase 2 automated gates passed; live acceptance pending)
 - Affected: Forge 1.20.1, native VM 0.3.1 bundled with ACO .6
 - Related: #208, #215
-- Local candidate: ACO 2.0.0-rc.6-rc4-vm.7-dev.1, native VM 0.3.2-dev.1
-- VM pin: b2fa34edc3c10c4039bf4c10783de499a322dec6
+- Local candidate: ACO 2.0.0-rc.6-rc4-vm.7-dev.2, native VM 0.3.2-dev.2
+- VM pin: 0a1bb6a522ec6f07a5db61b0206189bd06f5f299 (phase 1: b2fa34edc3c10c4039bf4c10783de499a322dec6)
 
 ## Evidence and expected result
 
@@ -72,3 +72,57 @@ This is not a production circuit timing or proof of general server load reductio
 
 The development version distinguishes local artifacts from the published .6;
 this change does not replace any existing release asset or production JAR.
+
+## Phase 2: replay guard overhead
+
+The user installed .7-dev.1. Production order 103 completed on 2026-09-24 at
+14:23:50.989: supreme_quantum_control_circuit x1, simulation=true, 45160 ms.
+A thread sample saw Trace.safeRepeats comparing stock key sets. This identifies
+executed work, not its share of the total time. The user approved optimizing
+membership checks and low-water snapshot timing, not changing branch rollback.
+
+Implement an exact identity token for a State's stock-key domain: share through
+copy/adopt, replace on insertion of a new key (including zero-count keys), keep
+on quantity-only mutation. Equal tokens prove equal key sets. Different tokens
+must retain exact key-set equality checks as needed; never use hash-only or
+same-size equality. An exact successful comparison may share the token again.
+Check the domain once per repeat iteration and reuse that result for window
+reset. Replay updates existing keys only; all insertion sites must preserve
+the token invariant, including read, extract, insert, copy/adopt and replay.
+
+Copy low-water quantities only immediately before an actual positive replay,
+not every attempted iteration. Keep the snapshot independent of the mutable
+low-water map because replay updates the latter. Retain all numerical guards,
+outer trace propagation, return ordering, byte costs, cancellation and exact
+branch accounting. No state-delta journal or global plan cache in this phase.
+
+Regression tests first: repeated quantity-only mutations need zero full-domain
+scans; divergent same-size sibling branches and rollback never alias; separately
+constructed equal domains are revalidated before token sharing; new zero-count
+NBT keys invalidate the domain. A finite damaging-tool period over the wide
+order/stock matrix must create low-water snapshots only for positive replays,
+with unchanged input usage, shortages and pattern counts. Run all previous
+oracle/bulk tests and both upstream/UELM build and GameTest gates. This is still
+VM-owned worker state; no live API, CPU ownership or deployment change.
+
+Phase 2 focused evidence: three performance assertions fail before the change
+(`build-217-phase2-before.log`) and pass after it along with prior accounting and
+native capture tests (`build-217-phase2-focused.log`). Two thousand quantity-only
+domain checks go from 2000 full scans to zero. Independent equal domains require
+one exact comparison before token sharing. Sibling/rollback/zero-count NBT cases
+stay exact. All 15 damaging-tool order/stock combinations pass and snapshot count
+equals actual positive replay count; no snapshot is made on failed replay checks.
+
+The identity token belongs to worker scratch state, not live inventory or pattern
+revisions. Domain equality is checked once per iteration. No hashing shortcut,
+change in numeric guards, branch journal, or speculative quantity reuse was added.
+
+Phase 2 full gates: `build-217-phase2-upstream.log` and
+`build-217-phase2-uelm.log` both pass test/build/bundle audit, eight real GameTests
+and release-readiness with explicit runtime PENDING. Each unit run: 670 tests,
+664 passed, 6 existing optional-dependency skips, zero failures.
+
+Development artifact: `aco2.0.0-rc.6-rc4-vm.7-dev.2_1.20.1.jar`, SHA-256
+`E06A00365E977D981C90A14FEB8D0F5410B47FEF0F724D9A6966CF976E961131`.
+No production deployment or restart was performed. The 45160 ms measurement
+belongs to dev.1; dev.2 has no live circuit latency measurement yet.
