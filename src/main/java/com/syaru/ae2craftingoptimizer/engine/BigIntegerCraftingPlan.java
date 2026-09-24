@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import appeng.api.crafting.IPatternDetails;
+import com.syaru.ae2craftingoptimizer.api.big.BigIntegerCraftingPlanView;
 import appeng.api.networking.IGrid;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
@@ -20,6 +21,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 正確なPattern task、missing、remaining output、容量を取得する。</p>
  */
 public final class BigIntegerCraftingPlan implements WideCraftingPlan {
+    @Override
+    public java.util.Optional<BigIntegerCraftingPlanView> exactView() {
+        return java.util.Optional.of(new BigIntegerCraftingPlanView(finalOutput(), exactBytes(), simulation(),
+                exactPatternTimes(), exactPlan().usedInventory(), exactPlan().emitted(),
+                exactPlan().missing(), exactPlan().requestedAmount()));
+    }
+
     private final GenericStack finalOutput;
     private final BigCraftingPlan<AEKey> exactPlan;
     private final Map<IPatternDetails, BigInteger> exactPatternTimes;

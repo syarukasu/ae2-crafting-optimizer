@@ -7,6 +7,20 @@
 
 ## ACOの目的
 
+### 2.0.0 demand-driven boundary (#218)
+
+- `NativeVmCapture` (fork): per-request stock, demanded producer metadata and
+  live input observations; no eager descendant traversal or legacy graph copy.
+  Revalidates the requester's grid, provider/input semantics and recipe epoch.
+- `VmAccounting`: exact stock and result handoff; respects null action sources
+  and explicitly requested extraction simulation without narrowing wide values.
+- `WideCraftingPlan.exactView`: the plan owner supplies exact API values;
+  `BigCraftingEngineApi` does not select concrete planner implementations.
+- Native exact processing inputs can use direct-key worker lookup. Unknown
+  pattern implementations retain server-owned predicates and return handling.
+- Public API v3 methods, transitive value descriptors and constants are frozen
+  in the compiled ABI fixture. Saved job/receipt owners are unchanged.
+
 ### Bundled VM profiling and trial state (#217)
 
 - `NativeVmTiming` (VM fork): order-local phase and server-handoff timings;

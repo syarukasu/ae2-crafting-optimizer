@@ -1,6 +1,8 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import appeng.api.crafting.IPatternDetails;
+import appeng.api.stacks.AEKey;
+import com.syaru.ae2craftingoptimizer.api.big.BigIntegerCraftingPlanView;
 import appeng.api.networking.IGrid;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
@@ -17,6 +19,20 @@ import java.util.Objects;
  * 取得し、互換値を容量会計の正本として使用しない。</p>
  */
 public final class BigCapacityCraftingPlan implements WideCraftingPlan {
+    @Override
+    public java.util.Optional<BigIntegerCraftingPlanView> exactView() {
+        var times = new java.util.LinkedHashMap<IPatternDetails, BigInteger>();
+        patternTimes.forEach((pattern, count) -> times.put(pattern, BigInteger.valueOf(count)));
+        return java.util.Optional.of(new BigIntegerCraftingPlanView(finalOutput, exactBytes, simulation,
+                times, exact(usedItems), exact(emittedItems), exact(missingItems)));
+    }
+
+    private static Map<AEKey, BigInteger> exact(KeyCounter counter) {
+        var values = new java.util.LinkedHashMap<AEKey, BigInteger>();
+        for (var entry : counter) values.put(entry.getKey(), BigInteger.valueOf(entry.getLongValue()));
+        return values;
+    }
+
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
 
     private final GenericStack finalOutput;

@@ -139,6 +139,21 @@ class NativeVmDemandCaptureTest {
         }
     }
 
+    @Test void producerMetadataAndPrimaryRulesUseOneServerVisit() throws Exception {
+        try (var server = new ServerHarness()) {
+            var output = AEItemKey.of(Items.DIAMOND);
+            var input = serverInput(server, false);
+            var capture = capture(output, List.of(pattern(output, input)), Map.of(tool(0), BigInteger.ONE),
+                    server.server, new NativeVmTiming(() -> 0L));
+            var result = capture.plan(output, BigInteger.ONE, false);
+            assertTrue(result.missing().isEmpty());
+            assertEquals(Map.of(tool(0), BigInteger.ONE), result.used());
+            assertEquals(3, server.handoffs.get(), "One stock read, one emitter read, one combined producer read");
+            assertEquals(1, server.calls.get());
+            capture.validate();
+        }
+    }
+
     @Test void cancellationStopsInsideAnObservationBatch() throws Exception {
         try (var server = new ServerHarness()) {
             var input = serverInput(server, true);
@@ -239,6 +254,11 @@ class NativeVmDemandCaptureTest {
     }
 
     private static NativeVmCapture capture(AEKey root, List<IPatternDetails> recipes, Map<AEKey, BigInteger> stock, MinecraftServer server) {
+        return capture(root, recipes, stock, server, new NativeVmTiming());
+    }
+
+    private static NativeVmCapture capture(AEKey root, List<IPatternDetails> recipes, Map<AEKey, BigInteger> stock,
+            MinecraftServer server, NativeVmTiming timing) {
         var grid = mock(IGrid.class);
         var service = mock(ICraftingService.class);
         when(grid.getCraftingService()).thenReturn(service);
@@ -249,6 +269,6 @@ class NativeVmDemandCaptureTest {
             public BigInteger maximumCount() { return BigInteger.ONE.shiftLeft(4096); }
             public Stock exactStock(IGrid ignored) { return new Stock(stock, true, stock.keySet()); }
             public ICraftingPlan wideResult(IGrid ignored, Level world, NativeVmResult result) { throw new AssertionError(); }
-        });
+        }, ignored -> { }, timing);
     }
 }

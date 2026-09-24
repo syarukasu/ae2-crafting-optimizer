@@ -30,6 +30,14 @@ public final class VmBigIntegerAccounting implements VmAccounting {
         return new Stock(exact.amounts(), exact.complete(), known);
     }
 
+    @Override public BigInteger simulateExtraction(IGrid grid, AEKey key, BigInteger amount,
+            appeng.api.networking.security.IActionSource source) {
+        if (amount.bitLength() <= 63) return VmAccounting.super.simulateExtraction(grid, key, amount, source);
+        if (com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageBridge.canExtract(grid, key, amount, source))
+            return amount;
+        throw new IllegalStateException("Exact simulated extraction cannot prove the available quantity for " + key.getId());
+    }
+
     @Override public ICraftingPlan wideResult(IGrid grid, Level level, NativeVmResult result) {
         var amounts = result.amounts();
         int bits = ACOConfig.getBigIntegerMaximumBits();

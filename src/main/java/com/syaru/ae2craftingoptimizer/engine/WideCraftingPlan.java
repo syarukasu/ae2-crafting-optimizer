@@ -16,4 +16,9 @@ public interface WideCraftingPlan extends ICraftingPlan {
      * <p>{@link #bytes()}はAE2互換の飽和値なので、診断や受理判定へ使ってはいけない。</p>
      */
     BigInteger exactBytes();
+
+    /** Exact API values are supplied by their owner, never inferred from a long facade. */
+    default java.util.Optional<com.syaru.ae2craftingoptimizer.api.big.BigIntegerCraftingPlanView> exactView() {
+        return java.util.Optional.empty();
+    }
 }
