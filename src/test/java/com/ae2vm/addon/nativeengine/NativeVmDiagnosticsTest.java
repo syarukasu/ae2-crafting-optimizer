@@ -153,6 +153,17 @@ class NativeVmDiagnosticsTest {
         assertEquals(1, events("summary").size());
     }
 
+    @Test void detailedTimingUsesExistingSlowBudgetAndStaysInRecentHistory() {
+        String timing = "vmMs=5000 vmActiveMs=100 serverQueueMs=4800 handoffs=200";
+        diagnostics.completed(1, "test", 1, 6000, true, timing);
+        diagnostics.completed(2, "test", 1, 6000, true, timing);
+        assertEquals(1, events("slow_calculation").size());
+        assertEquals(timing, events("slow_calculation").get(0)[5]);
+        diagnostics.record(new NativeVm.CalculationSample(2, "test", java.math.BigInteger.ONE, 6000, "missing", timing));
+        assertEquals(timing, diagnostics.recent().get(0).timing());
+        assertTrue(events("profile").isEmpty(), "Do not add another per-order log stream");
+    }
+
     private void seconds(long value) { clock.set(TimeUnit.SECONDS.toNanos(value)); }
 
     private List<Object[]> events(String event) {

@@ -60,7 +60,8 @@ public final class ACOIntentCommands {
             var amount = sample.requested().bitLength() <= 1024 ? sample.requested().toString()
                     : "BigInteger(" + sample.requested().bitLength() + " bits)";
             source.sendSuccess(() -> Component.literal("order=" + sample.order() + " " + sample.output()
-                    + " x" + amount + " status=" + sample.status() + " elapsedMs=" + sample.elapsedMillis()), false);
+                    + " x" + amount + " status=" + sample.status() + " elapsedMs=" + sample.elapsedMillis()
+                    + " " + sample.timing()), false);
         }
         return samples.size() - first;
     }

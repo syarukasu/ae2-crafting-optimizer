@@ -211,6 +211,106 @@ class VmBulkStateTest {
         stack.setDamageValue(damage);
         return AEItemKey.of(stack);
     }
+
+    @Test @org.junit.jupiter.api.Timeout(60)
+    void sparseBranchesMatchCopyingWithNestedFailureByproductsAndWideStock() {
+        var root = pattern(key(0), ordered(key(1), 1, key(7), 1));
+        var failing = pattern(key(1), ordered(key(2), 1, key(9), 1));
+        var success = pattern(key(1), ordered(key(2), 1, key(3), 1));
+        when(success.getOutputs()).thenReturn(new GenericStack[]{new GenericStack(key(1), 1), new GenericStack(key(7), 1)});
+        var childA = pattern(key(2), Map.of(key(4), 1L));
+        var childB = pattern(key(2), Map.of(key(5), 1L));
+        Map<AEKey, List<IPatternDetails>> recipes = Map.of(key(0), List.of(root), key(1), List.of(failing, success), key(2), List.of(childA, childB));
+        for (var order : List.of(BigInteger.ONE, BigInteger.TWO, BigInteger.valueOf(Long.MAX_VALUE),
+                BigInteger.ONE.shiftLeft(63), BigInteger.TEN.pow(64))) {
+            for (var available : List.of(BigInteger.ZERO, order.divide(BigInteger.TWO), order)) {
+                Map<AEKey, BigInteger> stock = Map.of(key(4), available.divide(BigInteger.TWO), key(5), available.subtract(available.divide(BigInteger.TWO)),
+                        key(3), available);
+                VmCraftingPlan baseline;
+                try (var scope = PatternCompiler.openScope()) {
+                    baseline = executionMode(order, recipes, stock, false, false).execute(order, false);
+                }
+                for (boolean sparse : new boolean[]{false, true}) {
+                    try (var scope = PatternCompiler.openScope()) {
+                        var execution = executionMode(order, recipes, stock, sparse, true);
+                        samePlan(baseline, execution.execute(order, false));
+                        assertTrue(execution.branchTrials() > 0);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test void sparseTrialsDoNotCopyUnrelatedPreviouslyVisitedKeys() {
+        var raw = new LinkedHashMap<AEKey, Long>();
+        var stock = new LinkedHashMap<AEKey, BigInteger>();
+        for (int i = 10; i < 138; i++) { raw.put(key(i), 1L); stock.put(key(i), BigInteger.TWO); }
+        raw.put(key(1), 1L);
+        stock.put(key(2), BigInteger.ONE);
+        Map<AEKey, List<IPatternDetails>> recipes = Map.of(key(0), List.of(pattern(key(0), raw)),
+                key(1), List.of(pattern(key(1), Map.of(key(2), 1L)), pattern(key(1), Map.of(key(3), 1L))));
+        try (var scope = PatternCompiler.openScope()) {
+            var copy = executionMode(BigInteger.ONE, recipes, stock, false, true);
+            var sparse = executionMode(BigInteger.ONE, recipes, stock, true, true);
+            samePlan(copy.execute(BigInteger.ONE, false), sparse.execute(BigInteger.ONE, false));
+            System.out.println("Issue217 branch entries: copying=" + copy.branchEntries() + " sparse=" + sparse.branchEntries());
+            assertTrue(sparse.branchEntries() * 4 < copy.branchEntries(), "Branch writes must not scale with untouched stock");
+        }
+    }
+
+    @Test @org.junit.jupiter.api.Timeout(60)
+    void branchModesAgreeForReturnedToolsFluidsAndCancellation() {
+        var fluid = appeng.api.stacks.AEFluidKey.of(net.minecraft.world.level.material.Fluids.WATER);
+        var toolInput = mock(IPatternDetails.IInput.class);
+        when(toolInput.getPossibleInputs()).thenReturn(new GenericStack[]{new GenericStack(tool(0), 1)});
+        when(toolInput.getMultiplier()).thenReturn(1L);
+        when(toolInput.isValid(any(), any())).thenAnswer(call -> call.getArgument(0) instanceof AEItemKey key
+                && key.getItem() == Items.NETHERITE_PICKAXE);
+        when(toolInput.getRemainingKey(any())).thenAnswer(call -> {
+            int damage = ((AEItemKey) call.getArgument(0)).toStack().getDamageValue();
+            return damage < 2 ? tool(damage + 1) : null;
+        });
+        var success = pattern(key(0), Map.of(fluid, 1000L));
+        var waterInput = success.getInputs()[0];
+        when(success.getInputs()).thenReturn(new IPatternDetails.IInput[]{toolInput, waterInput});
+        var failing = pattern(key(0), ordered(key(2), 1, key(3), 1));
+        Map<AEKey, List<IPatternDetails>> recipes = Map.of(key(0), List.of(failing, success));
+        for (var order : List.of(BigInteger.ONE, BigInteger.TWO, BigInteger.valueOf(Long.MAX_VALUE),
+                BigInteger.ONE.shiftLeft(63), BigInteger.TEN.pow(64))) {
+            for (var amount : List.of(BigInteger.ZERO, order.divide(BigInteger.TWO), order)) {
+                Map<AEKey, BigInteger> stock = Map.of(tool(0), order.add(BigInteger.TWO).divide(BigInteger.valueOf(3)),
+                        fluid, amount.multiply(BigInteger.valueOf(1000)), key(2), order);
+                try (var scope = PatternCompiler.openScope()) {
+                    var baseline = executionMode(order, recipes, stock, false, false).execute(order, false);
+                    samePlan(baseline, executionMode(order, recipes, stock, false, true).execute(order, false));
+                    samePlan(baseline, executionMode(order, recipes, stock, true, true).execute(order, false));
+                }
+            }
+        }
+        when(failing.getInputs()[0].isValid(any(), any())).thenAnswer(call -> {
+            Thread.currentThread().interrupt(); return true;
+        });
+        for (boolean sparse : new boolean[]{false, true}) {
+            try (var scope = PatternCompiler.openScope()) {
+                var execution = executionMode(BigInteger.ONE, recipes, Map.of(key(2), BigInteger.ONE), sparse, true);
+                assertThrows(java.util.concurrent.CancellationException.class, () -> execution.execute(BigInteger.ONE, false));
+            } finally { Thread.interrupted(); }
+        }
+    }
+
+    private static VmInstructionExecution executionMode(BigInteger order, Map<AEKey, List<IPatternDetails>> recipes,
+            Map<AEKey, BigInteger> stock, boolean sparse, boolean guards) {
+        return new VmInstructionExecution(PatternCompiler.compileRequest(key(0), order), new VmSimulationState(stock),
+                key -> recipes.getOrDefault(key, List.of()), key -> false, ignored -> { }, sparse, guards);
+    }
+    private static void samePlan(VmCraftingPlan a, VmCraftingPlan b) {
+        assertEquals(a.finalOutput(), b.finalOutput()); assertEquals(a.bytes(), b.bytes());
+        assertEquals(a.simulation(), b.simulation()); assertEquals(a.multiplePaths(), b.multiplePaths());
+        assertEquals(a.usedItems().quantities(), b.usedItems().quantities());
+        assertEquals(a.missingItems().quantities(), b.missingItems().quantities());
+        assertEquals(a.emittedItems().quantities(), b.emittedItems().quantities());
+        assertEquals(a.patternTimes(), b.patternTimes());
+    }
     private static Object newState(VmInstructionExecution execution) throws Exception {
         var type = Class.forName("com.ae2vm.addon.vm.VmInstructionExecution$State");
         var constructor = type.getDeclaredConstructor(VmInstructionExecution.class);

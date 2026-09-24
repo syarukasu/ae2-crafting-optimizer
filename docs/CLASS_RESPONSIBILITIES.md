@@ -7,6 +7,15 @@
 
 ## ACOの目的
 
+### Bundled VM profiling and trial state (#217)
+
+- `NativeVmTiming` (VM fork): order-local phase and server-handoff timings;
+  no planning decisions, inventory mutation or world references.
+- `VmBranchMap` (VM fork): worker-local sparse trial writes with explicit commit;
+  not a physical inventory transaction, reservation or persistent journal.
+- `NativeVmDiagnostics` (VM fork): bounded recent timing summaries; ACO commands
+  display these values without acquiring planner or CPU ownership.
+
 ACOはAE2を置き換えるMODではなく、結果・在庫・欠品・容量・進捗・取消・復旧を変えずに、
 巨大自動クラフトの計算と実行負荷を減らす最適化・連携レイヤーです。速度より正確さと所有権を優先します。
 
