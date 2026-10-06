@@ -1,39 +1,20 @@
 package com.syaru.ae2craftingoptimizer.mixin;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.syaru.ae2craftingoptimizer.integration.NeoEcoVersionCompatibility.ExecutionProfile;
 import org.junit.jupiter.api.Test;
 
 class AcoMixinPluginTest {
     @Test
-    void selectsOnlyTheNeoEco20_3MixinForTheOldDescriptor() {
-        assertTrue(AcoMixinPlugin.shouldApplyNeoEcoExecutionMixin(
-                "com.syaru.ae2craftingoptimizer.mixin.NeoEco20_3CraftingCpuExecutionBudgetMixin",
-                ExecutionProfile.NEO_ECO_20_3));
-        assertFalse(AcoMixinPlugin.shouldApplyNeoEcoExecutionMixin(
-                "com.syaru.ae2craftingoptimizer.mixin.NeoEco20_4CraftingCpuExecutionBudgetMixin",
-                ExecutionProfile.NEO_ECO_20_3));
-    }
-
-    @Test
-    void selectsOnlyTheNeoEco20_4MixinForTheNewDescriptor() {
-        assertFalse(AcoMixinPlugin.shouldApplyNeoEcoExecutionMixin(
+    void retiredNeoEcoBudgetMixinsCannotBeLoadedInAnyBootstrapState() {
+        var plugin = new AcoMixinPlugin();
+        for (String name : new String[] {
                 "NeoEco20_3CraftingCpuExecutionBudgetMixin",
-                ExecutionProfile.NEO_ECO_20_4));
-        assertTrue(AcoMixinPlugin.shouldApplyNeoEcoExecutionMixin(
-                "NeoEco20_4CraftingCpuExecutionBudgetMixin",
-                ExecutionProfile.NEO_ECO_20_4));
-    }
-
-    @Test
-    void rejectsBothNeoEcoMixinsWhenTheVersionIsUnknown() {
-        assertFalse(AcoMixinPlugin.shouldApplyNeoEcoExecutionMixin(
-                "NeoEco20_3CraftingCpuExecutionBudgetMixin",
-                ExecutionProfile.NONE));
-        assertFalse(AcoMixinPlugin.shouldApplyNeoEcoExecutionMixin(
-                "NeoEco20_4CraftingCpuExecutionBudgetMixin",
-                ExecutionProfile.NONE));
+                "NeoEco20_4CraftingCpuExecutionBudgetMixin"}) {
+            assertFalse(MixinFeatureCatalog.contains(name));
+            assertFalse(plugin.shouldApplyMixin("cn.dancingsnow.neoecoae.api.me.ECOCraftingCPULogic", name));
+            assertFalse(plugin.shouldApplyMixin("cn.dancingsnow.neoecoae.api.me.ECOCraftingCPULogic",
+                    "com.syaru.ae2craftingoptimizer.mixin." + name));
+        }
     }
 }

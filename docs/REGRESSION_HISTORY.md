@@ -1,5 +1,129 @@
 # 回帰履歴
 
+- [Issue #218](issues/ISSUE-218.md), 2026-10-06, vm-refs.8-local candidate:
+  Requester CRAFT_LESS repeated feasibility trials for each quantity bit even
+  on unique fixed-input graphs. Shared demand coefficients now bound funded
+  quantities; integral graphs materialize directly and unshared fractional
+  graphs search only rounding uncertainty. Shared fractional capacity paths,
+  stocked manufactured intermediates, alternatives and dynamic rules retain
+  existing ordered trials. No retry/dispatch limit or cross-order stock cache.
+  A separate old-search reproduction found capacity shapes could forget visited
+  descendants after a stocked-boundary summary (468 versus 460 bytes). Retain
+  their capacity-only union. Quantity/capacity, native capture and performance
+  evidence: [Requester evidence](issues/evidence/ISSUE-218-REQUESTER-2026-10-06.md).
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-06, vm-refs.7-local candidate:
+  The missing pass accepted the first producer using hypothetical missing inputs
+  before trying funded alternatives. An unrelated true shortage could therefore
+  add a false 480-item intermediate shortage despite partial stock and a gold
+  producer. Try funded routes transactionally, then simulate only the remainder;
+  retain producer priority, returns/byproducts and per-craft capacity semantics.
+  Two fail-before regressions retain the old wrong shortages. Independent
+  quantities extend through 3402 bits; real AEProcessingPattern capture also
+  verifies the funded route without post-capture world access. Successful native
+  AE2 oracle comparisons remain exact. Historical missing-route choices are not
+  imposed on the corrected VM; fixed-input random cases additionally verify
+  stock bounds and material conservation. The original live-network cause and
+  subsequent false-shortage result remain unverified until re-ordered.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-06, vm-refs.6-local candidate:
+  Known vanilla substitution rules still acquired world access for unseen NBT,
+  and stocked intermediate items prevented arithmetic demand aggregation.
+  Freeze audited native recipe rules, group opaque observations only for an
+  encountered key, and cache demand summaries at stocked boundaries. Preserve
+  the native read deadline between callbacks; no dispatch limit is added.
+  Randomized differential tests caught a capacity regression (441 vs 505 bytes)
+  despite equal item totals: combining fractional alternative-producer periods
+  changed conceptual node visits. Keep the ordered VM for those periods.
+  Reusing alternating stock shapes also fixes a slower first implementation.
+  Final synthetic x4000 trials fall from 3720 to 627 with all ledgers equal;
+  both AE2 variant suites and supplied-AQE capacity checks pass. Public API and
+  physical execution classes are byte-identical to installed refs.5. No live
+  speedup, false-shortage repair, restart or wide lifecycle acceptance is claimed.
+  [Evidence](issues/evidence/ISSUE-218-INPUT-STOCK-2026-10-06.md).
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-05, vm-refs.5-local candidate:
+  The VM-only runtime still shipped a retired graph solver and maintained its
+  unused provider catalog. Separate graph/SMT into comparison fixtures, remove
+  catalog-update injections, and keep the scaled BigInteger coefficient reader
+  in a small runtime class. The installable bundle shrinks from 2930678 to
+  1359504 bytes; outer ACO classes and retained exact arithmetic are unchanged.
+  Bundle gates reject fixture/solver leakage and require matching runtime source
+  archives. Upstream and UELM gates pass, with bytecode dependency checks.
+  Separately, two all-NUL client TOML files are backed up and restored with user
+  approval. Startup, GC crash resolution and full live acceptance remain pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-05, vm-refs.4-local candidate:
+  Fixed native crafting inputs rejected unmatched NBT locally, but their caller
+  still acquired a live world interval and unnecessarily opened the scheduler.
+  Specialize this predicate before generic dispatch, following PostgreSQL's
+  expression fast paths and Truffle's stable-input partial evaluation approach.
+  Real AE2 Input fixtures preserve used/missing/returned quantities and eliminate
+  ten empty live boundaries across the stock/quantity matrix. Dynamic inputs,
+  including peers in the same item family, still observe new returned states.
+  Finite-tool regression coverage also exposed an inflated replay-search window:
+  successful replay and changed key domains had doubled an unsuccessful-search
+  window. Following SymPy's geometric search scheduling, grow only on exhaustion
+  and reset after success/domain changes. Exact replay bounds and quantity
+  equations, the public API and physical execution are unchanged. Tool periods
+  32/65/257 preserve exact replacement counts through 10^1024-1 quantities.
+  Production timing, original false-shortage reproduction and full acceptance
+  remain pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-05, vm-refs.3-local candidate:
+  Lazy process metadata had lost the archived VM's compiled-block reuse. Every
+  repeated block re-entered compileIfAbsent and its output/input validation.
+  Cache that code once per demanded pattern without eager unused-alternative
+  compilation. The 1000-craft, partially stocked 32-use-tool fixture drops primary
+  metadata reads from 170 to 2 with identical quantities and capacity charges.
+  Unknown returned states remain exact, observed only when encountered. No
+  execution throttles or API changes. Historical dev.20-named JAR hashes diverge
+  from the recorded artifact, so archived-source comparison is not authenticated
+  production dev.20 acceptance. Full live acceptance remains pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-05, vm-refs.2-local candidate:
+  Snapshot acquisition omitted candidate keys produced by later dependencies.
+  Collect stock/templates/all reachable outputs before observing their semantics;
+  closed domains finish with post-capture world access disabled. Primary-only
+  return classification also dropped alternate containers/catalysts and could
+  invent a shortage despite a reusable seed. Classify captured alternatives and
+  NBT-sensitive output reuse too. Reproduction checks exact consumed/missing
+  quantities through 1024 digits. AE2's alternative-only return omission is not
+  a correctness oracle: its missing return charge is asserted explicitly.
+  Do not claim the original copper-wire report, arbitrary future NBT callbacks
+  or production acceptance resolved. No provider execution changes.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-04, vm-refs.1-local candidate:
+  Production graph.3 spent server time capturing hypothetical returned input
+  states and worker time in global SMT solving. Restore the selected BigInteger
+  VM arithmetic with order-local input/NBT observations and batched actual-stock
+  candidates. Do not pre-expand future tool states or re-enter the old ACO
+  planner from the scheduler superclass constructor. Prepared candidate fixtures
+  finish with all later world reads disabled; previously repeated catalyst
+  callbacks occur once per order. Unknown new opaque candidates still use the
+  AE2 read boundary. Both AE2 variants and bundle gates pass; no production
+  deployment, speed, wide execution or startup acceptance is claimed. See the
+  [evidence record](issues/evidence/ISSUE-218-VM-REFERENCES-2026-10-04.md).
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-04, graph.3-local startup candidate:
+  MEGACells ForgePlatform selected the active caller's FML language extension
+  during static initialization. Under a Kotlin caller this throws; under another
+  Java caller it silently selects the wrong event bus. Resolve the registered
+  MEGACells owner's context locally without modifying the thread context or
+  cancelling any initializer. Keep the graph calculator and existing API.
+  Forge-context and packaged-bytecode checks pass; actual launch, native JVM
+  errors and Windows black-screen acceptance remain pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-03, graph.2-local candidate:
+  The graph.1 path rebuilt processing definitions and topology on every order.
+  A service-owned provider catalog now retains recognized processing constants
+  and invalidates dependent root programs on provider add/remove/refresh.
+  Frozen programs compile on the AE2 worker; stock and unknown input semantics
+  remain order-local. Never infer availability from a previously solved order
+  or invalidate an in-flight T0 snapshot after another player's pattern edit.
+  No rollback, client/server change or runtime startup acceptance accompanies
+  this candidate. General cyclic/physical/capacity-policy gaps remain explicit.
+
 最適化経路を変更する前に、この一覧から関連Issue仕様書を読みます。詳細な症状、原因、
 修正、不変条件、禁止事項、試験は`docs/issues/ISSUE-<番号>.md`を正本とします。
 
@@ -22,6 +146,190 @@
 | 外部コンシューマ回帰 | 実経路でsidecarが消える、またはQuantum Bulkが`maxPatterns=1`へ誤って制限される | 1.5.18系 | 作業中 | [ISSUE-BIGINT-EXTERNAL-CONSUMER.md](ISSUE-BIGINT-EXTERNAL-CONSUMER.md) |
 
 ## 2.0.0開発版の再発記録
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-02, local dev.21 candidate:
+  An unresolved leaf becomes a confirmed shortage even when its newly known
+  producer list is empty. A naive demand-program reuse broke shared-DAG work
+  guards. The accepted local trial preserves that transition and child shape
+  generations, while recording bounded live remainder-call breakdowns without
+  caching dynamic inputs. Both AE2 variants build and pass tests; production
+  50/100-item timing, cancellation and physical completion remain pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-10-01, local rc.7-dev.19 correction:
+  Eager all-craftables capture was an ACO-added deviation from AE2 demand
+  planning and moved unrelated pattern work onto the server thread. Restore
+  one start-stock snapshot and request-local producer/emitter memoization only
+  for keys the VM actually demands. Upstream AE2 and UELM builds, contract
+  suites and 16 isolated GameTests each passed. Production latency and wide
+  processing completion are still unverified; this is not release acceptance.
+
+- [Issue #161](issues/ISSUE-161.md), 2026-09-28, local rc.7-dev.17 candidate:
+  Disabled ordinary limiters still retained dead timing/wave state and Neo ECO
+  injections. Delete these implementations and registrations; retain stateless
+  binary-compatible entry points. External MAX_VALUE operations must pass intact,
+  unlike a native coprocessor count which needs +1 headroom. Preserve native
+  blocking/energy/ordering and exact ownership. Both AE2 variants pass the pinned
+  real-provider regressions and build/API checks; production remains on dev.13,
+  with full industrial and external exact-job acceptance still pending.
+
+- [Issue #161](issues/ISSUE-161.md), 2026-09-28, local rc.7-dev.16 candidate:
+  Successful provider pushes rebuilt identical native descriptions and copied
+  advisory lists per target side. Freeze once and retain only the last immutable
+  native processing description per provider; custom metadata and actual counters
+  must remain live. No throughput cap or inventory cache. The short fixture
+  median is 32.587 -> 31.353 ms, not a proven large speedup. Production still had
+  dev.13 with its ordinary limiter enabled at inspection; it was not updated.
+  Build/provider checks pass; industrial/runtime acceptance remains pending.
+
+- [Issue #161](issues/ISSUE-161.md), 2026-09-28, local rc.7-dev.15 candidate:
+  Successful pushes rescanned every advisory recipe hint for expiry. Use an
+  earliest-expiry bound and remove expired tail records even after TTL changes.
+  Actual registry fixture inspections: 2,097,152 -> zero. Real native provider
+  pushes preserve delivered counts, blocking/full rejection and resumption;
+  isolated repeated-round median 67.845 -> 36.936 ms. Replay original InsaneAE
+  provider regressions and separate real native/VM quantity comparisons. Retain
+  old planner-counter failures as diagnostics, not passes. Extended AE Plus
+  blocking, external exact-job recovery and production acceptance remain pending.
+
+- [Issue #161](issues/ISSUE-161.md), 2026-09-28, dev.14 acceptance correction:
+  Git audit of 5b4e48d, d22cd3f and 7c3ceab identifies untested historical load
+  and add-on scenarios. The 813 tests / 14 GameTests did not rerun the expensive
+  Extended AE Plus blocking path or the four original InsaneAE regressions.
+  Retain the test results, but downgrade acceptance to Implemented/PENDING and
+  require runtime evidence in the manifest. No new runtime regression is
+  claimed and no source, JAR, production file or throttle policy is changed.
+
+- [Issue #161](issues/ISSUE-161.md), 2026-09-27, local rc.7-dev.14 candidate:
+  Ordinary native dispatch was capped by coprocessor, adaptive/grid budgets and
+  an independent executeCrafting wave redirect. Retire the ordinary throttle
+  switch even for saved true values, remove that redirect, and pass legacy wave
+  callers through. Neo ECO's original operation count is preserved. Keep the
+  int overflow repair, exact-job ownership and separate transactional V2 budgets.
+  Four before-failures are fixed; both AE2 variants pass 813 unit/contract tests
+  and 14 Forge GameTests. Production throughput, installation and publication
+  remain pending. This is separate from VM planning and world-load crashes.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-26, local rc.7-dev.13 candidate:
+  Dev.12's live supreme circuit x1 used 129864 ms of access wait in 138525 ms
+  elapsed. LiveInput declared exact/no-return semantics but still synchronized
+  repeated predicate/remainder queries. Consume that existing declaration
+  locally, retaining live callbacks for undeclared inputs and cancellation.
+  No new cache, classification, scheduler or arithmetic. Repeated-query fixture:
+  8192 live reads -> zero; real AE2 pool queries finish without more ticks.
+  Each AE2 variant passes 807 unit/contract cases and 14 Forge GameTests.
+  Production speed, deployment and full 2.0.0 acceptance remain pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-26, local rc.7-dev.12 candidate:
+  Dev.11 applied AE2's tick budget to all VM arithmetic. Keep the AE2 pool and
+  TickHandler but restrict exclusive intervals to live-access demand. At expiry,
+  checkpoints release the server and continue computation without another tick.
+  Preserve nested callback exclusion, interruption and one-stock-snapshot semantics;
+  no ingredient RPCs, new executor, revalidation/recapture or arithmetic changes.
+  Both variants pass 799 unit/contract cases and 13 real Forge tests. A real
+  native-pool probe finishes 3402-bit arithmetic while the test server does not
+  advance ticks. Live access still needs synchronization; opaque mod callbacks
+  cannot be preempted. Production latency/load and complete acceptance remain pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-26, local rc.7-dev.11 candidate:
+  Detached pattern/input capture introduced per-input server futures and final
+  revalidation/recapture. Restore AE2's original calculation pool and time-slice
+  monitor with the BigInteger VM as the only calculator. Capture stock once;
+  run actual predicates within AE2's exclusive calculation interval. Remove the
+  capture/catalog layer from runtime artifacts, retaining historical test fixtures.
+  Both AE2 variants pass 788 unit tests and 12 Forge GameTests, including native
+  worker/monitor ownership, cancellation/concurrent orders and 3402-bit quantities.
+  AE2's own slice waits remain. Production speed and complete acceptance are unverified.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-25, local rc.7-dev.10 candidate:
+  Unusable sub-unit alternatives were guarded by exact stock equality, so
+  harmless byproduct growth prevented replay. Retain their integer eligibility
+  interval; preserve exact guards for partial consumption and all thresholds.
+  The reproduced case goes from over 8192 requests to 3-4 with exact quantities.
+  Both AE2 variants pass 783 unit tests and 11 Forge GameTests. An independent
+  alternate-only returned-container gap is recorded in the Issue and remains open.
+  Live latency, deployment and full acceptance remain pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-25, local rc.7-dev.9 candidate:
+  Dev.8's missing supreme-circuit plan still copied visited replay ledgers and
+  sent native non-substituting crafting inputs through live fuzzy checks.
+  Scoped change journals retain rollback and transient minima; fixed native
+  crafting retains primary remainders and revalidation without those handoffs.
+  Fixtures: 64 full state copies -> zero; 156 total handoffs -> five.
+  Both AE2 variants pass 781 tests and 11 GameTests on the default test JVM.
+  Production elapsed time, deployment and full acceptance remain pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-25, local rc.7-dev.8 candidate:
+  The fork expanded fixed shared demands once per path instead of compiling
+  them into a shared program. Combine already-demanded recipe coefficients
+  with exact BigInteger arithmetic, including compact conceptual node bytes.
+  The same 16-stage fixture drops from 4197 requests to 18 with equal results.
+  Stock-only boundaries, intermediate stock and state-dependent ordered cases
+  remain covered. Upstream passes 771 tests and 10 GameTests on the default JVM.
+  UELM passes those tests only in the recorded C1-only JVM trial; default-JVM
+  runs exposed an unreproduced NBT assertion and repeated native JVM crashes.
+  Keep these failures unresolved, not hidden by a test/persistence change.
+  No production timing claim, deployment, release or full acceptance.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-25, local rc.7-dev.7 candidate:
+  Live dev.6 order 8 took 339097 ms; JFR exposed full replay-state copies and
+  recursive parent-map materialization. Flatten trial layers once, retain only
+  replay-relevant before-state and update independent after-deltas in place.
+  Reproduced unused candidate lookahead adding guards that prevented replay;
+  defer reads until the ordered cursor reaches them. Four failures pass after
+  the fix: snapshot hash work 13816->656, fixture requests 2049->3, completed
+  replay copies 4->2, no copied enclosing minima/indexes. Both AE2 variants
+  pass 757 tests and 10 GameTests. Exact rollback/returns/bytes remain covered;
+  production speed, deployment and full 2.0.0 acceptance are still pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-25, local rc.7-dev.6 candidate:
+  Input-template boundaries caused a server round trip per stocked alternative.
+  Preserve ordered per-template units but batch uncached candidates across
+  templates; use a captured prefix immediately when it satisfies the order.
+  Unused callback failures are deferred, consulted predicates/returns remain
+  revalidated, and cancellation/budgets stay active. The 384-template fixture
+  drops from 383 INPUTS handoffs to 3; a stocked primary keeps zero. Both AE2
+  variants pass 752 tests and 10 GameTests. Correct an existing map-order-only
+  NBT test assertion without changing persistence. Production timing, deployment
+  and full 2.0.0 acceptance remain pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-25, local rc.7-dev.5 candidate:
+  VM limit advertisement used only the configured binary ceiling and could
+  exceed the public API's exact decimal limit. Delegate to the public maximum.
+  AQE's default `10^1024 - 1 byte` capacity already fits; do not turn 3402 bits
+  into a global quantity ceiling. Real async-VM/API fixtures cover stock and
+  byproducts near capacity, byte-only overflow, full reservations, excess
+  rejection, restore, release and status packets. Both AE2 variants pass 740
+  unit tests and 9 GameTests. No production deployment or runtime acceptance.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-24, local rc.7-dev.4 candidate:
+  Depleted/sub-unit fuzzy candidates still requested live validity/return checks;
+  single-execution branches allocated unusable local replay snapshots. Skip
+  those observations with quantity guards, and omit only the local snapshots.
+  Native exact inputs inside revalidated wrappers avoid fuzzy-family scans.
+  Fixture predicate calls fall from 2048 to 2, wrapper handoffs from 91 to 5,
+  and missing single-execution replay copies from 4 to 0. Both AE2 variants
+  pass 735 unit tests and 9 GameTests. Add bounded category/type diagnostics,
+  not more log events. Production timings, deployment and release remain pending.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-24, local rc.7-dev.3 candidate:
+  Repeated orders reread unchanged registered metadata and native chains still
+  waited on server handoffs during VM arithmetic. Reuse a bounded immutable
+  provider/recipe revision while keeping stock and dynamic observations per
+  order. Native 96-stage in-VM handoffs fall from 5 to 0; cold capture still costs
+  10 handoffs and final validation 1. Both AE2 variants pass 728 unit tests and
+  9 real GameTests, including a warmed pattern replacement/removal/readdition.
+  No production speed claim, deployment, physical-execution redesign or release.
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-24, local rc.7-dev.2 candidate:
+  A 96-stage native processing chain required 112 server handoffs including
+  validation. Bounded metadata lookahead reduces the fixture to 19 without
+  changing quantities. Failed lookahead could leave a half-captured multi-output
+  pattern; publish metadata atomically and defer unused-branch failures.
+  Small physical jobs bypassed the shared time gate, and refunded reservations
+  renewed its first-operation exception. Gate every later admission and yield
+  between physical steps, retaining unvisited cancellation receipts. Forced-yield
+  completion/cancellation tests reload after every tick. This does not establish
+  a production latency improvement or complete generic processing execution.
 
 - [Issue #215](issues/ISSUE-215.md), 2026-09-24, rc.6-rc4-vm.5:
   Production supreme quantum circuit x1 (order 248) failed at 1,048,576 captured
@@ -122,6 +430,12 @@
 
 - [Issue #125](issues/ISSUE-125.md): ACO所有Jobの外側で通常BatchがTaskを削除して隔離される。
   通常実行予算の確定位置で排他化する。Taskの再生成・不一致の握り潰しは禁止。
+
+- [Issue #218](issues/ISSUE-218.md), 2026-09-24: 必要のない製造方法の先行取得と、
+  入力判定ごとのサーバー往復を削減。Requesterの接続先・在庫参照権限を保持し、
+  標準加工入力のNBT完全一致を効率化。BigInteger公開APIのバイナリ契約を固定。
+  通常AE2/UELMで各697件と8件のGameTest成功。巨大な加工・循環工程の実行範囲と、
+  本番の完了・取消・復旧・速度確認が残るため、2.0.0の正式公開は未達成。
 
 ## 運用
 

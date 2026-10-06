@@ -25,6 +25,24 @@ class BigCraftingStatusPageCodecTest {
     };
 
     @Test
+    void quantumCoreCapacityAndOrderStatusRoundTripAt3402Bits() {
+        var capacity = BigInteger.TEN.pow(1024).subtract(BigInteger.ONE);
+        assertEquals(3402, capacity.bitLength());
+        var requested = capacity.divide(BigInteger.valueOf(9));
+        var page = new BigCraftingStatusPage<>(UUID.randomUUID(), capacity, capacity, BigInteger.ZERO,
+                1, 0, List.of(new BigCraftingStatusPage.JobSummary<>(UUID.randomUUID(), "quantum_test",
+                        requested, capacity, requested.subtract(BigInteger.ONE), BigInteger.ZERO,
+                        2, 0, BigCraftingJob.State.RUNNING, true)));
+        var codec = new BigCraftingStatusPageCodec<String>(STRINGS, capacity.bitLength(), 16);
+        var buffer = new FriendlyByteBuf(Unpooled.buffer());
+        try {
+            codec.write(buffer, page);
+            org.junit.jupiter.api.Assertions.assertTrue(buffer.readableBytes() < 4096);
+            assertEquals(page, codec.read(buffer));
+        } finally { buffer.release(); }
+    }
+
+    @Test
     void roundTripsBoundedBigIntegerStatusPage() {
         BigInteger capacity = BigInteger.TEN.pow(127);
         var page = new BigCraftingStatusPage<>(

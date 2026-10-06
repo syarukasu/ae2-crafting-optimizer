@@ -9,15 +9,18 @@
 
 English | [日本語](README_ja.md)
 
-## 2.0.0 Release Candidate
+## 2.0.0 Snapshot
 
-**2.0.0-rc.3 is a prerelease.** See the [release notes](docs/releases/2.0.0-rc.3.md)
-for improvements, migration requirements and known limitations. The new candidate's
-full live completion/cancellation/restart matrix is still pending.
+**This branch contains the experimental Forge 1.20.1 vm-refs.8 snapshot, not
+stable ACO 2.0.0.** See the [snapshot notes and build instructions](docs/releases/2.0.0-snapshot-refs.8.md).
+The BigInteger VM is bundled; do not install duplicate copies of its modules.
+Local quantity tests are not live acceptance. Wide execution, cancellation/refund,
+restart recovery, concurrent orders and the final sub-10-second target remain pending.
+NeoForge 1.21.1 is a separate platform line, not a relabeled Forge artifact.
 
 AE2 Crafting Optimizer (ACO) is a Forge 1.20.1 optimization and integration
 layer for Applied Energistics 2. It reduces repeated crafting calculations,
-paces very large CPU execution bursts, and provides an exact transaction model
+preserves native ordinary CPU throughput, and provides an exact transaction model
 for quantity-independent crafting-table batches.
 
 AE2 remains authoritative for normal recipes, providers, crafting jobs, and
@@ -70,6 +73,11 @@ paths because UELM does not replace those storage classes.
 
 ## Core Optimizations
 
+The legacy feature descriptions below span multiple development generations.
+For what is actually active in this snapshot, use the
+[refs.8 call-path audit](docs/FEATURE_AUDIT_REFS8.md). In particular, running-plan
+deduplication and long-first arithmetic are not the bundled VM's current policy.
+
 ### Crafting Calculation
 
 - Generation-keyed compiled Pattern graphs.
@@ -89,14 +97,16 @@ returns, and other unproven behavior return to AE2 before storage mutation.
 
 ### CPU Execution
 
-- Per-CPU and per-grid wall-clock budgets for Pattern pushes.
-- Adaptive limits for giant co-processor counts.
-- Sequential Instant waves that keep AE2's original extraction, provider,
-  energy, task-progress, and output accounting.
+- Since the rc.7-dev.14 candidate, ordinary Pattern pushes retain AE2/add-on
+  throughput without ACO count, adaptive, shared-grid or wave limits.
+- AE2 retains extraction, provider order, backpressure, energy, task progress
+  and output accounting. Native coprocessor overflow repair remains.
 - Optional durable transactional batching for compatible adapters.
 
-The displayed CPU capacity and co-processor count are not reduced. ACO limits
-how much work may be started in one server tick.
+The legacy `throttleCraftingExecution` setting is ignored even when true.
+`enableInstantDispatch` and its budget apply only to ACO-owned transactional V2
+work, not ordinary processing. Exact-job receipt ownership and separate physical
+budgets remain intact. Unthrottling native work does not guarantee lower MSPT.
 
 ### Machine Intent
 

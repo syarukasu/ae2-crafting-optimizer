@@ -133,6 +133,10 @@ public abstract class CraftingCalculationDiagnosticsMixin implements CraftingCal
             require = 1)
     private IStorageService aco$captureStorageGenerationBeforeSnapshot(IGrid grid) {
         IStorageService storageService = grid.getStorageService();
+        // #218: this subclass only schedules opaque VM reads; never capture a second ACO plan for it.
+        if ((Object) this instanceof com.ae2vm.addon.nativeengine.NativeVmCalculation) {
+            return storageService;
+        }
         boolean decisionFlowLogging = ACOConfig.logCraftingDecisionFlow();
         // 診断OFFでは、全クラフト計算で共有Atomic IDを更新しない。
         aco$calculationId = decisionFlowLogging

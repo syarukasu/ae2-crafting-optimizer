@@ -75,7 +75,10 @@ class BranchingInputSemanticsTest {
         var root = pattern("mixed", List.of(input(List.of(stack(water, 1000), stack(filled, 1)), 3,
                 k -> true, k -> k.equals(filled) ? BUCKET : null), exact(A, 1)), Map.of(OUT, 1L));
         for (long n : new long[] {0, 750, 1750, 10000}) {
-            compare(List.of(root), Map.of(water, n, filled, 7L, A, 99L), 5, false);
+            // AE2 ignores returns when only the alternate template returns an item.
+            // The VM fixes that bug: each consumed bucket adds one byte of return storage.
+            long returnedBuckets = Math.min(7L, 15L - n / 1000L);
+            compare(List.of(root), Map.of(water, n, filled, 7L, A, 99L), 5, false, returnedBuckets);
         }
     }
 
@@ -239,9 +242,15 @@ class BranchingInputSemanticsTest {
 
     private static void compare(List<IPatternDetails> patterns, Map<AEKey, Long> stock, long amount,
             boolean craftLess) throws Exception {
+        compare(patterns, stock, amount, craftLess, 0);
+    }
+
+    private static void compare(List<IPatternDetails> patterns, Map<AEKey, Long> stock, long amount,
+            boolean craftLess, long additionalReturnBytes) throws Exception {
         var fixture = new Fixture(patterns, stock);
         var strategy = craftLess ? CalculationStrategy.CRAFT_LESS : CalculationStrategy.REPORT_MISSING_ITEMS;
-        var expected = ReusableByproductAe2OracleTest.oracleService(fixture.service, OUT, amount, stock, strategy);
+        var expected = ReusableByproductAe2OracleTest.oracleService(fixture.service, OUT, amount, stock, strategy,
+                additionalReturnBytes);
         var result = Ae2AuthoritativeCraftingPlanner.evaluateBranching(fixture.snapshot, OUT, amount, strategy,
                 k -> BigInteger.valueOf(stock.getOrDefault(k, 0L)), PlanningGuard.none(), 4096, fixture.rules);
         Map<String, BigInteger> crafts = new HashMap<>();

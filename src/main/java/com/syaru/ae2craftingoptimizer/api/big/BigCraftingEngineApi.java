@@ -5,21 +5,12 @@ import com.syaru.ae2craftingoptimizer.engine.BigCraftingKeyCodec;
 import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
 import com.syaru.ae2craftingoptimizer.engine.OverflowPromotingCraftingPlanner;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
-import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
-import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
-import com.syaru.ae2craftingoptimizer.engine.BigIntegerSimulationPlan;
-import com.syaru.ae2craftingoptimizer.engine.WideCraftingPlan;
-import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import java.math.BigInteger;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.stacks.AEKey;
-import appeng.api.stacks.KeyCounter;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
@@ -96,8 +87,8 @@ public final class BigCraftingEngineApi {
      * it does not expose or mutate a crafting plan.</p>
      */
     public static boolean isCalculationProfileActive() {
-        return ACOConfig.enableCompiledCraftingGraph()
-                && ACOConfig.enableBigIntegerCraftingBackend();
+        // #218: the retired compiled-graph switch does not disable the bundled calculator.
+        return ACOConfig.enableBigIntegerCraftingBackend();
     }
 
     /**
@@ -121,88 +112,7 @@ public final class BigCraftingEngineApi {
     /** 設定判定を除いたSidecar変換本体。単体試験でも実経路と同じ変換を使う。 */
     static Optional<BigIntegerCraftingPlanView> inspectAttachedExactPlan(
             ICraftingPlan plan) {
-        WideCraftingPlan metadata = Ae2CraftingPlanSidecars.metadata(plan).orElse(null);
-        // ACOが作成していない通常AE2計画には、正確なWide値を捏造しない。
-        if (metadata == null) {
-            return Optional.empty();
-        }
-
-        if (metadata instanceof com.syaru.ae2craftingoptimizer.engine.VmCalculatedCraftingPlan vm) {
-            return Optional.of(new BigIntegerCraftingPlanView(vm.finalOutput(), vm.exactBytes(), vm.simulation(),
-                    vm.exactPatternTimes(), vm.exactPlan().usedInventory(), vm.exactPlan().emitted(),
-                    vm.exactPlan().missing(), vm.exactPlan().requestedAmount()));
-        }
-
-        // 個別数量までlongを超えた計画は、従来どおりBigInteger正本をそのまま公開する。
-        if (metadata instanceof BigIntegerCraftingPlan bigPlan) {
-            return Optional.of(viewOf(bigPlan));
-        }
-
-        // 素材不足のwide計画も、実行不可フラグと正確な不足量を同じ公開Viewへ渡す。
-        if (metadata instanceof BigIntegerSimulationPlan simulationPlan) {
-            return Optional.of(viewOf(simulationPlan));
-        }
-
-        // 合計bytesだけがlongを超えた計画も、同じ公開Viewで正確に取得できるようにする。
-        if (metadata instanceof BigCapacityCraftingPlan capacityPlan) {
-            return Optional.of(viewOf(capacityPlan));
-        }
-        return Optional.empty();
-    }
-
-    private static BigIntegerCraftingPlanView viewOf(BigIntegerCraftingPlan bigPlan) {
-        return new BigIntegerCraftingPlanView(
-                bigPlan.finalOutput(),
-                bigPlan.exactBytes(),
-                bigPlan.simulation(),
-                bigPlan.exactPatternTimes(),
-                bigPlan.exactPlan().usedInventory(),
-                bigPlan.exactPlan().emitted(),
-                bigPlan.exactPlan().missing(),
-                bigPlan.exactPlan().requestedAmount());
-    }
-
-    private static BigIntegerCraftingPlanView viewOf(
-            BigIntegerSimulationPlan simulationPlan) {
-        return new BigIntegerCraftingPlanView(
-                simulationPlan.finalOutput(),
-                simulationPlan.exactBytes(),
-                simulationPlan.simulation(),
-                simulationPlan.exactPatternTimes(),
-                simulationPlan.exactPlan().usedInventory(),
-                simulationPlan.exactPlan().emitted(),
-                simulationPlan.exactPlan().missing(),
-                simulationPlan.exactPlan().requestedAmount());
-    }
-
-    private static BigIntegerCraftingPlanView viewOf(BigCapacityCraftingPlan capacityPlan) {
-        return new BigIntegerCraftingPlanView(
-                capacityPlan.finalOutput(),
-                capacityPlan.exactBytes(),
-                capacityPlan.simulation(),
-                widenPatternTimes(capacityPlan.patternTimes()),
-                widenCounter(capacityPlan.usedItems()),
-                widenCounter(capacityPlan.emittedItems()),
-                widenCounter(capacityPlan.missingItems()));
-    }
-
-    private static Map<IPatternDetails, BigInteger> widenPatternTimes(
-            Map<IPatternDetails, Long> patternTimes) {
-        Map<IPatternDetails, BigInteger> exact = new LinkedHashMap<>();
-        // BigCapacity計画では各Pattern回数がlong内なので、符号も含めて損失なく拡張する。
-        for (Map.Entry<IPatternDetails, Long> entry : patternTimes.entrySet()) {
-            exact.put(entry.getKey(), BigInteger.valueOf(entry.getValue()));
-        }
-        return exact;
-    }
-
-    private static Map<AEKey, BigInteger> widenCounter(KeyCounter counter) {
-        Map<AEKey, BigInteger> exact = new LinkedHashMap<>();
-        // BigCapacity計画のAEKey量を、longへ戻さず公開BigInteger Viewへ移す。
-        for (Object2LongMap.Entry<AEKey> entry : counter) {
-            exact.put(entry.getKey(), BigInteger.valueOf(entry.getLongValue()));
-        }
-        return exact;
+        return Ae2CraftingPlanSidecars.metadata(plan).flatMap(metadata -> metadata.exactView());
     }
 
     public static <K> BigCraftingRuntime<K> create(

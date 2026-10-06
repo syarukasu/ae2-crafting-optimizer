@@ -38,11 +38,11 @@ JAR: `build/libs/aco2.0.0-rc.6-rc4-vm.1_1.20.1.jar`
 
 SHA-256: `B110F99C11C64ABA63462D9E96866007CF1E21EE432C33CA50ECA4F647BE242B`
 
-作業先: `C:\Users\newadmin\Desktop\mc_codex\aco-rc4-vm\forge-1201`
+作業先: `C:\example\workspace\aco-rc4-vm\forge-1201`
 
-VM ソース: `C:\Users\newadmin\Desktop\mc_codex\references\AE2-VM-aco-exact\exact-engine`
+VM ソース: `C:\example\workspace\references\AE2-VM-aco-exact\exact-engine`
 
-旧作業先: `C:\Users\newadmin\Desktop\mc_codex\aco-2.0.0-parallel\forge-1201` は維持。
+旧作業先: `C:\example\workspace\aco-2.0.0-parallel\forge-1201` は維持。
 
 ユーザー指示により、サーバー・クライアントの停止、JAR 配置、再起動は行っていません。
 この版は rc.4 と同じ通信プロトコル4です。旧検証 rc.6 はプロトコル5なので、

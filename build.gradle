@@ -8,14 +8,17 @@ version = mod_version
 // Issue #208: isolated fork library only; never run the upstream mod build.
 def exactVmProjectDir = file(findProperty('acoExactVmDir')
         ?: '../../references/AE2-VM-aco-exact/exact-engine')
-def exactVmVersion = '0.1.3'
+def exactVmVersion = '0.1.6'
+def smtVersion = '2.5-1388-ga5a4ab0c'
 def nativeVmProjectDir = new File(exactVmProjectDir.parentFile, 'native-engine')
-def nativeVmVersion = '0.3.1'
+def nativeVmVersion = '0.3.12-vm-refs.8'
 def gameTestBaseline = (findProperty('acoGameTestBaseline') ?: 'false').toString().toBoolean()
 def exactVmJar = new File(exactVmProjectDir, "build/libs/aco-exact-vm-${exactVmVersion}.jar")
+def exactVmSourcesJar = new File(exactVmProjectDir, "build/libs/aco-exact-vm-${exactVmVersion}-sources.jar")
+def graphFixtureJar = new File(exactVmProjectDir, "build/libs/aco-exact-vm-${exactVmVersion}-graph-fixtures.jar")
 tasks.register('buildExactVm', GradleBuild) {
     dir = exactVmProjectDir
-    tasks = ['test', 'jar', 'sourcesJar']
+    tasks = ['test', 'jar', 'sourcesJar', 'graphFixtureJar']
 }
 
 base {
@@ -26,6 +29,8 @@ java {
     toolchain.languageVersion = JavaLanguageVersion.of(17)
 }
 
+configurations { graphComparison }
+
 sourceSets {
     vmNative {
         java.srcDir new File(nativeVmProjectDir, 'src/main/java')
@@ -33,11 +38,18 @@ sourceSets {
         java.include 'com/ae2vm/addon/nativeengine/**'
         java.include 'com/ae2vm/addon/vm/CraftingBytecode.java', 'com/ae2vm/addon/vm/Opcode.java',
                 'com/ae2vm/addon/compiler/PatternCompiler.java', 'com/ae2vm/addon/compiler/IFiniteUseInput.java',
-                'com/ae2vm/addon/vm/CraftingVM.java'
-        java.include 'com/ae2vm/addon/vm/Vm*.java'
+                'com/ae2vm/addon/vm/CraftingVM.java', 'com/ae2vm/addon/vm/Vm*.java'
+        java.exclude '**/NativeGraphCalculation.java', '**/NativeOrderSnapshot.java', '**/NativePlanSelections.java',
+                '**/NativeCraftingRecipeMixin.java'
         resources.srcDir new File(nativeVmProjectDir, 'src/main/resources')
         compileClasspath = configurations.compileClasspath
         runtimeClasspath += configurations.runtimeClasspath
+    }
+    // The graph/SMT adapter is a comparison fixture, never a runtime fallback.
+    vmLegacyFixture {
+        java.srcDir new File(nativeVmProjectDir, 'src/testFixtures/java')
+        compileClasspath = configurations.compileClasspath + sourceSets.vmNative.output + configurations.graphComparison
+        runtimeClasspath += configurations.runtimeClasspath + sourceSets.vmNative.output + configurations.graphComparison
     }
     gameTest {
         compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
@@ -46,10 +58,12 @@ sourceSets {
 }
 sourceSets.main.compileClasspath += sourceSets.vmNative.output
 sourceSets.main.runtimeClasspath += sourceSets.vmNative.output
-sourceSets.test.compileClasspath += sourceSets.vmNative.output
-sourceSets.test.runtimeClasspath += sourceSets.vmNative.output
-sourceSets.gameTest.compileClasspath += sourceSets.vmNative.output
-sourceSets.gameTest.runtimeClasspath += sourceSets.vmNative.output
+sourceSets.test.compileClasspath += sourceSets.vmNative.output + sourceSets.vmLegacyFixture.output
+sourceSets.test.runtimeClasspath += sourceSets.vmNative.output + sourceSets.vmLegacyFixture.output
+sourceSets.gameTest.compileClasspath += sourceSets.vmNative.output + sourceSets.vmLegacyFixture.output
+sourceSets.gameTest.runtimeClasspath += sourceSets.vmNative.output + sourceSets.vmLegacyFixture.output
+configurations.testImplementation.extendsFrom(configurations.graphComparison)
+configurations.gameTestImplementation.extendsFrom(configurations.graphComparison)
 
 minecraft {
     mappings channel: 'official', version: '1.20.1'
@@ -69,6 +83,7 @@ minecraft {
             property 'forge.logging.console.level', 'info'
             property 'forge.enabledGameTestNamespaces', 'ae2'
             property 'aco.gametest.scope', (findProperty('acoGameTestScope') ?: 'aco').toString()
+            property 'aco.gametest.providerProfile', (findProperty('acoProviderProfile') ?: 'false').toString()
             mods {
                 if (!gameTestBaseline) {
                     ae2_crafting_optimizer { source sourceSets.main }
@@ -79,16 +94,25 @@ minecraft {
         }
         client {
             workingDirectory project.file('run')
+            args '--mixin', 'ae2_crafting_optimizer.mixins.json'
+            args '--mixin', 'ae2vm-aco-native.mixins.json'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', project.file('build/createSrgToMcp/output.srg').absolutePath
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'info'
             mods {
                 ae2_crafting_optimizer {
                     source sourceSets.main
                 }
+                ae2vm_aco { source sourceSets.vmNative }
             }
         }
         server {
             workingDirectory project.file('run-server')
+            args '--mixin', 'ae2_crafting_optimizer.mixins.json'
+            args '--mixin', 'ae2vm-aco-native.mixins.json'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', project.file('build/createSrgToMcp/output.srg').absolutePath
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'info'
             args '--nogui'
@@ -96,6 +120,7 @@ minecraft {
                 ae2_crafting_optimizer {
                     source sourceSets.main
                 }
+                ae2vm_aco { source sourceSets.vmNative }
             }
         }
     }
@@ -149,6 +174,19 @@ repositories {
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.18'
     gameTestRuntimeOnly fg.deobf('org.appliedenergistics:guideme:20.1.7')
+    // #161: actual pinned add-ons are test-only, never bundled with ACO.
+    if (findProperty('acoGameTestModsDir')) {
+        def partners = file(property('acoGameTestModsDir'))
+        if (!partners.isDirectory()) throw new GradleException('acoGameTestModsDir must be a directory')
+        repositories.flatDir {
+            name = 'acoGameTestPartners'
+            dirs partners
+            content { includeGroup 'aco.runtime.regression' }
+        }
+        fileTree(partners).matching { include '*.jar' }.files.sort().each { partner ->
+            gameTestRuntimeOnly fg.deobf("aco.runtime.regression:${partner.name.take(partner.name.length() - 4)}:local")
+        }
+    }
     if (findProperty('acoThunderboltJar')) {
         def partner = file(property('acoThunderboltJar'))
         if (!partner.isFile() || !partner.name.endsWith('.jar'))
@@ -161,6 +199,8 @@ dependencies {
         gameTestRuntimeOnly fg.deobf("aco.runtime.partner:${partner.name.take(partner.name.length() - 4)}:local")
     }
     implementation files(exactVmJar).builtBy(tasks.named('buildExactVm'))
+    graphComparison files(graphFixtureJar).builtBy(tasks.named('buildExactVm'))
+    graphComparison "de.uni-freiburg.informatik.ultimate:smtinterpol:${smtVersion}"
 
     def ae2Variant = (findProperty('ae2Variant') ?: 'upstream').toString().toLowerCase()
     if (!(ae2Variant in ['upstream', 'uelm'])) {
@@ -203,6 +243,22 @@ dependencies {
         compileOnly fg.deobf(advancedAeDependency)
     }
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    def mekanismJar = file(findProperty('acoMekanismJar') ?: '../../deps/Mekanism-1.20.1-10.4.16.80.jar')
+    def mekanismDependency
+    if (mekanismJar.isFile()) {
+        repositories.flatDir {
+            name = 'acoMekanism'
+            dirs mekanismJar.parentFile
+            content { includeGroup 'aco.mekanism' }
+        }
+        mekanismDependency = 'aco.mekanism:Mekanism-1.20.1:10.4.16.80'
+    } else {
+        repositories.maven { url = 'https://modmaven.dev/' }
+        mekanismDependency = 'mekanism:Mekanism:1.20.1-10.4.16.80'
+    }
+    compileOnly fg.deobf(mekanismDependency)
+    testImplementation fg.deobf(mekanismDependency)
 
     testImplementation platform('org.junit:junit-bom:5.10.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -266,6 +322,13 @@ reobf {
     vmNativeJar { }
 }
 
+tasks.register('vmBundleSources', Copy) {
+    dependsOn 'buildExactVm', 'vmNativeSourcesJar'
+    from exactVmSourcesJar
+    from(tasks.named('vmNativeSourcesJar').flatMap { it.archiveFile })
+    into layout.buildDirectory.dir("distributions/${mod_version}/sources")
+}
+
 tasks.register('vmBundleMetadata') {
     def target = layout.buildDirectory.file('vm-metadata/META-INF/jarjar/metadata.json')
     outputs.file target
@@ -304,11 +367,14 @@ tasks.register('bundleVm', Jar) {
 
 test {
     useJUnitPlatform()
+    if (project.hasProperty('captureApiBaseline')) {
+        systemProperty 'aco.captureApiBaseline', 'true'
+    }
     if (project.hasProperty('aqeCapacityJar')) {
         systemProperty 'aco.aqeCapacityJar', file(project.property('aqeCapacityJar')).absolutePath
     }
     // 指定された公開Neo ECO JARを、JUnitのバイトコード契約検査へ明示的に渡す。
-    ['neoEco20_3Jar', 'neoEco20_4Jar', 'eaepPatternJar'].each { propertyName ->
+    ['neoEco20_3Jar', 'neoEco20_4Jar', 'eaepPatternJar', 'megaCellsJar'].each { propertyName ->
         if (project.hasProperty(propertyName)) {
             systemProperty "aco.${propertyName}", file(project.property(propertyName)).absolutePath
         }
@@ -389,8 +455,13 @@ tasks.register('verifyIssueRegressionReleaseReadiness') {
             throw new GradleException('Release scope must contain at least one Issue')
         }
 
-        // 未実施の実機確認は成功へ変換せず、公開時に明示する警告として残します。
+        // #218: a stable release cannot convert missing runtime evidence into success.
         if (!pendingRuntime.isEmpty()) {
+            boolean stableVersion = project.version.toString() ==~ /\d+\.\d+\.\d+/
+            if (stableVersion || project.hasProperty('requireRuntimeAcceptance')) {
+                throw new GradleException('Release blocked by pending runtime acceptance:\n- '
+                        + pendingRuntime.join('\n- '))
+            }
             logger.warn('Patch release automated gate passed, but runtime verification remains pending:\n- '
                     + pendingRuntime.join('\n- '))
         }
@@ -480,16 +551,31 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
         def required = ['ae2.aco_processing_completion', 'ae2.aco_cancel_before_delivery',
                         'ae2.aco_competing_reservations', 'ae2.aco_returned_containers',
                         'ae2.aco_snapshot_stock_churn', 'ae2.aco_snapshot_stock_consumed',
-                        'ae2.aco_native_wide_missing']
+                        'ae2.aco_native_wide_missing', 'ae2.aco_shared_pattern_refresh',
+                        'ae2.aco_fixed_crafting_wide_nbt', 'ae2.aco_vm_ae2_lifecycle',
+                        'ae2.aco_vm_continuous_arithmetic', 'ae2.aco_vm_declared_inputs', 'ae2.aco_vm_substitution_queries',
+                        'ae2.aco_provider_dispatch_load']
         def names = cases.collect { it.@name.text() }
+        def machines = (findProperty('acoGameTestScope') ?: 'aco').toString() == 'machines'
+        if (machines) required = ['ae2.aco_gt_intent_completion', 'ae2.aco_mekanism_intent_completion']
+        def historical = (findProperty('acoGameTestScope') ?: 'aco').toString() == 'historical'
+        if (historical) {
+            required = ['ae2.pattern_provider_faces_round_robin', 'ae2.insaneae_pattern_provider_patterns',
+                        'ae2.insaneae_crafting_batch', 'ae2.insaneae_crafting_batch_chain']
+        }
+        if ((findProperty('acoGameTestScope') ?: 'aco').toString() == 'providers') {
+            required += ['ae2.pattern_provider_faces_round_robin', 'ae2.insaneae_pattern_provider_patterns',
+                         'ae2.aco_insaneae_vm_returned_containers', 'ae2.aco_insaneae_vm_alternate_chain',
+                         'ae2.aco_provider_dispatch_load']
+        }
         def expected = new groovy.json.JsonSlurper().parse(file('build/gametest-ae2/results.xml.expected.json'))
         def runtimeLog = file('build/gametest-ae2/logs/latest.log').getText('UTF-8')
         def diagnosticLog = file('build/gametest-ae2/logs/debug.log').getText('UTF-8')
-        if (cases.isEmpty() || !failed.isEmpty() || (!gameTestBaseline && !names.containsAll(required))
+        if (cases.isEmpty() || !failed.isEmpty() || ((!gameTestBaseline || historical) && !names.containsAll(required))
                 || names.sort(false) != expected.sort(false)
                 || runtimeLog.contains('Mixin apply failed ae2_crafting_optimizer')
                 || (!gameTestBaseline && (!runtimeLog.contains('ACO active: true')
-                    || !diagnosticLog.contains('event=quantity_calculated route=vm-native')))
+                    || (!machines && !diagnosticLog.contains('event=quantity_calculated route=vm-native'))))
                 || (gameTestBaseline && runtimeLog.contains('ACO active: true'))) {
             throw new GradleException("GameTest acceptance failed: ${cases.size()} tests, ${failed.size()} failed/skipped")
         }
@@ -499,17 +585,31 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
 
 tasks.register('verifyExactVmBundle') {
 
-    dependsOn 'bundleVm'
+    dependsOn 'bundleVm', 'vmBundleSources'
     doLast {
+        // #218: comparison code must not leak back through a transitive runtime dependency.
+        if (configurations.runtimeClasspath.files.any {
+            it.name.startsWith('smtinterpol-') || it.name.endsWith('-graph-fixtures.jar')
+        }) throw new GradleException('Test-only graph solver leaked into the runtime classpath')
         def distribution = tasks.named('bundleVm').get().archiveFile.get().asFile
         if (distribution.parentFile.listFiles().findAll { it.name.endsWith('.jar') }.size() != 1)
             throw new GradleException('Distribution directory must contain only the installable VM bundle')
+        def expectedSources = [exactVmSourcesJar, tasks.named('vmNativeSourcesJar').get().archiveFile.get().asFile]
+        def sourcesDir = new File(distribution.parentFile, 'sources')
+        if ((sourcesDir.listFiles()*.name as Set) != (expectedSources*.name as Set)
+                || expectedSources.any { !java.util.Arrays.equals(it.bytes, new File(sourcesDir, it.name).bytes) })
+            throw new GradleException('Only matching runtime VM sources may accompany the distribution')
         new java.util.zip.ZipFile(distribution).withCloseable { outer ->
             def metadataEntry = outer.getEntry('META-INF/jarjar/metadata.json')
             if (metadataEntry == null) throw new GradleException('Missing Jar-in-Jar metadata')
             def metadata = outer.getInputStream(metadataEntry).withCloseable {
                 new groovy.json.JsonSlurper().parse(it)
             }
+            def nestedPaths = outer.entries().findAll { it.name.endsWith('.jar') }.collect { it.name } as Set
+            if (metadata.jars.size() != 2
+                    || nestedPaths != (metadata.jars.collect { it.path } as Set)
+                    || outer.getEntry('META-INF/NOTICE-SMTINTERPOL.txt') != null)
+                throw new GradleException('Only the runtime exact and native VM libraries may be bundled')
             def entries = metadata.jars.findAll {
                 it.identifier.group == 'com.syaru.ae2vm' && it.identifier.artifact == 'aco-exact-vm'
             }
@@ -531,7 +631,9 @@ tasks.register('verifyExactVmBundle') {
                         'com/syaru/ae2vm/exact/ExactBranchBytecode.class',
                         'com/syaru/ae2vm/exact/ExactBytecode.class', 'META-INF/LICENSE-AE2-VM', 'META-INF/NOTICE.txt'])
                         || names.any { it == 'META-INF/mods.toml' || it.endsWith('.mixins.json')
-                            || it.startsWith('com/ae2vm/addon/') || it.contains('ExactBranchVM') })
+                            || it.startsWith('com/ae2vm/addon/') || it.contains('ExactBranchVM')
+                            || it.startsWith('com/syaru/ae2vm/exact/graph/')
+                            || it.startsWith('de/uni_freiburg/informatik/ultimate/') })
                     throw new GradleException('VM library content/license boundary violated')
             }
             def nativeEntries = metadata.jars.findAll {
@@ -552,12 +654,17 @@ tasks.register('verifyExactVmBundle') {
                 if (!names.containsAll(['META-INF/mods.toml', 'META-INF/LICENSE',
                         'ae2vm-aco-native.mixins.json',
                         'com/ae2vm/addon/nativeengine/NativeVm.class',
-                        'com/ae2vm/addon/nativeengine/NativeVmCapture.class',
+                        'com/ae2vm/addon/nativeengine/NativeVmPlanningContext.class',
+                        'com/ae2vm/addon/nativeengine/NativePatternCoefficients.class',
+                        'com/ae2vm/addon/nativeengine/NativeVmCalculation.class',
                         'com/ae2vm/addon/vm/CraftingVM.class',
-                        'com/ae2vm/addon/vm/VmInstructionExecution.class',
                         'com/ae2vm/addon/compiler/PatternCompiler.class',
                         'com/ae2vm/addon/nativeengine/mixin/NativeCraftingServiceMixin.class'])
-                        || names.any { it.startsWith('com/syaru/ae2craftingoptimizer/') })
+                        || names.any { it.startsWith('com/syaru/ae2craftingoptimizer/')
+                            || it.contains('/NativeVmCapture') || it.contains('/NativeVmPatternCatalog')
+                            || it.contains('/NativePatternCatalog')
+                            || it.contains('/NativeOrderSnapshot') || it.contains('/NativeGraphCalculation')
+                            || it.contains('/NativePlanSelections') || it.contains('/RealtimeNetworkCraftingSimulationState') })
                     throw new GradleException('Native VM content/license boundary violated')
             }
         }

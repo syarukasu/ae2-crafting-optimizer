@@ -79,6 +79,20 @@ class NativeVmDiagnosticsTest {
         assertEquals(1, events("slow_calculation").size());
     }
 
+    @Test void runningTimingIsEvaluatedOnlyForTheBoundedLogLine() {
+        var calls = new AtomicLong();
+        java.util.function.Supplier<String> timing = () -> {
+            calls.incrementAndGet();
+            return "ae2WorldWaitMs=123 vmCpuMs=456";
+        };
+        diagnostics.running(1, "test", 1, 4_999, timing);
+        assertEquals(0, calls.get());
+        diagnostics.running(1, "test", 2, 5_000, timing);
+        diagnostics.running(1, "test", 3, 6_000, timing);
+        assertEquals(1, calls.get());
+        assertEquals("ae2WorldWaitMs=123 vmCpuMs=456", events("running").get(0)[4]);
+    }
+
     @Test void errorsKeepTheirCausesWhileRoutineCancellationAndRecaptureOnlyAccumulate() {
         diagnostics.cancelled();
         diagnostics.recaptured();
@@ -151,6 +165,17 @@ class NativeVmDiagnosticsTest {
         negativeClock.addAndGet(TimeUnit.SECONDS.toNanos(60));
         negative.running(0, "test", 0, 0);
         assertEquals(1, events("summary").size());
+    }
+
+    @Test void detailedTimingUsesExistingSlowBudgetAndStaysInRecentHistory() {
+        String timing = "vmMs=5000 vmActiveMs=100 serverQueueMs=4800 handoffs=200";
+        diagnostics.completed(1, "test", 1, 6000, true, timing);
+        diagnostics.completed(2, "test", 1, 6000, true, timing);
+        assertEquals(1, events("slow_calculation").size());
+        assertEquals(timing, events("slow_calculation").get(0)[5]);
+        diagnostics.record(new NativeVm.CalculationSample(2, "test", java.math.BigInteger.ONE, 6000, "missing", timing));
+        assertEquals(timing, diagnostics.recent().get(0).timing());
+        assertTrue(events("profile").isEmpty(), "Do not add another per-order log stream");
     }
 
     private void seconds(long value) { clock.set(TimeUnit.SECONDS.toNanos(value)); }

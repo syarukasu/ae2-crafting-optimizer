@@ -42,6 +42,15 @@ import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Test;
 
 class BigCraftingEngineApiPlanInspectionTest {
+    @Test void acceptsExactValuesWithoutKnowingThePlannerImplementation() {
+        var requested = BigInteger.TEN.pow(64);
+        var view = new BigIntegerCraftingPlanView(new GenericStack(BLOCK, Long.MAX_VALUE), requested, true,
+                Map.of(BLOCK_PATTERN, requested), Map.of(), Map.of(), Map.of(NUGGET, requested), requested);
+        var metadata = org.mockito.Mockito.mock(com.syaru.ae2craftingoptimizer.engine.WideCraftingPlan.class);
+        org.mockito.Mockito.when(metadata.exactView()).thenReturn(java.util.Optional.of(view));
+        assertEquals(java.util.Optional.of(view), BigCraftingEngineApi.inspectAttachedExactPlan(metadata));
+    }
+
     @Test void preservesWideRootQuantityInThePublicView() {
         var request = BigInteger.TEN.pow(64);
         var exact = new BigCraftingPlan<AEKey>(BLOCK, request, Map.of(BLOCK_PATTERN_ID, request),

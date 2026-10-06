@@ -13,6 +13,10 @@ public final class OptimizationMetrics {
     private static final LongAdder SHARED_DEFERRED_OPERATIONS = new LongAdder();
     private static final LongAdder GT_CANDIDATE_CACHE_HITS = new LongAdder();
     private static final LongAdder GT_CANDIDATE_CACHE_MISSES = new LongAdder();
+    private static final LongAdder MEK_INTENT_MATCHES = new LongAdder();
+
+    public static void recordMekanismIntentMatch() { MEK_INTENT_MATCHES.increment(); }
+    public static long mekanismIntentMatches() { return MEK_INTENT_MATCHES.sum(); }
     private static final LongAdder REFLECTION_LOOKUP_HITS = new LongAdder();
     private static final LongAdder REFLECTION_LOOKUP_MISSES = new LongAdder();
     private static final LongAdder AE2_OVERCLOCK_UPGRADE_COUNT_HITS = new LongAdder();
@@ -397,6 +401,7 @@ public final class OptimizationMetrics {
                         + " limit(s), " + SHARED_DEFERRED_OPERATIONS.sum() + " operation(s) deferred",
                 "GTCEu intent candidate cache: " + gtHits + " hit(s), " + gtMisses
                         + " miss(es), " + percent(gtHits, gtMisses) + "% hit rate",
+                "Mekanism item recipe intent: " + MEK_INTENT_MATCHES.sum() + " native lookup(s) bypassed",
                 "Experimental planner Shadow Mode: " + CRAFTING_ENGINE_SHADOW_MATCHES.sum()
                         + " match(es), " + CRAFTING_ENGINE_SHADOW_MISMATCHES.sum()
                         + " mismatch(es), " + CRAFTING_ENGINE_SHADOW_SKIPS.sum()
@@ -499,6 +504,7 @@ public final class OptimizationMetrics {
         SHARED_DEFERRED_OPERATIONS.reset();
         GT_CANDIDATE_CACHE_HITS.reset();
         GT_CANDIDATE_CACHE_MISSES.reset();
+        MEK_INTENT_MATCHES.reset();
         REFLECTION_LOOKUP_HITS.reset();
         REFLECTION_LOOKUP_MISSES.reset();
         AE2_OVERCLOCK_UPGRADE_COUNT_HITS.reset();

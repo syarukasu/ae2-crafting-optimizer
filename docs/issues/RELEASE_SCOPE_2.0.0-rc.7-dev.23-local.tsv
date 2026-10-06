@@ -1,0 +1,6 @@
+# release=2.0.0-rc.7-dev.23-local
+# baseline=2.0.0-rc.7-dev.20
+# loader=FORGE_1_20_1
+# acceptance=NOT_APPROVED: Local VM planning candidate; production timing and physical crafting acceptance remain pending.
+issue	change	automated_guarantee
+218	Direct BigInteger demand planning for proved exact graphs, bounded skeleton capture, and deferred unused inputs	Differential VM tests cover full and partial stock, missing inputs, ordered alternatives, wide counts, and no live input reads for discarded routes; multi-output patterns retain ordered execution.

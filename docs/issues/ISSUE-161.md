@@ -1,5 +1,273 @@
 # Issue #161: クラフト開始後の実行負荷
 
+## 2026-10-01: remove orphaned Neo ECO version selector
+
+- State: Implemented; started from Ready. Related cleanup: #218, local dev.19.
+- The two Neo ECO budget Mixins and their plugin selection were removed in
+  dev.17. NeoEcoVersionCompatibility now has no production caller, resource
+  registration, API export or reference in the installed audited AE2 add-ons.
+- Delete that internal selector and its obsolete version-parser-only test.
+  Retain NeoEcoPackagingContractTest, AcoMixinPluginTest and the real optional
+  add-on contract tests. Add a failing runtime-class absence check first.
+- Keep both supported dependency ranges, ordinary native dispatch, public
+  pass-through compatibility methods, exact ownership, V2 receipts and recovery.
+  Do not remove checks merely because they are uncommon or disabled by default.
+- No production config/JAR changes, server restart or release is authorized.
+- Both variant builds, ABI checks and retired-class checks pass. Evidence and
+  the first-run historical cancellation test failure are recorded in
+  [dev.19 cleanup](evidence/ISSUE-161-218-DEAD-CODE-2026-10-01.md).
+
+## 2026-09-28: remove retired ordinary execution machinery
+
+- State: Implemented; started from Ready. Scope: Forge 1.20.1, upstream/UELM,
+  local dev.17 candidate. Full industrial/runtime acceptance remains PENDING.
+- Request: ordinary insertion must be native AE2 behavior, not throughput
+  throttling presented as optimization. Reviewed charter, class ownership,
+  regression history, #102/#125 and the testing contract before implementation.
+- Delete the retired adaptive/shared/probe/wave algorithms and their mutable
+  timing state. Keep legacy public dispatch methods as stateless pass-throughs
+  for binary compatibility; do not create a replacement execution loop.
+- Remove Neo ECO budget Mixins from source, registration and plugin selection,
+  so optional add-ons are no longer instrumented for the retired limiter.
+- Keep native provider ordering, blocking, energy and successful input/output
+  accounting, the coprocessor int overflow repair and #125 exact ownership.
+  VM planning, BigInteger APIs and explicitly owned V2 receipt execution stay
+  unchanged. Removing throughput limits does not mean bypassing a full target.
+- Preserve historical evidence; replace tests of the now-deleted private wave
+  formula with tests of the retained public compatibility entry points. Require
+  untouched external int counts, single native calls, propagated failures,
+  no timer/state/config access and no optional limiter Mixin registration.
+- Build both AE2 variants and rerun the pinned real-provider regression suite.
+  Production installation/restart and full industrial acceptance remain pending;
+  no deployment, release or server restart is authorized by this change.
+- Both builds, public API/contract and bundle checks pass. Actual provider tests
+  preserve 1024 deliveries per round, native face rotation, full/blocked rejection
+  and resumption; processing completion, cancellation and reservation tests pass.
+  Public descriptors of both retained compatibility classes match dev.16.
+- Source/JAR audit confirms the ordinary timing states/algorithms and Neo ECO
+  limiter classes/registrations are absent. Old true settings cannot restore them.
+- Evidence: [dev.17 native execution](evidence/ISSUE-161-NATIVE-EXECUTION-2026-09-28.md).
+  Production server/client remain on dev.13; this work does not demonstrate a
+  production throughput gain or authorize deployment/full 2.0.0 acceptance.
+
+## 2026-09-28: production ordinary-limit configuration
+
+- State: Implemented (configuration); live application is not yet confirmed.
+  Started from Ready after the user's request for unlimited ordinary insertion,
+  server-root/dev.13 bytecode checks and issue/charter/history/ownership review.
+- Apply only the five ordinary-execution switches in the server common config:
+  throttleCraftingExecution, adaptiveBudget, sharedGridBudget,
+  throttleNeoEcoAeExecution and enableInstantDispatch become false.
+- The installed dev.13 dispatcher has a separate Instant wave gate, so disabling
+  only throttleCraftingExecution is insufficient. With both paths disabled the
+  existing methods pass the native operation count without ACO time/wave caps.
+- Keep a timestamped backup, validate the parsed TOML and confirm Forge reload
+  in the running server log. No JAR replacement, public release, restart, client
+  config change or live order/inventory mutation is required for this step.
+- Native blocking, energy, representable API boundaries, exact ownership and
+  separate transactional receipt/recovery settings remain unchanged. This does
+  not claim zero server cost or a measured production throughput improvement.
+- Changed only those five switches in
+  `C:\example\server\config\ae2_crafting_optimizer-common.toml`.
+  Backup: the same path plus `.before-unthrottle-20260928-105626.bak`.
+  TOML parsing and a complete parsed before/after comparison confirm that every
+  other value is unchanged. The installed JAR was not replaced.
+- JVM system properties confirm this is PID 24244's working directory; the PID
+  remains running with its original start time. No ACO config-reload notification
+  appears after the edit in debug.log, so automatic application is unverified.
+  Asked for save/restart approval; no shutdown or restart has been performed.
+
+## 2026-09-28: remaining provider cost follow-up
+
+- State: Implemented; local dev.16 checks pass, full acceptance remains PENDING.
+  Implementation started from Ready after reviewing issue #161, charter,
+  regression history, ownership and test contract. This extends the dev.15 probe.
+- Request: reduce the remaining insertion work, without reducing native dispatch
+  counts. The earlier 36.936 ms measures 1024 complete provider calls in a local
+  fixture, not purely ACO work, production latency or a reason to restore caps.
+- First profile the actual provider fixture with opt-in, test-only JFR sampling
+  and longer repetition. Keep unprofiled runs separate from diagnostic timing.
+- Optimize only reproduced redundant work at its existing owner; retain native
+  blocking/backpressure, round-robin, energy and exact input/output accounting.
+  No inventory-result cache across mutations and no replacement executor.
+- Before/after evidence must include work attribution, identical unprofiled
+  pushes, exact deliveries, full/blocked rejection and resume, and the pinned
+  add-on regression cases. Add focused failing cases for the identified change.
+- VM/planning and physical restart/receipt acceptance stay separate and pending.
+  No production deployment, restart, commit or public release in this change.
+- Profile finding: 38/100 server-thread execution samples include the ACO hint
+  capture; 18 include its registry and 11 its repeated list equality checks.
+  The native adapter and actual insertion are separate costs. Sample shares
+  are attribution, not a precise wall-clock speedup or production measurement.
+- Selected change: freeze advisory input/output lists once per push, and reuse
+  only the last exact native AEProcessingPattern's immutable description per
+  provider. No global cache/generation system. Native pattern instances are
+  immutable by API contract; subclasses/custom patterns are read on every push.
+  Concrete input counters, directions, time/TTL and execution count stay live.
+  Existing static capture entry points remain available without reuse.
+- Tests: unchanged native descriptions reuse the same immutable value; different
+  instances/content replace it; custom/subclass descriptions refresh; concrete
+  items/fluids change immediately. Retain real-hook and registry acceptance.
+- Both AE2 variants built and passed the pinned provider runtime suite, API and
+  bundle checks. The immutable/reuse assertions first failed, then passed. The
+  short unprofiled median changes only from 32.587 to 31.353 ms per 1024 pushes;
+  this is not evidence for a large or statistically significant speedup.
+- Production still has the dev.13 JAR and enabled ordinary 4/8 ms budget config;
+  bytecode confirms that version still reads the limiter. No deployment was
+  performed, and its actual contribution to a specific order remains unmeasured.
+- Evidence: [provider capture follow-up](evidence/ISSUE-161-PROVIDER-CAPTURE-2026-09-28.md).
+
+## 2026-09-28: runtime regression follow-up (dev.15)
+
+- State: Implemented; local provider acceptance recorded below, full historical
+  acceptance remains PENDING. The implementation started from Ready.
+- Existing GitHub issue #161 is open; charter, history, responsibilities,
+  #102/#125 specifications and testing contract have been reviewed.
+- First reproduce #102's four original tests with the actual InsaneAE
+  diagnostic JAR, not copied provider mocks. Record its source revision,
+  existing local patch and artifact SHA-256. Runtime dependencies are opt-in
+  test dependencies only and must never enter the distribution bundle.
+- Keep a no-ACO reference run and a current-VM run separate. The two historical
+  planning tests explicitly require InsaneAE's old planner counter to increase;
+  do not claim that counter is exercised by the new VM. Retain the original
+  results and add quantity-based VM acceptance where the planner differs.
+- Add-on fixtures must fail if any required named test or runtime mod is absent.
+  Record exact inputs/outputs and timings, rather than promoting a test total.
+- Inspect actual provider blocking and intent capture costs before changing
+  production algorithms. Extended AE Plus 1.5.5 repeats target inventory scans
+  per candidate; that observation alone is not an ACO performance improvement.
+- No throughput limits, replacement execution owners, live-stock cache across
+  mutations, production deployment, restart or public release are authorized.
+- Planning/execution/accounting gates beyond the reproduced scope remain open.
+
+### Narrow production change: recipe-intent expiration
+
+- State: Implemented. RecipeIntentRegistry owns advisory machine hints, not inventory,
+  planner quantities, dispatch decisions or transaction receipts.
+- Each successful push records one hint per target; record/find currently walk
+  every registered location for expiry, even when no hint can have expired.
+- Maintain a conservative earliest-expiry bound, updated on insertion and reset
+  on clear. Before that deadline cleanup is O(1); at the deadline scan retained
+  records and rebuild the bound. Eviction/coalescing may leave an earlier bound,
+  causing only an extra scan, never delayed expiry. No per-tick work limit.
+- Scan all records when expiry is due: reducing configured TTL can put a shorter
+  expiry behind a longer-lived head. The former head-only removal leaks expired
+  hints into queries. Preserve surviving order, spatial index and entry count.
+- Before-failure tests: instrument actual registry deques to count inspections
+  for 1024 locations and 1024 same-tick pushes/queries; assert expired tail hints
+  disappear. Check deadline equality, coalescing, eviction, clear and backwards
+  clock changes. Add an in-game successful provider-push load probe with exact
+  delivered quantities, full destination/backpressure and no throughput cap.
+
+### Verified scope and open work
+
+- The real registry reproduces two before-failures: redundant expiry walks and
+  an expired tail behind a longer-lived head. Both are fixed. Same-tick fixture
+  inspections fall from 2,097,152 to zero, without dropping records or pushes.
+- With the real InsaneAE diagnostic JAR loaded, actual provider calls deliver
+  exactly 1024 items in each of six rounds. Full/blocked targets reject without
+  consumption and resume when cleared. Median repeated-round elapsed time in
+  the initial local pair falls from 67.845 to 36.936 ms. Not production MSPT.
+- The original four #102 cases pass without ACO/VM. On the current VM, the two
+  provider cases pass; two obsolete planner-counter assertions fail as expected.
+  Their failed results are preserved, NOT counted as passes. Separate actual
+  native/VM result comparisons pass for returns and alternate producers.
+- A pinned-JAR replay runner and required test-name gates prevent accidental
+  validation without the add-on or the relevant cases.
+- Evidence and exact fixture versions:
+  [ISSUE-161-FORGE-1.20.1-2026-09-28.md](evidence/ISSUE-161-FORGE-1.20.1-2026-09-28.md).
+- Still open: Extended AE Plus's own repeated blocking scans; huge external CPU
+  runtime and exact-job receipt isolation/restart; production planning latency
+  and generic wide machine/cycle execution. Neither a source patch nor this
+  provider fixture claims those tasks are complete. No deployment or release.
+
+## 2026-09-27: ordinary dispatch must not be throttled
+
+- State: Implemented (historical regression acceptance PENDING; not release-approved)
+- Scope: Forge 1.20.1, upstream AE2 and UELM, rc.7-dev.14 candidate.
+- Request: remove ACO-imposed processing-pattern insertion limits. The supplied
+  CurseForge comment does not establish the commenter's precise setup or crash
+  cause; world-load crashes and VM planning latency are outside this change.
+- Reproduction: a legacy config with `throttleCraftingExecution=true` caps native
+  coprocessors, while the independently enabled Sequential Instant redirect
+  further shrinks executeCrafting calls to measured CPU/grid time windows.
+- Expected: ordinary AE2 keeps its own dispatch count, provider order,
+  backpressure, energy use, used-operations history and input/output accounting.
+  No ACO wave, adaptive or shared budget may lower that native dispatch count.
+- Implementation: retire the ordinary-throttle switch (keep the old key readable
+  for config compatibility, but ignore even existing true values). Remove the
+  executeCrafting wave redirect. Existing Neo ECO budget hooks become no-ops
+  through the same retired switch; do not replace an add-on's executor.
+- Preserve the coprocessor overflow repair at the int API boundary, including
+  AE2's +1 headroom, and Issue #125's exclusion of already-owned exact jobs.
+  Public BigInteger APIs, quantities, receipts, recovery and VM are unchanged.
+- ACO-owned transactional V2/exact physical work still has its separate admission
+  rules. Those must not be confused with ordinary processing dispatch or removed
+  in order to permit duplicate work. No unbounded replacement loop is added.
+- Test first: legacy-enabled limits must not cap 65,537/1,048,576 coprocessors;
+  spent CPU/grid budgets must not affect ordinary or Neo ECO dispatch; maximum
+  external int operation counts must pass unchanged. A source contract must
+  reject reintroduction of the executeCrafting wave redirect, including when
+  Instant V2 is enabled. Keep overflow, ownership and provider GameTests.
+- Required: before/after JUnit evidence, both AE2 variant builds and existing
+  Forge GameTests, regression manifests, bundle/API checks and JAR hashes.
+  Historical Extended AE Plus load and InsaneAE regressions below must also be
+  retested. Production throughput/MSPT and the commenter's reproduction remain unverified.
+- No production deployment, restart, public release or NeoForge change in this
+  slice. NeoForge synchronization requires its separate reviewed change.
+- Pre-implementation: charter, regression history, class ownership, related
+  #102/#125 specs, tests and workflow read; no source edits before Ready.
+
+This request supersedes the earlier ordinary-wave budget policy below; those
+sections describe the historical implementation, not the new native behavior.
+
+### Local verification
+
+- Before: all four original OrdinaryPatternDispatchTest cases failed against
+  dev.13. Preserved XML/log: `build/issue161-unthrottled/issue161-unthrottled-before.*`.
+- After: six focused regression cases pass, including the legacy wave entry,
+  unchanged zero/success results and propagation of native failures without retry.
+- Both upstream AE2 and UELM: 162 suites / 813 unit and contract tests; zero
+  failures, errors or skips. Each also passes 14 real Forge GameTests.
+- `build`, `verifyIssueRegressionManifest`, `verifyIssueRegressionReleaseReadiness`,
+  `verifyExactVmBundle` and `runGameTestServer` pass. Bundled VM remains dev.13.
+- Artifact/test evidence: `build/issue161-unthrottled/README.md` and variant folders.
+- No production installation, server restart, push or prerelease publication.
+  No production throughput/MSPT claim, world-crash fix, or full 2.0.0 acceptance.
+
+### 2026-09-28 Git history audit: acceptance correction
+
+The original local test results remain valid, but they do not prove the removal
+preserves the conditions that motivated the old fixes. The earlier Verified
+label and UNIT/NOT_REQUIRED manifest entry were too strong. Do not publish or
+deploy dev.14 on that evidence. No newly reproduced runtime failure is claimed.
+
+- `5b4e48d82c655fb43bee0c79993e231a78c89f89`: restored overflowed coprocessor
+  totals and reduced cold waves after profiling costly Extended AE Plus
+  `eap$redirectBlockingContains`/`containsPatternInput` work. The count repair
+  remains, but dev.14 bypasses the pacing. The expensive provider path was not
+  optimized or remeasured by this change. Test the actual legacy blocking case
+  with cold/steady dispatch, full and blocked targets, and concurrent CPUs;
+  record completed pushes, exact accounting and maximum server tick/MSPT cost.
+- `d22cd3f8205d016a2fc76a993147a312fa7c0307`: fixes InsaneAE ownership and
+  provider refresh regressions. Priority 900 is retained and the outer wave
+  hook is removed, but the 14 current GameTests do NOT include the original
+  `ae2.pattern_provider_faces_round_robin`, `ae2.insaneae_pattern_provider_patterns`,
+  `ae2.insaneae_crafting_batch` or `ae2.insaneae_crafting_batch_chain` cases.
+  Rerun those with pinned add-on revisions; the old #102 evidence is historical,
+  not proof about dev.14.
+- `7c3ceab41d74f075e431eb1236b1885364c6a8cc`: #125 isolates receipt-owned exact
+  jobs before outer native batches can modify tasks. That guard is unchanged;
+  its source/unit tests are not an external-batch runtime reproduction. Keep
+  exact/native ownership, cancellation and recovery checks in the impact set.
+
+Do not make this gate green by deleting the old cases, counting unreachable
+wave-helper tests as current runtime coverage, or silently restoring throughput
+caps. Retain the no-throttle request and address reproduced redundant work at
+its owner boundary. The manifest now requires runtime evidence; use
+`verifyIssueRegressionReleaseReadiness -PrequireRuntimeAcceptance=true` for
+acceptance, not only the prerelease task's warning-only mode.
+
 ## 目的
 
 クラフト計算完了後の実行時間とサーバー負荷を分離して計測し、AE2の結果と会計を変えずにACO固有の不要処理を除去する。

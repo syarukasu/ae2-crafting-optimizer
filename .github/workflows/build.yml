@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: syarukasu/AE2-VM-ACO
-          ref: 6d9ed984afd680eb8bdfd8bdd12e12ded2a084e1
+          ref: 5b57a00e283d355a47ee5276ba528b2dcf7d07db
           path: .ci/vm
 
       - name: Set up Java 17
@@ -120,5 +120,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: aco-1.20.1-${{ matrix.ae2Variant }}-${{ github.sha }}
-          path: build/distributions/*/aco*_1.20.1.jar
+          path: |
+            build/distributions/*/aco*_1.20.1.jar
+            build/distributions/*/sources/*.jar
           if-no-files-found: error

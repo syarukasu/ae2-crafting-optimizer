@@ -1,0 +1,5 @@
+# release=2.0.0-rc.6-rc4-vm.7-dev.2
+# baseline=2.0.0-rc.6-rc4-vm.6
+# loader=FORGE_1_20_1
+issue	change	automated_guarantee
+217	Remove bulk-only replay windows, cache exact stock-domain identity and defer low-water copies until replay	Wide bulk and returned-tool stock matrices; unchanged exact bytes and accounting; branch rollback and NBT-domain identity; zero full scans for unchanged domains; snapshots only on positive replay

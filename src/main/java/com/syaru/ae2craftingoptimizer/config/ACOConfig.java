@@ -12,7 +12,7 @@ import net.minecraftforge.fml.config.ModConfig;
 /**
  * ACOが現在所有する機能だけを公開するConfig schema。
  *
- * <p>Issue #164のclean-breakにより、削除済み機能の互換キーと外部CPU固有の実行設定は保持しない。
+ * <p>Issue #161: old execution-budget keys are read for compatibility but cannot throttle native dispatch.
  * master、domain、個別設定の順序は{@link OptimizationFeatureGate}へ集約する。</p>
  */
 public final class ACOConfig {
@@ -250,56 +250,58 @@ public final class ACOConfig {
 
         builder.push("craftingExecution");
         THROTTLE_CRAFTING_EXECUTION = builder
-                .comment("Bound standard AE2 pattern pushes per CPU without changing capacity or displayed co-processors.")
-                .define("throttleCraftingExecution", true);
+                .comment("Retired: ignored even when true. ACO does not throttle ordinary AE2/add-on pattern dispatch.",
+                        "Legacy per-CPU, adaptive and shared-grid limits below are inactive.")
+                .define("throttleCraftingExecution", false);
         MAX_EFFECTIVE_COPROCESSORS_PER_CPU = builder
-                .comment("Maximum effective co-processors spent by one CPU in an execution window.")
+                .comment("Retired ordinary-dispatch limit; ignored. AE2 owns its coprocessor count.")
                 .defineInRange(
                         "maxEffectiveCoprocessorsPerCpu",
                         DEFAULT_EFFECTIVE_COPROCESSORS_PER_CPU,
                         1,
                         MAX_SAFE_EFFECTIVE_COPROCESSORS);
         ADAPTIVE_CRAFTING_EXECUTION_BUDGET = builder
-                .comment("Adapt the next CPU budget from measured execution time.")
-                .define("adaptiveBudget", true);
+                .comment("Retired ordinary-dispatch setting; ignored even when true.")
+                .define("adaptiveBudget", false);
         TARGET_CRAFTING_EXECUTION_MILLIS = builder
-                .comment("Target wall-clock milliseconds for one CPU burst.")
+                .comment("Retired ordinary-dispatch time budget; ignored.")
                 .defineInRange("targetExecutionMillis", 4, 1, 50);
         MINIMUM_ADAPTIVE_COPROCESSORS_PER_CPU = builder
-                .comment("Minimum adaptive operation allowance for an active CPU.")
+                .comment("Retired ordinary-dispatch allowance; ignored.")
                 .defineInRange("minimumAdaptiveOperations", 1024, 1, MAX_SAFE_EFFECTIVE_COPROCESSORS);
         SHARED_CRAFTING_EXECUTION_BUDGET = builder
-                .comment("Share a measured execution budget between standard AE2 CPUs on one grid.")
-                .define("sharedGridBudget", true);
+                .comment("Retired ordinary-dispatch setting; ignored even when true.")
+                .define("sharedGridBudget", false);
         SHARED_CRAFTING_EXECUTION_MILLIS_PER_GRID = builder
-                .comment("Target milliseconds spent by all standard AE2 CPUs on one grid per tick.")
+                .comment("Retired ordinary-dispatch grid budget; ignored.")
                 .defineInRange("sharedGridBudgetMillis", 8, 1, MAXIMUM_TICK_BUDGET_MILLIS);
         MINIMUM_SHARED_OPERATIONS_PER_CPU = builder
-                .comment("Minimum progress allowance after a grid consumes its shared budget.")
+                .comment("Retired ordinary-dispatch grid allowance; ignored.")
                 .defineInRange("minimumSharedOperations", 1, 1, 65_536);
         LOG_CRAFTING_EXECUTION_THROTTLING = builder
-                .comment("Log execution-budget caps.")
+                .comment("Retired ordinary-dispatch logging; ignored.")
                 .define("logExecutionThrottling", false);
         THROTTLE_NEO_ECO_AE_EXECUTION = builder
-                .comment("Apply only ACO's execution budget to NeoECO CPUs; NeoECO keeps execution ownership.")
-                .define("throttleNeoEcoAeExecution", true);
+                .comment("Retired; no execution-budget Mixins are installed into Neo ECO.")
+                .define("throttleNeoEcoAeExecution", false);
         ENABLE_INSTANT_PATTERN_DISPATCH = builder
-                .comment("Run AE2's original one-pattern dispatch in measured waves until its time budget or backpressure.")
+                .comment("Dispatch ACO-owned transactional V2 batches until their budget or backpressure.",
+                        "Does not wrap or limit ordinary AE2/add-on processing-pattern dispatch.")
                 .define("enableInstantDispatch", true);
         INSTANT_PATTERN_DISPATCH_TIME_BUDGET_MILLIS = builder
-                .comment("Per-CPU sequential dispatch budget in milliseconds.")
+                .comment("ACO-owned transactional V2 time budget; does not apply to ordinary AE2 dispatch.")
                 .defineInRange("instantDispatchBudgetMillis", 4, 1, MAXIMUM_TICK_BUDGET_MILLIS);
         INSTANT_PATTERN_DISPATCH_PROBE_OPERATIONS = builder
-                .comment("Configured cold wave request; the unmeasured ceiling below still caps the first wave.")
+                .comment("Retired ordinary-dispatch probe size; ignored.")
                 .defineInRange("instantDispatchProbeOperations", 65_536, 1, 65_536);
         INSTANT_PATTERN_DISPATCH_MAXIMUM_UNMEASURED_WAVE_OPERATIONS = builder
-                .comment("Hard first-wave ceiling before ACO has measured one normal AE2 push.")
+                .comment("Retired ordinary-dispatch first-wave ceiling; ignored.")
                 .defineInRange("instantDispatchMaximumUnmeasuredWave", 1024, 1, 65_536);
         INSTANT_PATTERN_DISPATCH_MAXIMUM_WAVE_OPERATIONS = builder
-                .comment("Maximum operations in one measured dispatch wave.")
+                .comment("Retired ordinary-dispatch wave ceiling; ignored.")
                 .defineInRange("instantDispatchMaximumWave", 65_536, 1, MAXIMUM_BOUNDED_ENTRIES);
         MAX_INSTANT_PATTERN_DISPATCH_TRANSACTIONS = builder
-                .comment("Maximum V2 adapter transactions per call. Sequential dispatch is time-budgeted separately.")
+                .comment("Maximum ACO-owned V2 adapter transactions per call; not ordinary AE2 dispatch.")
                 .defineInRange("maximumInstantTransactions", 1024, 1, 65_536);
         ENABLE_TRANSACTIONAL_BATCHING_V2 = builder
                 .comment("Enable the public prepare/commit/account/reconcile V2 contract for explicitly registered adapters.")
@@ -557,16 +559,17 @@ public final class ACOConfig {
     public static int getCraftingEngineShadowMaximumPatterns() { return CRAFTING_ENGINE_SHADOW_MAXIMUM_PATTERNS.get(); }
     public static int getAuthoritativeMinimumShadowMatches() { return AUTHORITATIVE_MINIMUM_SHADOW_MATCHES.get(); }
     public static boolean requireWidePlanShadowQualification() { return REQUIRE_WIDE_PLAN_SHADOW_QUALIFICATION.get(); }
-    public static boolean throttleCraftingExecution() { return OptimizationFeatureGate.allows(OptimizationFeature.CRAFTING_EXECUTION_BUDGET, THROTTLE_CRAFTING_EXECUTION.get()); }
+    // Issue #161: existing true values must not restore native dispatch throttling.
+    public static boolean throttleCraftingExecution() { return false; }
     public static int getMaxEffectiveCoprocessorsPerCpu() { return MAX_EFFECTIVE_COPROCESSORS_PER_CPU.get(); }
-    public static boolean adaptiveCraftingExecutionBudget() { return throttleCraftingExecution() && ADAPTIVE_CRAFTING_EXECUTION_BUDGET.get(); }
+    public static boolean adaptiveCraftingExecutionBudget() { return false; }
     public static int getTargetCraftingExecutionMillis() { return TARGET_CRAFTING_EXECUTION_MILLIS.get(); }
     public static int getMinimumAdaptiveCoprocessorsPerCpu() { return Math.min(getMaxEffectiveCoprocessorsPerCpu(), MINIMUM_ADAPTIVE_COPROCESSORS_PER_CPU.get()); }
-    public static boolean sharedCraftingExecutionBudget() { return throttleCraftingExecution() && SHARED_CRAFTING_EXECUTION_BUDGET.get(); }
+    public static boolean sharedCraftingExecutionBudget() { return false; }
     public static int getSharedCraftingExecutionMillisPerGrid() { return SHARED_CRAFTING_EXECUTION_MILLIS_PER_GRID.get(); }
     public static int getMinimumSharedOperationsPerCpu() { return MINIMUM_SHARED_OPERATIONS_PER_CPU.get(); }
-    public static boolean logCraftingExecutionThrottling() { return enableOptimizer() && LOG_CRAFTING_EXECUTION_THROTTLING.get(); }
-    public static boolean throttleNeoEcoAeExecution() { return throttleCraftingExecution() && THROTTLE_NEO_ECO_AE_EXECUTION.get(); }
+    public static boolean logCraftingExecutionThrottling() { return false; }
+    public static boolean throttleNeoEcoAeExecution() { return false; }
     public static boolean enableInstantPatternDispatch() { return OptimizationFeatureGate.allows(OptimizationFeature.INSTANT_PATTERN_DISPATCH, ENABLE_INSTANT_PATTERN_DISPATCH.get()); }
     public static int getInstantPatternDispatchTimeBudgetMillis() { return INSTANT_PATTERN_DISPATCH_TIME_BUDGET_MILLIS.get(); }
     public static int getInstantPatternDispatchProbeOperations() { return INSTANT_PATTERN_DISPATCH_PROBE_OPERATIONS.get(); }

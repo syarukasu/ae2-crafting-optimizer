@@ -1,0 +1,14 @@
+ACO's historical graph comparison tests use the unmodified SMTInterpol library:
+de.uni-freiburg.informatik.ultimate:smtinterpol:2.5-1388-ga5a4ab0c
+
+Project and contributors: https://github.com/ultimate-pa/smtinterpol
+Copyright and license texts are retained inside the upstream library as
+LICENSE, COPYING and COPYING.LESSER. The upstream library and its interface
+components retain their respective upstream licenses and notices.
+
+The unmodified source artifact is available from Maven Central:
+https://repo.maven.apache.org/maven2/de/uni-freiburg/informatik/ultimate/smtinterpol/2.5-1388-ga5a4ab0c/smtinterpol-2.5-1388-ga5a4ab0c-sources.jar
+
+Neither the solver nor these comparison fixtures are distributed in the
+installable ACO JAR. The test dependency is unshaded; this project does not restrict
+replacement, relinking or debugging under the applicable upstream license.

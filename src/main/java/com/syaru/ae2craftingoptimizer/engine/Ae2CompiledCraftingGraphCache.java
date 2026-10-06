@@ -12,11 +12,9 @@ import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import com.syaru.ae2craftingoptimizer.optimization.PlanningConfigurationRevisionTracker;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import com.syaru.ae2craftingoptimizer.optimization.WeightedLruMap;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -99,7 +97,6 @@ public final class Ae2CompiledCraftingGraphCache {
             CACHE.clear();
         }
         Ae2ImmutablePlanningGraphCache.clear();
-        SymbolicCraftingPlanner.clearTopologyCache();
         CompiledRootQualificationRegistry.clear();
     }
 

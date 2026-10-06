@@ -1,0 +1,5 @@
+# release=2.0.0-rc.7-dev.12
+# baseline=2.0.0-rc.7-dev.11
+# loader=FORGE_1_20_1
+issue	change	automated_guarantee
+218	Remove tick-budget suspension from pure VM arithmetic; retain exclusive live access	Continuous BigInteger arithmetic on AE2 pool; nonblocking arithmetic-only server polls; protected callbacks, cancellation and exact quantity oracles. Live performance remains PENDING.

@@ -3,10 +3,36 @@ package com.syaru.ae2craftingoptimizer.integration;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.*;
 
+import appeng.api.networking.IGrid;
+import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import org.junit.jupiter.api.Test;
 
 class ExactVectorGridTickBudgetTest {
+    @Test
+    void returningUnusedClaimCannotRenewTheFirstOperationTimeException() {
+        try (var config = mockStatic(ACOConfig.class)) {
+            config.when(ACOConfig::getExactVectorGridTimeBudgetMillis).thenReturn(0);
+            config.when(ACOConfig::getExactVectorMaximumActiveStagesPerGridTick).thenReturn(256);
+            ExactVectorGridTickBudget.clearAll();
+            IGrid grid = mock(IGrid.class);
+            assertEquals(1, ExactVectorGridTickBudget.claimActiveStages(grid, 8));
+            ExactVectorGridTickBudget.settleActiveStageClaim(grid, 1, 0);
+            assertEquals(0, ExactVectorGridTickBudget.claimActiveStages(grid, 8));
+        } finally {
+            ExactVectorGridTickBudget.clearAll();
+        }
+    }
+
+    @Test
+    void smallJobsCannotBypassAnExhaustedSharedTimeBudget() {
+        for (int requested = 1; requested <= 64; requested++) {
+            assertEquals(0, ExactVectorGridTickBudget.claimOperations(
+                    20, 256, requested, 2L, 2L));
+        }
+    }
+
     @Test
     void firstOperationSurvivesAnAlreadyExceededTimeBudget() {
         assertFalse(ExactVectorGridTickBudget.shouldDeferOperation(
@@ -52,9 +78,9 @@ class ExactVectorGridTickBudgetTest {
     }
 
     @Test
-    void aBusyGridStillScansAWholeTwentyStageTree() {
+    void aBusyGridKeepsOneStageOfProgressWithoutGrantingTheWholeTree() {
         assertEquals(
-                20,
+                1,
                 ExactVectorGridTickBudget.claimOperations(
                         0,
                         256,
@@ -70,7 +96,7 @@ class ExactVectorGridTickBudgetTest {
                 ExactVectorGridTickBudget.claimOperations(
                         20,
                         256,
-                        ExactVectorGridTickBudget.GUARANTEED_FULL_SCAN_STAGES + 1,
+                        65,
                         2L,
                         2L));
     }
@@ -82,7 +108,7 @@ class ExactVectorGridTickBudgetTest {
                 ExactVectorGridTickBudget.claimOperations(
                         0,
                         256,
-                        ExactVectorGridTickBudget.GUARANTEED_FULL_SCAN_STAGES + 1,
+                        65,
                         2L,
                         2L));
     }

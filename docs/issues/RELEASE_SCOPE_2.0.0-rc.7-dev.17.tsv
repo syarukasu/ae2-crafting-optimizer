@@ -1,0 +1,6 @@
+# release=2.0.0-rc.7-dev.17
+# baseline=2.0.0-rc.7-dev.16
+# loader=FORGE_1_20_1
+# acceptance=NOT_APPROVED: Full industrial, external exact-job and production acceptance remain pending.
+issue	change	automated_guarantee
+161	Delete retired ordinary execution limiters and Neo ECO budget injections	Native dispatch count/order retained; legacy public entry points have no timing state; exact ownership, VM and accounting unchanged. No production throughput claim.

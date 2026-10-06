@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import appeng.api.crafting.IPatternDetails;
+import com.syaru.ae2craftingoptimizer.api.big.BigIntegerCraftingPlanView;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
@@ -10,6 +11,13 @@ import java.util.Objects;
 
 /** Issue #208: completed VM quantities, independent of a CPU's physical preparation. */
 public final class VmCalculatedCraftingPlan implements WideCraftingPlan {
+    @Override
+    public java.util.Optional<BigIntegerCraftingPlanView> exactView() {
+        return java.util.Optional.of(new BigIntegerCraftingPlanView(finalOutput(), exactBytes(), simulation(),
+                exactPatternTimes(), exactPlan().usedInventory(), exactPlan().emitted(),
+                exactPlan().missing(), exactPlan().requestedAmount()));
+    }
+
     private final BigCraftingPlan<AEKey> exactPlan;
     private final Map<IPatternDetails, BigInteger> times;
     private final BigInteger bytes;

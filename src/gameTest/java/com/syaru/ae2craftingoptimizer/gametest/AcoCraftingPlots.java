@@ -36,6 +36,119 @@ public final class AcoCraftingPlots {
 
     private AcoCraftingPlots() {}
 
+    @TestPlot("aco_vm_substitution_queries")
+    public static void vmSubstitutionQueries(PlotBuilder plot) {
+        network(plot, 32, false);
+        plot.test(helper -> {
+            var probe = new java.util.concurrent.atomic.AtomicReference<NativeVmContinuousProbe>();
+            helper.startSequence().thenWaitUntil(() -> checkRuntime(helper)).thenExecute(() -> {
+                var recipe = (CraftingRecipe) helper.getLevel().getRecipeManager()
+                        .byKey(new ResourceLocation("aco_gametest", "template_alternatives")).orElseThrow();
+                var inputs = new ItemStack[9]; Arrays.fill(inputs, ItemStack.EMPTY);
+                inputs[0] = new ItemStack(Items.IRON_INGOT);
+                var encoded = PatternDetailsHelper.encodeCraftingPattern(recipe, inputs, new ItemStack(Items.DIAMOND), true, false);
+                var decoded = new appeng.crafting.pattern.AECraftingPattern(AEItemKey.of(encoded), helper.getLevel());
+                helper.check(decoded instanceof com.ae2vm.addon.nativeengine.NativeVmRecipeView,
+                        "Native bound-recipe accessor was not mixed in");
+                var provider = (PatternProviderBlockEntity) helper.getBlockEntity(new BlockPos(0, 0, -3));
+                provider.getLogic().getPatternInv().setItemDirect(0, encoded);
+            }).thenIdle(2).thenExecute(() -> probe.set(new NativeVmContinuousProbe(
+                    helper.getGrid(ORIGIN), helper.getLevel(), AEItemKey.of(Items.DIAMOND), true)))
+                    .thenWaitUntil(() -> helper.check(probe.get().ready(), "Substitution input not prepared"))
+                    .thenExecute(() -> {
+                        try (var current = probe.get()) { current.verifyWithoutFurtherTicks(); checkStock(helper, 32, 0); }
+                        catch (Exception failure) { helper.fail("Substitution queries still wait for ticks: " + failure); }
+                    }).thenSucceed();
+        }).maxTicks(800);
+    }
+
+    @TestPlot("aco_vm_declared_inputs")
+    public static void vmDeclaredInputs(PlotBuilder plot) {
+        network(plot, 32, false);
+        plot.test(helper -> {
+            var probe = new java.util.concurrent.atomic.AtomicReference<NativeVmContinuousProbe>();
+            helper.startSequence().thenWaitUntil(() -> checkRuntime(helper)).thenExecute(() ->
+                    probe.set(new NativeVmContinuousProbe(
+                            helper.getGrid(ORIGIN), helper.getLevel(), OUTPUT, true)))
+                    .thenWaitUntil(() -> helper.check(probe.get().ready(), "No declared processing input was prepared"))
+                    .thenExecute(() -> {
+                        try (var current = probe.get()) {
+                            current.verifyWithoutFurtherTicks();
+                            checkStock(helper, 32, 0);
+                        } catch (Exception failure) { helper.fail("Declared input queries still require ticks: " + failure); }
+                    }).thenSucceed();
+        }).maxTicks(800);
+    }
+
+    @TestPlot("aco_vm_continuous_arithmetic")
+    public static void vmContinuousArithmetic(PlotBuilder plot) {
+        network(plot, 32, false);
+        plot.test(helper -> {
+            var probe = new java.util.concurrent.atomic.AtomicReference<NativeVmContinuousProbe>();
+            helper.startSequence().thenWaitUntil(() -> checkRuntime(helper)).thenExecute(() ->
+                    probe.set(new NativeVmContinuousProbe(
+                            helper.getGrid(ORIGIN), helper.getLevel(), OUTPUT)))
+                    .thenWaitUntil(() -> helper.check(probe.get().ready(), "No exclusive live interval was granted"))
+                    .thenExecute(() -> {
+                        try (var current = probe.get()) {
+                            current.verifyWithoutFurtherTicks();
+                            checkStock(helper, 32, 0);
+                        } catch (Exception failure) { helper.fail("Pure VM arithmetic still requires ticks: " + failure); }
+                    }).thenSucceed();
+        }).maxTicks(800);
+    }
+
+    @TestPlot("aco_vm_ae2_lifecycle")
+    public static void vmAe2Lifecycle(PlotBuilder plot) {
+        network(plot, 32, false);
+        plot.test(helper -> {
+            var futures = new java.util.ArrayList<Future<ICraftingPlan>>();
+            var callbacks = new java.util.concurrent.atomic.AtomicInteger();
+            helper.startSequence().thenWaitUntil(() -> checkRuntime(helper)).thenExecute(() -> {
+                var grid = helper.getGrid(ORIGIN);
+                var serverThread = Thread.currentThread();
+                var source = new MachineSource(grid::getPivot);
+                var requester = new appeng.api.networking.crafting.ICraftingSimulationRequester() {
+                    public appeng.api.networking.security.IActionSource getActionSource() {
+                        helper.check(Thread.currentThread() == serverThread, "Stock snapshot left the server thread");
+                        return source;
+                    }
+                    public appeng.api.networking.IGridNode getGridNode() {
+                        helper.check(Thread.currentThread().getName().equals("AE Crafting Calculator"),
+                                "VM did not use AE2's calculation pool");
+                        helper.check(serverThread.getState() == Thread.State.WAITING,
+                                "Pattern callbacks ran outside AE2's exclusive calculation slice");
+                        callbacks.incrementAndGet();
+                        return grid.getPivot();
+                    }
+                };
+                var cancelled = com.ae2vm.addon.nativeengine.NativeVm.calculate(grid, helper.getLevel(),
+                        requester, OUTPUT, java.math.BigInteger.TEN.pow(1024).subtract(java.math.BigInteger.ONE),
+                        CalculationStrategy.REPORT_MISSING_ITEMS);
+                helper.check(cancelled.cancel(true), "Pre-slice cancellation failed");
+                for (int i = 1; i <= 2; i++) futures.add(grid.getCraftingService().beginCraftingCalculation(
+                        helper.getLevel(), requester, OUTPUT, i, CalculationStrategy.REPORT_MISSING_ITEMS));
+            }).thenWaitUntil(() -> helper.check(futures.stream().allMatch(Future::isDone),
+                    "AE2 scheduling did not finish concurrent VM calculations"))
+                    .thenExecute(() -> {
+                        try {
+                            for (int i = 0; i < futures.size(); i++) {
+                                var plan = futures.get(i).get();
+                                helper.check(!plan.simulation() && plan.usedItems().get(INPUT) == i + 1,
+                                        "AE2 scheduled VM returned the wrong quantity");
+                            }
+                            helper.check(callbacks.get() >= 2, "No VM pattern callbacks ran");
+                            var samples = com.ae2vm.addon.nativeengine.NativeVm.recentCalculations().stream()
+                                    .filter(s -> s.output().equals(OUTPUT.getId().toString())
+                                            && s.status().equals("ready")).toList();
+                            helper.check(samples.stream().allMatch(s -> s.timing().contains("scheduler=ae2")
+                                            && s.timing().contains("handoffs=0")), "Detached VM callbacks survived");
+                            checkStock(helper, 32, 0);
+                        } catch (Exception failure) { helper.fail("AE2 VM lifecycle failed: " + failure); }
+                    }).thenSucceed();
+        }).maxTicks(800);
+    }
+
     @TestPlot("aco_native_wide_api_bridge")
     public static void nativeWideApiBridge(PlotBuilder plot) {
         // A planning-only large-output pattern. No machine is installed and no
@@ -86,7 +199,7 @@ public final class AcoCraftingPlots {
     public static void nativeWideMissing(PlotBuilder plot) {
         network(plot, 32, true);
         plot.test(helper -> {
-            var request = java.math.BigInteger.TEN.pow(64);
+            var request = java.math.BigInteger.TEN.pow(1024).subtract(java.math.BigInteger.ONE);
             var future = new java.util.concurrent.atomic.AtomicReference<Future<ICraftingPlan>>();
             helper.startSequence().thenWaitUntil(() -> checkRuntime(helper))
                     .thenExecute(() -> {
@@ -120,6 +233,57 @@ public final class AcoCraftingPlots {
     @TestPlot("aco_snapshot_stock_consumed")
     public static void snapshotStockConsumed(PlotBuilder plot) {
         snapshotStockChange(plot, true);
+    }
+
+    @TestPlot("aco_shared_pattern_refresh")
+    public static void sharedPatternRefresh(PlotBuilder plot) {
+        network(plot, 32, false);
+        plot.test(helper -> {
+            class PatternOrders {
+                Future<ICraftingPlan> future;
+
+                void begin() {
+                    var grid = helper.getGrid(ORIGIN);
+                    future = grid.getCraftingService().beginCraftingCalculation(helper.getLevel(),
+                            () -> new MachineSource(grid::getPivot), OUTPUT, 1,
+                            CalculationStrategy.REPORT_MISSING_ITEMS);
+                }
+
+                void replace(int amount) {
+                    var provider = (PatternProviderBlockEntity) helper.getBlockEntity(new BlockPos(0, 0, -3));
+                    provider.getLogic().getPatternInv().setItemDirect(0, amount == 0 ? ItemStack.EMPTY
+                            : PatternDetailsHelper.encodeProcessingPattern(
+                                    new GenericStack[] {new GenericStack(INPUT, amount)},
+                                    new GenericStack[] {new GenericStack(OUTPUT, 1)}));
+                }
+
+                void check(int used, int missing) {
+                    helper.check(future.isDone(), "Pattern refresh calculation pending");
+                    try {
+                        var plan = future.get();
+                        helper.check(plan.usedItems().get(INPUT) == used, "Cached input quantity is stale");
+                        helper.check(plan.missingItems().get(OUTPUT) == missing, "Cached producer list is stale");
+                        helper.check(plan.simulation() == (missing > 0), "Wrong refreshed plan type");
+                        checkStock(helper, 32, 0);
+                    } catch (InterruptedException failure) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(failure);
+                    } catch (java.util.concurrent.ExecutionException failure) {
+                        throw new IllegalStateException(failure.getCause());
+                    }
+                }
+            }
+            var orders = new PatternOrders();
+            helper.startSequence().thenWaitUntil(() -> checkRuntime(helper)).thenIdle(5)
+                    .thenExecute(orders::begin).thenWaitUntil(() -> orders.check(1, 0))
+                    .thenExecute(() -> orders.replace(2)).thenIdle(2)
+                    .thenExecute(orders::begin).thenWaitUntil(() -> orders.check(2, 0))
+                    .thenExecute(() -> orders.replace(0)).thenIdle(2)
+                    .thenExecute(orders::begin).thenWaitUntil(() -> orders.check(0, 1))
+                    .thenExecute(() -> orders.replace(3)).thenIdle(2)
+                    .thenExecute(orders::begin).thenWaitUntil(() -> orders.check(3, 0))
+                    .thenSucceed();
+        }).maxTicks(800);
     }
 
     private static void snapshotStockChange(PlotBuilder plot, boolean removeRequiredStock) {
@@ -264,6 +428,100 @@ public final class AcoCraftingPlots {
             helper.startSequence().thenWaitUntil(() -> checkRuntime(helper))
                     .thenWaitUntil(orders::calculate).thenExecute(orders::submit)
                     .thenWaitUntil(() -> checkStock(helper, 1, 4)).thenSucceed();
+        }).maxTicks(1200);
+    }
+
+    @TestPlot("aco_fixed_crafting_wide_nbt")
+    public static void fixedCraftingWideNbt(PlotBuilder plot) {
+        network(plot, 1, false);
+        plot.test(helper -> {
+            var output = AEItemKey.of(Items.IRON_BLOCK);
+            var raw = AEItemKey.of(Items.IRON_INGOT);
+            var requested = java.math.BigInteger.ONE.shiftLeft(63);
+            var future = new java.util.concurrent.atomic.AtomicReference<Future<ICraftingPlan>>();
+            helper.startSequence().thenWaitUntil(() -> checkRuntime(helper))
+                    .thenExecute(() -> {
+                        var recipe = (CraftingRecipe) helper.getLevel().getRecipeManager()
+                                .byKey(new ResourceLocation("minecraft", "iron_block")).orElseThrow();
+                        var inputs = new ItemStack[9];
+                        Arrays.setAll(inputs, ignored -> new ItemStack(Items.IRON_INGOT));
+                        var encoded = PatternDetailsHelper.encodeCraftingPattern(recipe, inputs,
+                                new ItemStack(Items.IRON_BLOCK), false, false);
+                        var provider = (PatternProviderBlockEntity) helper.getBlockEntity(new BlockPos(0, 0, -3));
+                        provider.getLogic().getPatternInv().setItemDirect(0, encoded);
+                        var storage = helper.getGrid(ORIGIN).getStorageService().getInventory();
+                        helper.check(storage.insert(raw, 18, Actionable.MODULATE, new BaseActionSource()) == 18,
+                                "Failed to seed exact primary stock");
+                        for (int i = 1; i <= 48; i++) {
+                            var stack = new ItemStack(Items.IRON_INGOT);
+                            stack.getOrCreateTag().putInt("variant", i);
+                            helper.check(storage.insert(AEItemKey.of(stack), 1, Actionable.MODULATE,
+                                    new BaseActionSource()) == 1, "Failed to seed wrong NBT variant");
+                        }
+                    }).thenIdle(2).thenExecute(() -> {
+                        var grid = helper.getGrid(ORIGIN);
+                        future.set(com.ae2vm.addon.nativeengine.NativeVm.calculate(grid, helper.getLevel(),
+                                () -> new MachineSource(grid::getPivot), output, requested,
+                                CalculationStrategy.REPORT_MISSING_ITEMS));
+                    }).thenWaitUntil(() -> helper.check(future.get().isDone(), "Fixed crafting plan pending"))
+                    .thenExecute(() -> {
+                        try {
+                            var plan = future.get().get();
+                            var exact = com.syaru.ae2craftingoptimizer.api.big.BigCraftingEngineApi
+                                    .inspectBigIntegerPlan(plan).orElseThrow();
+                            helper.check(exact.exactRequestedAmount().equals(requested), "Narrowed fixed-crafting request");
+                            helper.check(exact.usedItems().equals(Map.of(raw, java.math.BigInteger.valueOf(18))),
+                                    "Fixed pattern consumed a wrong NBT variant");
+                            helper.check(exact.missingItems().equals(Map.of(raw,
+                                    requested.multiply(java.math.BigInteger.valueOf(9)).subtract(java.math.BigInteger.valueOf(18)))),
+                                    "Fixed pattern narrowed intermediate shortage");
+                            var sample = com.ae2vm.addon.nativeengine.NativeVm.recentCalculations().stream()
+                                    .filter(value -> value.output().equals("minecraft:iron_block") && value.requested().equals(requested))
+                                    .reduce((a, b) -> b).orElseThrow();
+                            helper.check(!sample.timing().matches(".*INPUTS:[1-9][0-9]*.*"),
+                                    "Fixed crafting still performs live fuzzy checks: " + sample.timing());
+                            var stock = helper.getGrid(ORIGIN).getStorageService().getInventory().getAvailableStacks();
+                            helper.check(stock.get(raw) == 18 && stock.get(output) == 0, "Planning changed real inventory");
+                        } catch (Exception failure) { helper.fail("Fixed crafting fixture failed: " + failure); }
+                    }).thenSucceed();
+        }).maxTicks(800);
+    }
+
+    @TestPlot("aco_crafting_substitution_completion")
+    public static void craftingSubstitutionCompletion(PlotBuilder plot) {
+        network(plot, 1, false);
+        plot.block("1 0 -3", AEBlocks.MOLECULAR_ASSEMBLER);
+        plot.test(helper -> {
+            var ingredients = new net.minecraft.world.item.Item[] {
+                    Items.IRON_INGOT, Items.GOLD_INGOT, Items.COPPER_INGOT, Items.EMERALD
+            };
+            var job = new TestCraftingJob(helper, ORIGIN, AEItemKey.of(Items.DIAMOND), ingredients.length);
+            helper.startSequence().thenWaitUntil(() -> checkRuntime(helper))
+                    .thenExecute(() -> {
+                        var recipe = (CraftingRecipe) helper.getLevel().getRecipeManager()
+                                .byKey(new ResourceLocation("aco_gametest", "template_alternatives")).orElseThrow();
+                        var inputs = new ItemStack[9];
+                        Arrays.fill(inputs, ItemStack.EMPTY);
+                        inputs[0] = new ItemStack(ingredients[0]);
+                        var encoded = PatternDetailsHelper.encodeCraftingPattern(recipe, inputs,
+                                new ItemStack(Items.DIAMOND), true, false);
+                        var decoded = new appeng.crafting.pattern.AECraftingPattern(AEItemKey.of(encoded), helper.getLevel());
+                        helper.check(decoded.getInputs()[0].getPossibleInputs().length >= ingredients.length,
+                                "Fixture did not expose actual AE2 substitution templates");
+                        var provider = (PatternProviderBlockEntity) helper.getBlockEntity(new BlockPos(0, 0, -3));
+                        provider.getLogic().getPatternInv().setItemDirect(0, encoded);
+                        var storage = helper.getGrid(ORIGIN).getStorageService().getInventory();
+                        for (var item : ingredients) helper.check(storage.insert(AEItemKey.of(item), 1,
+                                Actionable.MODULATE, new BaseActionSource()) == 1, "Failed to seed substitute");
+                    }).thenIdle(2).thenWaitUntil(job::tickUntilStarted)
+                    .thenWaitUntil(() -> {
+                        checkStock(helper, 1, 0);
+                        var stock = helper.getGrid(ORIGIN).getStorageService().getInventory().getAvailableStacks();
+                        for (var item : ingredients) helper.check(stock.get(AEItemKey.of(item)) == 0,
+                                "Substitution consumed the wrong quantity: " + item);
+                        helper.check(stock.get(AEItemKey.of(Items.DIAMOND)) == ingredients.length,
+                                "Molecular assembler did not finish all substitutions");
+                    }).thenSucceed();
         }).maxTicks(1200);
     }
 

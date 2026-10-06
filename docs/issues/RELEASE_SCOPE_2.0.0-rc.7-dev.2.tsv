@@ -1,0 +1,6 @@
+# release=2.0.0-rc.7-dev.2
+# baseline=2.0.0-rc.7-dev.1
+# loader=FORGE_1_20_1
+issue	change	automated_guarantee
+217	Retain ordered bulk accounting and bounded diagnostics	Existing differential arithmetic and diagnostic tests; production speedup PENDING
+218	Bounded native processing capture and cooperative physical execution budget	Exact stock/count matrix, capture atomicity, cancellation, API binary compatibility, receipt-safe yielding and per-tick admission; full industrial execution and real circuit acceptance PENDING

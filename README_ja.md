@@ -6,15 +6,17 @@
 
 [English](README.md) | 日本語
 
-## 2.0.0 リリース候補版
+## 2.0.0 スナップショット
 
-**2.0.0-rc.3はプレリリースです。** 改善内容・移行時の注意・既知の制限は
-[リリースノート](docs/releases/2.0.0-rc.3.md)を確認してください。
-今回の候補版の実機での完了・取消返却・再起動復旧には、未確認項目が残っています。
+**このブランチはForge 1.20.1向けvm-refs.8の実験版であり、正式安定版ではありません。**
+[変更点・ビルド手順](docs/releases/2.0.0-snapshot-refs.8.md)を確認してください。
+BigInteger VMは同梱済みです。同じモジュールの別JARは追加しないでください。
+巨大注文の実行、取消返却、再起動復旧、同時注文、最終目標の10秒未満は実機受入未完了です。
+NeoForge 1.21.1は別実装であり、このForge用JARを流用できません。
 
 AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのForge
-1.20.1最適化・連携MODです。重複するクラフト計算を減らし、巨大CPUの一tick
-負荷を制御し、数量に比例しない作業台クラフト取引を提供します。
+1.20.1最適化・連携MODです。重複するクラフト計算を減らし、通常CPUの本来の
+投入速度を維持し、数量に比例しない作業台クラフト取引を提供します。
 
 通常のレシピ、Provider、クラフトJob、ストレージの正本はAE2です。深い経路は、
 入力へ触る前に会計全体を証明できた場合だけ使います。
@@ -57,13 +59,14 @@ config/ae2_crafting_optimizer-common.toml
 
 ### CPU実行
 
-- CPU単位・Grid単位のPattern Push時間予算
-- 巨大コプロセッサ数向けの適応上限
-- AE2本来の抽出・Provider・電力・Task・出力会計を保つSequential Instant
+- rc.7-dev.14候補版では通常のPattern投入にACO独自の件数・時間・共有予算制限をかけない
+- 抽出・Provider順序・設備の受入判定・電力・Task・出力会計はAE2本来の処理を維持
+- コプロセッサ数のint桁あふれ修正とexact Jobの二重実行防止を維持
 - 対応Adapter向けの永続Transactional Batch
 
-表示上のCPU容量やコプロセッサ数は減らしません。一tickに開始できる仕事量だけを
-実測時間で制御します。
+旧設定の`throttleCraftingExecution=true`も無効です。`enableInstantDispatch`の
+予算はACOが所有するTransactional V2取引だけが対象で、通常の加工投入を制限しません。
+exact物理取引の予算とReceipt会計は維持します。制限解除だけでMSPTの改善を保証するものではありません。
 
 ### 機械Recipe Intent
 

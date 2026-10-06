@@ -1,45 +1,63 @@
 package com.syaru.ae2craftingoptimizer.optimization;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class SequentialInstantDispatcherTest {
     @Test
-    void coldStartUsesBoundedProbeAsOneWaveNotTickLimit() {
-        assertEquals(1_024, SequentialInstantDispatcher.calculateWaveOperations(
-                264_192, 4_000_000L, 0L, 1_024, 65_536));
+    void repeatedSameTickCallsPreserveTheFullNativeRequest() {
+        Object owner = new Object() {
+            @Override public int hashCode() {
+                throw new AssertionError("Dispatch must not keep per-owner state");
+            }
+        };
+        var calls = new AtomicInteger();
+        for (int requested : new int[] {1, 10, 65, 1024, 65537, 1048576, Integer.MAX_VALUE}) {
+            for (int repeat = 0; repeat < 3; repeat++) {
+                assertEquals(requested, SequentialInstantDispatcher.executeWave(owner, requested, null, 7, actual -> {
+                    calls.incrementAndGet();
+                    assertEquals(requested, actual);
+                    return actual;
+                }));
+            }
+        }
+        assertEquals(21, calls.get());
     }
 
     @Test
-    void coldSmallJobPreservesAe2PatternProviderRoundRobinCadence() {
-        assertEquals(10, SequentialInstantDispatcher.calculateWaveOperations(
-                10, 4_000_000L, 0L, 2, 65_536));
+    void nativeBlockingAndResumeDoNotAcquireAnAcoCooldown() {
+        var calls = new AtomicInteger();
+        var requested = 1_048_576;
+        SequentialInstantDispatcher.CraftingWave nativeDispatch =
+                actual -> calls.getAndIncrement() == 0 ? 0 : actual;
+        assertEquals(0, SequentialInstantDispatcher.executeWave(this, requested, null, 7, nativeDispatch));
+        assertEquals(requested, SequentialInstantDispatcher.executeWave(this, requested, null, 7, nativeDispatch));
+        assertEquals(2, calls.get());
     }
 
     @Test
-    void measuredWaveUsesSeventyFivePercentOfRemainingBudget() {
-        assertEquals(3_000, SequentialInstantDispatcher.calculateWaveOperations(
-                264_192, 4_000_000L, 1_000L, 256, 65_536));
+    void nativeFailurePropagatesWithoutRetryOrPenalizingTheNextCall() {
+        var failure = new IllegalStateException("provider failure");
+        var calls = new AtomicInteger();
+        assertSame(failure, assertThrows(IllegalStateException.class,
+                () -> SequentialInstantDispatcher.executeWave(this, 1024, null, 7, actual -> {
+                    calls.incrementAndGet();
+                    throw failure;
+                })));
+        assertEquals(1, calls.get());
+        assertEquals(1024, SequentialInstantDispatcher.executeWave(this, 1024, null, 7, actual -> actual));
     }
 
     @Test
-    void measuredExpensiveSmallWaveStillHonorsTimeBudget() {
-        assertEquals(3, SequentialInstantDispatcher.calculateWaveOperations(
-                10_000, 4_000_000L, 1_000_000L, 1_024, 65_536));
-    }
-
-    @Test
-    void waveNeverExceedsRequestedOrConfiguredMaximum() {
-        assertEquals(40, SequentialInstantDispatcher.calculateWaveOperations(
-                40, 4_000_000L, 1L, 256, 65_536));
-        assertEquals(65_536, SequentialInstantDispatcher.calculateWaveOperations(
-                264_192, 4_000_000L, 1L, 256, 65_536));
-    }
-
-    @Test
-    void exhaustedBudgetProducesNoWave() {
-        assertEquals(0, SequentialInstantDispatcher.calculateWaveOperations(
-                264_192, 0L, 1_000L, 256, 65_536));
+    void emptyLegacyRequestsDoNotInvokeNativeExecution() {
+        for (int request : new int[] {Integer.MIN_VALUE, -1, 0}) {
+            assertEquals(0, SequentialInstantDispatcher.executeWave(this, request, null, 7, actual -> {
+                throw new AssertionError("No work");
+            }));
+        }
+        assertEquals(0, SequentialInstantDispatcher.executeWave(this, 1, null, 7, null));
+        SequentialInstantDispatcher.clear();
     }
 }

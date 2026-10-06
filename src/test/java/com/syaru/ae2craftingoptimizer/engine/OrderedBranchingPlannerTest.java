@@ -193,7 +193,7 @@ class OrderedBranchingPlannerTest {
     private static void compare(List<CompiledPattern<AEKey>> patterns, AEKey output, long amount,
             Map<AEKey, Long> stock, Set<AEKey> emitters, boolean craftLess) throws Exception {
         var expected = ReusableByproductAe2OracleTest.oracle(patterns, output, amount, stock, emitters,
-                craftLess ? CalculationStrategy.CRAFT_LESS : CalculationStrategy.REPORT_MISSING_ITEMS);
+                craftLess ? CalculationStrategy.CRAFT_LESS : CalculationStrategy.REPORT_MISSING_ITEMS, true);
         var graph = CompiledCraftingGraph.compile(1, patterns);
         var result = new OrderedBranchingPlanner<>(output, graph::patternsFor, emitters::contains,
                 k -> BigInteger.valueOf(stock.getOrDefault(k, 0L)), k -> k.getType().getAmountPerByte(),
