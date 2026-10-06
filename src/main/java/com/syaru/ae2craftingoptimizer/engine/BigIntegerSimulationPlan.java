@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.engine;
 
 import appeng.api.crafting.IPatternDetails;
+import com.syaru.ae2craftingoptimizer.api.big.BigIntegerCraftingPlanView;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
@@ -15,6 +16,13 @@ import java.util.Objects;
  * 素材不足の計画をAQEやInsaneAEの実行境界へ渡さず、AE2の確認画面だけへ返すためである。</p>
  */
 public final class BigIntegerSimulationPlan implements WideCraftingPlan {
+    @Override
+    public java.util.Optional<BigIntegerCraftingPlanView> exactView() {
+        return java.util.Optional.of(new BigIntegerCraftingPlanView(finalOutput(), exactBytes(), simulation(),
+                exactPatternTimes(), exactPlan().usedInventory(), exactPlan().emitted(),
+                exactPlan().missing(), exactPlan().requestedAmount()));
+    }
+
     private final GenericStack finalOutput;
     private final BigCraftingPlan<AEKey> exactPlan;
     private final Map<IPatternDetails, BigInteger> exactPatternTimes;
@@ -69,7 +77,7 @@ public final class BigIntegerSimulationPlan implements WideCraftingPlan {
                 maximumBits);
         // 表示する注文とBigInteger正本が異なる計画を外へ出さない。
         if (!finalOutput.what().equals(exactPlan.requestedKey())
-                || !BigInteger.valueOf(finalOutput.amount()).equals(exactPlan.requestedAmount())) {
+                || finalOutput.amount() != BigIntegerPlanProjection.saturatedLong(exactPlan.requestedAmount())) {
             throw new IllegalArgumentException("BigInteger simulation metadata is inconsistent");
         }
         this.usedItems = BigIntegerPlanProjection.projectKeyCounter(exactPlan.usedInventory());

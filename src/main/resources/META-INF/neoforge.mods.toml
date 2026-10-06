@@ -11,9 +11,17 @@ authors = "syaru"
 displayURL = "https://github.com/syarukasu/ae2-crafting-optimizer"
 logoFile = "logo.png"
 description = '''
-Configurable Applied Energistics 2 crafting, execution, machine-intent, and synchronization optimizations.
-AE2 remains authoritative for recipes, crafting eligibility, job submission, and storage mutation.
+Alpha snapshot: VM-based crafting planning with BigInteger quantities and exact API integration.
+No ACO throughput cap on ordinary AE2 dispatch. AE2 and add-ons own physical execution.
+Industrial performance and full wide-job lifecycle acceptance remain pending.
 '''
+
+[[dependencies.ae2_crafting_optimizer]]
+modId = "ae2vm_aco"
+type = "required"
+versionRange = "[0.3.12-vm-refs.8-neoforge,0.4.0)"
+ordering = "AFTER"
+side = "BOTH"
 
 [[mixins]]
 config = "ae2_crafting_optimizer.mixins.json"
@@ -32,6 +40,9 @@ config = "aco.integration.ae2_overclocked.mixins.json"
 
 [[mixins]]
 config = "aco.integration.gtceu.mixins.json"
+
+[[mixins]]
+config = "aco.integration.mekanism.mixins.json"
 
 [[mixins]]
 config = "aco.performance.mixins.json"

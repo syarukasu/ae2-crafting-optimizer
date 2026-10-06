@@ -39,6 +39,16 @@ $packageRoles = [ordered]@{
 }
 
 $overrides = @{
+    'com.syaru.ae2craftingoptimizer.engine.VmBigIntegerAccounting' = 'Supply AE2-visible exact stock and bind completed VM quantities to the existing CPU/API contracts.'
+    'com.syaru.ae2craftingoptimizer.engine.VmCalculatedCraftingPlan' = 'Expose the completed VM plan without recomputing its accounting.'
+    'com.syaru.ae2craftingoptimizer.engine.VmPhysicalPlanBinding' = 'Bind VM pattern identities to existing physical execution contracts.'
+    'com.syaru.ae2craftingoptimizer.gtceu.GTRecipeDbView' = 'Read-only accepted GT recipe identities and reload revision.'
+    'com.syaru.ae2craftingoptimizer.intent.IntentSearchIterator' = 'Try hinted recipe candidates before lazy native search with identity deduplication.'
+    'com.syaru.ae2craftingoptimizer.mekanism.MekanismItemRecipeIntent' = 'Resolve unambiguous item recipe hints while retaining native validation and fallback.'
+    'com.syaru.ae2craftingoptimizer.mixin.GTRecipeDbIntentViewMixin' = 'Observe successful GTRecipeLookup registrations and clears without owning recipes.'
+    'com.syaru.ae2craftingoptimizer.mixin.MekanismItemLookupIntentMixin' = 'Redirect supported single-item recipe lookup through the validated hint selector.'
+    'com.syaru.ae2craftingoptimizer.mixin.MekanismMixinConfigPlugin' = 'Select the optional Mekanism recipe-intent mixin only when its classes exist.'
+    'com.syaru.ae2craftingoptimizer.mixin.VmMixinOwnership' = 'Exclude legacy planning hooks where the bundled VM owns calculation.'
     'com.syaru.ae2craftingoptimizer.optimization.PlanningLogSummary' = 'Bounded interval diagnostics for planning outcomes, routes and measured duration; owns no live jobs or inventory.'
     'com.syaru.ae2craftingoptimizer.engine.LinearWidePlanning' = 'Proves unit-output wide DAG eligibility and aggregates detached demand with exact logical CPU overhead; no live inventory or execution ownership.'
     'com.syaru.ae2craftingoptimizer.engine.SelectedBranchPhysicalPlan' = '選択済み分岐の固定入力、回数、順序と全余剰を既存の物理実行契約へ保持する。実在庫やWorkerの実行は所有しない。'

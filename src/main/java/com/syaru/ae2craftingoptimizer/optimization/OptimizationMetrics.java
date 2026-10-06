@@ -13,6 +13,10 @@ public final class OptimizationMetrics {
     private static final LongAdder SHARED_DEFERRED_OPERATIONS = new LongAdder();
     private static final LongAdder GT_CANDIDATE_CACHE_HITS = new LongAdder();
     private static final LongAdder GT_CANDIDATE_CACHE_MISSES = new LongAdder();
+    private static final LongAdder MEK_INTENT_MATCHES = new LongAdder();
+
+    public static void recordMekanismIntentMatch() { MEK_INTENT_MATCHES.increment(); }
+    public static long mekanismIntentMatches() { return MEK_INTENT_MATCHES.sum(); }
     private static final LongAdder REFLECTION_LOOKUP_HITS = new LongAdder();
     private static final LongAdder REFLECTION_LOOKUP_MISSES = new LongAdder();
     private static final LongAdder AE2_OVERCLOCK_UPGRADE_COUNT_HITS = new LongAdder();
@@ -436,6 +440,7 @@ public final class OptimizationMetrics {
                         + " limit(s), " + SHARED_DEFERRED_OPERATIONS.sum() + " operation(s) deferred",
                 "GTCEu intent candidate cache: " + gtHits + " hit(s), " + gtMisses
                         + " miss(es), " + percent(gtHits, gtMisses) + "% hit rate",
+                "Mekanism item recipe intent: " + MEK_INTENT_MATCHES.sum() + " native lookup(s) bypassed",
                 "Experimental planner Shadow Mode: " + CRAFTING_ENGINE_SHADOW_MATCHES.sum()
                         + " match(es), " + CRAFTING_ENGINE_SHADOW_MISMATCHES.sum()
                         + " mismatch(es), " + CRAFTING_ENGINE_SHADOW_SKIPS.sum()
@@ -542,29 +547,13 @@ public final class OptimizationMetrics {
         return List.copyOf(lines);
     }
 
-    /** Cumulative measured work, not a hypothetical saved-time estimate. */
-    public static long planningActivityCount() {
-        return COMPLETED_PLAN_CACHE_HITS.sum() + ACTIVE_CALCULATION_DEDUP_HITS.sum()
-                + PLANNING_CAPTURE_ATTEMPTS.sum() + AUTHORITATIVE_PLANNER_ATTEMPTS.sum();
-    }
-
-    public static String planningSummary() {
-        return "plannerAdopted=" + AUTHORITATIVE_PLANNER_ADOPTIONS.sum()
-                + "/" + AUTHORITATIVE_PLANNER_ATTEMPTS.sum()
-                + " completedCacheHits=" + COMPLETED_PLAN_CACHE_HITS.sum()
-                + " inFlightReuse=" + ACTIVE_CALCULATION_DEDUP_HITS.sum()
-                + " graphCompileHits=" + PLANNING_GRAPH_COMPILE_HITS.sum()
-                + " graphCompileMisses=" + PLANNING_GRAPH_COMPILE_MISSES.sum()
-                + " captureTotalUs=" + PLANNING_CAPTURE_NANOS.sum() / 1_000L
-                + " plannerTotalUs=" + AUTHORITATIVE_PLANNER_NANOS.sum() / 1_000L;
-    }
-
     public static void reset() {
         OptimizationFeatureGate.resetDiagnostics();
         SHARED_BUDGET_LIMITS.reset();
         SHARED_DEFERRED_OPERATIONS.reset();
         GT_CANDIDATE_CACHE_HITS.reset();
         GT_CANDIDATE_CACHE_MISSES.reset();
+        MEK_INTENT_MATCHES.reset();
         REFLECTION_LOOKUP_HITS.reset();
         REFLECTION_LOOKUP_MISSES.reset();
         AE2_OVERCLOCK_UPGRADE_COUNT_HITS.reset();

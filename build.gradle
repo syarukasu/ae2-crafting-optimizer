@@ -6,13 +6,14 @@ plugins {
 group = mod_group
 version = mod_version
 
+apply from: 'gradle/vm-bundle.gradle'
+
 base {
     archivesName = "aco${mod_version}_${minecraft_version}"
 }
 
 tasks.named('jar') {
-    // Keep the public filename identical across local and release builds.
-    archiveFileName = "aco${mod_version}_${minecraft_version}.jar"
+    archiveFileName = "aco${mod_version}_${minecraft_version}-NOT-FOR-INSTALLATION.jar"
 }
 
 java {
@@ -21,6 +22,7 @@ java {
 
 repositories {
     mavenCentral()
+    maven { url = 'https://modmaven.dev/' }
 }
 
 neoForge {
@@ -53,10 +55,27 @@ neoForge {
     }
 
     addModdingDependenciesTo sourceSets.test
+    addModdingDependenciesTo sourceSets.vmNative
+    addModdingDependenciesTo sourceSets.vmLegacyFixture
 }
 
 configurations {
     runtimeClasspath.extendsFrom localRuntime
+}
+
+def gtceuJar = file(findProperty('acoGtceuJar') ?: '.compile-deps/gtceu-1.21.1-7.0.2.jar')
+def gtceuHash = 'c09a550523e931342a575193cbaad2e4b643e5de2cefe280cd1de540022c6388'
+tasks.register('prepareGtceu') {
+    outputs.file gtceuJar
+    doLast {
+        if (!gtceuJar.isFile()) {
+            gtceuJar.parentFile.mkdirs()
+            new URI('https://github.com/GregTechCEu/GregTech-Modern/releases/download/v7.0.2-1.21.1/gtceu-1.21.1-7.0.2.jar')
+                .toURL().withInputStream { input -> gtceuJar.withOutputStream { it << input } }
+        }
+        def hash = java.security.MessageDigest.getInstance('SHA-256').digest(gtceuJar.bytes).encodeHex().toString()
+        if (hash != gtceuHash) throw new GradleException('Pinned GTCEu SHA-256 mismatch')
+    }
 }
 
 dependencies {
@@ -75,8 +94,12 @@ dependencies {
     compileOnly files(advancedAeJar)
     // Mixin契約テストでも、実際に導入するAdvancedAEの記述子を直接検証する。
     testImplementation files(advancedAeJar)
+    compileOnly 'mekanism:Mekanism:1.21.1-10.7.19.85'
+    testImplementation 'mekanism:Mekanism:1.21.1-10.7.19.85'
     compileOnly files(requiredMod('neoecoae-21.1.1.jar'))
     compileOnly files(requiredMod('ldlib2-neoforge-1.21.1-2.2.32-all.jar'))
+    compileOnly files(gtceuJar).builtBy(tasks.named('prepareGtceu'))
+    testImplementation files(gtceuJar).builtBy(tasks.named('prepareGtceu'))
 
     // インスタンスへ任意連携先が入っている場合は、その実体を優先してコンパイルする。
     fileTree(localModsDir).matching {
@@ -113,6 +136,10 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+    if (project.hasProperty('captureApiBaseline')) {
+        systemProperty 'aco.captureApiBaseline', 'true'
+        systemProperty 'aco.apiBaselineJar', file(project.property('apiBaselineJar')).absolutePath
+    }
     if (project.hasProperty('aqeCapacityJar')) {
         systemProperty 'aco.aqeCapacityJar', file(project.property('aqeCapacityJar')).absolutePath
     }

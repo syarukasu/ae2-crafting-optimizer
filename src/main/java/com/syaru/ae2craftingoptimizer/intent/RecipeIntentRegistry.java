@@ -21,6 +21,7 @@ public final class RecipeIntentRegistry {
     private static final Map<IntentLocation, ArrayDeque<RecipeIntent>> INTENTS = new LinkedHashMap<>();
     private static final Map<SpatialBucket, Set<IntentLocation>> SPATIAL_INDEX = new LinkedHashMap<>();
     private static int entryCount;
+    private static long nextExpirationTick = Long.MAX_VALUE;
 
     private RecipeIntentRegistry() {
     }
@@ -45,6 +46,7 @@ public final class RecipeIntentRegistry {
             entries.addLast(intent);
             entryCount++;
         }
+        nextExpirationTick = Math.min(nextExpirationTick, intent.expiresTick());
         enforceMaximumEntries();
         if (ACOConfig.logCapturedRecipeIntents()) {
             AE2CraftingOptimizer.LOGGER.info(
@@ -80,11 +82,10 @@ public final class RecipeIntentRegistry {
             return List.of();
         }
         List<RecipeIntent> matches = new ArrayList<>();
-        for (Map.Entry<IntentLocation, ArrayDeque<RecipeIntent>> entry : INTENTS.entrySet()) {
-            IntentLocation location = entry.getKey();
-            if (location.dimension().equals(dimension) && location.targetPos().equals(targetPos)) {
-                matches.addAll(entry.getValue());
-            }
+        // #179: exact target lookup must not walk every machine's hints.
+        for (Direction side : Direction.values()) {
+            var entries = INTENTS.get(new IntentLocation(dimension, targetPos, side));
+            if (entries != null) matches.addAll(entries);
         }
         return matches;
     }
@@ -168,23 +169,29 @@ public final class RecipeIntentRegistry {
     }
 
     public static synchronized void cleanupExpired(long now) {
-        if (INTENTS.isEmpty()) {
+        // #161: native pushes must not rescan every provider before any hint can expire.
+        if (INTENTS.isEmpty() || now < nextExpirationTick) {
             return;
         }
         int removed = 0;
+        long nextExpiration = Long.MAX_VALUE;
         Iterator<Map.Entry<IntentLocation, ArrayDeque<RecipeIntent>>> mapIterator = INTENTS.entrySet().iterator();
         while (mapIterator.hasNext()) {
             Map.Entry<IntentLocation, ArrayDeque<RecipeIntent>> mapEntry = mapIterator.next();
             ArrayDeque<RecipeIntent> entries = mapEntry.getValue();
-            while (!entries.isEmpty() && entries.peekFirst().isExpired(now)) {
-                entries.removeFirst();
-                removed++;
+            // A changed TTL may expire a later entry before the queue head.
+            int previousSize = entries.size();
+            entries.removeIf(intent -> intent.isExpired(now));
+            removed += previousSize - entries.size();
+            for (RecipeIntent intent : entries) {
+                nextExpiration = Math.min(nextExpiration, intent.expiresTick());
             }
             if (entries.isEmpty()) {
                 mapIterator.remove();
                 removeSpatialLocation(mapEntry.getKey());
             }
         }
+        nextExpirationTick = nextExpiration;
         if (removed > 0) {
             entryCount -= removed;
             if (ACOConfig.logRecipeIntentRegistryEvictions()) {
@@ -194,6 +201,7 @@ public final class RecipeIntentRegistry {
     }
 
     public static synchronized void clear(String reason) {
+        nextExpirationTick = Long.MAX_VALUE;
         if (INTENTS.isEmpty()) {
             return;
         }

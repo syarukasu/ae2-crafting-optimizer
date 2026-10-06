@@ -1,220 +1,57 @@
 # AE2 Crafting Optimizer
 
-<p align="center">
-  <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
-</p>
-
 [English](README.md) | 日本語
 
-## 2.0.0 リリース候補版
+## 2.0.0 Snapshot refs.8
 
-**2.0.0-rc.3はプレリリースです。** 改善内容・移行時の注意・既知の制限は
-[リリースノート](docs/releases/2.0.0-rc.3.md)を確認してください。
-今回の候補版の実機での完了・取消返却・再起動復旧には、未確認項目が残っています。
+**Alphaスナップショットです。安定版ではありません。**
+Forge 1.20.1 refs.8（`f93adc1`）を正としてNeoForge 1.21.1へ移植しています。
+[変更内容・ビルド手順](docs/releases/2.0.0-snapshot-refs.8.md)。
 
-AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのNeoForge
-1.21.1最適化・連携MODです。重複するクラフト計算を減らし、巨大CPUの一tick
-負荷を制御し、数量に比例しない作業台クラフト取引を提供します。
+- 同梱VMでクラフト計画を計算し、途中も数量をBigIntegerで保持します。
+- 注文ごとの在庫とパターン情報を使い、対応する共通工程の需要をまとめます。
+- 公開BigInteger APIと正確な数量会計を維持します。
+- AE2 19本来の取得方法に合わせ、プレイヤー注文は在庫を更新し、リクエスター注文はキャッシュ済み在庫を使います。
+- 通常のAE2・Pattern Provider搬入出にACO独自の速度制限を加えません。外部CPUの容量・実行所有権も変更しません。
+- GTCEu・Mekanismの対応機種ではレシピ意図で候補検索を短縮します。瞬間加工ではなく、電力・処理時間・適格性の判定は機械側に残します。
+- Advanced AE・ExtendedAE・AE2 Overclock向けキャッシュは、対象の版・設定に依存します。
+- `/aco vm recent` で計算診断を確認できます。
 
-通常のレシピ、Provider、クラフトJob、ストレージの正本はAE2です。深い経路は、
-入力へ触る前に会計全体を証明できた場合だけ使います。
+## 導入
 
-開発変更は[プロジェクト憲章](docs/PROJECT_CHARTER.md)と
-[Issue先行開発手順](docs/ISSUE_WORKFLOW.md)に従います。実装前に必ず
-[クラス責務一覧](docs/CLASS_RESPONSIBILITIES.md)と
-[`docs/issues`](docs/issues/README.md)の番号付き仕様書を読みます。
+Minecraft 1.21.1、NeoForge 21.1.247以降、Java 21、AE2 19.2.17（19.x）が対象です。
+サーバーとクライアントに同じACOを導入してください。VMは同梱済みです。
+本家VMの重複導入や、Forge 1.20.1用JARの混用はしないでください。
+試用前にワールドをバックアップしてください。
 
-この系統の永続ブランチは `mc/1.21.1` で、`main` はNeoForge 1.21.1系です。
-リリースJAR名は `aco<version>_1.21.1.jar` を使います。Forge 1.20.1系は
-`mc/1.20.1` で独立管理し、platform依存コード、metadata、Mixin descriptorは
-両ブランチで共有しません。
+配布用は `build/distributions/2.0.0-snapshot-refs.8/aco2.0.0-snapshot-refs.8_1.21.1.jar` です。
+`NOT-FOR-INSTALLATION` はVMを含まない中間成果物です。
+設定ファイルは `config/ae2_crafting_optimizer-common.toml` です。
 
-## 対象環境
+## 検証の境界
 
-- Minecraft `1.21.1`
-- NeoForge `21.1.247+`
-- Java `21`
-- Applied Energistics 2 `19.2.17`
-- Advanced AE `1.6.x-1.21.1`（NeoForge、任意）
-- Neo ECO AE Extension `21.1.1`（任意）
-- 1.21.1向けGTCEu連携（任意）
-- 専用サーバー、シングルプレイ
+ビルド・数量試験・API互換性の成功は、実機動作の保証ではありません。
+本移植ではクライアント・サーバーの起動、工業環境の誤不足再現、巨大注文の実行完了、
+取消・返却、再起動復旧、同時注文、10秒未満の計画計算の実機受入は未完了です。
+本番環境への配置・起動・再起動は行っていません。
 
-サーバーと全クライアントへ同じJARを導入してください。共通Configは次です。
+移植元Forgeの[CI実行37429047093](https://github.com/syarukasu/ae2-crafting-optimizer/actions/runs/37429047093)では
+`ae2.aco_vm_ae2_lifecycle` と `ae2.aco_vm_substitution_queries` が失敗しています。
+この移植でその問題を解決済みとは扱いません。
 
-```text
-config/ae2_crafting_optimizer-common.toml
-```
+BigIntegerで計算できることと、通常AE2 CPUの容量拡張は別です。
+物理実行には対応する利用側が必要で、計画値から成果物を生成することはありません。
 
-## 主な最適化
+## 開発資料
 
-### クラフト計算
+- [プロジェクト憲章](docs/PROJECT_CHARTER.md)
+- [クラス責務](docs/CLASS_RESPONSIBILITIES.md)
+- [今回の移植範囲](docs/issues/ISSUE-218.md)
+- [回帰試験台帳](docs/issues/REGRESSION_MATRIX.tsv)
+- [公開説明文](docs/CURSEFORGE_DESCRIPTION.md)
+- [依存関係を固定したビルド手順](.github/workflows/build.yml)
 
-- Provider・レシピ世代単位のCompiled Pattern Graph
-- 一計算内の在庫・候補メモ化
-- レシピ選択と会計を証明できる場合だけ使う厳密なCompiled Planner
-- `add`、`multiply`、`ceilDiv`のオーバーフロー検査
-- `long`優先と、overflow時だけの`BigInteger`昇格
-- 世代変更時の古い計算結果破棄
-
-代替素材、循環、動的出力、不明な返却物などを完全に証明できなければ、
-ストレージへ触る前にAE2へ戻します。
-
-### CPU実行
-
-- CPU単位・Grid単位のPattern Push時間予算
-- 巨大コプロセッサ数向けの適応上限
-- AE2本来の抽出・Provider・電力・Task・出力会計を保つSequential Instant
-- 対応Adapter向けの永続Transactional Batch
-
-表示上のCPU容量やコプロセッサ数は減らしません。一tickに開始できる仕事量だけを
-実測時間で制御します。
-
-### 機械Recipe Intent
-
-Pattern Providerが指定したレシピ意図を保持し、対応GTCEu機械が毎tick同じレシピを
-総当たりする回数を減らします。電圧、条件、電力、Tank、出力容量などの最終判定は
-GTCEuが行います。Mekanismの`RecipeCacheLookupMonitor`と機械レシピ探索はMekanism自身が
-所有し、ACOは第二のcacheを追加せず`getRecipe`も横取りしません。
-
-## 物理クラフトツリー
-
-旧来の「ツリー全体を直接最終成果物へ変換する経路」は削除しました。現在は、
-厳密な作業台クラフトをレシピ一段ずつ実設備で処理します。
-
-設計は次の長所を組み合わせています。
-
-- [InsaneAE](https://github.com/taikun24/InsaneAE):
-  一回だけ実クラフトし、証明済み式へ正確な係数を掛ける
-- Neo ECO AE Extension:
-  Pattern Bus、Worker、Thread、実進捗、実電力、構造、NBT復旧
-
-### 実行順
-
-1. 現在のProvider・レシピ世代から決定的なPattern DAGを一度だけコンパイル
-2. 境界入力、slot入力、各段の実行係数、最終出力、固定返却物を正確に計算
-3. MEの全境界入力を一括でACO所有Escrowへ予約
-4. Escrowに全入力があるレシピ段だけ実行可能
-5. AACが実NeoECO Workerでエンコード済みレシピを一回assemble
-6. 一回分の実入出力へ`BigInteger`係数を掛ける
-7. Workerの永続Receiptから実出力をEscrowへ追加
-8. その後だけ依存する次段を解禁
-9. 最終成果物もEscrowからMEへ返却
-10. ME挿入完了後だけ親CPU Jobを完了
-
-20段直列レシピは、注文が`1`でも`Long.MAX_VALUE`でも対応範囲の
-`BigInteger`でも20物理段です。独立した枝は複数Workerへ並列配置できます。
-計算量は注文数量ではなく固有レシピ数と境界キー数に比例します。
-
-### 所有権と復旧
-
-- ACO: Plan、Escrow、正確なME変更、親Job会計、取消、復旧判断
-- AAC: NeoECO物理AdapterとWorker Receiptのみ
-- ME変更前にキーごとの正確なbefore/afterを保存
-- 再起動後、after済みキーは再実行せずbeforeのキーだけ再試行
-- WorkerはThread解放より先に終端Receiptを同じBlock Entity NBTへ保存
-- ACOは実出力を一度だけ会計し、後からReceipt削除を明示要求
-- タグ・代替素材はPlannerが選んだ具体キーを保存し、再起動後も同じ選択だけを再検証
-- 解決済み一回分レシピ式はProvider・Recipe世代が変わるまで配列から再利用
-- AACはTransaction UUIDからWorker・Threadを直接引き、再起動後だけ一度索引を再構築
-- before/afterのどちらにも一致しない値は推測せず隔離
-
-Fallbackできるのは入力所有権の移動前だけです。移動後は再開、正確な取消返却、
-または隔離のいずれかになります。
-
-### 対象レシピ
-
-- AE2 Molecular Assembler対応Pattern
-- slotごとの決定済み入力
-- Pattern宣言と一致する一回の実assemble出力
-- 固定返却物
-- 循環がなく世代が一致するProducer Graph
-- 各段を所有する形成済みAAC/NeoECO設備
-
-Processing Patternは境界です。GTCEu、Mekanism、液体、Chemicalは本来の機械で
-処理され、下流作業台クラフトは実際の機械出力が戻るまで待ちます。
-
-## BigInteger境界
-
-ACOは任意連携用の版付きHost APIを提供します。通常AE2 CPUを勝手に
-BigInteger化しません。
-
-- 正確に収まる間は`long`
-- overflowした計算だけ`BigInteger`
-- 実装上限は`10^16384 - 1`
-- NBTは10進文字列ではなく正規byte array
-- `long`しか受け取れないAE2 APIに限り表示・互換Facadeを`Long.MAX_VALUE`へ飽和
-- 在庫、材料不足、Task進捗、Escrow、ReceiptはFacadeから逆算しない
-- 完成品1個分だけで中間要求が`long`を超える場合、対応AQE HostではExact Vector
-  専用親Jobとして保持する。通常AE2の子Windowへ縮小せず、適合する物理Executorが
-  なければ安全に待機する
-
-AQEとInsaneAEは、自身のCPU実行を保持したままACOの版付きexact plan APIを
-利用できます。AACは物理Worker契約を登録できます。いずれもACO本体の必須依存
-ではありません。
-
-## 安全規則
-
-ACOは次を行いません。
-
-- Planから最終成果物を直接生成
-- 注文個数ぶんJava処理を反復
-- 正確な在庫・Task会計を暗黙に`long`へクランプ
-- 成否不明な外部変更を再実行
-- 入力受理後に通常経路へFallback
-- GTCEu/Mekanismのレシピ成立条件を書き換え
-- レシピやQuantum Computer構造ルールを変更
-- Bukkit、Paper、Spigot、Arclight APIを使用
-
-## 主な設定
-
-```toml
-[exactVectorCrafting]
-enabled = true
-enablePhysicalExecution = true
-maximumPatternNodes = 1024
-maximumUniqueInputKeys = 128
-maximumUniqueOutputKeys = 128
-maximumStartsPerGridPerTick = 1
-maximumActiveStagesPerGridPerTick = 256
-gridTimeBudgetMillis = 2
-logExecutionStalls = true
-verifyStorageRouteBeforeOwnership = true
-
-[diagnostics]
-logCraftingDecisionFlow = true
-```
-
-`exactVectorCrafting`は本項の物理クラフトツリーです。外部CPUの選択や実行は
-この設定から行いません。
-
-`logCraftingDecisionFlow`は`debug.log`へ、上限付きの
-`ACO-DIAG event=...`行を出します。計画結果と状態遷移だけを記録し、毎tickの正常処理、
-全在庫、巨大値の全10進桁は出力しません。
-
-Issue #164では、旧Pattern Batch V1、外部CPU実行Manager、内蔵GTCEu/Mekanism
-Native Batch、独立Fair Scheduler、端末・ストレージ・Bus・P2P書換えを削除しました。
-これらはlegacy fallbackやno-op設定としても残していません。
-
-詳細は[Configuration](docs/CONFIGURATION.md)、
-[Feature ownership](docs/FEATURE_OWNERSHIP.md)、
-[Implementation](docs/IMPLEMENTATION.md)、
-[Testing](docs/TESTING.md)を参照してください。
-
-## ビルド
-
-```powershell
-.\gradlew.bat clean build --no-daemon
-```
-
-生成JARは`build/libs`へ出力されます。
-
-## ライセンス
-
-ACO 1.6.xはNeoForge 1.21.1向けです。従来の1.5.x成果物はForge 1.20.1
-向けとして残り、この移植で上書きされません。
-
-`LGPL-3.0-only`
-
-ACO固有の問題はまず本プロジェクトへ報告してください。ACOなしで再現していない
-問題をAE2や依存MODの作者へ直接報告しないでください。
+VMは [syarukasu/AE2-VM-ACO](https://github.com/syarukasu/AE2-VM-ACO) の
+`5b57a00e283d355a47ee5276ba528b2dcf7d07db` に固定しています。
+ルートではなく `exact-engine` をビルドし、native VMはACO側でNeoForge用にコンパイルします。
+ライセンスは [LGPL-3.0-only](LICENSE) です。

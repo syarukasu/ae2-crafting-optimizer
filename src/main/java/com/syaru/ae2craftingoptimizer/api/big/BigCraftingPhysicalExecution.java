@@ -74,8 +74,8 @@ public final class BigCraftingPhysicalExecution {
         if (!ACOConfig.enableExactBigIntegerPhysicalExecution()) {
             throw new IllegalArgumentException("exact physical execution is disabled");
         }
-        var exact = Ae2CraftingPlanSidecars.bigInteger(plan).orElseThrow(
-                () -> new IllegalArgumentException("plan has no wide-count sidecar"));
+        var exact = com.syaru.ae2craftingoptimizer.engine.VmPhysicalPlanBinding.resolve(plan, grid, level);
+        if (exact == null) throw new IllegalArgumentException("plan has no wide-count sidecar");
         // 不足または失効した数量計画を実行しない。
         if (exact.simulation() || !exact.validateForSubmission(grid).valid()) {
             throw new IllegalArgumentException("exact plan is missing or stale");
@@ -169,7 +169,8 @@ public final class BigCraftingPhysicalExecution {
         try {
             var graph = Ae2CompiledCraftingGraphCache.getOrCompile(grid, level);
             advanced = true;
-            detail = transaction.tick(grid, level, source, graph, budget).detail();
+            detail = transaction.tick(grid, level, source, graph, budget,
+                    () -> ExactVectorGridTickBudget.hasTimeRemaining(grid)).detail();
         } catch (StalePlanningSnapshotException stale) {
             // 世代変化によるSnapshot待ちは会計破損ではなく、所有済みReceiptを保持する。
             detail = "waiting for a stable crafting snapshot";

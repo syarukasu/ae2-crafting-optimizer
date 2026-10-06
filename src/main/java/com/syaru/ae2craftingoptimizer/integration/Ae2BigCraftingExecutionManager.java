@@ -2,7 +2,6 @@ package com.syaru.ae2craftingoptimizer.integration;
 
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IGrid;
-import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
@@ -224,7 +223,8 @@ public final class Ae2BigCraftingExecutionManager {
                         cluster.getLevel(),
                         cluster.getSrc(),
                         graphSnapshot,
-                        operationBudget);
+                        operationBudget,
+                        () -> ExactVectorGridTickBudget.hasTimeRemaining(grid));
             } finally {
                 ExactVectorGridTickBudget.settleActiveStageClaim(
                         grid,
