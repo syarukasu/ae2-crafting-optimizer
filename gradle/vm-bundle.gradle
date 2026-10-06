@@ -1,0 +1,165 @@
+// #218: compile the pinned refs.8 calculation sources against this platform.
+def fork = file(findProperty('acoVmForkDir') ?: '../../references/AE2-VM-aco-exact')
+def exactDir = new File(fork, 'exact-engine')
+def exactVersion = '0.1.6'
+def nativeVersion = '0.3.12-vm-refs.8-neoforge'
+def exactJar = new File(exactDir, "build/libs/aco-exact-vm-${exactVersion}.jar")
+def vmCommit = '5b57a00e283d355a47ee5276ba528b2dcf7d07db'
+tasks.register('verifyVmSource') {
+    doLast {
+        def out = new ByteArrayOutputStream()
+        exec { workingDir fork; commandLine 'git', 'rev-parse', 'HEAD'; standardOutput = out }
+        if (out.toString('UTF-8').trim() != vmCommit) throw new GradleException('VM source must match refs.8 pinned commit')
+        out.reset()
+        exec { workingDir fork; commandLine 'git', 'status', '--porcelain', '--untracked-files=no'; standardOutput = out }
+        if (!out.toString('UTF-8').isBlank()) throw new GradleException('VM tracked sources are dirty')
+    }
+}
+tasks.register('buildExactVm', GradleBuild) {
+    dependsOn 'verifyVmSource'
+    dir = exactDir
+    tasks = ['test', 'jar', 'sourcesJar', 'graphFixtureJar']
+}
+configurations { graphComparison }
+def generatedVm = layout.buildDirectory.dir('generated/sources/refs8Vm')
+tasks.register('prepareVmSources', Sync) {
+    inputs.file 'gradle/vm-bundle.gradle'
+    from(new File(fork, 'native-engine/src/main/java'))
+    from(new File(fork, 'src/main/java'))
+    include 'com/ae2vm/addon/nativeengine/**', 'com/ae2vm/addon/compiler/PatternCompiler.java',
+        'com/ae2vm/addon/compiler/IFiniteUseInput.java', 'com/ae2vm/addon/vm/CraftingBytecode.java',
+        'com/ae2vm/addon/vm/Opcode.java', 'com/ae2vm/addon/vm/CraftingVM.java', 'com/ae2vm/addon/vm/Vm*.java'
+    exclude '**/NativeVmMod.java', '**/NativeCraftingRecipeMixin.java'
+    into generatedVm
+    // AE2 19 uses lists for output/sparse slots; preserve the VM's private arrays.
+    filter { String line ->
+        line.replace('pattern.getSparseInputs();', 'pattern.getSparseInputs().toArray(GenericStack[]::new);')
+            .replace('ingredient.getClass() != Ingredient.class', 'ingredient.getClass() != Ingredient.class || ingredient.isCustom()')
+            .replace('GenericStack[]::new);', 'appeng.api.stacks.GenericStack[]::new);')
+            .replace('semantics.getOutputs().clone()', 'semantics.getOutputs().toArray(GenericStack[]::new)')
+            .replace('public GenericStack[] getOutputs() { return skeleton.outputs(); }',
+                     'public java.util.List<GenericStack> getOutputs() { return java.util.List.of(skeleton.outputs()); }')
+            .replace('GenericStack[] outputs = pattern.getOutputs();', 'GenericStack[] outputs = pattern.getOutputs().toArray(GenericStack[]::new);')
+            .replace('pattern.getOutputs().length', 'pattern.getOutputs().size()')
+            .replace('if (source == null) return new VmAccounting.Stock(Map.of(), true, java.util.Set.of());', '')
+            .replace('return owner.requestStock(grid, source, config != null && config.isCraftingSimulatedExtraction());',
+                     'return source == null ? owner.exactStock(grid) : owner.requestStock(grid, source, false);')
+            // AE2 19 NetworkCraftingSimulationState uses the cached inventory directly.
+            .replace('config != null && config.isCraftingSimulatedExtraction()', 'false')
+    }
+}
+sourceSets {
+    vmNative {
+        java.srcDir generatedVm
+        java.include 'com/ae2vm/addon/nativeengine/**', 'com/ae2vm/addon/compiler/PatternCompiler.java',
+            'com/ae2vm/addon/compiler/IFiniteUseInput.java', 'com/ae2vm/addon/vm/CraftingBytecode.java',
+            'com/ae2vm/addon/vm/Opcode.java', 'com/ae2vm/addon/vm/CraftingVM.java', 'com/ae2vm/addon/vm/Vm*.java'
+        java.exclude '**/NativeVmMod.java', '**/NativeCraftingRecipeMixin.java'
+        compileClasspath += configurations.compileClasspath
+    }
+    vmLegacyFixture {
+        java.srcDir layout.buildDirectory.dir('generated/sources/vmFixtures')
+        compileClasspath += configurations.compileClasspath + sourceSets.vmNative.output + configurations.graphComparison
+    }
+}
+tasks.register('prepareVmFixtures', Sync) {
+    from new File(fork, 'native-engine/src/testFixtures/java')
+    into layout.buildDirectory.dir('generated/sources/vmFixtures')
+    filter { String line -> line.replace('semantics.getOutputs().clone()', 'semantics.getOutputs().toArray(GenericStack[]::new)') }
+}
+tasks.named('compileVmLegacyFixtureJava') { dependsOn 'prepareVmFixtures' }
+// Platform entrypoint is compiled separately so common source exclusions remain explicit.
+sourceSets.main.compileClasspath += sourceSets.vmNative.output
+sourceSets.main.runtimeClasspath += sourceSets.vmNative.output
+sourceSets.test.compileClasspath += sourceSets.vmNative.output + sourceSets.vmLegacyFixture.output
+sourceSets.test.runtimeClasspath += sourceSets.vmNative.output + sourceSets.vmLegacyFixture.output
+configurations.testImplementation.extendsFrom configurations.graphComparison
+dependencies {
+    implementation files(exactJar).builtBy(tasks.named('buildExactVm'))
+    graphComparison files(new File(exactDir, "build/libs/aco-exact-vm-${exactVersion}-graph-fixtures.jar")).builtBy(tasks.named('buildExactVm'))
+    graphComparison 'de.uni-freiburg.informatik.ultimate:smtinterpol:2.5-1388-ga5a4ab0c'
+}
+tasks.named('compileVmNativeJava') { dependsOn 'buildExactVm', 'prepareVmSources' }
+tasks.register('vmNativeJar', Jar) {
+    from sourceSets.vmNative.output
+    from(fork) { include 'LICENSE'; into 'META-INF' }
+    archiveFileName = "aco-vm-native-${nativeVersion}.jar"
+    destinationDirectory = layout.buildDirectory.dir('vm-libs')
+    manifest { attributes 'MixinConfigs': 'ae2vm-aco-native.mixins.json' }
+}
+tasks.register('vmNativeSourcesJar', Jar) {
+    dependsOn 'prepareVmSources'
+    from sourceSets.vmNative.allSource
+    from(fork) { include 'LICENSE'; into 'META-INF' }
+    archiveFileName = "aco-vm-native-${nativeVersion}-sources.jar"
+    destinationDirectory = layout.buildDirectory.dir("distributions/${mod_version}/sources")
+}
+tasks.register('vmBundleMetadata') {
+    def target = layout.buildDirectory.file('vm-metadata/META-INF/jarjar/metadata.json')
+    outputs.file target
+    inputs.property 'nativeVersion', nativeVersion
+    doLast {
+        def artifacts = [['aco-exact-vm', exactVersion, '0.2.0'], ['aco-vm-native', nativeVersion, '0.4.0']]
+        def metadata = [jars: artifacts.collect { artifact, selected, upper ->
+            [identifier: [group: 'com.syaru.ae2vm', artifact: artifact],
+             version: [range: "[${selected},${upper})", artifactVersion: selected],
+             path: "META-INF/jarjar/${artifact}-${selected}.jar", isObfuscated: false]
+        }]
+        target.get().asFile.parentFile.mkdirs()
+        target.get().asFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(metadata))
+    }
+}
+tasks.register('bundleVm', Jar) {
+    dependsOn 'jar', 'vmNativeJar', 'buildExactVm', 'vmBundleMetadata', 'vmNativeSourcesJar'
+    from({zipTree(tasks.named('jar').get().archiveFile.get().asFile)}) { exclude 'META-INF/MANIFEST.MF' }
+    from(exactJar) { into 'META-INF/jarjar' }
+    from(tasks.named('vmNativeJar').flatMap { it.archiveFile }) { into 'META-INF/jarjar' }
+    from(layout.buildDirectory.dir('vm-metadata'))
+    manifest.from(tasks.named('jar').get().manifest)
+    archiveFileName = "aco${mod_version}_${minecraft_version}.jar"
+    destinationDirectory = layout.buildDirectory.dir("distributions/${mod_version}")
+}
+
+tasks.register('copyExactSources', Copy) {
+    dependsOn 'buildExactVm'
+    from new File(exactDir, "build/libs/aco-exact-vm-${exactVersion}-sources.jar")
+    into layout.buildDirectory.dir("distributions/${mod_version}/sources")
+}
+
+tasks.register('verifyVmBundle') {
+    dependsOn 'bundleVm', 'copyExactSources'
+    doLast {
+        def artifact = tasks.named('bundleVm').get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+            def metadata = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('META-INF/jarjar/metadata.json')))
+            if (metadata.jars.size() != 2) throw new GradleException('Expected exact and native VM only')
+            if (zip.getEntry('META-INF/mods.toml') != null) throw new GradleException('Forge metadata in NeoForge artifact')
+            metadata.jars.each { spec ->
+                def nested = zip.getEntry(spec.path)
+                if (nested == null) throw new GradleException("Missing bundled VM: ${spec.path}")
+                def names = []
+                new java.util.zip.ZipInputStream(zip.getInputStream(nested)).withCloseable { stream ->
+                    def entry
+                    while ((entry = stream.nextEntry) != null) {
+                        names.add(entry.name)
+                        if (entry.name.contains('smtinterpol') || entry.name.contains('/exact/graph/'))
+                            throw new GradleException('Comparison-only solver in runtime artifact')
+                        if (entry.name.endsWith('.class')) {
+                            def bytes = stream.readAllBytes()
+                            if (new String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1).contains('net/minecraftforge/'))
+                                throw new GradleException("Forge class reference: ${entry.name}")
+                        }
+                    }
+                }
+                if (spec.identifier.artifact == 'aco-vm-native' &&
+                    !names.containsAll(['META-INF/neoforge.mods.toml', 'ae2vm-aco-native.mixins.json',
+                        'com/ae2vm/addon/nativeengine/NeoNativeVmMod.class']))
+                    throw new GradleException('Native VM entrypoint or metadata is missing')
+                if (!names.any { it.startsWith('META-INF/LICENSE') }) throw new GradleException('Missing VM license')
+            }
+        }
+        logger.lifecycle("Verified bundled NeoForge artifact: ${artifact.name} (${artifact.length()} bytes)")
+    }
+}
+tasks.withType(Jar).configureEach { preserveFileTimestamps = false; reproducibleFileOrder = true }
+tasks.named('build') { dependsOn 'verifyVmBundle' }

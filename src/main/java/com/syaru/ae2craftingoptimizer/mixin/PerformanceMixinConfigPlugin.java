@@ -19,6 +19,7 @@ public final class PerformanceMixinConfigPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        if (!VmMixinOwnership.allows(mixinClassName)) return false;
         int separator = mixinClassName.lastIndexOf('.');
         String simpleName = separator >= 0
                 ? mixinClassName.substring(separator + 1)

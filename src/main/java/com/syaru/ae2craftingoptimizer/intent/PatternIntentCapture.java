@@ -24,16 +24,32 @@ public final class PatternIntentCapture {
             PatternProviderLogicHost host,
             IPatternDetails pattern,
             KeyCounter[] inputHolder) {
+        captureSuccessfulPush(host, pattern, inputHolder, null);
+    }
+
+    public static void captureSuccessfulPush(
+            PatternProviderLogicHost host,
+            IPatternDetails pattern,
+            KeyCounter[] inputHolder,
+            PatternIntentExtractor descriptions) {
         if (!ACOConfig.capturePatternProviderRecipeIntents() || host == null || pattern == null) {
             return;
         }
-        captureSuccessfulPush(host.getBlockEntity(), host.getTargets(), pattern, inputHolder);
+        captureSuccessfulPush(host.getBlockEntity(), host.getTargets(), pattern, inputHolder, descriptions);
     }
 
     public static void captureSuccessfulPushFromLogic(
             Object providerLogic,
             IPatternDetails pattern,
             KeyCounter[] inputHolder) {
+        captureSuccessfulPushFromLogic(providerLogic, pattern, inputHolder, null);
+    }
+
+    public static void captureSuccessfulPushFromLogic(
+            Object providerLogic,
+            IPatternDetails pattern,
+            KeyCounter[] inputHolder,
+            PatternIntentExtractor descriptions) {
         if (!ACOConfig.capturePatternProviderRecipeIntents() || providerLogic == null || pattern == null) {
             return;
         }
@@ -51,7 +67,7 @@ public final class PatternIntentCapture {
             Object provider = getBlockEntity.invoke(host);
             Object targets = getTargets.invoke(host);
             if (provider instanceof BlockEntity providerBlockEntity && targets instanceof Collection<?> collection) {
-                captureSuccessfulPush(providerBlockEntity, collection, pattern, inputHolder);
+                captureSuccessfulPush(providerBlockEntity, collection, pattern, inputHolder, descriptions);
             }
         } catch (ReflectiveOperationException ignored) {
             // Advanced AEは任意依存。Provider実装が変わった場合は推測せずIntent取得だけを無効化する。
@@ -62,7 +78,8 @@ public final class PatternIntentCapture {
             BlockEntity provider,
             Collection<?> rawTargets,
             IPatternDetails pattern,
-            KeyCounter[] inputHolder) {
+            KeyCounter[] inputHolder,
+            PatternIntentExtractor descriptions) {
         if (provider == null || pattern == null || rawTargets == null || rawTargets.isEmpty()) {
             return;
         }
@@ -86,10 +103,9 @@ public final class PatternIntentCapture {
         BlockPos providerPos = provider.getBlockPos();
         long now = serverLevel.getGameTime();
         long expires = now + ACOConfig.getRecipeIntentTtlTicks();
-        String patternDefinitionId = PatternIntentExtractor.patternDefinitionId(pattern);
-        List<InputIntent> inputs = PatternIntentExtractor.inputs(pattern);
+        var description = descriptions == null ? PatternIntentExtractor.describeUncached(pattern)
+                : descriptions.describe(pattern);
         List<StackIntent> concreteInputs = PatternIntentExtractor.concreteInputs(inputHolder);
-        List<StackIntent> outputs = PatternIntentExtractor.outputs(pattern);
         long patternExecutions = PatternPushContext.patternExecutions();
 
         for (Direction providerSide : targets) {
@@ -101,10 +117,10 @@ public final class PatternIntentCapture {
                     providerSide,
                     targetPos,
                     targetSide,
-                    patternDefinitionId,
-                    inputs,
+                    description.definitionId(),
+                    description.inputs(),
                     concreteInputs,
-                    outputs,
+                    description.outputs(),
                     patternExecutions,
                     now,
                     expires));

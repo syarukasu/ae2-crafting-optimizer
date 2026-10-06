@@ -245,6 +245,43 @@ class PhysicalCraftingLifecycleTest {
         }
     }
 
+    @Test void exhaustedTimeBudgetYieldsBetweenStepsAndStillCompletesAfterReload() throws Exception {
+        try (var f = new Fixture(BigInteger.TEN.pow(64))) {
+            while (f.transaction.state() != PhysicalCraftingTreeTransaction.State.EXECUTING_RECIPES) f.tick();
+            f.allowMoreOperations = () -> false;
+            f.tick();
+            assertEquals(1, f.accepts, "One atomic step may finish, but the next must wait");
+            assertEquals(1, f.consumedOperations);
+            f.finish(false);
+            assertEquals(Map.of(OUT, f.amount), f.stock);
+            assertEquals(3, f.accepts);
+            assertEquals(2, f.mutations);
+            assertTrue(f.jobs.isEmpty());
+            assertTrue(f.transaction.escrowSnapshot().isEmpty());
+        }
+    }
+
+    @Test void cancellationYieldRetainsUnvisitedReceiptsAcrossEveryReload() throws Exception {
+        for (boolean completed : List.of(false, true)) {
+            try (var f = new Fixture(BigInteger.TEN.pow(64))) {
+                f.untilAccepted();
+                f.ready = completed;
+                assertTrue(f.transaction.requestCancellation());
+                f.allowMoreOperations = () -> false;
+                f.tick();
+                assertEquals(1, f.consumedOperations);
+                assertFalse(f.jobs.isEmpty(), "Unvisited workers remain owned");
+                f.finish(true);
+                var expected = completed
+                        ? Map.of(PART, f.amount.multiply(BigInteger.TWO), EXTRA, f.amount.multiply(BigInteger.TWO))
+                        : Map.of(RAW, f.amount, OTHER, f.amount);
+                assertEquals(expected, f.stock);
+                assertTrue(f.jobs.isEmpty());
+                assertTrue(f.transaction.escrowSnapshot().isEmpty());
+            }
+        }
+    }
+
     static final class Fixture implements AutoCloseable {
         final BigInteger amount;
         final Map<AEKey, BigInteger> stock = new LinkedHashMap<>();
@@ -259,6 +296,8 @@ class PhysicalCraftingLifecycleTest {
         boolean loaded = true, ready = true, foreignId, foreignDigest, changedOutputs, staleRunning;
         boolean denyAcknowledgement, corruptOnAcknowledgement;
         int accepts, acknowledgements, mutations, ticks, forgotten;
+        int consumedOperations;
+        java.util.function.BooleanSupplier allowMoreOperations = () -> true;
 
         Fixture(BigInteger amount) {
             this.amount = amount;
@@ -368,7 +407,8 @@ class PhysicalCraftingLifecycleTest {
 
         void tick() {
             assertTrue(++ticks < 100, "bounded contract fixture stopped progressing: " + transaction.state());
-            transaction.tick(grid, level, source, graph, 8);
+            transaction.tick(grid, level, source, graph, 8, allowMoreOperations);
+            consumedOperations = transaction.lastConsumedOperations();
             var saved = transaction.save();
             transaction = PhysicalCraftingTreeTransaction.load(saved);
             assertEquals(saved, transaction.save());

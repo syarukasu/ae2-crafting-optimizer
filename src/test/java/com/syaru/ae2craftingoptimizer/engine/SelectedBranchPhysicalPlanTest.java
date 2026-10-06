@@ -6,6 +6,9 @@ import appeng.api.crafting.IPatternDetails;
 import com.syaru.ae2craftingoptimizer.api.vector.*;
 import java.math.BigInteger;
 import java.util.*;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -125,7 +128,7 @@ class SelectedBranchPhysicalPlanTest {
         var restored = ExactCraftingJobState.load(saved, 4096, com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require());
         assertEquals(selected, restored.selectedBranch().orElseThrow());
         assertEquals(state.taskTotals(), restored.taskTotals());
-        assertEquals(saved, restored.save(4096, com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require()));
+        assertEquals(normalizedTaskTotals(saved), normalizedTaskTotals(restored.save(4096, com.syaru.ae2craftingoptimizer.lifecycle.ACORegistryAccess.require())));
         assertFalse(restored.hasPhysicalExecution());
         var missing = saved.copy();
         missing.remove("selectedBranch");
@@ -148,6 +151,16 @@ class SelectedBranchPhysicalPlanTest {
         var alternative = new CompiledPattern<>("one", List.of(new CompiledPattern.InputSlot<>(List.of(
                 new CompiledPattern.Stack<>(RAW, 1), new CompiledPattern.Stack<>(OTHER, 1)))), one.outputs(), false);
         assertThrows(IllegalArgumentException.class, () -> SelectedBranchPhysicalPlan.prepare(exact, List.of(alternative), 1, 1, 4096));
+    }
+
+    private static CompoundTag normalizedTaskTotals(CompoundTag saved) {
+        var copy = saved.copy();
+        var ordered = new ListTag();
+        // #218: taskTotals encodes a map; preserve all fields, not its unspecified iteration order.
+        copy.getList("taskTotals", Tag.TAG_COMPOUND).stream()
+                .sorted(Comparator.comparing(Tag::toString)).forEach(ordered::add);
+        copy.put("taskTotals", ordered);
+        return copy;
     }
 
     static CompiledPattern<AEKey> pattern(String id, AEKey input, long amount, Map<AEKey, Long> out) {

@@ -53,7 +53,13 @@ public final class BigCraftingPlanSummary {
         Map<AEKey, MutableEntry> stats = new LinkedHashMap<>();
         BigInteger exactBytes;
 
-        if (plan instanceof BigIntegerCraftingPlan bigPlan) {
+        if (plan instanceof VmCalculatedCraftingPlan vm) {
+            exactBytes = vm.exactBytes();
+            mergeCounts(stats, vm.exactPlan().usedInventory(), CounterTarget.STORED, maximumBits);
+            mergeCounts(stats, vm.exactPlan().missing(), CounterTarget.MISSING, maximumBits);
+            mergeCounts(stats, vm.exactPlan().emitted(), CounterTarget.EMITTED, maximumBits);
+            mergePatternOutputs(stats, vm.exactPatternTimes(), maximumBits);
+        } else if (plan instanceof BigIntegerCraftingPlan bigPlan) {
             exactBytes = bigPlan.exactBytes();
             mergeCounts(
                     stats,

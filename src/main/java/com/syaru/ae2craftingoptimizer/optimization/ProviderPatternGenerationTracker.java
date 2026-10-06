@@ -92,6 +92,11 @@ public final class ProviderPatternGenerationTracker {
         return GENERATION.get();
     }
 
+    /** Native VM owns the provider index; retain only the exact execution invalidation epoch. */
+    public static void nativeIndexChanged() {
+        advanceGeneration();
+    }
+
     public static void clear() {
         synchronized (SNAPSHOTS) {
             SNAPSHOTS.clear();

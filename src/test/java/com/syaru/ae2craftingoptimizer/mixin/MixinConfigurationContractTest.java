@@ -14,6 +14,13 @@ class MixinConfigurationContractTest {
     private static final Path RESOURCE_ROOT = Path.of("src", "main", "resources");
 
     @Test
+    void neoEcoOperationLimitsRemainOwnedByNeoEco() {
+        assertFalse(new NeoEcoMixinConfigPlugin().shouldApplyMixin(
+                "cn.dancingsnow.neoecoae.api.me.ECOCraftingCPULogic",
+                "com.syaru.ae2craftingoptimizer.mixin.NeoEcoCraftingCpuExecutionBudgetMixin"));
+    }
+
+    @Test
     void coreConfigIsRequiredWithNonZeroDefaultInjectionRequirement() throws IOException {
         String json = read("ae2_crafting_optimizer.mixins.json");
         assertTrue(json.contains("\"required\": true"));

@@ -43,6 +43,26 @@ import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Test;
 
 class BigCraftingEngineApiPlanInspectionTest {
+    @Test void acceptsExactValuesWithoutKnowingThePlannerImplementation() {
+        var requested = BigInteger.TEN.pow(64);
+        var view = new BigIntegerCraftingPlanView(new GenericStack(BLOCK, Long.MAX_VALUE), requested, true,
+                Map.of(BLOCK_PATTERN, requested), Map.of(), Map.of(), Map.of(NUGGET, requested), requested);
+        var metadata = org.mockito.Mockito.mock(com.syaru.ae2craftingoptimizer.engine.WideCraftingPlan.class);
+        org.mockito.Mockito.when(metadata.exactView()).thenReturn(java.util.Optional.of(view));
+        assertEquals(java.util.Optional.of(view), BigCraftingEngineApi.inspectAttachedExactPlan(metadata));
+    }
+
+    @Test void preservesWideRootQuantityInThePublicView() {
+        var request = BigInteger.TEN.pow(64);
+        var exact = new BigCraftingPlan<AEKey>(BLOCK, request, Map.of(BLOCK_PATTERN_ID, request),
+                Map.of(), Map.of(), Map.of(NUGGET, request.multiply(BigInteger.valueOf(81))), 1);
+        var metadata = BigIntegerSimulationPlanTestFactory.create(new GenericStack(BLOCK, Long.MAX_VALUE), exact,
+                Map.of(BLOCK_PATTERN, request), request, TEST_MAXIMUM_BITS);
+        var view = BigCraftingEngineApi.inspectAttachedExactPlan(Ae2CraftingPlanSidecars.expose(metadata)).orElseThrow();
+        assertEquals(request, view.exactRequestedAmount());
+        assertEquals(request.multiply(BigInteger.valueOf(81)), view.missingItems().get(NUGGET));
+        assertTrue(view.simulation());
+    }
     /** 診断GameTestでME在庫へ投入される鉄ナゲット数。 */
     private static final long NUGGET_INVENTORY = 8_600_000_000_000_000_000L;
     /** 診断GameTestで注文される鉄ブロック数。 */

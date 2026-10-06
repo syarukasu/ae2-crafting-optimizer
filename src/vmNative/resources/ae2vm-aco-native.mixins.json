@@ -1,0 +1,8 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.ae2vm.addon.nativeengine.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": ["NativeCraftingServiceMixin"],
+  "injectors": {"defaultRequire": 1}
+}

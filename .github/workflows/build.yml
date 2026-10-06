@@ -15,11 +15,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Check out pinned refs.8 VM source
+        uses: actions/checkout@v6
+        with:
+          repository: syarukasu/AE2-VM-ACO
+          ref: 5b57a00e283d355a47ee5276ba528b2dcf7d07db
+          path: .ci-vm
+
       - name: Set up Java 21
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: |
+            17
+            21
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -38,14 +47,14 @@ jobs:
       - name: Build
         run: |
           chmod +x gradlew
-          ./gradlew clean build verifyIssueRegressionReleaseReadiness --stacktrace -PacoLocalModsDir="$GITHUB_WORKSPACE/.ci-mods"
+          ./gradlew clean build verifyIssueRegressionReleaseReadiness --stacktrace -PacoLocalModsDir="$GITHUB_WORKSPACE/.ci-mods" -PacoVmForkDir="$GITHUB_WORKSPACE/.ci-vm"
 
       - name: Verify 1.21.1 artifact boundary
         shell: bash
         run: |
           set -euo pipefail
           version="$(grep '^mod_version=' gradle.properties | cut -d= -f2)"
-          artifact="build/libs/aco${version}_1.21.1.jar"
+          artifact="build/distributions/${version}/aco${version}_1.21.1.jar"
           test -f "$artifact"
           ! jar tf "$artifact" | grep -q '^META-INF/mods.toml$'
           jar tf "$artifact" | grep -q '^META-INF/neoforge.mods.toml$'
@@ -64,5 +73,5 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: aco-1.21.1-${{ github.sha }}
-          path: build/libs/aco*_1.21.1.jar
+          path: build/distributions/
           if-no-files-found: error

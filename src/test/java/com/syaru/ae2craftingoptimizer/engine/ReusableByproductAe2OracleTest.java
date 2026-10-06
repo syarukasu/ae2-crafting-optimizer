@@ -197,6 +197,12 @@ class ReusableByproductAe2OracleTest {
 
     static Oracle oracle(List<CompiledPattern<AEKey>> patterns, AEKey out, long amount,
             Map<AEKey, Long> stock, Set<AEKey> emitters, CalculationStrategy strategy) throws Exception {
+        return oracle(patterns, out, amount, stock, emitters, strategy, false);
+    }
+
+    static Oracle oracle(List<CompiledPattern<AEKey>> patterns, AEKey out, long amount,
+            Map<AEKey, Long> stock, Set<AEKey> emitters, CalculationStrategy strategy,
+            boolean fundedMissingRoutes) throws Exception {
         var byKey = new HashMap<AEKey, List<IPatternDetails>>();
         var ids = new IdentityHashMap<IPatternDetails, String>();
         for (var pattern : patterns) {
@@ -228,11 +234,22 @@ class ReusableByproductAe2OracleTest {
             case "getFuzzyCraftable" -> null;
             default -> throw new AssertionError(method);
         });
-        return new Oracle(oracleService(service, out, amount, stock, strategy), ids);
+        return new Oracle(oracleService(service, out, amount, stock, strategy, 0, fundedMissingRoutes), ids);
     }
 
     static ICraftingPlan oracleService(ICraftingService service, AEKey out, long amount,
             Map<AEKey, Long> stock, CalculationStrategy strategy) throws Exception {
+        return oracleService(service, out, amount, stock, strategy, 0);
+    }
+
+    static ICraftingPlan oracleService(ICraftingService service, AEKey out, long amount,
+            Map<AEKey, Long> stock, CalculationStrategy strategy, long additionalReturnBytes) throws Exception {
+        return oracleService(service, out, amount, stock, strategy, additionalReturnBytes, false);
+    }
+
+    private static ICraftingPlan oracleService(ICraftingService service, AEKey out, long amount,
+            Map<AEKey, Long> stock, CalculationStrategy strategy, long additionalReturnBytes,
+            boolean fundedMissingRoutes) throws Exception {
         var cachedInventory = new KeyCounter();
         stock.forEach(cachedInventory::set);
         var storage = proxy(appeng.api.networking.storage.IStorageService.class, (method, args) -> {
@@ -268,7 +285,13 @@ class ReusableByproductAe2OracleTest {
         var compute = CraftingCalculation.class.getDeclaredMethod("computePlan");
         compute.setAccessible(true);
         var expected = (ICraftingPlan) compute.invoke(job);
-
+        if (fundedMissingRoutes) {
+            com.ae2vm.addon.nativeengine.NativeVmOracleHarness.compareFundedMissing(service, out, amount,
+                    stock, strategy, expected);
+        } else {
+            com.ae2vm.addon.nativeengine.NativeVmOracleHarness.compare(service, out, amount, stock, strategy, expected,
+                    additionalReturnBytes);
+        }
         return expected;
     }
 

@@ -6,10 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-class SymbolicCraftingPlannerTest {
+class CompiledRootProgramSurplusTest {
     @Test
     void reusesSharedIntermediateSurplusWithOrderedAccounting() {
         var out = new CompiledPattern<>(
@@ -22,9 +21,12 @@ class SymbolicCraftingPlannerTest {
         var c = pattern("c", "raw", 1, "c", 3);
         var graph = CompiledCraftingGraph.compile(1, List.of(out, a, b, c));
 
-        BigCraftingPlan<String> plan = new SymbolicCraftingPlanner<String>()
-                .tryPlanBig(graph, "out", BigInteger.ONE, Map.of("raw", BigInteger.ONE), Set.of(), PlanningGuard.none())
-                .orElseThrow();
+        var program = CompiledRootProgram.tryCompile(graph, "out", key -> false).orElseThrow();
+        var inventory = program.captureBigInventory(
+                key -> key.equals("raw") ? BigInteger.ONE : BigInteger.ZERO,
+                BigCountMath.HARD_MAXIMUM_BITS);
+        BigCraftingPlan<String> plan = program.planBig(
+                BigInteger.ONE, inventory, PlanningGuard.none(), BigCountMath.HARD_MAXIMUM_BITS);
 
         assertTrue(plan.craftable());
         assertEquals(BigInteger.ONE, plan.patternExecutions().get("c"));
@@ -43,9 +45,12 @@ class SymbolicCraftingPlannerTest {
                 Map.of("out", 1L, "byproduct", 1L),
                 false);
         var graph = CompiledCraftingGraph.compile(1, List.of(multiOutput));
-        assertTrue(new SymbolicCraftingPlanner<String>()
-                .tryPlanLong(graph, "out", 1, Map.of("raw", 1L), Set.of(), PlanningGuard.none())
-                .isPresent());
+        var program = CompiledRootProgram.tryCompile(graph, "out", key -> false).orElseThrow();
+        var inventory = program.captureLongInventory(key -> key.equals("raw") ? 1L : 0L);
+        var plan = program.planLong(1L, inventory, PlanningGuard.none());
+        assertTrue(plan.craftable());
+        assertEquals(Map.of("raw", 1L), plan.usedInventory());
+        assertEquals(Map.of("multi", 1L), plan.patternExecutions());
     }
 
     private static CompiledPattern.InputSlot<String> slot(String key, long amount) {

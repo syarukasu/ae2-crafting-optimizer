@@ -39,6 +39,7 @@ class Issue109MixinBoundarySourceTest {
                 "java", "com", "syaru", "ae2craftingoptimizer", "mixin",
                 "MEStorageMenuDisplaySaturationMixin.java")));
         assertTrue(displayMixin.contains("method = \"broadcastChanges\""));
+        assertTrue(displayMixin.contains("require = 1"));
         assertFalse(displayMixin.contains("handleInteraction"));
         assertFalse(displayMixin.contains("method = \"insert\""));
         assertFalse(displayMixin.contains("method = \"extract\""));

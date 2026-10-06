@@ -1,0 +1,1187 @@
+C	com/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchBudget	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode;>;
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode;>;
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchPayloadFingerprint	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState;>;
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;>;
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceiptStore	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReconciler	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State;>;
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceiptStore	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchIdentity	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchV2Api	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/ProviderOwnedPatternBatchTarget	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult;>;
+C	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingCodec	17	java/lang/Object	com/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec	Ljava/lang/Object;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<Lappeng/api/stacks/AEKey;>;
+C	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingPacketCodec	17	java/lang/Object	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPacketKeyCodec	Ljava/lang/Object;Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingPacketKeyCodec<Lappeng/api/stacks/AEKey;>;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;>;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration	1537	java/lang/Object	java/lang/AutoCloseable	null
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistry	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	17	java/lang/Object	java/lang/AutoCloseable	<K:Ljava/lang/Object;>Ljava/lang/Object;Ljava/lang/AutoCloseable;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPacketKeyCodec	1537	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredExecution	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredVectorExecution	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusInbox	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPageCodec	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPageCodec$PacketTooLargeException	17	java/lang/IllegalArgumentException		null
+C	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/CanonicalBigIntegerCodec	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/CraftingTableBatchSnapshot	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayloadCodec	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/ExactStorageAmountProvider	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilitiesRegistry	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState;>;
+C	com/syaru/ae2craftingoptimizer/api/contract/PayloadKind	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;>;
+C	com/syaru/ae2craftingoptimizer/api/contract/ReceiptOrphanPolicy	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationProtocol	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;>;
+C	com/syaru/ae2craftingoptimizer/api/contract/RevisionWakeupApi	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/RevisionWakeupListener	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/RevisionWakeupRegistration	17	java/lang/Object	java/lang/AutoCloseable	null
+C	com/syaru/ae2craftingoptimizer/api/contract/SnapshotRevisionTracker	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/contract/SnapshotState	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;>;
+C	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;>;
+C	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode;>;
+C	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;>;
+C	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchTarget	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/execution/VectorBatchExecutionOwner	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingInputSlot	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/vector/ExactStack	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorCraftingApi	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorExecutionBudget	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStoragePolicy	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatchCodec	17	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode;>;
+C	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;>;
+C	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec	1537	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/BigExecutionWindow	17	java/lang/Record		null
+C	com/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/engine/CompiledPattern	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$InputSlot	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$Stack	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicInput	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace$Charge	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	17	java/lang/Record		<K:Ljava/lang/Object;>Ljava/lang/Record;
+C	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner	17	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result	1537	java/lang/Object		<K:Ljava/lang/Object;>Ljava/lang/Object;
+C	com/syaru/ae2craftingoptimizer/engine/PlanningGuard	1537	java/lang/Object		null
+C	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;>;
+C	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	16401	java/lang/Enum		Ljava/lang/Enum<Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;>;
+C	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	17	java/lang/Object		null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode	LOGICAL_EXECUTIONS	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode	SINGLE_PHYSICAL_OPERATION	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode	SOURCE_LOGICAL_EXECUTIONS	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode	TARGET_PHYSICAL_OPERATION	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState	ACCEPTED	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState	NOT_ACCEPTED	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState	QUARANTINE	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState	RETRY	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	MAX_EXTRACTED_INPUT_ENTRIES	I	25	null	16384
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	ACCOUNTED	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	ENERGY_ACCOUNTED	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	ENERGY_ACCOUNTING	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	EXTRACTED	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	EXTRACTING	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	OUTPUTS_ACCOUNTING	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	OUTPUT_ACCOUNTING	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	PROGRESS_ACCOUNTED	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	ROLLED_BACK	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	STAGED	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	TARGET_ACCEPTED	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State	ACCEPTED	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State	PENDING	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State	REJECTED	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchV2Api	API_VERSION	I	25	null	4
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult	COMPLETE	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult	QUARANTINE	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult	RETRY	Lcom/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingCodec	INSTANCE	Lcom/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingCodec;	25	null	null
+F	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingPacketCodec	INSTANCE	Lcom/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingPacketCodec;	25	null	null
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	AMOUNT_LEDGER_API_VERSION	I	25	null	2
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	API_VERSION	I	25	null	3
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	CALCULATION_PROFILE_API_VERSION	I	25	null	1
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	CAPACITY_LIMIT_API_VERSION	I	25	null	1
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	EXTERNAL_CONSUMER_API_VERSION	I	25	null	1
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState	ACTIVE	Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState	CLOSED	Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState	CLOSING	Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState	DEGRADED	Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState	PAUSED	Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState	UNAVAILABLE	Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	MAX_EXTERNAL_EXECUTIONS	I	25	null	16384
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	MAX_EXTERNAL_RESERVATIONS	I	25	null	65536
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	SCHEMA_VERSION	I	25	null	2
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	API_VERSION	I	25	null	1
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	SCHEMA_VERSION	I	25	null	2
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPageCodec	HARD_MAXIMUM_PACKET_BYTES	I	25	null	1048576
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPageCodec	HARD_MAXIMUM_PAGE_ENTRIES	I	25	null	16384
+F	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPageCodec	PROTOCOL_VERSION	I	25	null	1
+F	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	MAX_ENTRIES	I	25	null	1048576
+F	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	SCHEMA_VERSION	I	25	null	1
+F	com/syaru/ae2craftingoptimizer/api/contract/CanonicalBigIntegerCodec	NBT_SCHEMA_VERSION	I	25	null	1
+F	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	DEFAULT_MAXIMUM_CANONICAL_BYTES	I	25	null	131072
+F	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	DEFAULT_MAXIMUM_COUNT_BITS	I	25	null	1048576
+F	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	DEFAULT_MAXIMUM_DIGEST_LENGTH	I	25	null	128
+F	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	DEFAULT_MAXIMUM_ENCODED_PAYLOAD_BYTES	I	25	null	16777216
+F	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	DEFAULT_MAXIMUM_IDENTIFIER_LENGTH	I	25	null	256
+F	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	DEFAULT_MAXIMUM_KEYS_PER_PAYLOAD	I	25	null	65536
+F	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayloadCodec	NBT_SCHEMA_VERSION	I	25	null	1
+F	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	API_VERSION	I	25	null	1
+F	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState	ABSENT_CONFIRMED	Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState	ACTIVE	Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState	RECOVERABLE	Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState	UNKNOWN	Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/PayloadKind	HOST	Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/PayloadKind	JOURNAL	Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/PayloadKind	RECEIPT	Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/PayloadKind	REQUEST	Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/PayloadKind	VECTOR_PLAN	Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState	ACKNOWLEDGED	Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState	CANCELLED	Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState	FORGOTTEN	Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState	OUTPUT_READY	Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState	QUARANTINED	Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState	RESERVED	Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState	RUNNING	Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SnapshotState	ACKNOWLEDGED	Lcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SnapshotState	ACTIVE	Lcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SnapshotState	CANCELLED	Lcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SnapshotState	PAUSED	Lcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SnapshotState	QUARANTINED	Lcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	EXACT_STORAGE_AMOUNT_PROVIDER	Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	EXACT_STORAGE_OPERATION_JOURNAL	Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	EXPLICIT_HOST_REGISTRATION	Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	HOST_ATOMIC_SNAPSHOT	Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	LIVE_TRANSACTION_PROOF	Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	QUARANTINED_THREAD_STATE	Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	RECEIPT_SLOT_RESERVATION	Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	TARGET_REVISION_WAKEUP	Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode	AE2_JOB	Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode	BIG_INTEGER_JOB	Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	MAXIMUM_COUNT_BITS	I	25	null	1048576
+F	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State	ACKNOWLEDGED	Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State	CANCELLED	Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State	OUTPUT_READY	Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State	QUARANTINED	Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State	RUNNING	Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorCraftingApi	API_VERSION	I	25	null	1
+F	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorCraftingApi	MICRO_AE_PER_AE	J	25	null	1000000
+F	com/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode	HOST_ESCROWED	Lcom/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode	NETWORK_STORAGE	Lcom/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	MAX_EXECUTIONS_PER_WINDOW	J	25	null	1048576
+F	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	ROOT_WINDOW_TASK_ID	Ljava/lang/String;	25	null	aco:root-window-v1
+F	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	SCHEMA_VERSION	I	25	null	8
+F	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State	CANCELLED	Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State	COMPLETE	Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State	PLANNED	Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State	QUARANTINED	Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State	RUNNING	Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State	WAITING_FOR_OUTPUTS	Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/PlanningGuard	NONE	Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;	25	null	null
+F	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	COUPLED_OUTPUTS	Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	CYCLE	Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	INCOMPLETE_PATTERN_SNAPSHOT	Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	MISSING_FROM_SNAPSHOT	Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	MULTIPLE_OUTPUTS	Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	MULTIPLE_PRODUCERS	Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	NONE	Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	PROGRAM_TOO_LARGE	Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	ACCOUNTED	Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	PREPARED	Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	QUARANTINED	Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	RECONCILIATION_REQUIRED	Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	ROLLED_BACK	Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	TARGET_ACCEPTED	Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;	16409	null	null
+F	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	SCHEMA_VERSION	I	25	null	1
+M	com/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula	copyInputsPerExecution	()[Lappeng/api/stacks/KeyCounter;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula	exactExpectedOutputTotals	(Ljava/math/BigInteger;)Ljava/util/Map;	1	(Ljava/math/BigInteger;)Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula	exactInputTotals	(Ljava/math/BigInteger;)Ljava/util/Map;	1	(Ljava/math/BigInteger;)Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula	exactSlotInputs	(Ljava/math/BigInteger;)Ljava/util/List;	1	(Ljava/math/BigInteger;)Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula	outputsPerExecution	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula	pattern	()Lappeng/api/crafting/IPatternDetails;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula	remainingPerExecution	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula	tryCreate	(Lappeng/api/crafting/IPatternDetails;Lnet/minecraft/world/level/Level;)Ljava/util/Optional;	9	(Lappeng/api/crafting/IPatternDetails;Lnet/minecraft/world/level/Level;)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula	tryCreate	(Lappeng/api/crafting/IPatternDetails;Lnet/minecraft/world/level/Level;Ljava/util/List;)Ljava/util/Optional;	9	(Lappeng/api/crafting/IPatternDetails;Lnet/minecraft/world/level/Level;Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactCraftingInputSlot;>;)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/api/batch/ExactPatternFormula;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchBudget	<init>	(JJ)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchBudget	canStartAnother	(J)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchBudget	deadlineNanos	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchBudget	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchBudget	hasTimeRemaining	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchBudget	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchBudget	maximumExecutions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchBudget	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	<init>	(Lappeng/api/networking/crafting/ICraftingProvider;Lappeng/api/crafting/IPatternDetails;[Lappeng/api/stacks/KeyCounter;Lappeng/api/stacks/KeyCounter;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/Direction;Lnet/minecraft/core/Direction;Lnet/minecraft/world/level/block/entity/BlockEntity;Z)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	copyInputsPerExecution	()[Lappeng/api/stacks/KeyCounter;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	copyOutputsPerExecution	()Lappeng/api/stacks/KeyCounter;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	copyRemainingOutputsPerExecution	()Lappeng/api/stacks/KeyCounter;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	craftingJobId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	deterministicTarget	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	level	()Lnet/minecraft/world/level/Level;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	pattern	()Lappeng/api/crafting/IPatternDetails;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	provider	()Lappeng/api/networking/crafting/ICraftingProvider;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	providerOwned	(Lappeng/api/networking/crafting/ICraftingProvider;Lappeng/api/crafting/IPatternDetails;[Lappeng/api/stacks/KeyCounter;Lappeng/api/stacks/KeyCounter;Lappeng/api/stacks/KeyCounter;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/level/block/entity/BlockEntity;Ljava/util/UUID;)Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	providerOwnedTarget	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	providerSide	()Lnet/minecraft/core/Direction;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	target	()Lnet/minecraft/world/level/block/entity/BlockEntity;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext	targetSide	()Lnet/minecraft/core/Direction;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode	values	()[Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode	values	()[Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof	<init>	(Ljava/util/UUID;JLjava/lang/String;Ljava/lang/String;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof	durableOwner	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof	executions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof	matches	(Lcom/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof	payloadDigest	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof	transactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchPayloadFingerprint	of	(Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord;)Ljava/lang/String;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchPayloadFingerprint	of	(Lcom/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch;)Ljava/lang/String;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchPayloadFingerprint	of	(Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord;)Ljava/lang/String;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult	<init>	(Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState;JLjava/lang/String;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult	acceptedExecutions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult	detail	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult	targetState	()Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState	values	()[Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult$TargetState;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	<init>	(Ljava/util/UUID;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;JLjava/lang/String;IJ)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	<init>	(Ljava/util/UUID;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;JLjava/lang/String;IJLjava/util/List;)V	1	(Ljava/util/UUID;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;JLjava/lang/String;IJLjava/util/List<Lappeng/api/stacks/GenericStack;>;)V
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	accountedOutputs	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	executions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	extractedInputs	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	state	()Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	taskFingerprint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	transactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt	updatedTick	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State	values	()[Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceiptStore	aco$advanceBatchSourceReceipt	(Ljava/util/UUID;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt$State;IJ)V	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceiptStore	aco$getBatchSourceReceipt	(Ljava/util/UUID;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceiptStore	aco$hasAnyUnresolvedBatchSourceReceipt	()Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceiptStore	aco$hasUnresolvedBatchSourceReceipt	(Ljava/lang/String;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceiptStore	aco$isBatchSourceReceiptLedgerHealthy	()Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceiptStore	aco$recordExtractedBatchSourceInput	(Ljava/util/UUID;Lappeng/api/stacks/GenericStack;J)V	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceiptStore	aco$removeTerminalBatchSourceReceipt	(Ljava/util/UUID;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceiptStore	aco$stageBatchSourceReceipt	(Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReceipt;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReconciler	accountAccepted	(Lnet/minecraft/server/level/ServerLevel;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReconciler	forgetResolvedSource	(Lnet/minecraft/server/level/ServerLevel;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReconciler	id	()Lnet/minecraft/resources/ResourceLocation;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReconciler	rollbackPrepared	(Lnet/minecraft/server/level/ServerLevel;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	acceptedExecutions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	adapterData	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	adapterId	()Lnet/minecraft/resources/ResourceLocation;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	createdTick	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	dimensionId	()Lnet/minecraft/resources/ResourceLocation;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	expectedOutputs	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	extractedInputs	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	id	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	offeredExecutions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	patternFingerprint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	payloadDigest	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	phase	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	receipt	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	snapshot	(Ljava/util/UUID;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/core/BlockPos;Ljava/lang/String;JJJJLjava/lang/String;Ljava/util/List;Ljava/util/List;Lnet/minecraft/nbt/CompoundTag;Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord;	9	(Ljava/util/UUID;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/core/BlockPos;Ljava/lang/String;JJJJLjava/lang/String;Ljava/util/List<Lappeng/api/stacks/GenericStack;>;Ljava/util/List<Lappeng/api/stacks/GenericStack;>;Lnet/minecraft/nbt/CompoundTag;Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord;
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	sourceData	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	sourceId	()Lnet/minecraft/resources/ResourceLocation;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	targetPos	()Lnet/minecraft/core/BlockPos;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord	updatedTick	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	<init>	(Ljava/util/UUID;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State;JLjava/lang/String;J)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	<init>	(Ljava/util/UUID;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State;JLjava/lang/String;Ljava/lang/String;J)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	executions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	hasDurablePayloadProof	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	patternFingerprint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	payloadDigest	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	state	()Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	transactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt	updatedTick	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State	values	()[Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceiptStore	aco$finishNativeBatchReceipt	(Ljava/util/UUID;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt$State;J)V	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceiptStore	aco$getNativeBatchReceipt	(Ljava/util/UUID;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceiptStore	aco$isNativeBatchReceiptLedgerHealthy	()Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceiptStore	aco$prepareNativeBatchReceipt	(Lcom/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceipt;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/NativeBatchReceiptStore	aco$removeTerminalNativeBatchReceipt	(Ljava/util/UUID;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit	<init>	(JLjava/lang/String;Lnet/minecraft/nbt/CompoundTag;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit	<init>	(JLjava/lang/String;Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit	acceptedExecutions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit	adapterData	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit	ownershipProof	()Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchOwnershipProof;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit	receipt	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchIdentity	canonicalFingerprint	(Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;)Ljava/lang/String;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchV2Api	adapter	(Lnet/minecraft/resources/ResourceLocation;)Ljava/util/Optional;	9	(Lnet/minecraft/resources/ResourceLocation;)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchV2Api	find	(Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;)Ljava/util/Optional;	9	(Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchV2Api	hasRegisteredAdapters	()Z	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchV2Api	registerAdapter	(Lcom/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter;)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchV2Api	registerBuiltIns	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchV2Api	registerSource	(Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReconciler;)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchV2Api	registeredAdapterIds	()Ljava/util/List;	9	()Ljava/util/List<Lnet/minecraft/resources/ResourceLocation;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchV2Api	source	(Lnet/minecraft/resources/ResourceLocation;)Ljava/util/Optional;	9	(Lnet/minecraft/resources/ResourceLocation;)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchSourceReconciler;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch	<init>	(Ljava/util/UUID;JLjava/util/List;Ljava/util/List;Lnet/minecraft/nbt/CompoundTag;)V	1	(Ljava/util/UUID;JLjava/util/List<Lappeng/api/stacks/GenericStack;>;Ljava/util/List<Lappeng/api/stacks/GenericStack;>;Lnet/minecraft/nbt/CompoundTag;)V
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch	adapterData	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch	aggregateInputs	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch	expectedOutputs	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch	offeredExecutions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch	transactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/ProviderOwnedPatternBatchTarget	aco$getProviderOwnedBatchTarget	()Lnet/minecraft/world/level/block/entity/BlockEntity;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult	values	()[Lcom/syaru/ae2craftingoptimizer/api/batch/v2/SourceRecoveryResult;	9	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	commit	(Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/PatternBatchCommit;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	cpuAccountingMode	()Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchCpuAccountingMode;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	energyAccountingMode	()Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchEnergyAccountingMode;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	forgetResolvedTarget	(Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	forgetResolvedTarget	(Lnet/minecraft/server/level/ServerLevel;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	id	()Lnet/minecraft/resources/ResourceLocation;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	limitExecutions	(Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;J)J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	minimumExecutions	(Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;)J	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	prepare	(Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchBudget;Ljava/util/UUID;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	priority	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	reconcileTarget	(Lnet/minecraft/server/level/ServerLevel;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord;)Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchRecoveryResult;	1	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	rollback	(Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;Lcom/syaru/ae2craftingoptimizer/api/batch/v2/PreparedPatternBatch;)V	1025	null
+M	com/syaru/ae2craftingoptimizer/api/batch/v2/TransactionalPatternBatchAdapter	supports	(Lcom/syaru/ae2craftingoptimizer/api/batch/PatternBatchContext;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingCodec	decode	(Lnet/minecraft/nbt/CompoundTag;)Lappeng/api/stacks/AEKey;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingCodec	decode	(Lnet/minecraft/nbt/CompoundTag;)Ljava/lang/Object;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingCodec	encode	(Lappeng/api/stacks/AEKey;)Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingCodec	encode	(Ljava/lang/Object;)Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingPacketCodec	read	(Lnet/minecraft/network/RegistryFriendlyByteBuf;)Lappeng/api/stacks/AEKey;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingPacketCodec	read	(Lnet/minecraft/network/RegistryFriendlyByteBuf;)Ljava/lang/Object;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingPacketCodec	write	(Lnet/minecraft/network/RegistryFriendlyByteBuf;Lappeng/api/stacks/AEKey;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/AeKeyBigCraftingPacketCodec	write	(Lnet/minecraft/network/RegistryFriendlyByteBuf;Ljava/lang/Object;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	create	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime;	9	<K:Ljava/lang/Object;>(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	createAeKeyAmountLedger	()Lcom/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger;	9	()Lcom/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger<Lappeng/api/stacks/AEKey;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	createAmountLedger	(Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;)Lcom/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger;	9	<K:Ljava/lang/Object;>(Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;)Lcom/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	createHost	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime;	9	<K:Ljava/lang/Object;>(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	createPlanner	()Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner;	9	<K:Ljava/lang/Object;>()Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	hasExternalBigIntegerPlanConsumer	()Z	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	inspectBigIntegerPlan	(Lappeng/api/networking/crafting/ICraftingPlan;)Ljava/util/Optional;	9	(Lappeng/api/networking/crafting/ICraftingPlan;)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	isCalculationProfileActive	()Z	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	isEnabled	()Z	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	load	(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime;	9	<K:Ljava/lang/Object;>(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	loadAeKeyAmountLedger	(Lnet/minecraft/nbt/CompoundTag;)Lcom/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger;	9	(Lnet/minecraft/nbt/CompoundTag;)Lcom/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger<Lappeng/api/stacks/AEKey;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	loadAmountLedger	(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;)Lcom/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger;	9	<K:Ljava/lang/Object;>(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;)Lcom/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	loadHost	(Lnet/minecraft/nbt/CompoundTag;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime;	9	<K:Ljava/lang/Object;>(Lnet/minecraft/nbt/CompoundTag;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	maximumSupportedAmount	()Ljava/math/BigInteger;	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	registerExternalBigIntegerPlanConsumer	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingEngineApi	sendStatusPage	(Lnet/minecraft/server/level/ServerPlayer;Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime;II)V	9	(Lnet/minecraft/server/level/ServerPlayer;Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime<Lappeng/api/stacks/AEKey;>;II)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState	values	()[Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration	close	()V	1025	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration	generation	()J	1025	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration	isClosed	()Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration	onClose	(Ljava/lang/Runnable;)V	1025	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration	ownerIdentity	()Ljava/lang/Object;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration	runtimeIdentity	()Ljava/util/UUID;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration	snapshot	(JLcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistry	clear	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistry	find	(Ljava/lang/Object;)Ljava/util/Optional;	9	(Ljava/lang/Object;)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime<Lappeng/api/stacks/AEKey;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistry	findRegistration	(Ljava/lang/Object;)Ljava/util/Optional;	9	(Ljava/lang/Object;)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistry	register	(Ljava/lang/Object;Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration;	9	(Ljava/lang/Object;Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime<Lappeng/api/stacks/AEKey;>;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistration;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistry	registrationCount	()I	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistry	snapshot	()Ljava/util/Map;	9	()Ljava/util/Map<Ljava/lang/Object;Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime<Lappeng/api/stacks/AEKey;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRegistry	unregister	(Ljava/lang/Object;)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	acceptOutput	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;)V	1	(Ljava/util/UUID;TK;Ljava/math/BigInteger;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	available	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	availableAsSaturatedLong	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	bigJobCount	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	bigJobIds	()Ljava/util/List;	1	()Ljava/util/List<Ljava/util/UUID;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	bigReserved	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	bindExternalExecution	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease;Ljava/util/UUID;Ljava/math/BigInteger;)V	1	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease<TK;>;Ljava/util/UUID;Ljava/math/BigInteger;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	cancel	(Ljava/util/UUID;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	close	()V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	commit	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease;JLjava/util/Map;)V	1	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease<TK;>;JLjava/util/Map<TK;Ljava/math/BigInteger;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	commitRecovered	(Ljava/util/UUID;Ljava/util/UUID;JLjava/util/Map;)V	1	(Ljava/util/UUID;Ljava/util/UUID;JLjava/util/Map<TK;Ljava/math/BigInteger;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	commitVector	(Ljava/util/UUID;Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	estimatedExternalCountBytes	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	externalExecutions	()Ljava/util/Map;	1	()Ljava/util/Map<Ljava/util/UUID;Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	externalReservations	()Ljava/util/Map;	1	()Ljava/util/Map<Ljava/util/UUID;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	externalReserved	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	hostId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	isClosed	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	isOvercommitted	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	managedChildJobCount	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	managedExternalChildIds	()Ljava/util/Set;	1	()Ljava/util/Set<Ljava/util/UUID;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	maximumBits	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	physicalCapacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	physicalCapacityAsSaturatedLong	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	prepareVector	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease;	1	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	prepareVector	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;Lnet/minecraft/nbt/CompoundTag;II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease;	1	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;Lnet/minecraft/nbt/CompoundTag;II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	promoteExternalReservation	(Ljava/util/UUID;Ljava/math/BigInteger;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	quarantineExternalExecution	(Ljava/util/UUID;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	quarantineVector	(Ljava/util/UUID;Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	releaseExternal	(Ljava/util/UUID;)Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	replaceExternalReservations	(Ljava/util/Map;)V	1	(Ljava/util/Map<Ljava/util/UUID;Ljava/math/BigInteger;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	reserveExternal	(Ljava/util/UUID;Ljava/math/BigInteger;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	reserved	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	resizePhysicalCapacity	(Ljava/math/BigInteger;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	resolveExternalExecution	(Ljava/util/UUID;Z)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	rollback	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease;)V	1	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease<TK;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	rollbackRecovered	(Ljava/util/UUID;Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	rollbackUnboundPreparedExecutions	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	rollbackVector	(Ljava/util/UUID;Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	runtimeId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	save	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	schedule	(J)Ljava/util/List;	1	(J)Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	schedule	(JI)Ljava/util/List;	1	(JI)Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	snapshot	(JLcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	statusPage	(II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage;	1	(II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	statusPage	(Ljava/util/UUID;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage;	1	(Ljava/util/UUID;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	submit	(Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob;)Z	1	(Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob<TK;>;)Z
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	unresolvedExecutions	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredExecution<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	unresolvedVectorExecutions	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredVectorExecution<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	updateVector	(Ljava/util/UUID;Ljava/util/UUID;Lnet/minecraft/nbt/CompoundTag;II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease;	1	(Ljava/util/UUID;Ljava/util/UUID;Lnet/minecraft/nbt/CompoundTag;II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime	vectorCandidates	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	<init>	(Ljava/util/UUID;Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;JLjava/math/BigInteger;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	childCpuId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	executions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	jobId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	reservedCapacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	taskId	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostRuntime$ExternalExecutionBinding	transactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	available	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	backendState	()Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	bigJobCount	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	bigReserved	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	externalReserved	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	managedChildJobCount	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	of	(Ljava/util/UUID;JLjava/math/BigInteger;Ljava/math/BigInteger;Ljava/math/BigInteger;Ljava/math/BigInteger;JJJLcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostBackendState;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot;	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	overcommitted	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	physicalCapacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	reserved	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	revision	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	runtimeId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingHostSnapshot	standardJobCount	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPacketKeyCodec	read	(Lnet/minecraft/network/RegistryFriendlyByteBuf;)Ljava/lang/Object;	1025	(Lnet/minecraft/network/RegistryFriendlyByteBuf;)TK;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPacketKeyCodec	write	(Lnet/minecraft/network/RegistryFriendlyByteBuf;Ljava/lang/Object;)V	1025	(Lnet/minecraft/network/RegistryFriendlyByteBuf;TK;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	advance	(Lappeng/api/networking/IGrid;Lnet/minecraft/world/level/Level;Lappeng/api/networking/security/IActionSource;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	detail	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	jobId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	load	(Lnet/minecraft/nbt/CompoundTag;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution;	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	pendingItems	()Ljava/util/Map;	1	()Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	prepare	(Lappeng/api/networking/crafting/ICraftingPlan;Ljava/util/UUID;Lappeng/api/networking/IGrid;Lnet/minecraft/world/level/Level;Lappeng/api/networking/security/IActionSource;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution;	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	progressDenominator	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	progressNumerator	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	remainingOutput	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	requestCancellation	()V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	reservedBytes	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	save	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	state	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	storedItems	()Ljava/util/Map;	1	()Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	validateNativePlan	(Lappeng/api/networking/crafting/ICraftingPlan;Lappeng/api/networking/IGrid;)Z	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingPhysicalExecution	waitingItems	()Ljava/util/Map;	1	()Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	<init>	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;II)V	1	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;II)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	<init>	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;III)V	1	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;III)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	<init>	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;IIIJ)V	1	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;IIIJ)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	acceptOutput	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;)V	1	(Ljava/util/UUID;TK;Ljava/math/BigInteger;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	available	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	cancel	(Ljava/util/UUID;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	capacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	capacityAsSaturatedLong	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	commit	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease;JLjava/util/Map;)V	1	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease<TK;>;JLjava/util/Map<TK;Ljava/math/BigInteger;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	commitRecovered	(Ljava/util/UUID;Ljava/util/UUID;JLjava/util/Map;)V	1	(Ljava/util/UUID;Ljava/util/UUID;JLjava/util/Map<TK;Ljava/math/BigInteger;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	commitVector	(Ljava/util/UUID;Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	discardQuarantined	(Ljava/util/UUID;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	estimatedRuntimeCountBytes	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	jobIds	()Ljava/util/List;	1	()Ljava/util/List<Ljava/util/UUID;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	load	(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime;	9	<K:Ljava/lang/Object;>(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	load	(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;III)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime;	9	<K:Ljava/lang/Object;>(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;III)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	load	(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;IIIJ)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime;	9	<K:Ljava/lang/Object;>(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;IIIJ)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	maximumBits	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	maximumExecutionsPerWindow	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	maximumRuntimeCountBytes	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	maximumStatusPageEntries	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	prepareVector	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease;	1	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	prepareVector	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;Lnet/minecraft/nbt/CompoundTag;II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease;	1	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;Lnet/minecraft/nbt/CompoundTag;II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	quarantineVector	(Ljava/util/UUID;Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	reserved	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	reservedAsSaturatedLong	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	resizeCapacity	(Ljava/math/BigInteger;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	rollback	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease;)V	1	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease<TK;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	rollbackRecovered	(Ljava/util/UUID;Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	rollbackVector	(Ljava/util/UUID;Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	runtimeId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	save	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	schedule	(J)Ljava/util/List;	1	(J)Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	schedule	(JI)Ljava/util/List;	1	(JI)Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	statusPage	(II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage;	1	(II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	statusPage	(Ljava/util/UUID;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage;	1	(Ljava/util/UUID;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	submit	(Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob;)Z	1	(Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob<TK;>;)Z
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	unresolvedExecutions	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredExecution<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	unresolvedVectorExecutions	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredVectorExecution<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	updateVector	(Ljava/util/UUID;Ljava/util/UUID;Lnet/minecraft/nbt/CompoundTag;II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease;	1	(Ljava/util/UUID;Ljava/util/UUID;Lnet/minecraft/nbt/CompoundTag;II)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	validateLease	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease;)V	1	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease<TK;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime	vectorCandidates	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	<init>	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;JJLjava/lang/String;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution;)V	1	(Ljava/util/UUID;Ljava/util/UUID;TK;Ljava/math/BigInteger;JJLjava/lang/String;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	jobId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	jobReservedCapacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	patternGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	planningEpoch	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	prepared	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	programFingerprint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	recipeGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	runtimeId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$ExecutionLease	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredExecution	<init>	(Ljava/util/UUID;Ljava/lang/Object;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution;)V	1	(Ljava/util/UUID;TK;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredExecution	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredExecution	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredExecution	jobId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredExecution	prepared	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredExecution	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredExecution	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredVectorExecution	<init>	(Ljava/util/UUID;Ljava/lang/Object;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution;)V	1	(Ljava/util/UUID;TK;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredVectorExecution	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredVectorExecution	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredVectorExecution	jobId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredVectorExecution	prepared	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredVectorExecution	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$RecoveredVectorExecution	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	<init>	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;JJLjava/lang/String;Ljava/lang/String;Z)V	1	(Ljava/util/UUID;Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;JJLjava/lang/String;Ljava/lang/String;Z)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	exactVectorRequired	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	jobId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	jobReservedCapacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	patternGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	planningEpoch	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	programFingerprint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	recipeGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	requestedAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	runtimeId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorCandidate	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	<init>	(Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;JJLjava/lang/String;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution;)V	1	(Ljava/util/UUID;Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;JJLjava/lang/String;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	jobId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	jobReservedCapacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	patternGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	planningEpoch	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	prepared	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	programFingerprint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	recipeGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	requestedAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	runtimeId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingRuntime$VectorExecutionLease	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusInbox	accept	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage;)V	9	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage<Lappeng/api/stacks/AEKey;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusInbox	clear	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusInbox	latest	(Ljava/util/UUID;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage;	9	(Ljava/util/UUID;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage<Lappeng/api/stacks/AEKey;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	<init>	(Ljava/util/UUID;Ljava/math/BigInteger;Ljava/math/BigInteger;Ljava/math/BigInteger;IILjava/util/List;)V	1	(Ljava/util/UUID;Ljava/math/BigInteger;Ljava/math/BigInteger;Ljava/math/BigInteger;IILjava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary<TK;>;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	available	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	capacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	jobs	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	offset	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	reserved	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	runtimeId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage	totalJobs	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	<init>	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;Ljava/math/BigInteger;Ljava/math/BigInteger;IILcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;Z)V	1	(Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;Ljava/math/BigInteger;Ljava/math/BigInteger;IILcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;Z)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	executionPrepared	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	id	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	remainingExecutions	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	remainingTaskTypes	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	requestedAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	reservedCapacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	state	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	waitingAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage$JobSummary	waitingTypes	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPageCodec	<init>	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingPacketKeyCodec;II)V	1	(Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingPacketKeyCodec<TK;>;II)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPageCodec	read	(Lnet/minecraft/network/RegistryFriendlyByteBuf;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage;	1	(Lnet/minecraft/network/RegistryFriendlyByteBuf;)Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage<TK;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPageCodec	write	(Lnet/minecraft/network/RegistryFriendlyByteBuf;Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage;)V	1	(Lnet/minecraft/network/RegistryFriendlyByteBuf;Lcom/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPage<TK;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigCraftingStatusPageCodec$PacketTooLargeException	<init>	(Ljava/lang/String;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	add	(Ljava/lang/Object;J)V	1	(TK;J)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	add	(Ljava/lang/Object;Ljava/math/BigInteger;)V	1	(TK;Ljava/math/BigInteger;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	clear	()V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	drain	(Ljava/lang/Object;J)J	1	(TK;J)J
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	get	(Ljava/lang/Object;)Ljava/math/BigInteger;	1	(TK;)Ljava/math/BigInteger;
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	isEmpty	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	load	(Lnet/minecraft/nbt/CompoundTag;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	save	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	size	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerAmountLedger	snapshot	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	<init>	(Lappeng/api/stacks/GenericStack;Ljava/math/BigInteger;ZLjava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;)V	1	(Lappeng/api/stacks/GenericStack;Ljava/math/BigInteger;ZLjava/util/Map<Lappeng/api/crafting/IPatternDetails;Ljava/math/BigInteger;>;Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;)V
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	emittedItems	()Ljava/util/Map;	1	()Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	exactBytes	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	finalOutput	()Lappeng/api/stacks/GenericStack;	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	missingItems	()Ljava/util/Map;	1	()Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	patternTimes	()Ljava/util/Map;	1	()Ljava/util/Map<Lappeng/api/crafting/IPatternDetails;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	simulation	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/big/BigIntegerCraftingPlanView	usedItems	()Ljava/util/Map;	1	()Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision	<init>	(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JJJLjava/lang/String;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision	ownershipRevision	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision	progressRevision	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision	receiptRevision	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision	runtimeIdentity	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision	stateHint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision	targetIdentity	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision	transactionId	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/CanonicalBigIntegerCodec	decodeNonNegative	([BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Ljava/math/BigInteger;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/CanonicalBigIntegerCodec	encodeNonNegative	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)[B	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/CanonicalBigIntegerCodec	encodePositive	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)[B	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/CanonicalBigIntegerCodec	readNonNegative	(Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Ljava/math/BigInteger;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/CanonicalBigIntegerCodec	toIntExact	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)I	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/CanonicalBigIntegerCodec	toLongExact	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)J	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/CanonicalBigIntegerCodec	writeNonNegative	(Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/CraftingTableBatchSnapshot	of	(JLcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;Ljava/util/Map;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/CraftingTableBatchSnapshot;	9	(JLcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/CraftingTableBatchSnapshot;
+M	com/syaru/ae2craftingoptimizer/api/contract/CraftingTableBatchSnapshot	outputCounts	()Ljava/util/Map;	1	()Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/contract/CraftingTableBatchSnapshot	revision	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/CraftingTableBatchSnapshot	state	()Lcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	<init>	(IIIIII)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	defaults	()Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	maximumCanonicalBytes	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	maximumCountBits	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	maximumDigestLength	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	maximumEncodedPayloadBytes	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	maximumIdentifierLength	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	maximumKeysPerPayload	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	toIntExact	(Ljava/math/BigInteger;)I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	toLongExact	(Ljava/math/BigInteger;)J	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	validateCanonicalBytes	([B)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	validateDigest	([B)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	validateEncodedPayloadLength	(I)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	validateIdentifier	(Ljava/lang/String;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	validateKeyCount	(I)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	validateNonNegative	(Ljava/math/BigInteger;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	validatePositive	(Ljava/math/BigInteger;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits	validateRequiredIdentifier	(Ljava/lang/String;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload	counts	()Ljava/util/Map;	1	()Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload	digest	()[B	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload	equals	(Ljava/lang/Object;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload	hashCode	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload	identifier	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload	kind	()Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload	of	(Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;Ljava/lang/String;Ljava/util/Map;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload;	9	(Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;Ljava/lang/String;Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload;
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayloadCodec	decode	([BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayloadCodec	encode	(Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)[B	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayloadCodec	readFromNbt	(Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactCountPayloadCodec	writeToNbt	(Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountPayload;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ExactStorageAmountProvider	exactStoredAmounts	()Ljava/util/Map;	1025	()Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	<init>	(IIIIILcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;Ljava/util/Set;)V	1	(IIIIILcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;Ljava/util/Set<Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;>;)V
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	bigCraftingApiVersion	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	craftingTableBatchApiVersion	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	exactCountLimits	()Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	forAco	(Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	patternBatchApiVersion	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	persistenceSchemaVersion	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	receiptProtocolVersion	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	requireFeatures	(Ljava/util/Set;)V	1	(Ljava/util/Set<Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;>;)V
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	supportedFeatures	()Ljava/util/Set;	1	()Ljava/util/Set<Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;>;
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities	supports	(Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilitiesRegistry	initializeOnce	(Lcom/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities;)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilitiesRegistry	peek	()Ljava/util/Optional;	9	()Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities;>;
+M	com/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilitiesRegistry	snapshot	()Lcom/syaru/ae2craftingoptimizer/api/contract/IntegrationCapabilities;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	<init>	(Ljava/lang/String;JLjava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	absentConfirmed	(Ljava/lang/String;JLjava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	accountingStateHint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	isAuthoritativelyAbsent	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	ownerGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	ownerRuntimeId	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	payloadDigest	()[B	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	result	()Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	sameTransaction	(Ljava/lang/String;[B)Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	transactionId	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof	unknown	(Ljava/lang/String;JLjava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState	values	()[Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionState;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/PayloadKind	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/PayloadKind	values	()[Lcom/syaru/ae2craftingoptimizer/api/contract/PayloadKind;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptOrphanPolicy	mayForget	(Lcom/syaru/ae2craftingoptimizer/api/contract/LiveTransactionProof;)Z	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation	payloadDigest	()[B	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation	state	()Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation	transactionId	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationProtocol	acknowledge	(Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;Ljava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationProtocol	cancelReservation	(Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;Ljava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationProtocol	commitRunning	(Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;Ljava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationProtocol	forget	(Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;Ljava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationProtocol	markOutputReady	(Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;Ljava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationProtocol	quarantine	(Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;Ljava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationProtocol	reserve	(Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;Ljava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationProtocol	reserve	(Ljava/lang/String;[BLcom/syaru/ae2craftingoptimizer/api/contract/ExactCountLimits;)Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservation;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState	values	()[Lcom/syaru/ae2craftingoptimizer/api/contract/ReceiptReservationState;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/RevisionWakeupApi	publish	(Lcom/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision;)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/RevisionWakeupApi	register	(Lcom/syaru/ae2craftingoptimizer/api/contract/RevisionWakeupListener;)Lcom/syaru/ae2craftingoptimizer/api/contract/RevisionWakeupRegistration;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/RevisionWakeupListener	onRevision	(Lcom/syaru/ae2craftingoptimizer/api/contract/BatchTargetRevision;)V	1025	null
+M	com/syaru/ae2craftingoptimizer/api/contract/RevisionWakeupRegistration	close	()V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/SnapshotRevisionTracker	<init>	()V	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/SnapshotRevisionTracker	accept	(Lcom/syaru/ae2craftingoptimizer/api/contract/CraftingTableBatchSnapshot;)Lcom/syaru/ae2craftingoptimizer/api/contract/CraftingTableBatchSnapshot;	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/SnapshotRevisionTracker	latestRevision	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/contract/SnapshotState	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/SnapshotState	values	()[Lcom/syaru/ae2craftingoptimizer/api/contract/SnapshotState;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;	9	null
+M	com/syaru/ae2craftingoptimizer/api/contract/SupportedFeature	values	()[Lcom/syaru/ae2craftingoptimizer/api/contract/SupportedFeature;	9	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode;	9	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode	values	()[Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode;	9	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	<init>	(Ljava/util/UUID;Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;ILcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode;Lappeng/api/crafting/IPatternDetails;Ljava/math/BigInteger;[Lappeng/api/stacks/KeyCounter;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/Map;)V	1	(Ljava/util/UUID;Ljava/util/UUID;Ljava/util/UUID;Ljava/lang/String;ILcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode;Lappeng/api/crafting/IPatternDetails;Ljava/math/BigInteger;[Lappeng/api/stacks/KeyCounter;Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;Ljava/util/List<Lappeng/api/stacks/GenericStack;>;Ljava/util/List<Lappeng/api/stacks/GenericStack;>;Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;)V
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	aggregateExpectedOutputs	()Ljava/util/Map;	1	()Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	aggregateInputTotals	()Ljava/util/Map;	1	()Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	aggregateSlotInputs	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	countsFitSignedLong	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	craftingJobId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	executions	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	inputsPerExecution	()[Lappeng/api/stacks/KeyCounter;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	mode	()Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchMode;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	outputsPerExecution	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	ownerTransactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	pattern	()Lappeng/api/crafting/IPatternDetails;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	payloadDigest	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	remainingPerExecution	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	stageIndex	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest	transactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	<init>	(Ljava/util/UUID;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;IILjava/util/Map;Ljava/lang/String;)V	1	(Ljava/util/UUID;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;IILjava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;Ljava/lang/String;)V
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	detail	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	exactOutputs	()Ljava/util/Map;	1	()Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	maximumProgress	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	payloadDigest	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	progress	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	state	()Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot	transactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;	9	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State	values	()[Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot$State;	9	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchTarget	aco$acceptCraftingTableBatch	(Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchRequest;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchTarget	aco$acknowledgeCraftingTableBatch	(Ljava/util/UUID;Ljava/lang/String;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchTarget	aco$cancelCraftingTableBatch	(Ljava/util/UUID;Ljava/lang/String;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchTarget	aco$craftingTableBatchSnapshot	(Ljava/util/UUID;Ljava/lang/String;)Ljava/util/Optional;	1025	(Ljava/util/UUID;Ljava/lang/String;)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchSnapshot;>;
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchTarget	aco$forgetCraftingTableBatch	(Ljava/util/UUID;Ljava/lang/String;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/craftingtable/CraftingTableBatchTarget	aco$ownsCraftingTableBatch	(Ljava/util/UUID;Ljava/lang/String;)Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/execution/VectorBatchExecutionOwner	acoSupportsVectorBatchExecution	()Z	1025	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingInputSlot	<init>	(Lappeng/api/stacks/AEKey;J)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingInputSlot	amountPerExecution	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingInputSlot	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingInputSlot	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingInputSlot	key	()Lappeng/api/stacks/AEKey;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingInputSlot	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep	<init>	(Ljava/lang/String;ILjava/math/BigInteger;Ljava/util/List;)V	1	(Ljava/lang/String;ILjava/math/BigInteger;Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactCraftingInputSlot;>;)V
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep	depth	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep	executions	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep	patternId	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep	selectedInputs	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactCraftingInputSlot;>;
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStack	<init>	(Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStack	amount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStack	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStack	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStack	key	()Lappeng/api/stacks/AEKey;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStack	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	<init>	(ZZLjava/math/BigInteger;Ljava/lang/String;)V	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	appliedAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	detail	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	rejected	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult;	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	stateUncertain	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	success	(Ljava/math/BigInteger;)Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult;	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	successful	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult	uncertain	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult;	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	accountingSnapshotRebuilt	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	activeStages	(IJ)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	activeTick	(J)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	dirtyCallAvoided	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	executorRejected	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	fingerprintRevalidated	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	planPrepared	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	queueWork	(JJ)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	receiptFreeRollback	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	startBudgetDeferred	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	transactionCancelled	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	transactionCompleted	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	transactionQuarantined	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	transactionStarted	(Lcom/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode;)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorDiagnostics	zeroAllocationWait	()V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorExecutionBudget	claimLogicalStages	(Lappeng/api/networking/IGrid;I)I	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStoragePolicy	acoMaximumExactInsert	(Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;)Ljava/math/BigInteger;	1025	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	canExtract	(Lappeng/api/networking/IGrid;Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;Lappeng/api/networking/security/IActionSource;)Z	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	canExtractAll	(Lappeng/api/networking/IGrid;Ljava/util/Map;Lappeng/api/networking/security/IActionSource;)Z	9	(Lappeng/api/networking/IGrid;Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;Lappeng/api/networking/security/IActionSource;)Z
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	canInsert	(Lappeng/api/networking/IGrid;Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;Lappeng/api/networking/security/IActionSource;)Z	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	canInsertAll	(Lappeng/api/networking/IGrid;Ljava/util/Map;Lappeng/api/networking/security/IActionSource;)Z	9	(Lappeng/api/networking/IGrid;Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;Lappeng/api/networking/security/IActionSource;)Z
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	exactStoredAmount	(Lappeng/api/networking/IGrid;Lappeng/api/stacks/AEKey;)Ljava/util/Optional;	9	(Lappeng/api/networking/IGrid;Lappeng/api/stacks/AEKey;)Ljava/util/Optional<Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	exactStoredAmounts	(Lappeng/api/networking/IGrid;Ljava/util/Set;)Ljava/util/Optional;	9	(Lappeng/api/networking/IGrid;Ljava/util/Set<Lappeng/api/stacks/AEKey;>;)Ljava/util/Optional<Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;>;
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	extract	(Lappeng/api/networking/IGrid;Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;Lappeng/api/networking/security/IActionSource;)Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult;	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	extractAll	(Lappeng/api/networking/IGrid;Ljava/util/Map;Lappeng/api/networking/security/IActionSource;)Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult;	9	(Lappeng/api/networking/IGrid;Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;Lappeng/api/networking/security/IActionSource;)Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult;
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	insert	(Lappeng/api/networking/IGrid;Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;Lappeng/api/networking/security/IActionSource;)Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult;	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/ExactVectorStorageService	insertAll	(Lappeng/api/networking/IGrid;Ljava/util/Map;Lappeng/api/networking/security/IActionSource;)Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult;	9	(Lappeng/api/networking/IGrid;Ljava/util/Map<Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;>;Lappeng/api/networking/security/IActionSource;)Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStorageMutationResult;
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	<init>	(Ljava/util/UUID;Ljava/util/UUID;Lcom/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode;Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;Ljava/math/BigInteger;ILjava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/lang/String;JJ)V	1	(Ljava/util/UUID;Ljava/util/UUID;Lcom/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode;Lappeng/api/stacks/AEKey;Ljava/math/BigInteger;Ljava/math/BigInteger;ILjava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;Ljava/util/List<Ljava/lang/String;>;Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep;>;Ljava/lang/String;JJ)V
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	craftingSteps	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactCraftingStep;>;
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	finalOutputs	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	logicalExecutions	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	logicalStageCount	()I	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	parentJobId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	patternGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	programFingerprint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	recipeGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	remainingOutputs	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	requestedAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	requestedOutput	()Lappeng/api/stacks/AEKey;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	requiredPatternIds	()Ljava/util/List;	1	()Ljava/util/List<Ljava/lang/String;>;
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	resourceMode	()Lcom/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	totalInputs	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch	transactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatchCodec	decode	(Lnet/minecraft/nbt/CompoundTag;)Lcom/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch;	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatchCodec	decodeStacks	(Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;)Ljava/util/List;	9	(Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;)Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatchCodec	encode	(Lcom/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatch;)Lnet/minecraft/nbt/CompoundTag;	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatchCodec	encodeStacks	(Ljava/util/List;)Lnet/minecraft/nbt/ListTag;	9	(Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/api/vector/ExactStack;>;)Lnet/minecraft/nbt/ListTag;
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatchCodec	putNonNegative	(Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;Ljava/math/BigInteger;)V	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/PreparedVectorBatchCodec	readNonNegative	(Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;)Ljava/math/BigInteger;	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode;	9	null
+M	com/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode	values	()[Lcom/syaru/ae2craftingoptimizer/api/vector/VectorResourceMode;	9	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	<init>	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;Ljava/util/Map;Ljava/util/Map;)V	1	(Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;Ljava/util/Map<TK;Ljava/math/BigInteger;>;)V
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	acceptOutput	(Ljava/lang/Object;Ljava/math/BigInteger;)V	1	(TK;Ljava/math/BigInteger;)V
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	cancel	()V	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	commitPreparedVector	(Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	commitPreparedWindow	(Ljava/util/UUID;JLjava/util/Map;)V	1	(Ljava/util/UUID;JLjava/util/Map<TK;Ljava/math/BigInteger;>;)V
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	compactStatusSnapshot	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot;	1	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	estimatedCountBytes	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	estimatedCountBytesAfterCommit	(JLjava/util/Map;)J	1	(JLjava/util/Map<TK;Ljava/math/BigInteger;>;)J
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	exactVectorRequired	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	fromLong	(Ljava/util/UUID;Ljava/lang/Object;JJLjava/util/Map;Ljava/util/Map;)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob;	9	<K:Ljava/lang/Object;>(Ljava/util/UUID;TK;JJLjava/util/Map<Ljava/lang/String;Ljava/lang/Long;>;Ljava/util/Map<TK;Ljava/lang/Long;>;)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	hasPreparedExecution	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	hasRemainingTasks	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	id	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	isRootWindowed	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	load	(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;I)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob;	9	<K:Ljava/lang/Object;>(Lnet/minecraft/nbt/CompoundTag;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;I)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	maximumExecutionsPerWindow	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	nextRunnableTaskId	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	patternGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	planningEpoch	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	prepareVectorExecution	(Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	prepareVectorExecution	(Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;Lnet/minecraft/nbt/CompoundTag;II)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	prepareWindow	(Ljava/lang/String;J)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	preparedExecution	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	preparedVectorExecution	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	programFingerprint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	quarantine	()V	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	recipeGeneration	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	releasable	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	remainingExecutionTotal	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	remainingTasks	()Ljava/util/Map;	1	()Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	requestedAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	reservedCapacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	rollbackPreparedVector	(Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	rollbackPreparedWindow	(Ljava/util/UUID;)V	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	rootWindowed	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob;	9	<K:Ljava/lang/Object;>(Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	rootWindowed	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;JJ)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob;	9	<K:Ljava/lang/Object;>(Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;JJ)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	rootWindowed	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;JJJ)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob;	9	<K:Ljava/lang/Object;>(Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;JJJ)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	rootWindowed	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;JJJLjava/lang/String;Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob;	9	<K:Ljava/lang/Object;>(Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;JJJLjava/lang/String;Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	rootWindowed	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;JJJLjava/lang/String;Ljava/lang/String;Z)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob;	9	<K:Ljava/lang/Object;>(Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;JJJLjava/lang/String;Ljava/lang/String;Z)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	save	(Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec;I)Lnet/minecraft/nbt/CompoundTag;	1	(Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec<TK;>;I)Lnet/minecraft/nbt/CompoundTag;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	state	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	statusSnapshot	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot;	1	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	terminal	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	updatePreparedVectorExecution	(Ljava/util/UUID;Lnet/minecraft/nbt/CompoundTag;II)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	validateProjectedWaiting	(Ljava/util/Map;I)V	1	(Ljava/util/Map<TK;Ljava/math/BigInteger;>;I)V
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	waitingFor	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob	waitingTotal	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	<init>	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;Ljava/math/BigInteger;Ljava/math/BigInteger;IIZ)V	1	(Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;Ljava/math/BigInteger;Ljava/math/BigInteger;IIZ)V
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	executionPrepared	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	id	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	remainingExecutions	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	remainingTaskTypes	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	requestedAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	reservedCapacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	state	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	waitingAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$CompactStatusSnapshot	waitingTypes	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution	<init>	(Ljava/util/UUID;Ljava/lang/String;Lcom/syaru/ae2craftingoptimizer/engine/BigExecutionWindow;)V	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution	patternId	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution	transactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedExecution	window	()Lcom/syaru/ae2craftingoptimizer/engine/BigExecutionWindow;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	<init>	(Ljava/util/UUID;Ljava/lang/String;Ljava/lang/String;Ljava/math/BigInteger;Ljava/math/BigInteger;Lnet/minecraft/nbt/CompoundTag;II)V	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	executionState	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	executions	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	executorId	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	offset	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	planFingerprint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	progressDenominator	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	progressNumerator	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$PreparedVectorExecution	transactionId	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	9	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State	values	()[Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	9	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	<init>	(Ljava/util/UUID;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;Ljava/util/Map;Ljava/util/Map;Z)V	1	(Ljava/util/UUID;TK;Ljava/math/BigInteger;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;Ljava/util/Map<TK;Ljava/math/BigInteger;>;Z)V
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	executionPrepared	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	id	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	remainingTasks	()Ljava/util/Map;	1	()Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	requestedAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	reservedCapacity	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	state	()Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingJob$State;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingJob$StatusSnapshot	waitingFor	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec	decode	(Lnet/minecraft/nbt/CompoundTag;)Ljava/lang/Object;	1025	(Lnet/minecraft/nbt/CompoundTag;)TK;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingKeyCodec	encode	(Ljava/lang/Object;)Lnet/minecraft/nbt/CompoundTag;	1025	(TK;)Lnet/minecraft/nbt/CompoundTag;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	<init>	(Ljava/lang/Object;Ljava/math/BigInteger;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;I)V	1	(TK;Ljava/math/BigInteger;Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;Ljava/util/Map<TK;Ljava/math/BigInteger;>;Ljava/util/Map<TK;Ljava/math/BigInteger;>;Ljava/util/Map<TK;Ljava/math/BigInteger;>;I)V
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	<init>	(Ljava/lang/Object;Ljava/math/BigInteger;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;ILcom/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace;)V	1	(TK;Ljava/math/BigInteger;Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;Ljava/util/Map<TK;Ljava/math/BigInteger;>;Ljava/util/Map<TK;Ljava/math/BigInteger;>;Ljava/util/Map<TK;Ljava/math/BigInteger;>;ILcom/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace<TK;>;)V
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	craftable	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	emitted	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	expandedRequests	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	missing	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	patternExecutions	()Ljava/util/Map;	1	()Ljava/util/Map<Ljava/lang/String;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	requestedAmount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	trace	()Lcom/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace;	1	()Lcom/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigCraftingPlan	usedInventory	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/BigExecutionWindow	<init>	(Ljava/math/BigInteger;JLjava/math/BigInteger;)V	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigExecutionWindow	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigExecutionWindow	executions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigExecutionWindow	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/BigExecutionWindow	next	(Ljava/math/BigInteger;Ljava/math/BigInteger;J)Lcom/syaru/ae2craftingoptimizer/engine/BigExecutionWindow;	9	null
+M	com/syaru/ae2craftingoptimizer/engine/BigExecutionWindow	offset	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigExecutionWindow	remainingAfter	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/BigExecutionWindow	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph	compile	(JLjava/util/Collection;)Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph;	9	<K:Ljava/lang/Object;>(JLjava/util/Collection<Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern<TK;>;>;)Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph	generation	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph	isCyclic	(Ljava/lang/Object;)Z	1	(TK;)Z
+M	com/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph	patterns	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph	patternsFor	(Ljava/lang/Object;)Ljava/util/List;	1	(TK;)Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph	sharesCycle	(Ljava/lang/Object;Ljava/lang/Object;)Z	1	(TK;TK;)Z
+M	com/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph	stronglyConnectedComponentCount	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern	<init>	(Ljava/lang/String;Ljava/util/List;Ljava/util/Map;Z)V	1	(Ljava/lang/String;Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern$InputSlot<TK;>;>;Ljava/util/Map<TK;Ljava/lang/Long;>;Z)V
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern	externalPush	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern	id	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern	inputs	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern$InputSlot<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern	outputAmount	(Ljava/lang/Object;)J	1	(TK;)J
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern	outputs	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/lang/Long;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$InputSlot	<init>	(Ljava/util/List;)V	1	(Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern$Stack<TK;>;>;)V
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$InputSlot	<init>	(Ljava/util/List;J)V	1	(Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern$Stack<TK;>;>;J)V
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$InputSlot	alternatives	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern$Stack<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$InputSlot	templateAmount	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$Stack	<init>	(Ljava/lang/Object;J)V	1	(TK;J)V
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$Stack	amount	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$Stack	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$Stack	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$Stack	key	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledPattern$Stack	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	captureBigInventory	(Ljava/util/function/Function;I)Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot;	1	(Ljava/util/function/Function<-TK;Ljava/math/BigInteger;>;I)Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	captureLongInventory	(Ljava/util/function/ToLongFunction;)Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot;	1	(Ljava/util/function/ToLongFunction<-TK;>;)Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	compile	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph;Ljava/lang/Object;Ljava/util/function/Predicate;)Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome;	9	<K:Ljava/lang/Object;>(Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph<TK;>;TK;Ljava/util/function/Predicate<-TK;>;)Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	emittableKeys	()Ljava/util/Set;	1	()Ljava/util/Set<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	generation	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	indexOf	(Ljava/lang/Object;)I	1	(TK;)I
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	inputAlternativeAmountAt	(III)J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	inputAlternativeCountAt	(II)I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	inputAlternativeKeyAt	(III)Ljava/lang/Object;	1	(III)TK;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	inputAmountAt	(II)J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	inputCountAt	(I)I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	inputKeyAt	(II)Ljava/lang/Object;	1	(II)TK;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	inventoryMatches	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot;Ljava/util/function/Function;I)Z	1	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot<TK;>;Ljava/util/function/Function<-TK;Ljava/math/BigInteger;>;I)Z
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	inventoryMatches	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot;Ljava/util/function/ToLongFunction;)Z	1	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot<TK;>;Ljava/util/function/ToLongFunction<-TK;>;)Z
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	isEmittableAt	(I)Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	keyAt	(I)Ljava/lang/Object;	1	(I)TK;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	nodeCount	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	outputAmountAt	(I)J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	patternAt	(I)Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern;	1	(I)Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	patternCount	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	patternIdAt	(I)Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	patternsByOutput	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Lcom/syaru/ae2craftingoptimizer/engine/CompiledPattern<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	planBig	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;I)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingPlan;	1	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot<TK;>;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;I)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingPlan<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	planBig	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;I)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingPlan;	1	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot<TK;>;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;I)Lcom/syaru/ae2craftingoptimizer/engine/BigCraftingPlan<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	planLong	(JLcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;)Lcom/syaru/ae2craftingoptimizer/engine/LongCraftingPlan;	1	(JLcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot<TK;>;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;)Lcom/syaru/ae2craftingoptimizer/engine/LongCraftingPlan<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	root	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	tryCompile	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph;Ljava/lang/Object;Ljava/util/function/Predicate;)Ljava/util/Optional;	9	<K:Ljava/lang/Object;>(Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph<TK;>;TK;Ljava/util/function/Predicate<-TK;>;)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram	tryPlanDeterministicCraftingBig	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot;I)Ljava/util/Optional;	1	(Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot<TK;>;I)Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot	size	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	<init>	(Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/List;Ljava/util/List;Ljava/math/BigInteger;I)V	1	(Ljava/util/Map<TK;Ljava/math/BigInteger;>;Ljava/util/Map<TK;Ljava/math/BigInteger;>;Ljava/util/Map<TK;Ljava/math/BigInteger;>;Ljava/util/List<Ljava/lang/String;>;Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep<TK;>;>;Ljava/math/BigInteger;I)V
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	boundaryInputs	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	boundaryOutputs	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	craftable	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	logicalExecutions	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	logicalStageCount	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	missing	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/math/BigInteger;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	patternSteps	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	requiredPatternIds	()Ljava/util/List;	1	()Ljava/util/List<Ljava/lang/String;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicCraftingBigPlan	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicInput	<init>	(Ljava/lang/Object;J)V	1	(TK;J)V
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicInput	amount	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicInput	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicInput	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicInput	key	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicInput	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep	<init>	(Ljava/lang/String;ILjava/math/BigInteger;Ljava/util/List;)V	1	(Ljava/lang/String;ILjava/math/BigInteger;Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicInput<TK;>;>;)V
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep	depth	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep	executions	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep	patternId	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep	selectedInputs	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicInput<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$DeterministicPatternStep	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot	size	()I	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome	<init>	(Ljava/util/Optional;Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;)V	1	(Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram<TK;>;>;Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;)V
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome	failure	()Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome	program	()Ljava/util/Optional;	1	()Ljava/util/Optional<Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome	withFailure	(Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;)Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome;	1	(Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;)Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$Outcome<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace	<init>	(Ljava/util/List;)V	1	(Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace$Charge<TK;>;>;)V
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace	charges	()Ljava/util/List;	1	()Ljava/util/List<Lcom/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace$Charge<TK;>;>;
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace$Charge	<init>	(Ljava/lang/Object;Ljava/math/BigInteger;J)V	1	(TK;Ljava/math/BigInteger;J)V
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace$Charge	amount	()Ljava/math/BigInteger;	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace$Charge	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace$Charge	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace$Charge	key	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace$Charge	templateAmount	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace$Charge	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	<init>	(Ljava/lang/Object;JLjava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;)V	1	(TK;JLjava/util/Map<Ljava/lang/String;Ljava/lang/Long;>;Ljava/util/Map<TK;Ljava/lang/Long;>;Ljava/util/Map<TK;Ljava/lang/Long;>;Ljava/util/Map<TK;Ljava/lang/Long;>;)V
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	<init>	(Ljava/lang/Object;JLjava/util/Map;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;Lcom/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace;)V	1	(TK;JLjava/util/Map<Ljava/lang/String;Ljava/lang/Long;>;Ljava/util/Map<TK;Ljava/lang/Long;>;Ljava/util/Map<TK;Ljava/lang/Long;>;Ljava/util/Map<TK;Ljava/lang/Long;>;Lcom/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace<TK;>;)V
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	craftable	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	emitted	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/lang/Long;>;
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	equals	(Ljava/lang/Object;)Z	17	null
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	hashCode	()I	17	null
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	missing	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/lang/Long;>;
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	patternExecutions	()Ljava/util/Map;	1	()Ljava/util/Map<Ljava/lang/String;Ljava/lang/Long;>;
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	requestedAmount	()J	1	null
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	requestedKey	()Ljava/lang/Object;	1	()TK;
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	toString	()Ljava/lang/String;	17	null
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	trace	()Lcom/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace;	1	()Lcom/syaru/ae2craftingoptimizer/engine/CraftingPlanTrace<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/LongCraftingPlan	usedInventory	()Ljava/util/Map;	1	()Ljava/util/Map<TK;Ljava/lang/Long;>;
+M	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner	<init>	()V	1	null
+M	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner	<init>	(I)V	1	null
+M	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner	plan	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/util/Map;)Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result;	1	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph<TK;>;TK;Ljava/math/BigInteger;Ljava/util/Map<TK;Ljava/math/BigInteger;>;)Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner	plan	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/util/Map;Ljava/util/Set;)Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result;	1	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph<TK;>;TK;Ljava/math/BigInteger;Ljava/util/Map<TK;Ljava/math/BigInteger;>;Ljava/util/Set<TK;>;)Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner	plan	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph;Ljava/lang/Object;Ljava/math/BigInteger;Ljava/util/Map;Ljava/util/Set;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;)Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result;	1	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledCraftingGraph<TK;>;TK;Ljava/math/BigInteger;Ljava/util/Map<TK;Ljava/math/BigInteger;>;Ljava/util/Set<TK;>;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;)Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner	plan	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;)Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result;	1	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram<TK;>;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$BigInventorySnapshot<TK;>;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;)Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner	plan	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;)Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result;	1	(Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram<TK;>;Ljava/math/BigInteger;Lcom/syaru/ae2craftingoptimizer/engine/CompiledRootProgram$InventorySnapshot<TK;>;Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;)Lcom/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result<TK;>;
+M	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result	craftable	()Z	1025	null
+M	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result	provenEquivalent	()Z	1025	null
+M	com/syaru/ae2craftingoptimizer/engine/OverflowPromotingCraftingPlanner$Result	usesBigInteger	()Z	1025	null
+M	com/syaru/ae2craftingoptimizer/engine/PlanningGuard	checkpoint	(I)V	1025	null
+M	com/syaru/ae2craftingoptimizer/engine/PlanningGuard	none	()Lcom/syaru/ae2craftingoptimizer/engine/PlanningGuard;	9	null
+M	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	snapshotShaped	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	structural	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	9	null
+M	com/syaru/ae2craftingoptimizer/engine/RootProgramFailure	values	()[Lcom/syaru/ae2craftingoptimizer/engine/RootProgramFailure;	9	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	canTransitionTo	(Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;)Z	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	terminal	()Z	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	valueOf	(Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;	9	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase	values	()[Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;	9	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	<init>	(Ljava/util/UUID;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/core/BlockPos;Ljava/lang/String;JJJJLcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;Ljava/util/List;Ljava/util/List;Lnet/minecraft/nbt/CompoundTag;Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;)V	1	(Ljava/util/UUID;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/core/BlockPos;Ljava/lang/String;JJJJLcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;Ljava/util/List<Lappeng/api/stacks/GenericStack;>;Ljava/util/List<Lappeng/api/stacks/GenericStack;>;Lnet/minecraft/nbt/CompoundTag;Lnet/minecraft/nbt/CompoundTag;Ljava/lang/String;)V
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	acceptedExecutions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	adapterData	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	adapterId	()Lnet/minecraft/resources/ResourceLocation;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	createdTick	()J	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	dimensionId	()Lnet/minecraft/resources/ResourceLocation;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	expectedOutputs	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	extractedInputs	()Ljava/util/List;	1	()Ljava/util/List<Lappeng/api/stacks/GenericStack;>;
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	id	()Ljava/util/UUID;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	load	(Lnet/minecraft/nbt/CompoundTag;)Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord;	9	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	offeredExecutions	()J	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	patternFingerprint	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	payloadDigest	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	phase	()Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	receipt	()Ljava/lang/String;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	save	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	sourceData	()Lnet/minecraft/nbt/CompoundTag;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	sourceId	()Lnet/minecraft/resources/ResourceLocation;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	targetPos	()Lnet/minecraft/core/BlockPos;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	toPublicView	()Lcom/syaru/ae2craftingoptimizer/api/batch/v2/BatchTransactionRecord;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	transition	(Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionPhase;JJLnet/minecraft/nbt/CompoundTag;Ljava/lang/String;)Lcom/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord;	1	null
+M	com/syaru/ae2craftingoptimizer/transaction/BatchTransactionRecord	updatedTick	()J	1	null

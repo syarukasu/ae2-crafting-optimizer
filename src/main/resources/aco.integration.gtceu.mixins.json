@@ -5,7 +5,8 @@
   "plugin": "com.syaru.ae2craftingoptimizer.mixin.GtceuMixinConfigPlugin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "GTCEuRecipeLogicIntentFastPathMixin"
+    "GTCEuRecipeLogicIntentFastPathMixin",
+    "GTRecipeDbIntentViewMixin"
   ],
   "injectors": {
     "defaultRequire": 1

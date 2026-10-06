@@ -19,7 +19,10 @@ final class ACOStartupReport {
     static void logActiveConfiguration() {
         MixinTransformationReport.log();
         AE2CraftingOptimizer.LOGGER.info("ACO active: {}", ACOConfig.enableOptimizer());
-        AE2CraftingOptimizer.LOGGER.info(
+        if (net.neoforged.fml.ModList.get().isLoaded("ae2vm_aco")) {
+            AE2CraftingOptimizer.LOGGER.info(
+                    "ACO planning owner: vm-native; ACO capture/dedup/compiled replacement disabled; exact accounting retained");
+        } else AE2CraftingOptimizer.LOGGER.info(
                 "ACO planning core: deduplicate {}, completed cache {}, calculation-local memo {}, compiled graph {}, shadow {}",
                 ACOConfig.deduplicateActiveCraftingCalculations(),
                 ACOConfig.cacheCompletedCraftingPlans(),
@@ -27,10 +30,9 @@ final class ACOStartupReport {
                 ACOConfig.enableCompiledCraftingGraph(),
                 ACOConfig.enableCraftingEngineShadowMode());
         AE2CraftingOptimizer.LOGGER.info(
-                "ACO execution budget: throttle {}, adaptive {}, shared-grid {}, instant dispatch {}, V2 adapters {}",
-                ACOConfig.throttleCraftingExecution(),
-                ACOConfig.adaptiveCraftingExecutionBudget(),
-                ACOConfig.sharedCraftingExecutionBudget(),
+                "ACO normal dispatch: native AE2/add-on execution; no ACO count, time, probe or shared-grid limiter");
+        AE2CraftingOptimizer.LOGGER.info(
+                "ACO-owned transactional V2 execution: instant {}, adapters {}",
                 ACOConfig.enableInstantPatternDispatch(),
                 PatternBatchV2Api.registeredAdapterIds());
         AE2CraftingOptimizer.LOGGER.info(

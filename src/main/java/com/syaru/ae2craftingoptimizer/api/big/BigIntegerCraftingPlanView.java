@@ -24,7 +24,16 @@ public record BigIntegerCraftingPlanView(
         Map<IPatternDetails, BigInteger> patternTimes,
         Map<AEKey, BigInteger> usedItems,
         Map<AEKey, BigInteger> emittedItems,
-        Map<AEKey, BigInteger> missingItems) {
+        Map<AEKey, BigInteger> missingItems,
+        BigInteger exactRequestedAmount) {
+
+    /** Binary-compatible constructor for integrations whose request still fits in long. */
+    public BigIntegerCraftingPlanView(GenericStack finalOutput, BigInteger exactBytes, boolean simulation,
+            Map<IPatternDetails, BigInteger> patternTimes, Map<AEKey, BigInteger> usedItems,
+            Map<AEKey, BigInteger> emittedItems, Map<AEKey, BigInteger> missingItems) {
+        this(finalOutput, exactBytes, simulation, patternTimes, usedItems, emittedItems, missingItems,
+                BigInteger.valueOf(finalOutput.amount()));
+    }
 
     public BigIntegerCraftingPlanView {
         Objects.requireNonNull(finalOutput, "finalOutput");
@@ -33,6 +42,11 @@ public record BigIntegerCraftingPlanView(
         Objects.requireNonNull(usedItems, "usedItems");
         Objects.requireNonNull(emittedItems, "emittedItems");
         Objects.requireNonNull(missingItems, "missingItems");
+        Objects.requireNonNull(exactRequestedAmount, "exactRequestedAmount");
+        if (exactRequestedAmount.signum() <= 0 || finalOutput.amount() != exactRequestedAmount
+                .min(BigInteger.valueOf(Long.MAX_VALUE)).longValueExact()) {
+            throw new IllegalArgumentException("exact requested amount does not match its display projection");
+        }
         if (exactBytes.signum() < 0) {
             throw new IllegalArgumentException("exactBytes must not be negative");
         }
