@@ -131,11 +131,13 @@ class BigCraftingPhysicalExecutionTest {
         assertSame(original, transaction.accountingSnapshot(), "request alone must not credit outputs");
         int ticks = 0;
         while (transaction.state() == PhysicalCraftingTreeTransaction.State.CANCELLING_THREADS) {
-            invoke(transaction, "advanceCancellation", null, null, 7);
+            invoke(transaction, "advanceCancellation", null, null, 7,
+                    (java.util.function.BooleanSupplier) () -> true);
             assertTrue(transaction.lastConsumedOperations() <= 7);
             var saved = transaction.save();
             transaction = PhysicalCraftingTreeTransaction.load(saved);
-            assertEquals(saved, transaction.save());
+            var restored = transaction.save();
+            assertTrue(saved.equals(restored), () -> firstNbtDifference(saved, restored, "transaction"));
             assertTrue(++ticks <= 147);
         }
         assertEquals(147, ticks, "cancel scans only the bounded active queue");
@@ -168,11 +170,13 @@ class BigCraftingPhysicalExecutionTest {
         Object snapshot = constructor.newInstance(empty, new java.util.IdentityHashMap<>(),
                 Map.of(), Map.of(), Map.of(), java.util.Set.of(), java.util.Set.of(),
                 java.util.Set.of(), java.util.Set.of(), 1L, 1L);
-        invoke(transaction, "advanceCancellation", null, snapshot, 3);
+        invoke(transaction, "advanceCancellation", null, snapshot, 3,
+                (java.util.function.BooleanSupplier) () -> true);
         assertEquals(3, transaction.lastConsumedOperations());
         assertEquals("CANCELLED", invoke(receipts.get(1), "state").toString());
         assertEquals("CANCELLED", invoke(receipts.get(2), "state").toString());
-        invoke(transaction, "advanceCancellation", null, snapshot, 3);
+        invoke(transaction, "advanceCancellation", null, snapshot, 3,
+                (java.util.function.BooleanSupplier) () -> true);
         assertEquals(1, transaction.lastConsumedOperations(), "only the unloaded owned step should remain");
         assertEquals(PhysicalCraftingTreeTransaction.State.CANCELLING_THREADS, transaction.state());
         assertTrue(transaction.accountingSnapshot().creditedOutputs().isEmpty());
@@ -201,6 +205,27 @@ class BigCraftingPhysicalExecutionTest {
                 List.of(new ExactStack(output, total)), List.of(), List.copyOf(identities.keySet()), steps,
                 "parallel-fixture", 1, 1);
         return PhysicalCraftingTreeTransaction.create(plan, identities);
+    }
+
+    private static String firstNbtDifference(net.minecraft.nbt.Tag expected,
+            net.minecraft.nbt.Tag actual, String path) {
+        if (java.util.Objects.equals(expected, actual)) return "";
+        if (expected instanceof CompoundTag left && actual instanceof CompoundTag right) {
+            var keys = new java.util.TreeSet<>(left.getAllKeys());
+            keys.addAll(right.getAllKeys());
+            for (String key : keys) {
+                String difference = firstNbtDifference(left.get(key), right.get(key), path + "." + key);
+                if (!difference.isEmpty()) return difference;
+            }
+        } else if (expected instanceof net.minecraft.nbt.ListTag left
+                && actual instanceof net.minecraft.nbt.ListTag right) {
+            if (left.size() != right.size()) return path + ": list sizes " + left.size() + " / " + right.size();
+            for (int i = 0; i < left.size(); i++) {
+                String difference = firstNbtDifference(left.get(i), right.get(i), path + "[" + i + "]");
+                if (!difference.isEmpty()) return difference;
+            }
+        }
+        return path + ": expected " + expected + "; actual " + actual;
     }
 
     private static Object invoke(Object target, String name, Object... args) throws Exception {

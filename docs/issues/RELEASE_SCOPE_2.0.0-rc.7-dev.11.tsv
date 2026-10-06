@@ -1,0 +1,5 @@
+# release=2.0.0-rc.7-dev.11
+# baseline=2.0.0-rc.7-dev.10
+# loader=FORGE_1_20_1
+issue	change	automated_guarantee
+218	Use AE2 lifecycle for BigInteger VM calculation; remove detached capture and revalidation	One stock snapshot; native calculation pool and time slices; no ingredient RPC or recapture; exact quantities and existing CPU ownership preserved. Live performance remains PENDING.

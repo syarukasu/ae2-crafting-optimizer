@@ -13,12 +13,6 @@ import java.util.WeakHashMap;
 public final class ExactVectorGridTickBudget {
     /** Configのミリ秒をSystem.nanoTimeのナノ秒へ変換する固定倍率。 */
     private static final long NANOSECONDS_PER_MILLISECOND = 1_000_000L;
-    /**
-     * 一般的な短いクラフトツリーを、soft時間超過だけで一段ずつへ分割しない上限。
-     *
-     * <p>Grid全体の件数上限は別に維持されるため、この保証だけで無制限に処理しない。</p>
-     */
-    static final int GUARANTEED_FULL_SCAN_STAGES = 64;
     private static final Map<IGrid, ExactVectorGridTickBudget> BUDGETS =
             new WeakHashMap<>();
 
@@ -26,6 +20,7 @@ public final class ExactVectorGridTickBudget {
     private long startedAtNanos;
     private int starts;
     private int activeStages;
+    private boolean activeClaimed;
 
     private ExactVectorGridTickBudget() {
     }
@@ -40,6 +35,13 @@ public final class ExactVectorGridTickBudget {
 
     static synchronized void clearAll() {
         BUDGETS.clear();
+    }
+
+    /** Check between atomic steps; an existing operation must finish its receipt. */
+    public static synchronized boolean hasTimeRemaining(IGrid grid) {
+        return forGrid(grid).elapsedNanos() < Math.multiplyExact(
+                ACOConfig.getExactVectorGridTimeBudgetMillis(),
+                NANOSECONDS_PER_MILLISECOND);
     }
 
     /**
@@ -58,13 +60,19 @@ public final class ExactVectorGridTickBudget {
                 NANOSECONDS_PER_MILLISECOND);
         int maximum =
                 ACOConfig.getExactVectorMaximumActiveStagesPerGridTick();
+        long elapsedNanos = budget.elapsedNanos();
+        // Returning unused slots does not make prior waiting/storage work free.
+        if (budget.activeClaimed && elapsedNanos >= softBudgetNanos) {
+            return 0;
+        }
         int granted = claimOperations(
                 budget.activeStages,
                 maximum,
                 requestedStages,
-                budget.elapsedNanos(),
+                elapsedNanos,
                 softBudgetNanos);
         budget.activeStages += granted;
+        budget.activeClaimed |= granted > 0;
         return granted;
     }
 
@@ -151,16 +159,8 @@ public final class ExactVectorGridTickBudget {
         int remainingOperations =
                 maximumOperations - completedOperations;
         /*
-         * 64段以下のツリーは毎tick全体を確認する。依存待ちの段は呼出側が未使用枠を
-         * 返すため、ここで20段を予約しても20回の重い設備処理を強制しない。
-         */
-        if (requestedOperations <= GUARANTEED_FULL_SCAN_STAGES
-                && requestedOperations <= remainingOperations) {
-            return requestedOperations;
-        }
-        /*
-         * 大きなツリーでsoft予算へ達したtickの最初の要求は一段だけ進める。
-         * 全範囲を許可すると追加burstを作り、0では永続的な飢餓になり得る。
+         * Issue #218: 小さいJobも共有時間予算を守る。最初の一段だけ飢餓を防ぎ、
+         * 既に進行したtickでは追加Jobを次tickへ送る。
          */
         if (elapsedNanos >= timeBudgetNanos) {
             return completedOperations == 0 ? 1 : 0;
@@ -183,6 +183,7 @@ public final class ExactVectorGridTickBudget {
         startedAtNanos = System.nanoTime();
         starts = 0;
         activeStages = 0;
+        activeClaimed = false;
     }
 
     private long elapsedNanos() {

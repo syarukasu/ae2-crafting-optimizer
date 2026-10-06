@@ -125,6 +125,8 @@ public final class ACOServerLifecycle {
         CraftingCalculationDeduplicator.clear(reason);
         RecipeIntentRegistry.clear(reason);
         GTCEuRecipeIntentFastPath.clearIndexes(reason);
+        if (net.minecraftforge.fml.ModList.get() != null && net.minecraftforge.fml.ModList.get().isLoaded("mekanism"))
+            com.syaru.ae2craftingoptimizer.mekanism.MekanismItemRecipeIntent.clear();
         CircuitCutterRecipeCache.clear();
         ProviderPatternGenerationTracker.clear();
         Ae2CompiledCraftingGraphCache.clear();

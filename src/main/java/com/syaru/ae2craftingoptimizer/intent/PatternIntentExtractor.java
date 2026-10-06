@@ -4,12 +4,43 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
+import appeng.crafting.pattern.AEProcessingPattern;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import java.util.ArrayList;
 import java.util.List;
 
 public final class PatternIntentExtractor {
-    private PatternIntentExtractor() {
+    private IPatternDetails lastPattern;
+    private Description lastDescription;
+
+    public PatternIntentExtractor() {
+    }
+
+    public Description describe(IPatternDetails pattern) {
+        if (pattern == lastPattern && lastDescription != null) {
+            return lastDescription;
+        }
+        Description description = describeUncached(pattern);
+        // #161: only native immutable metadata is reusable; custom patterns stay live.
+        if (pattern != null && pattern.getClass() == AEProcessingPattern.class) {
+            lastPattern = pattern;
+            lastDescription = description;
+        } else {
+            lastPattern = null;
+            lastDescription = null;
+        }
+        return description;
+    }
+
+    static Description describeUncached(IPatternDetails pattern) {
+        return new Description(patternDefinitionId(pattern), inputs(pattern), outputs(pattern));
+    }
+
+    public record Description(String definitionId, List<InputIntent> inputs, List<StackIntent> outputs) {
+        public Description {
+            inputs = List.copyOf(inputs);
+            outputs = List.copyOf(outputs);
+        }
     }
 
     public static String patternDefinitionId(IPatternDetails pattern) {
@@ -31,7 +62,7 @@ public final class PatternIntentExtractor {
             }
             inputs.add(new InputIntent(possible, input.getMultiplier()));
         }
-        return inputs;
+        return List.copyOf(inputs);
     }
 
     public static List<StackIntent> outputs(IPatternDetails pattern) {
@@ -42,7 +73,7 @@ public final class PatternIntentExtractor {
         for (GenericStack stack : pattern.getOutputs()) {
             outputs.add(StackIntent.of(stack));
         }
-        return outputs;
+        return List.copyOf(outputs);
     }
 
     public static List<StackIntent> concreteInputs(KeyCounter[] inputHolder) {
@@ -58,6 +89,6 @@ public final class PatternIntentExtractor {
                 inputs.add(StackIntent.of(entry.getKey(), entry.getLongValue()));
             }
         }
-        return inputs;
+        return List.copyOf(inputs);
     }
 }

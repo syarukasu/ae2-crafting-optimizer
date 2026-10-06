@@ -16,10 +16,10 @@ class NeoEcoPackagingContractTest {
     }
 
     @Test
-    void mixinConfigRegistersOnlyTheVersionSpecificIntegrations() throws IOException {
+    void mixinConfigDoesNotInstrumentNativeNeoEcoExecution() throws IOException {
         String mixinConfig = Files.readString(Path.of("src/main/resources/ae2_crafting_optimizer.mixins.json"));
-        assertTrue(mixinConfig.contains("\"NeoEco20_3CraftingCpuExecutionBudgetMixin\""));
-        assertTrue(mixinConfig.contains("\"NeoEco20_4CraftingCpuExecutionBudgetMixin\""));
+        assertFalse(mixinConfig.contains("\"NeoEco20_3CraftingCpuExecutionBudgetMixin\""));
+        assertFalse(mixinConfig.contains("\"NeoEco20_4CraftingCpuExecutionBudgetMixin\""));
         assertFalse(mixinConfig.contains("\"NeoEcoCraftingCpuExecutionBudgetMixin\""));
     }
 }

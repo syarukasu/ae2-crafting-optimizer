@@ -1,6 +1,309 @@
 # Testing
 
+## Runtime Packaging Cleanup (vm-refs.5-local)
+
+`RetiredRuntimeCodeTest` inspects the actual exact VM JAR for graph/SMT classes
+and the compiled native entry for the retired provider-cache hook. The library
+exclusion failed against vm-refs.4 before cleanup. Historical graph quantity
+tests still run through separate fixture outputs, not through a runtime solver.
+
+`verifyExactVmBundle` requires exactly two nested runtime artifacts, matching
+reobfuscated bytes and licenses, and exactly their matching source archives.
+It rejects the old graph catalog, graph/solver classes, extra Jar-in-Jar entries,
+and comparison artifacts in runtimeClasspath. Run tests and this gate on both
+AE2 variants; compare retained class bytes against vm-refs.4, and measure actual
+archive size. No size target permits deleting a public API or live entry point.
+This packaging check is not startup, GC-crash or production-planning acceptance.
+
+## VM Reference Candidate (vm-refs.1-local)
+
+The connected calculator is the fork's BigInteger VM again, with batched,
+order-local reference acquisition. `NativeVmReferenceBatchTest` reproduces
+repeated tagged-catalyst validity reads before the repair. It also closes the
+live-read boundary after preparation and completes VM plans for 1, 2,
+Long.MAX_VALUE and 10^1024-1, with empty/partial/full stock and exact shortages.
+Future returned NBT states are not eagerly generated. Exceptions from unused
+stocked alternatives remain deferred; demanded exceptions remain visible.
+
+`NativeGraphSnapshotTest.installedScaledPatternIsExpandedBeforeItsLongGettersOverflow`
+checks both the historical graph and connected VM against the real optional
+ExtendedAE Plus wrapper using `-PeaepPatternJar=<path>`. This includes overflow
+in inputs alone or outputs alone, original wrapper binding and wide-output
+detection. The graph adapter is a test fixture, not a runtime fallback.
+
+`NativeVmAqeCapacityTest` now calls the connected VM result bridge. Keep the
+public ABI and AE2 oracle checks. `verifyExactVmBundle` requires the VM compiler
+and core in the nested runtime and rejects the graph snapshot/calculation adapter.
+These tests do not establish production speed, startup, wide physical execution,
+refund/recovery or concurrent-order acceptance. No production deployment is
+implied by a successful candidate build.
+
+## Graph Startup Candidate (graph.3-local)
+
+`MegaCellsModContextTest` invokes the real Forge context lookup with a foreign
+language extension. It reproduces the ClassCastException before the repair and
+checks that the repair selects the MEGACells owner's bus without mutating the
+loading thread. Also cover a foreign Java caller (wrong-bus bug), no caller,
+the correct caller and an absent owner. Only mod containers and buses are fixtures;
+Forge's ModLoadingContext and FMLJavaModLoadingContext behavior is real.
+
+Pass `-PmegaCellsJar=<megacells-forge-2.4.6-1.20.1.jar>` to check the installed
+bytecode against the Mixin target. `MegaCellsBootstrapContractTest` also checks
+the optional redirect's compiled annotations and client/server dev profiles.
+It is not a transformed-class or full Forge launch test. Without the optional
+JAR property, the installed-bytecode test is skipped, not accepted.
+
+Build both `-Pae2Variant=upstream` and `-Pae2Variant=uelm`, preserving separate
+reports. Check the final reobfuscated bundle, not the intermediate JAR.
+The graph.3 change leaves graph.2 calculator/native/SMT and public API class
+bytes unchanged. It does not establish a cure for GC/C2 access violations,
+Windows page-table corruption, or successful gameplay startup.
+
+The separate-folder runtime check on 2026-10-04 now records actual Mixin exports
+on client and server, server `Done`, and the client's own F2 title-screen image.
+It required test-only recovery of existing NUL-filled TOMLs (14 server, 2 client).
+The server saved on shutdown but Arclight reported one remaining thread; desktop
+window capture stayed white despite the rendered game image. This is not production
+world/join/crafting acceptance or proof that intermittent native faults are cured.
+See [the full startup conditions and evidence](issues/evidence/ISSUE-218-GRAPH3-STARTUP-2026-10-04.md).
+
+## Shared Pattern Programs (graph.2-local)
+
+`NativeSharedProgramTest` exercises actual AEProcessingPattern definitions,
+the native order capture and the connected graph calculator. Check these
+behaviors, not just aggregate historical test counts:
+
+- A provider registration freezes known processing coefficients; T0 capture
+  does not compile the numeric graph. The AE2 worker compiles it once.
+- Repeated orders reuse that graph, but use separate stock/emitter snapshots.
+- Replacement, removal, priority change and a newly craftable terminal input
+  invalidate affected roots, without invalidating an unrelated root or an
+  already captured order. Same-tick changes do not depend on a tick counter.
+- Empty/partial/sufficient stock at 1, 2, long max, max+1 and 10^1024 has exact
+  consumed/missing quantities through the native adapter.
+- `NativeGraphSnapshotTest` still requires fresh unknown callback results per
+  order and checks the actual optional EAEP scaled-pattern JAR.
+- The pure engine checks shared topology with concurrent independent stocks.
+
+Neither these tests nor Jar-in-Jar verification starts Minecraft. They do not
+prove the reported black-screen issue resolved, gameplay startup, generic wide
+execution, refunds/recovery, or the production circuit's sub-10-second target.
+
+## 2.0.0 Acceptance Contract
+
+These are required outcomes, not evidence that the current implementation passes.
+The engine, VM dependency and packaging are not acceptance criteria. Preserve
+public API behavior and exact accounting while allowing their internals to change.
+
+| Gate | Required evidence |
+| --- | --- |
+| Existing consumers | Compiled API compatibility plus actual AQE/AAC calls, plan inspection, submission, completion, cancellation and recovery; descriptors alone are insufficient. |
+| Exact planning | Exact consumed, missing and surplus quantities, selected pattern counts and capacity, including shared byproducts, returned containers, catalysts, fluids, NBT variants and alternate producers. |
+| Wide quantities | Overflow in any intermediate input, output, pattern count, missing amount or capacity must remain exact even when the root request fits in long. |
+| Stock and quantity | Empty, partial and sufficient stock for the same graph at 1, 2, Long.MAX_VALUE, MAX+1 and the final target; rebuild after stock changes without reusing stale craftable counts. |
+| Physical consistency | Real output-backed completion, exact cancellation/refund, restart at transaction boundaries and concurrent orders competing for the same stock without duplicate reservations. |
+| Server work | Concurrent planning and active I/O measurements covering total server work, longest server slice, MSPT, worker time, queue wait and allocations; per-job budgets alone do not prove a bounded combined load. |
+
+The final performance fixture is this server's creative control circuit, from
+raw materials through the full registered pattern tree, at about 922京. Record
+the exact integer rather than substituting Long.MAX_VALUE. Literal 922京 is
+9,220,000,000,000,000,000; intermediate quantities may exceed signed long.
+Final acceptance requires a complete correct plan in less than 10 seconds,
+not a partial shortage report, cached result lookup or preview that cannot be
+submitted. Record wall time from request through the complete usable plan,
+including capture, queueing, computation, validation and handoff.
+
+Pin source revisions, JAR hashes, recipes/patterns, stock snapshots, request
+quantity, hardware and concurrent load. Report cold and repeated runs separately
+for all three stock cases; do not conceal a slow empty-stock case with a warm
+or fully stocked result. Validate small representable cases against AE2 and
+wide cases against independent exact expected quantities. A sampled subset of
+the recipe tree is not evidence for the full target. Unregistered production
+patterns or unperformed runtime checks stay pending.
+
+Do not reinterpret safety fallback/rejection tests below as successful support
+for required industrial recipes. Safe rejection is preferable to corrupting
+stock, but remains an incomplete feature. Ordinary and giant order support,
+performance and lifecycle safety must pass together before declaring 2.0.0 done.
+
+### AQE Capacity Baseline
+
+The 2026-09-25 capacity acceptance baseline is the configured BigInteger Quantum
+Core: `10^1024 - 1 bytes` (3402 bits). Byte capacity is not an order-count limit.
+Derive an admissible order from its actual exact plan cost and the CPU's current
+free capacity. Test equal capacity and one byte beyond, including existing
+reservations, cancellation/release, save/load and status packets. Empty/partial
+stock must still produce a complete exact missing plan. Preserve intermediate
+BigInteger values and larger configured/combined CPU capacities; do not hard-code
+a 3402-bit global ceiling. This supplements, not replaces, the creative-circuit
+performance and real physical-execution requirements above.
+
 ## Automated
+
+### rc.7-dev.18 Planning And Recipe Intent
+
+NativeVmDeclaredInputTest reproduces a tick wait for native substitution primary
+validity before the fix (`build/issue218-native-input-before.log`). The real
+`aco_vm_substitution_queries` probe primes native validation/remainders then
+repeats primary, tagged and invalid inputs without advancing server ticks.
+Unknown callbacks and returned-container lifecycle regressions must still pass.
+
+IntentSearchIteratorTest checks lazy original search, fallback order, identity
+dedup, direct next(), exhaustion and native failure propagation. StackIntent
+identity tests require complete NBT; legacy ID-only hints cannot prove identity.
+MekanismItemRecipeIntentTest checks native predicate, full NBT and exact ratios.
+With Mekanism 10.4.16.80 installed only in the isolated GameTest runtime,
+`aco_mekanism_intent_completion` pushes through a real provider and checks actual
+typed lookup use, no unpowered/instant output, input consumption and power cost.
+No result below should be treated as a production latency or all-machine claim.
+
+`aco_gt_intent_completion` checks the actual GT 7.5.3 lookup Mixin, native furnace
+recipe type, powered completion and consumption. `acoGameTestScope=machines`
+requires both GT and Mekanism completion plots. Use a separate fresh test world:
+AE2's debug item generator in the provider fixture exhausts memory enumerating
+GT tool variants. Keep provider/API tests in their own fixture; machine-only
+success is not a replacement for those tests.
+
+GTRecipeDbView observes successful native registration, including proxy recipes,
+and clear/revision changes. RecipeManager alone is not a complete GT index;
+the electric furnace test failed before using this accepted DB view. Category
+display entries or rejected staging recipes must never enter the bypass index.
+
+### rc.7-dev.17 Native Execution Only
+
+OrdinaryPatternDispatchTest and NeoEcoPackagingContractTest first reproduced
+three remaining problems: the legacy external entry subtracts one from MAX_VALUE
+operations, retired timing algorithms are still present, and Neo ECO budget
+Mixins are still registered. Before XML: `build/issue161-native/before/`.
+External operations need no native coprocessor +1 headroom; test both boundaries
+independently. Preserve exact-job exclusion and coprocessor overflow tests.
+
+SequentialInstantDispatcherTest now tests its surviving public entry, including
+same-tick repeated native counts, full/blocked zero results followed by immediate
+resumption, native failures and absence of per-owner state. The private probe
+formula and measured-cost tests were retired with that deleted implementation;
+their historical results are not proof for current behavior. AcoMixinPluginTest
+now rejects both removed Neo ECO hooks even without Forge bootstrap state.
+Retain pinned provider runtime tests and all exact-accounting gates.
+
+### rc.7-dev.16 Provider Capture Work
+
+PatternIntentExtractorTest uses real native AEProcessingPattern instances to
+check immutable description reuse, identity replacement, custom/subclass refresh
+and live item/fluid counters. Three assertions failed before the change; their
+XML is `build/issue161-description-before.xml`. A separate initial fixture setup
+failure is retained and is not counted as a reproduced product bug.
+
+The existing provider load probe supports `-PacoProviderProfile=true`, which
+runs 256 rounds with JDK Flight Recorder sampling to `provider-dispatch.jfr` in
+the test-server working directory. This is test-only and adds no runtime logger
+or profiler to the distributed mod. Use `java tools/ProviderJfrSummary.java
+<recording>` to inspect it. Allocation weights are sample estimates, not exact
+bytes; inclusive sample shares are not additive. Keep profiled timings separate
+from unprofiled six-round measurements. Neither is a production performance gate.
+
+### rc.7-dev.15 Provider Runtime Regression
+
+Use `-PacoGameTestModsDir=<pinned-test-jars>` with the three artifacts listed in
+`issues/evidence/ISSUE-161-FORGE-1.20.1-2026-09-28.md`. These are gameTestRuntimeOnly,
+not release dependencies. The diagnostic InsaneAE source/JAR is intentionally
+pinned; do not substitute the installed production revision without recording it.
+
+- `-PacoGameTestScope=historical -PacoGameTestBaseline=true`: four original #102
+  cases without ACO/VM. Baseline must pass before drawing comparison conclusions.
+- `-PacoGameTestScope=historical`: preserve the raw old test outcome with VM. Its
+  two legacy planner-counter assertions fail because VM replaces that planner;
+  this is NOT a four-test pass and must not be reported as one.
+- `-PacoGameTestScope=providers`: unchanged round-robin/provider-index cases plus
+  separate real native/VM comparisons for cake returns and alternate chains,
+  the ordinary ACO runtime suite and a real successful-provider-push load probe.
+  Required named cases are enforced; absent InsaneAE fails registration.
+- The load probe records six rounds of 1024 actual pushes into a chest, checks
+  every delivered count, real intent-hook execution, full/blocked rejection and
+  immediate resumption after clearing. This is provider-call elapsed time in a
+  test world, not production MSPT, CPU scheduling or planning time.
+
+RecipeIntentRegistryTest first failed for a 2,097,152-inspection repeated-cleanup
+case and an expired tail hidden behind a longer-lived head. It now checks the
+actual registry, expiry equality, coalescing, eviction, clear/backwards time and
+Long.MAX_VALUE ticks. No assertion uses wall time as a correctness threshold.
+
+### rc.7-dev.14 Ordinary Pattern Throughput
+
+OrdinaryPatternDispatchTest loads an old config with all ordinary throttles
+enabled and a one-operation cap. Native and Neo ECO dispatch counts must pass
+unchanged, including repeated calls in the same tick and Integer.MAX_VALUE for
+the external operation boundary. Preserve the native result (including zero),
+exceptions, and +1 headroom for AE2's coprocessor count. No retry loop is added.
+The source contract forbids an executeCrafting wave redirect even when the
+separate transactional V2 Instant setting is enabled. Keep #125's exact-job
+isolation, overflow reconstruction, API/receipt tests and real Forge GameTests.
+
+Before evidence: build/issue161-unthrottled-before.xml (four failing tests).
+Removing ACO's ordinary throttles is not proof of zero server cost, higher TPS,
+or a fix for the separate world-load crash reported in the screenshot.
+
+### rc.7-dev.13 Declared Input Semantics
+
+NativeVmDeclaredInputTest uses the production context and real native input
+implementations. Dev.12 failed both tickless repeated-query cases and spent
+8192 live reads on 4096 exact validity/return pairs; the fixed wrapper spends
+zero on those repeats. Before evidence: build/issue218-declared-before.xml.
+Keep cancellation, NBT identity, dynamic/custom callbacks, actual non-null
+returns and substitution-enabled inputs. The empty/partial/full-stock matrix
+covers 1, 2, Long.MAX_VALUE, MAX+1 and 3402-bit quantities and exact bytes.
+
+The ae2.aco_vm_declared_inputs GameTest repeats the same production wrapper
+queries on the real AE2 calculation pool after obtaining a registered pattern,
+while the test server deliberately advances no more ticks. Existing lifecycle,
+quantity oracles and API checks remain required. Initial metadata still needs
+live access, and undeclared input callbacks still synchronize. These operation
+counts do not prove a production latency reduction or the final <10 s target.
+
+### rc.7-dev.12 Continuous Arithmetic
+
+NativeVmAccessTest checks 3402-bit arithmetic with no ticks, nonblocking server
+polls, expiry without worker suspension, grant reuse, nested callback exclusion,
+new live-access waits, interruption, callback failure and independent jobs.
+NativeVmSchedulingTest failed on dev.11's inherited blocking simulateFor hook;
+the before XML is build/issue218-continuous-before.xml. This structural failure
+is not a production performance measurement.
+
+The new ae2.aco_vm_continuous_arithmetic Forge test uses the actual AE2 pool,
+TickHandler and subclass. After one protected read, it finishes more than one
+normal slice's worth of 3402-bit arithmetic while the test server advances no
+ticks. The existing lifecycle test still requires protected callbacks with the
+server waiting. All quantity oracles continue to exercise the current context.
+
+Diagnostics distinguish ae2WorldWaitMs from ae2ExclusiveMs and count grants and
+reads. Pure computation has no tick budget; consecutive live callbacks can reuse
+the current short exclusive interval. Unknown world callbacks still need that
+interval and cannot be preempted in the middle. No per-input server future or
+capture/retry pipeline is restored. Production timings remain unmeasured.
+
+### rc.7-dev.11 Baseline (Superseded Scheduling)
+
+Production uses NativeVmPlanningContext and AE2's original calculation pool and
+time-slice monitor. NativeVmOracleHarness, NativeDemandAe2OracleTest,
+NativeVmRequesterTest and NativeVmAqeCapacityTest now cover that production
+context, not the retired capture layer. NativeVmLifecycleTest checks one stock
+capture, queued cancellation, server-stop ownership and zero ingredient RPCs.
+The ae2.aco_vm_ae2_lifecycle Forge test checks the real mixed-in worker name,
+server monitor wait, concurrent orders and cancellation before the first slice.
+
+NativeVmCapture/NativeVmPatternCatalog in test sources and their historical
+capture/catalog tests preserve earlier evidence only. They are not runtime
+fallbacks and their pass count does not prove the current scheduler. The bundle
+audit rejects these classes. vmMs includes AE2 waits; vmCpuMs is worker CPU time
+and vmActiveMs=-1 prevents counting wait time as active work. AE2's default
+5 ms/tick calculation budget is unchanged. Production speed is still unmeasured.
+
+The #218 missing-stock slice adds exact differential tests for zero/sub-unit
+fuzzy candidates, byproduct replenishment, one-shot alternative rollback under
+wide enclosing replay, and native exact inputs in revalidated outer wrappers.
+The bounded diagnostics tests check category totals and pattern-type limits.
+Retained before/after fixtures are under `build/issue218-missing-work/`.
+Operation-count reductions in those fixtures are not production timing results.
 
 Run:
 

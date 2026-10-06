@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -416,6 +417,18 @@ public final class PhysicalCraftingTreeTransaction {
             IActionSource source,
             Ae2CompiledCraftingGraphCache.Snapshot snapshot,
             int operationBudget) {
+        return tick(grid, level, source, snapshot, operationBudget, () -> true);
+    }
+
+    /** Issue #218: the caller retains ownership of the shared grid time budget. */
+    public TickOutcome tick(
+            IGrid grid,
+            Level level,
+            IActionSource source,
+            Ae2CompiledCraftingGraphCache.Snapshot snapshot,
+            int operationBudget,
+            BooleanSupplier allowMoreOperations) {
+        Objects.requireNonNull(allowMoreOperations, "allowMoreOperations");
         Objects.requireNonNull(
                 grid,
                 "grid");
@@ -472,7 +485,8 @@ public final class PhysicalCraftingTreeTransaction {
                                 grid,
                                 level,
                                 snapshot,
-                                operationBudget);
+                                operationBudget,
+                                allowMoreOperations);
                 case RETURNING_RESULTS ->
                         returnNextResult(
                                 grid,
@@ -481,7 +495,8 @@ public final class PhysicalCraftingTreeTransaction {
                         advanceCancellation(
                                 level,
                                 snapshot,
-                                operationBudget);
+                                operationBudget,
+                                allowMoreOperations);
                 case RETURNING_CANCELLED_ESCROW ->
                         returnNextCancelledStack(
                                 grid,
@@ -822,7 +837,8 @@ public final class PhysicalCraftingTreeTransaction {
             IGrid grid,
             Level level,
             Ae2CompiledCraftingGraphCache.Snapshot snapshot,
-            int operationBudget) {
+            int operationBudget,
+            BooleanSupplier allowMoreOperations) {
         /*
          * Providerまたはレシピ世代が変わった場合だけ、保存式を全体再検証する。
          * 不一致なら新しい式へ勝手に差し替えず、取消経路へ移る。
@@ -851,7 +867,9 @@ public final class PhysicalCraftingTreeTransaction {
         lastStepsScanned = 0L;
         lastActiveStepsProcessed = 0L;
         List<Integer> requeue = new ArrayList<>();
-        while (consumedOperations < operationBudget) {
+        // A storage/worker operation is atomic; yield before starting the next step.
+        while (consumedOperations < operationBudget
+                && (lastStepsScanned == 0 || allowMoreOperations.getAsBoolean())) {
             Integer index = pollActiveStep();
             if (index == null) {
                 break;
@@ -1308,7 +1326,8 @@ public final class PhysicalCraftingTreeTransaction {
     private TickOutcome advanceCancellation(
             Level level,
             Ae2CompiledCraftingGraphCache.Snapshot snapshot,
-            int operationBudget) {
+            int operationBudget,
+            BooleanSupplier allowMoreOperations) {
         int inspected =
                 0;
         int changed =
@@ -1322,7 +1341,15 @@ public final class PhysicalCraftingTreeTransaction {
             }
             candidates.add(index);
         }
-        for (Integer index : candidates) {
+        for (int cursor = 0; cursor < candidates.size(); cursor++) {
+            if (inspected > 0 && !allowMoreOperations.getAsBoolean()) {
+                // Unvisited receipts were already polled; preserve them across a yield.
+                for (int remaining = cursor; remaining < candidates.size(); remaining++) {
+                    enqueueStep(candidates.get(remaining));
+                }
+                break;
+            }
+            Integer index = candidates.get(cursor);
             StepReceipt receipt = steps.get(index);
             if (isTerminal(receipt.state())) {
                 continue;

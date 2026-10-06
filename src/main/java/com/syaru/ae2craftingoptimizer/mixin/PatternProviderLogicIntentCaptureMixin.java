@@ -5,9 +5,11 @@ import appeng.api.stacks.KeyCounter;
 import appeng.helpers.patternprovider.PatternProviderLogic;
 import appeng.helpers.patternprovider.PatternProviderLogicHost;
 import com.syaru.ae2craftingoptimizer.intent.PatternIntentCapture;
+import com.syaru.ae2craftingoptimizer.intent.PatternIntentExtractor;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -18,6 +20,9 @@ public abstract class PatternProviderLogicIntentCaptureMixin {
     @Final
     private PatternProviderLogicHost host;
 
+    @Unique
+    private final PatternIntentExtractor ae2CraftingOptimizer$intentDescriptions = new PatternIntentExtractor();
+
     @Inject(method = "pushPattern", at = @At("RETURN"))
     private void ae2CraftingOptimizer$captureSuccessfulPatternPush(
             IPatternDetails pattern,
@@ -27,6 +32,7 @@ public abstract class PatternProviderLogicIntentCaptureMixin {
         if (!cir.getReturnValueZ()) {
             return;
         }
-        PatternIntentCapture.captureSuccessfulPush(this.host, pattern, inputHolder);
+        PatternIntentCapture.captureSuccessfulPush(this.host, pattern, inputHolder,
+                ae2CraftingOptimizer$intentDescriptions);
     }
 }

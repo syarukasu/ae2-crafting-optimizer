@@ -1,0 +1,8 @@
+# release=2.0.0-rc.7-vm-refs.8-local
+# baseline=2.0.0-rc.6-rc4-vm.6
+# loader=FORGE_1_20_1
+# acceptance=NOT_APPROVED: Alpha source snapshot; full production lifecycle and performance acceptance pending.
+issue	change	automated_guarantee
+218	Publish exact VM input capture and requester quantity optimization	Local independent quantity, capacity, API and packaging regressions; not production acceptance.
+161	Remove ordinary dispatch throttles and retain provider intent observations	Native provider contracts preserve delivery ownership; external live throughput pending.
+179	Keep pure VM arithmetic outside live read intervals; native recipe intent matching	Local scheduling and recipe matching contracts; no claim of zero server cost.

@@ -5,6 +5,55 @@
 - 対象版: 2.0.0
 - 対象ローダー: Forge 1.20.1 / NeoForge 1.21.1
 
+## Native machine Recipe Intent (2026-09-30)
+
+Status: Implemented; pinned GT/Mekanism native cycles verified locally.
+Production compatibility and timing remain pending. Scope: Forge 1.20.1,
+GTCEu 7.5.3, Mekanism 10.4.16.80. Specified Ready before implementation.
+The user requested real recipe-search reduction as well as planning fixes.
+GT currently wraps searchRecipe at RETURN: original search already happened.
+Mekanism currently has no bridge. StackIntent also drops NBT, which must not
+be used as proof for choosing a recipe.
+
+Keep full AEKey in new captured hints, retaining the old three-argument
+StackIntent constructor for advisory callers. GT's existing candidate path
+will defer original lookup until hinted candidates have failed native checks;
+no changes to checkMatchedRecipeAvailable, input consumption, voltage or time.
+Expired/absent hints must immediately use native search. Preserve fallback order
+and return each candidate once, including next() without a preceding hasNext().
+For a search bypass require one exact input/output-ratio candidate from the
+entire output bucket, not a truncated candidate prefix. Preserve NBT keys;
+unsupported/chanced/nonconsumable shapes use native lookup. Do not rank an
+ambiguous bucket and call that an unambiguous recipe designation.
+
+Mekanism: implement a typed, optional bridge for item-to-item electric machines
+at their native lookup boundary, not a reflective scan of tile fields. Resolve
+only an unambiguous full input/output match from that machine's recipe type;
+otherwise delegate. Keep recipe monitor, cached recipe creation, energy,
+redstone, output capacity and processing ticks native. No getRecipe(int) HEAD
+hook, cached-recipe replacement, nearby-machine hint guessing, generic reflection
+cache, client-only type resolution (#140), or extra item delivery is permitted.
+Other Mekanism recipe families must be reported unsupported until implemented.
+
+Before/fix tests: lazy GT lookup is not invoked when a hinted candidate succeeds,
+but starts once on exhaustion; identity dedup and iterator contract. Verify NBT
+is not coalesced away. Mek typed tests cover exact quantity, NBT, ambiguous recipe,
+wrong machine type, no hint, expiry and native fallback. Build/load with and
+without optional Mekanism; runtime machine acceptance stays PENDING unless a
+real machine cycle is exercised. No production restart/deployment/publication.
+
+The GT runtime fixture uses a separate `machines` scope and fresh test world.
+AE2's debug item generator enumerates GT tool variants and exhausted heap before
+the tests started in the shared provider world. Keep that fixture limitation
+separate from planner or machine acceptance; do not disable native checks.
+
+GT runtime found the old RecipeManager index misses native proxy recipes (the
+electric furnace was not accelerated). Ready amendment: observe successful
+RecipeDB.add and clear in a read-only per-DB view. Index only accepted native
+recipes, including proxies, never category-display recipes or rejected entries.
+Invalidate both output and resolved-target caches by this view's revision.
+The native DB remains authoritative; do not modify registration or iteration.
+
 ## 2026-09-15 実レシピ: 至高制御回路100個の計画停止
 
 ### 12:30 再起動後の追加観測（第一段階JARのまま）

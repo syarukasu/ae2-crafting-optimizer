@@ -27,7 +27,22 @@ public final class AcoGameTestMod {
         } catch (ParserConfigurationException e) {
             throw new IllegalStateException("Cannot initialize runtime report", e);
         }
-        if (!Boolean.getBoolean("aco.gametest.baseline")) TestPlots.addPlotClass(AcoCraftingPlots.class);
+        if (!Boolean.getBoolean("aco.gametest.baseline")) {
+            TestPlots.addPlotClass(AcoCraftingPlots.class);
+            TestPlots.addPlotClass(ProviderDispatchPlots.class);
+            if (net.minecraftforge.fml.ModList.get().isLoaded("mekanism"))
+                TestPlots.addPlotClass(MekanismIntentPlots.class);
+            if (net.minecraftforge.fml.ModList.get().isLoaded("gtceu"))
+                TestPlots.addPlotClass(GTIntentPlots.class);
+        }
+        if (List.of("historical", "providers").contains(System.getProperty("aco.gametest.scope", "aco"))) {
+            try {
+                TestPlots.addPlotClass(Class.forName("jp.main.taikun.insaneae.testplots.InsaneAETestPlots"));
+                if (!Boolean.getBoolean("aco.gametest.baseline")) TestPlots.addPlotClass(AddOnPlanningPlots.class);
+            } catch (ClassNotFoundException e) {
+                throw new IllegalStateException("Historical regression requires the pinned InsaneAE diagnostic JAR", e);
+            }
+        }
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerTests);
     }
 
@@ -39,11 +54,19 @@ public final class AcoGameTestMod {
         @GameTestGenerator
         public List<TestFunction> tests() {
             String scope = System.getProperty("aco.gametest.scope", "aco");
-            if (!scope.equals("aco") && !scope.equals("all")) {
+            if (!List.of("aco", "all", "historical", "providers", "machines").contains(scope)) {
                 throw new IllegalArgumentException("Unknown GameTest scope: " + scope);
             }
             var tests = new GameTestPlotAdapter().gameTestAdapter().stream()
-                    .filter(t -> scope.equals("all") || t.getTestName().startsWith("ae2.aco_"))
+                    .filter(t -> scope.equals("machines") ? List.of("ae2.aco_gt_intent_completion",
+                            "ae2.aco_mekanism_intent_completion").contains(t.getTestName())
+                            : scope.equals("all") || (scope.equals("historical")
+                            ? List.of("ae2.pattern_provider_faces_round_robin", "ae2.insaneae_pattern_provider_patterns",
+                                    "ae2.insaneae_crafting_batch", "ae2.insaneae_crafting_batch_chain")
+                                    .contains(t.getTestName())
+                            : t.getTestName().startsWith("ae2.aco_") || (scope.equals("providers")
+                                    && List.of("ae2.pattern_provider_faces_round_robin", "ae2.insaneae_pattern_provider_patterns")
+                                            .contains(t.getTestName()))))
                     .toList();
             try {
                 Files.writeString(Path.of(System.getProperty("aco.gametest.report") + ".expected.json"),

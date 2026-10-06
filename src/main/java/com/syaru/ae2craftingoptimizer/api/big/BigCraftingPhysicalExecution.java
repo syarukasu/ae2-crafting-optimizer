@@ -169,7 +169,8 @@ public final class BigCraftingPhysicalExecution {
         try {
             var graph = Ae2CompiledCraftingGraphCache.getOrCompile(grid, level);
             advanced = true;
-            detail = transaction.tick(grid, level, source, graph, budget).detail();
+            detail = transaction.tick(grid, level, source, graph, budget,
+                    () -> ExactVectorGridTickBudget.hasTimeRemaining(grid)).detail();
         } catch (StalePlanningSnapshotException stale) {
             // 世代変化によるSnapshot待ちは会計破損ではなく、所有済みReceiptを保持する。
             detail = "waiting for a stable crafting snapshot";

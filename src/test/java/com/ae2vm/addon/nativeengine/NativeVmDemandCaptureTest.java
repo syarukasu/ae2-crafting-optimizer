@@ -94,7 +94,7 @@ class NativeVmDemandCaptureTest {
         var result = capture.plan(output, BigInteger.TWO, false);
         assertTrue(result.missing().isEmpty());
         changed.set(true);
-        assertThrows(NativeVm.Changed.class, capture::validate);
+        assertThrows(LegacyVmState.Changed.class, capture::validate);
     }
 
     @Test void wideReturnedToolPeriodsKeepExactStockAndMissingCountsThroughNativeCapture() {
@@ -143,14 +143,76 @@ class NativeVmDemandCaptureTest {
         try (var server = new ServerHarness()) {
             var output = AEItemKey.of(Items.DIAMOND);
             var input = serverInput(server, false);
+            var timing = new NativeVmTiming(() -> 0L);
             var capture = capture(output, List.of(pattern(output, input)), Map.of(tool(0), BigInteger.ONE),
-                    server.server, new NativeVmTiming(() -> 0L));
+                    server.server, timing);
             var result = capture.plan(output, BigInteger.ONE, false);
             assertTrue(result.missing().isEmpty());
             assertEquals(Map.of(tool(0), BigInteger.ONE), result.used());
             assertEquals(3, server.handoffs.get(), "One stock read, one emitter read, one combined producer read");
             assertEquals(1, server.calls.get());
             capture.validate();
+            assertTrue(timing.summary().contains("serverCalls={STOCK:1,PRODUCERS:1,EMITTERS:1,VALIDATE:1}"), timing.summary());
+            assertTrue(timing.summary().contains("patternTypes={appeng.api.crafting.IPatternDetails"), timing.summary());
+        }
+    }
+
+    @Test void subUnitStockCandidatesNeedNoLiveObservations() throws Exception {
+        for (var order : List.of(BigInteger.ONE, BigInteger.TWO, BigInteger.valueOf(Long.MAX_VALUE),
+                BigInteger.ONE.shiftLeft(63), BigInteger.TEN.pow(64))) {
+            for (boolean supplied : new boolean[]{false, true}) {
+                try (var server = new ServerHarness()) {
+                    var input = serverInput(server, false);
+                    var counted = new IPatternDetails.IInput() {
+                        public GenericStack[] getPossibleInputs() { return new GenericStack[]{new GenericStack(tool(0), 2)}; }
+                        public long getMultiplier() { return 1; }
+                        public boolean isValid(AEKey key, Level level) { return input.isValid(key, level); }
+                        public AEKey getRemainingKey(AEKey key) { return input.getRemainingKey(key); }
+                    };
+                    var stock = new java.util.LinkedHashMap<AEKey, BigInteger>();
+                    for (int i = 0; i < 1024; i++) stock.put(tool(i), BigInteger.valueOf(i % 2));
+                    if (supplied) stock.put(tool(1536), order.multiply(BigInteger.TWO));
+                    var output = AEItemKey.of(Items.DIAMOND);
+                    var capture = capture(output, List.of(pattern(output, counted)), stock, server.server);
+                    var result = capture.plan(output, order, false);
+                    capture.validate();
+                    assertEquals(supplied ? Map.of(tool(1536), order.multiply(BigInteger.TWO)) : Map.of(), result.used());
+                    assertEquals(supplied ? Map.of() : Map.of(tool(0), order.multiply(BigInteger.TWO)), result.missing());
+                    assertEquals(Map.of("vm-0", order), result.crafts());
+                    System.out.println("Issue218 sub-unit: supplied=" + supplied + " order=" + order
+                            + " callbacks=" + server.calls + " handoffs=" + server.handoffs);
+                    assertTrue(server.calls.get() <= 4, "Zero/sub-unit variants must not generate live predicates");
+                    assertTrue(server.handoffs.get() < 10, "No live capture/validation of unusable stock variants");
+                }
+            }
+        }
+    }
+
+    @Test void wrapperWithNativeInputsKeepsExactLookupAndOuterShapeValidation() throws Exception {
+        try (var server = new ServerHarness()) {
+            var definition = new ItemStack(Items.PAPER);
+            var in = new net.minecraft.nbt.ListTag();
+            var out = new net.minecraft.nbt.ListTag();
+            in.add(GenericStack.writeTag(new GenericStack(tool(0), 1)));
+            var output = AEItemKey.of(Items.DIAMOND);
+            out.add(GenericStack.writeTag(new GenericStack(output, 1)));
+            definition.getOrCreateTag().put("in", in); definition.getOrCreateTag().put("out", out);
+            var original = new appeng.crafting.pattern.AEProcessingPattern(AEItemKey.of(definition));
+            var wrapper = pattern(output, original.getInputs()[0]);
+            var stock = new java.util.LinkedHashMap<AEKey, BigInteger>();
+            for (int i = 1; i <= 2048; i++) stock.put(tool(i), BigInteger.ONE);
+            var capture = capture(output, List.of(wrapper), stock, server.server);
+            var result = capture.plan(output, BigInteger.ONE, false);
+            assertEquals(Map.of(tool(0), BigInteger.ONE), result.missing());
+            assertTrue(result.used().isEmpty());
+            capture.validate();
+            System.out.println("Issue218 native-input wrapper handoffs=" + server.handoffs);
+            assertTrue(server.handoffs.get() < 10, "A native exact input inside a wrapper needs no fuzzy-family observations");
+            when(wrapper.getOutputs()).thenReturn(new GenericStack[]{new GenericStack(output, 2)});
+            assertThrows(LegacyVmState.Changed.class, capture::validate, "Unknown outer patterns must still be revalidated");
+            when(wrapper.getOutputs()).thenReturn(original.getOutputs());
+            when(wrapper.getInputs()).thenReturn(new IPatternDetails.IInput[]{serverInput(server, false)});
+            assertThrows(LegacyVmState.Changed.class, capture::validate, "A new input implementation invalidates the exact-input proof");
         }
     }
 

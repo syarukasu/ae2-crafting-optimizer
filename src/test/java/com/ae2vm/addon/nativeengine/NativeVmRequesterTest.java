@@ -31,40 +31,38 @@ class NativeVmRequesterTest {
     @Test void absentRequesterCannotUseNetworkPatternsOrInventory() throws Exception {
         var fixture = new Fixture(false, false);
         var plan = fixture.calculate();
-        assertTrue(plan.simulation());
-        assertEquals(1, plan.missingItems().get(fixture.output));
-        assertTrue(plan.patternTimes().isEmpty());
-        assertTrue(plan.usedItems().isEmpty());
+        assertEquals(BigInteger.ONE, plan.missing().get(fixture.output));
+        assertTrue(plan.crafts().isEmpty());
+        assertTrue(plan.used().isEmpty());
         verify(fixture.storage, never()).getInventory();
     }
 
     @Test void absentActionSourceCannotConsumeStockFromAnAttachedNetwork() throws Exception {
         var fixture = new Fixture(true, false);
         var plan = fixture.calculate();
-        assertTrue(plan.simulation());
-        assertEquals(1, plan.missingItems().get(fixture.raw));
-        assertTrue(plan.usedItems().isEmpty());
+        assertEquals(BigInteger.ONE, plan.missing().get(fixture.raw));
+        assertTrue(plan.used().isEmpty());
         verify(fixture.storage, never()).getInventory();
     }
 
     @Test void attachedRequesterStillCalculatesNormally() throws Exception {
         var fixture = new Fixture(true, true);
         var plan = fixture.calculate();
-        assertFalse(plan.simulation());
-        assertEquals(1, plan.usedItems().get(fixture.raw));
-        assertEquals(1L, plan.patternTimes().get(fixture.pattern));
+        assertTrue(plan.missing().isEmpty());
+        assertEquals(BigInteger.ONE, plan.used().get(fixture.raw));
+        assertEquals(BigInteger.ONE, plan.crafts().get("vm-0"));
     }
 
-    @Test void detachingDuringCaptureDoesNotAdoptThePreviousGridPlan() throws Exception {
+    @Test void alreadyExploredProducerIsNotDiscardedOrRecapturedWhenRequesterDetaches() throws Exception {
         var fixture = new Fixture(true, true);
         when(fixture.pattern.getInputs()).thenAnswer(call -> {
             when(fixture.requester.getGridNode()).thenReturn(null);
             return new IPatternDetails.IInput[]{fixture.input};
         });
         var plan = fixture.calculate();
-        assertTrue(plan.simulation());
-        assertEquals(1, plan.missingItems().get(fixture.output));
-        assertTrue(plan.patternTimes().isEmpty());
+        assertTrue(plan.missing().isEmpty());
+        assertEquals(BigInteger.ONE, plan.crafts().get("vm-0"));
+        verify(fixture.pattern, times(1)).getInputs();
     }
 
     private static final class Fixture {
@@ -85,6 +83,7 @@ class NativeVmRequesterTest {
             var available = new KeyCounter();
             available.add(raw, 10);
             when(inventory.getAvailableStacks()).thenReturn(available);
+            when(storage.getCachedInventory()).thenReturn(available);
             when(input.getPossibleInputs()).thenReturn(new GenericStack[]{new GenericStack(raw, 1)});
             when(input.getMultiplier()).thenReturn(1L);
             when(input.isValid(any(), any())).thenAnswer(call -> raw.equals(call.getArgument(0)));
@@ -104,11 +103,10 @@ class NativeVmRequesterTest {
             clearInvocations(storage);
         }
 
-        ICraftingPlan calculate() throws Exception {
-            var future = NativeVm.calculate(grid, level, requester, output, BigInteger.ONE,
-                    CalculationStrategy.REPORT_MISSING_ITEMS);
-            try { return future.get(10, TimeUnit.SECONDS); }
-            finally { future.cancel(true); }
+        VmQuantities calculate() {
+            var stock = NativeVm.requestStock(grid, requester, null);
+            var context = new NativeVmPlanningContext(grid, level, requester, stock, new NativeVmAccess(), new NativeVmTiming());
+            return context.plan(output, BigInteger.ONE, false, ignored -> { });
         }
     }
 }

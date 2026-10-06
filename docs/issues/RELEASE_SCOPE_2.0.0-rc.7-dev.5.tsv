@@ -1,0 +1,5 @@
+# release=2.0.0-rc.7-dev.5
+# baseline=2.0.0-rc.7-dev.4
+# loader=FORGE_1_20_1
+issue	change	automated_guarantee
+218	Use the public exact maximum for VM limit advertisement; verify the AQE 10^1024-1 byte capacity baseline	Async VM and result API exact stock/byproduct matrix, byte-only overflow, full-capacity reservation, overflow rejection, save/load/release and status codec. Production industrial execution and timing acceptance remain PENDING.

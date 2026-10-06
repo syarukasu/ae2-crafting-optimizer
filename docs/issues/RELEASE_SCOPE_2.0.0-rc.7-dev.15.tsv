@@ -1,0 +1,6 @@
+# release=2.0.0-rc.7-dev.15
+# baseline=2.0.0-rc.7-dev.14
+# loader=FORGE_1_20_1
+# acceptance=NOT_APPROVED: Extended AE Plus blocking load and external exact-job runtime acceptance remain pending.
+issue	change	automated_guarantee
+161	Skip premature recipe-intent expiration scans and replay historical provider regressions	Keep ordinary dispatch unthrottled and expire out-of-order TTLs correctly; real InsaneAE provider and native/VM quantity comparisons. Production performance and exact-job add-on recovery are not verified.

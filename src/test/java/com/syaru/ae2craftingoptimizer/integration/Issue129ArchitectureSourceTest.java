@@ -24,7 +24,8 @@ class Issue129ArchitectureSourceTest {
         assertTrue(source.contains("OptimizationFeatureGate.allows("));
         assertTrue(source.contains("OptimizationFeature.BIG_INTEGER_BACKEND"));
         assertTrue(source.contains("OptimizationFeature.EXACT_VECTOR_CRAFTING"));
-        assertTrue(source.contains("OptimizationFeature.CRAFTING_EXECUTION_BUDGET"));
+        // Issue #161: ordinary throttling is retired, not an active gated feature.
+        assertFalse(source.contains("OptimizationFeature.CRAFTING_EXECUTION_BUDGET"));
         assertTrue(source.contains("OptimizationFeature.CRAFTING_QUERY_MEMOIZATION"));
         assertFalse(source.contains("OptimizationFeature.PATTERN_LOOKUP_CACHE"));
     }

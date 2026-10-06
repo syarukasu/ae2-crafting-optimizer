@@ -28,14 +28,10 @@ final class ACOStartupReport {
                 ACOConfig.memoizeCraftingCalculationQueries(),
                 ACOConfig.enableCompiledCraftingGraph(),
                 ACOConfig.enableCraftingEngineShadowMode());
-        if (net.minecraftforge.fml.ModList.get().isLoaded("ae2vm_aco")) {
-            AE2CraftingOptimizer.LOGGER.info(
-                    "ACO normal AE2 dispatch: native wave scheduling retained; legacy wave override disabled");
-        } else AE2CraftingOptimizer.LOGGER.info(
-                "ACO execution budget: throttle {}, adaptive {}, shared-grid {}, instant dispatch {}, V2 adapters {}",
-                ACOConfig.throttleCraftingExecution(),
-                ACOConfig.adaptiveCraftingExecutionBudget(),
-                ACOConfig.sharedCraftingExecutionBudget(),
+        AE2CraftingOptimizer.LOGGER.info(
+                "ACO normal dispatch: native AE2/add-on execution; no ACO count, time, probe or shared-grid limiter");
+        AE2CraftingOptimizer.LOGGER.info(
+                "ACO-owned transactional V2 execution: instant {}, adapters {}",
                 ACOConfig.enableInstantPatternDispatch(),
                 PatternBatchV2Api.registeredAdapterIds());
         AE2CraftingOptimizer.LOGGER.info(

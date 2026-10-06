@@ -111,7 +111,7 @@ class CriticalMixinContractSourceTest {
     }
 
     @Test
-    void executionBudgetYieldsToHigherPriorityCraftingOwnersWithoutSilentlyDisappearing() {
+    void coprocessorRepairYieldsToAddonsWithoutWrappingNativeDispatch() {
         String source = read(MIXIN_ROOT.resolve("CraftingCpuLogicExecutionBudgetMixin.java"));
 
         // issue #102/#123: 専門アドオンの実行所有権をACOが奪わない優先度を固定する。
@@ -119,10 +119,11 @@ class CriticalMixinContractSourceTest {
         // 競合時だけRedirect 0件を許可し、Mixin debug環境では期待件数1を監査する。
         assertEquals(1L, source.lines().filter(line -> line.contains("require = 0")).count());
         assertEquals(1L, source.lines().filter(line -> line.contains("expect = 1")).count());
-        // 競合しないexecuteCrafting計測境界は引き続き必須とする。
-        assertEquals(1L, source.lines().filter(line -> line.contains("require = 1")).count());
-        assertTrue(source.contains("if (!aco$ownsExecutionBudgetHook)"));
-        assertTrue(source.contains("return logic.executeCrafting(maxOperations"));
+        // Issue #161: keep overflow repair, but do not split/throttle native execution.
+        assertEquals(1L, source.lines().filter(line -> line.contains("@Redirect")).count());
+        assertFalse(source.contains(";executeCrafting("));
+        assertFalse(source.contains("SequentialInstantDispatcher"));
+        assertTrue(source.contains("CraftingExecutionBudget.limitCoProcessors"));
     }
 
     @Test

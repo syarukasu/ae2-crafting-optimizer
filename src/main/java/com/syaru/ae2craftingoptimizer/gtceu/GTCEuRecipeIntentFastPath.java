@@ -5,6 +5,12 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntent;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
 import com.syaru.ae2craftingoptimizer.intent.StackIntent;
+import com.syaru.ae2craftingoptimizer.intent.IntentSearchIterator;
+import appeng.api.stacks.AEKey;
+import appeng.api.stacks.AEItemKey;
+import appeng.api.stacks.AEFluidKey;
+import java.math.BigInteger;
+import java.util.function.Supplier;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationMetrics;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -22,10 +28,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
-import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
-import net.minecraft.world.level.Level;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
@@ -40,17 +43,26 @@ public final class GTCEuRecipeIntentFastPath {
     }
 
     public static Iterator<?> wrapSearchIterator(Object recipeLogic, Iterator<?> original) {
-        if (!ACOConfig.enableGtceuRecipeIntentFastPath()) {
-            return original;
-        }
-        if (recipeLogic == null || original == null) {
-            return original;
-        }
+        if (original == null) return null;
+        return search(recipeLogic, () -> original);
+    }
 
-        try {
+    public static Iterator<?> search(Object recipeLogic, Supplier<? extends Iterator<?>> original) {
+        if (!ACOConfig.enableGtceuRecipeIntentFastPath() || recipeLogic == null) return original.get();
+        List<Object> candidates;
+        try { candidates = candidates(recipeLogic); }
+        catch (ReflectiveOperationException | RuntimeException | LinkageError throwable) {
+            logReflectionFailure("lookup", throwable);
+            candidates = List.of();
+        }
+        // Native failures must propagate once, not be swallowed and retried as hint failures.
+        return candidates.isEmpty() ? original.get() : new IntentSearchIterator<>(candidates.iterator(), original);
+    }
+
+    private static List<Object> candidates(Object recipeLogic) throws ReflectiveOperationException {
             Context context = Context.from(recipeLogic);
             if (context == null) {
-                return original;
+                return List.of();
             }
 
             List<RecipeIntent> intents = RecipeIntentRegistry.findForTarget(
@@ -66,23 +78,26 @@ public final class GTCEuRecipeIntentFastPath {
                         ACOConfig.getGtceuRecipeIntentNearbyMaximumEntries());
             }
             if (intents.isEmpty()) {
-                return original;
+                return List.of();
             }
 
             Set<String> outputKeys = outputKeys(intents);
             if (outputKeys.isEmpty()) {
-                return original;
+                return List.of();
             }
             Set<String> inputKeys = inputKeys(intents);
-            List<Object> candidates = findResolvedCandidates(context, outputKeys, inputKeys);
+            OutputRecipeIndex index = getOrCreateIndex(context.recipeType());
+            List<Object> candidates = findResolvedCandidates(context, outputKeys, inputKeys, index);
             if (candidates == null) {
-                OutputRecipeIndex index = getOrCreateIndex(context.recipeType(), context.recipeManager());
                 candidates = collectCandidates(outputKeys, inputKeys, index);
-                rememberResolvedCandidates(context, outputKeys, inputKeys, intents, candidates);
+                rememberResolvedCandidates(context, outputKeys, inputKeys, intents, candidates, index);
             }
 
-            if (candidates.isEmpty()) {
-                return original;
+            // #179: ID-only candidates are advisory, never a proof of the intended NBT output.
+            var capturedIntents = intents;
+            candidates = candidates.stream().filter(recipe -> matchesIntent(recipe, capturedIntents)).toList();
+            if (candidates.size() != 1) {
+                return List.of();
             }
 
             if (ACOConfig.logGtceuRecipeIntentFastPath()) {
@@ -92,11 +107,7 @@ public final class GTCEuRecipeIntentFastPath {
                         context.dimension(),
                         context.machinePos());
             }
-            return new IntentFirstIterator(candidates, original);
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError throwable) {
-            logReflectionFailure("wrap", throwable);
-            return original;
-        }
+            return candidates;
     }
 
     public static void clearIndexes(String reason) {
@@ -110,6 +121,75 @@ public final class GTCEuRecipeIntentFastPath {
         }
     }
 
+    static boolean matchesIntent(Object recipe, List<RecipeIntent> hints) {
+        try {
+            for (var hint : hints) {
+                Map<AEKey, BigInteger> expected = new LinkedHashMap<>();
+                Map<AEKey, BigInteger> inputs = new LinkedHashMap<>();
+                boolean exact = true;
+                for (var output : hint.outputs()) {
+                    if (output.exactKey() == null || output.amount() <= 0) { exact = false; break; }
+                    expected.merge(output.exactKey(), BigInteger.valueOf(output.amount()), BigInteger::add);
+                }
+                for (var slot : hint.inputs()) {
+                    if (slot.possibleInputs().size() != 1 || slot.multiplier() <= 0) { exact = false; break; }
+                    var input = slot.possibleInputs().get(0);
+                    if (input.exactKey() == null || input.amount() <= 0) { exact = false; break; }
+                    inputs.merge(input.exactKey(), BigInteger.valueOf(input.amount())
+                            .multiply(BigInteger.valueOf(slot.multiplier())), BigInteger::add);
+                }
+                if (!exact || expected.isEmpty()) continue;
+                var actual = exactContents(recipe, "outputs", expected.keySet());
+                var consumed = exactContents(recipe, "inputs", inputs.keySet());
+                if (actual == null || consumed == null || !actual.keySet().equals(expected.keySet())
+                        || !consumed.keySet().equals(inputs.keySet())) continue;
+                var first = actual.keySet().iterator().next();
+                if (actual.entrySet().stream().allMatch(e -> e.getValue().multiply(expected.get(first))
+                        .equals(expected.get(e.getKey()).multiply(actual.get(first))))
+                        && consumed.entrySet().stream().allMatch(e -> e.getValue().multiply(expected.get(first))
+                        .equals(inputs.get(e.getKey()).multiply(actual.get(first))))) return true;
+            }
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unsupported) {
+            logReflectionFailure("exactOutputs", unsupported);
+        }
+        return false;
+    }
+
+    private static Map<AEKey, BigInteger> exactContents(Object recipe, String field, Set<AEKey> expected)
+            throws ReflectiveOperationException {
+        if (!(getField(recipe, field) instanceof Map<?, ?> map)) return null;
+        Map<AEKey, BigInteger> result = new LinkedHashMap<>();
+        for (var contents : map.values()) {
+            if (!(contents instanceof List<?> list)) return null;
+            for (var content : list) {
+                Object chance = getField(content, "chance"), maximum = getField(content, "maxChance");
+                if (!(chance instanceof Number c) || !(maximum instanceof Number m) || c.intValue() != m.intValue())
+                    return null;
+                Object value = invoke(content, "getContent");
+                List<StackIntent> choices = new ArrayList<>();
+                if (value instanceof Ingredient ingredient) {
+                    for (var stack : ingredient.getItems()) if (!stack.isEmpty())
+                        choices.add(StackIntent.of(AEItemKey.of(stack), stack.getCount()));
+                } else {
+                    FluidStack[] fluids;
+                    if (value instanceof FluidStack stack) fluids = new FluidStack[]{stack};
+                    else {
+                        var stacks = invoke(value, "getStacks");
+                        if (!(stacks instanceof FluidStack[] array)) return null;
+                        fluids = array;
+                    }
+                    for (var fluid : fluids) if (!fluid.isEmpty())
+                        choices.add(StackIntent.of(AEFluidKey.of(fluid), fluid.getAmount()));
+                }
+                if (field.equals("outputs") && choices.size() != 1) return null;
+                var matching = choices.stream().filter(s -> expected.contains(s.exactKey())).distinct().toList();
+                if (matching.size() != 1) return null;
+                result.merge(matching.get(0).exactKey(), BigInteger.valueOf(matching.get(0).amount()), BigInteger::add);
+            }
+        }
+        return result;
+    }
+
     private static List<Object> collectCandidates(
             Set<String> outputKeys,
             Set<String> inputKeys,
@@ -117,7 +197,6 @@ public final class GTCEuRecipeIntentFastPath {
         List<Object> inputMatched = new ArrayList<>();
         List<Object> fallback = new ArrayList<>();
         Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        int limit = ACOConfig.getGtceuRecipeIntentMaximumCandidates();
         for (String outputKey : outputKeys) {
             for (Object recipe : index.recipesForOutput(outputKey)) {
                 if (seen.add(recipe)) {
@@ -129,25 +208,18 @@ public final class GTCEuRecipeIntentFastPath {
                 }
             }
         }
-        List<Object> candidates = new ArrayList<>(Math.min(limit, inputMatched.size() + fallback.size()));
-        appendUntilLimit(candidates, inputMatched, limit);
-        appendUntilLimit(candidates, fallback, limit);
+        // Inspect all matches before deciding uniqueness; a configured prefix is not proof.
+        List<Object> candidates = new ArrayList<>(inputMatched.size() + fallback.size());
+        candidates.addAll(inputMatched);
+        candidates.addAll(fallback);
         return List.copyOf(candidates);
-    }
-
-    private static void appendUntilLimit(List<Object> target, List<Object> source, int limit) {
-        for (Object candidate : source) {
-            if (target.size() >= limit) {
-                return;
-            }
-            target.add(candidate);
-        }
     }
 
     private static List<Object> findResolvedCandidates(
             Context context,
             Set<String> outputKeys,
-            Set<String> inputKeys) {
+            Set<String> inputKeys,
+            OutputRecipeIndex index) {
         if (!ACOConfig.cacheResolvedRecipeIntents()) {
             return null;
         }
@@ -157,6 +229,7 @@ public final class GTCEuRecipeIntentFastPath {
             CachedCandidates cached = RESOLVED_CANDIDATES.get(key);
             if (cached == null
                     || cached.recipeType != context.recipeType()
+                    || cached.index != index
                     || !cached.outputKeys.equals(outputKeys)
                     || !cached.inputKeys.equals(inputKeys)
                     || cached.expiresTick <= context.gameTime()) {
@@ -173,7 +246,8 @@ public final class GTCEuRecipeIntentFastPath {
             Set<String> outputKeys,
             Set<String> inputKeys,
             List<RecipeIntent> intents,
-            List<Object> candidates) {
+            List<Object> candidates,
+            OutputRecipeIndex index) {
         if (!ACOConfig.cacheResolvedRecipeIntents() || candidates.isEmpty()) {
             return;
         }
@@ -194,7 +268,7 @@ public final class GTCEuRecipeIntentFastPath {
                             outputKeys,
                             inputKeys,
                             candidates,
-                            earliestExpiration(intents)));
+                            earliestExpiration(intents), index));
         }
     }
 
@@ -241,13 +315,15 @@ public final class GTCEuRecipeIntentFastPath {
         return expiration;
     }
 
-    private static OutputRecipeIndex getOrCreateIndex(Object recipeType, RecipeManager recipeManager) {
+    private static OutputRecipeIndex getOrCreateIndex(Object recipeType) throws ReflectiveOperationException {
+        if (!(invoke(recipeType, "db") instanceof GTRecipeDbView view))
+            throw new IllegalStateException("Native GT database view is not installed");
         synchronized (LOCK) {
             OutputRecipeIndex existing = INDEXES.get(recipeType);
-            if (existing != null) {
+            if (existing != null && existing.revision == view.aco$recipeRevision()) {
                 return existing;
             }
-            OutputRecipeIndex created = OutputRecipeIndex.build(recipeType, recipeManager);
+            OutputRecipeIndex created = OutputRecipeIndex.build(recipeType, view);
             if (INDEXES.size() >= ACOConfig.getGtceuRecipeIntentIndexCacheSize()) {
                 Iterator<Object> iterator = INDEXES.keySet().iterator();
                 if (iterator.hasNext()) {
@@ -271,7 +347,7 @@ public final class GTCEuRecipeIntentFastPath {
         AE2CraftingOptimizer.LOGGER.warn("ACO GTCEu recipe intent fast path disabled for this call: {}", throwable.toString());
     }
 
-    private record Context(ResourceLocation dimension, BlockPos machinePos, long gameTime, RecipeManager recipeManager, Object recipeType) {
+    private record Context(ResourceLocation dimension, BlockPos machinePos, long gameTime, Object recipeType) {
         private static Context from(Object recipeLogic) throws ReflectiveOperationException {
             Object metaMachine = invoke(recipeLogic, "getMachine");
             if (metaMachine == null) {
@@ -293,11 +369,7 @@ public final class GTCEuRecipeIntentFastPath {
             if (!(recipeType instanceof RecipeType<?>)) {
                 return null;
             }
-            Object recipeManagerObject = invoke(recipeLogic, "getRecipeManager");
-            if (!(recipeManagerObject instanceof RecipeManager recipeManager)) {
-                return null;
-            }
-            return new Context(level.dimension().location(), pos.immutable(), level.getGameTime(), recipeManager, recipeType);
+            return new Context(level.dimension().location(), pos.immutable(), level.getGameTime(), recipeType);
         }
     }
 
@@ -312,7 +384,8 @@ public final class GTCEuRecipeIntentFastPath {
             Set<String> outputKeys,
             Set<String> inputKeys,
             List<Object> candidates,
-            long expiresTick) {
+            long expiresTick,
+            OutputRecipeIndex index) {
         private CachedCandidates {
             outputKeys = Collections.unmodifiableSet(new LinkedHashSet<>(outputKeys));
             inputKeys = Collections.unmodifiableSet(new LinkedHashSet<>(inputKeys));
@@ -355,22 +428,19 @@ public final class GTCEuRecipeIntentFastPath {
     private static final class OutputRecipeIndex {
         private final Map<String, List<Object>> byOutputId;
         private final Map<Object, Set<String>> inputIdsByRecipe;
+        private final long revision;
 
-        private OutputRecipeIndex(Map<String, List<Object>> byOutputId, Map<Object, Set<String>> inputIdsByRecipe) {
+        private OutputRecipeIndex(Map<String, List<Object>> byOutputId, Map<Object, Set<String>> inputIdsByRecipe, long revision) {
             this.byOutputId = byOutputId;
             this.inputIdsByRecipe = inputIdsByRecipe;
+            this.revision = revision;
         }
 
-        static OutputRecipeIndex build(Object recipeType, RecipeManager recipeManager) {
+        static OutputRecipeIndex build(Object recipeType, GTRecipeDbView view) {
             Map<String, List<Object>> byOutput = new LinkedHashMap<>();
             Map<Object, Set<String>> inputIdsByRecipe = new IdentityHashMap<>();
-            if (!(recipeType instanceof RecipeType<?> typedRecipeType)) {
-                return new OutputRecipeIndex(byOutput, inputIdsByRecipe);
-            }
-
-            @SuppressWarnings({ "rawtypes", "unchecked" })
-            List<? extends Recipe<?>> recipes = recipeManager.getAllRecipesFor((RecipeType) typedRecipeType);
-            for (Recipe<?> recipe : recipes) {
+            var recipes = view.aco$acceptedRecipes();
+            for (Object recipe : recipes) {
                 for (String outputId : outputIds(recipe)) {
                     byOutput.computeIfAbsent(outputId, ignored -> new ArrayList<>()).add(recipe);
                 }
@@ -384,7 +454,7 @@ public final class GTCEuRecipeIntentFastPath {
                         byOutput.size(),
                         recipes.size());
             }
-            return new OutputRecipeIndex(byOutput, inputIdsByRecipe);
+            return new OutputRecipeIndex(byOutput, inputIdsByRecipe, view.aco$recipeRevision());
         }
 
         List<Object> recipesForOutput(String outputId) {
@@ -472,53 +542,4 @@ public final class GTCEuRecipeIntentFastPath {
         }
     }
 
-    private static final class IntentFirstIterator implements Iterator<Object> {
-        private final Iterator<?> intentCandidates;
-        private final Iterator<?> original;
-        private final Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        private Object nextOriginal;
-        private boolean nextOriginalReady;
-
-        private IntentFirstIterator(List<Object> intentCandidates, Iterator<?> original) {
-            this.intentCandidates = intentCandidates.iterator();
-            this.original = original;
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (intentCandidates.hasNext()) {
-                return true;
-            }
-            if (nextOriginalReady) {
-                return true;
-            }
-            while (original.hasNext()) {
-                Object candidate = original.next();
-                if (seen.add(candidate)) {
-                    nextOriginal = candidate;
-                    nextOriginalReady = true;
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        @Override
-        public Object next() {
-            if (intentCandidates.hasNext()) {
-                Object candidate = intentCandidates.next();
-                seen.add(candidate);
-                return candidate;
-            }
-            if (nextOriginalReady) {
-                Object result = nextOriginal;
-                nextOriginal = null;
-                nextOriginalReady = false;
-                return result;
-            }
-            Object candidate = original.next();
-            seen.add(candidate);
-            return candidate;
-        }
-    }
 }

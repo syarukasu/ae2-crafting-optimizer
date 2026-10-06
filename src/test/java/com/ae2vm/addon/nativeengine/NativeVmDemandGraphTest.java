@@ -107,7 +107,7 @@ class NativeVmDemandGraphTest {
         var capture = capture(service, Map.of(raw, BigInteger.ONE));
         capture.plan(root, BigInteger.ONE, false);
         when(service.getCraftingFor(root)).thenReturn(List.of(replacement));
-        assertThrows(NativeVm.Changed.class, capture::validate);
+        assertThrows(LegacyVmState.Changed.class, capture::validate);
     }
 
     @Test void nativeProcessingInputDoesNotProbeThousandsOfWrongNbtVariants() throws Exception {

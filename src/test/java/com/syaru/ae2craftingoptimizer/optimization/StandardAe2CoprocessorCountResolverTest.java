@@ -59,13 +59,4 @@ class StandardAe2CoprocessorCountResolverTest {
                 () -> CraftingExecutionBudget.safelyRepresentableOperations(-1L));
     }
 
-    @Test
-    void zeroProgressWaveStillPublishesItsObservedCost() {
-        assertEquals(
-                80_000_000L,
-                CraftingExecutionBudget.measuredNanosPerOperation(0, 80_000_000L));
-        assertEquals(
-                2_000_000L,
-                CraftingExecutionBudget.measuredNanosPerOperation(4, 8_000_000L));
-    }
 }

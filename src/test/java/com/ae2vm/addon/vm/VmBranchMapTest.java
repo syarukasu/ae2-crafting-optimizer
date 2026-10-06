@@ -7,6 +7,33 @@ import java.math.BigInteger;
 import org.junit.jupiter.api.Test;
 
 class VmBranchMapTest {
+    @Test void nestedSnapshotCopiesTheBaseOnlyOnce() {
+        var hashes = new java.util.concurrent.atomic.AtomicInteger();
+        var original = new LinkedHashMap<CountedKey, Integer>();
+        for (int i = 0; i < 256; i++) original.put(new CountedKey(i, hashes), i);
+        java.util.Map<CountedKey, Integer> parent = original;
+        for (int depth = 0; depth < 48; depth++) {
+            var layer = new VmBranchMap<>(parent);
+            layer.put(new CountedKey(depth, hashes), -depth - 1);
+            layer.put(new CountedKey(256 + depth, hashes), depth);
+            parent = layer;
+        }
+        hashes.set(0);
+        var snapshot = new LinkedHashMap<>(parent);
+        int work = hashes.get();
+        assertEquals(304, snapshot.size());
+        assertEquals(java.util.stream.IntStream.range(0, 304).boxed().toList(),
+                snapshot.keySet().stream().map(CountedKey::value).toList());
+        for (int i = 0; i < 48; i++) assertEquals(-i - 1, snapshot.get(new CountedKey(i, hashes)));
+        assertEquals(0, original.get(new CountedKey(0, hashes)));
+        System.out.println("Issue218 nested snapshot: layers=48 base=256 hashWork=" + work);
+        assertTrue(work <= 4 * 304, "Do not copy the whole base at every parent layer: " + work);
+    }
+
+    private record CountedKey(int value, java.util.concurrent.atomic.AtomicInteger hashes) {
+        @Override public int hashCode() { hashes.incrementAndGet(); return value; }
+    }
+
     @Test void nestedCommitAndDiscardDoNotMutateOriginalOrReorderKeys() {
         var original = new LinkedHashMap<String, BigInteger>();
         original.put("a", BigInteger.ONE); original.put("b", BigInteger.TWO);

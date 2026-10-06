@@ -1,5 +1,14 @@
 # ACOクラス責務一覧
 
+- `VmInstructionExecution.directCraftLessPlan` uses one order's shared demand
+  coefficients for funded quantity bounds. Integral unique graphs materialize
+  directly; fractional unshared graphs search their rounding interval. Other
+  routes retain ordered trials. It neither caches inventory across orders nor
+  changes requester retry or provider throughput.
+- Its `CapacityShape` retains the union of conceptual nodes visited through
+  aggregate summaries, including before stocked boundaries changed. It stores
+  no stock, reservations or quantities and does not select manufacturing routes.
+
 この文書は、各本番トップレベル型が所有する仕事と依存境界を確認する正本です。
 クラス追加・削除・責務変更時は、コードより先にIssue仕様書を更新し、本一覧も更新します。
 一覧は`tools/update-class-responsibilities.ps1`で生成し、重要クラスの説明は同scriptのoverrideで管理します。
@@ -7,26 +16,177 @@
 
 ## ACOの目的
 
-### 2.0.0 demand-driven boundary (#218)
+### Active VM reference path (#218, 2026-10-06)
 
-- `NativeVmCapture` (fork): per-request stock, demanded producer metadata and
-  live input observations; no eager descendant traversal or legacy graph copy.
-  Revalidates the requester's grid, provider/input semantics and recipe epoch.
-- `VmAccounting`: exact stock and result handoff; respects null action sources
-  and explicitly requested extraction simulation without narrowing wide values.
-- `WideCraftingPlan.exactView`: the plan owner supplies exact API values;
-  `BigCraftingEngineApi` does not select concrete planner implementations.
-- Native exact processing inputs can use direct-key worker lookup. Unknown
-  pattern implementations retain server-owned predicates and return handling.
-- Public API v3 methods, transitive value descriptors and constants are frozen
-  in the compiled ABI fixture. Saved job/receipt owners are unchanged.
+- `VmInstructionExecution.request/craft` first tries funded alternate producers
+  even during the missing-material pass. Failed trials retain no stock changes;
+  only the remaining unfunded demand is simulated using the preferred route.
+  Original multi-producer per-craft accounting is retained when the missing
+  pass selects just that first route. No extra world access or planner is added.
+- `NativeCraftingRule` freezes only exact vanilla shaped/shapeless recipes with
+  plain ingredients and default Item container semantics. Matching uses copied
+  item sets/grid layout, including mirrored/shifted grids and overlapping
+  shapeless ingredients. It never calls recipes, custom items or the world on
+  the worker. Unknown recipes/items keep their existing native observations.
+- `NativeVmPlanningContext` indexes captured inputs by item family. A newly
+  encountered key's opaque validity/return observations share an exclusive read
+  boundary across relevant slots. It does not enumerate successive future keys.
+  `NativeVmAccess.readWindowExpired` lets this grouping stop between completed
+  callbacks at AE2's existing deadline, without adding a new execution budget.
+- `VmDemandProgram.Compiler` caches stock-boundary summaries per order/pattern;
+  at most 32 shapes are retained per pattern, with no quantity/work cutoff.
+  A depleted boundary is craftable again, never converted into an uncraftable
+  item. No inventory or completed-plan result is cached across orders.
+- `VmInstructionExecution` consumes funded integral intervals of an alternative
+  producer, then re-evaluates that same producer after stock depletion. Fractional
+  one-craft summaries retain ordered VM execution to preserve AE2 node capacity.
+  Single-producer bulk instruction order and exact replay remain unchanged.
+
+- `PatternCompiler` / `CraftingVM` own BigInteger arithmetic. Frozen and opaque
+  inputs use the same VM; there is no SMT or ACO-planner fallback.
+- `VmInstructionExecution.ProcessMetadata` retains a compiled block lazily for
+  one order. Repeated tool/branch execution does not revalidate immutable pattern
+  metadata; unused alternatives and purely aggregated patterns are not compiled.
+- Its periodic search grows a window only after exhausting that unsuccessful
+  window. New key domains or successful replay restart a short search. The exact
+  affine repetition guards, reservation peaks and quantity equations are retained.
+- `NativeVm` captures accessible stock once and starts one AE2 pool task.
+  `NativeVmPlanningContext` freezes reachable producer/emitter decisions, then
+  batches candidate observations from stock, templates and all declared outputs.
+  Answers are keyed by full AEKey and input identity. It never generates the
+  closure of future NBT/durability states. Closed domains use no read scheduler.
+  Return capability includes accepted alternative keys, and output-as-input
+  detection includes accepted NBT alternatives, not only the primary template.
+  Fixed native crafting predicates specialize non-primary rejection before any
+  generic live-read dispatch. Only families containing dynamic inputs can open
+  a scheduler for unseen returned keys; fixed inputs cannot close dynamic peers.
+- `NativeVmAccess` observes a new opaque candidate once per order, combining
+  validity and return reads. Negative/null answers are retained. Unused candidate
+  exceptions are deferred until use. Unknown custom callbacks still need AE2's
+  exclusive read boundary; arbitrary future-state semantics are not frozen at T0.
+- `NativeVmCalculation` supplies that read hook only when callbacks may be needed.
+  Captures whose finite candidate domain is closed skip its placeholder tree and
+  tick registration, including captured fuzzy alternatives and returned items.
+  This is scheduling only, not another calculator or executor.
+- VM-private exact multiplier/output-scale methods preserve scaled coefficients;
+  the public BigInteger API, execution and CPU ownership remain unchanged.
+- `NativePatternCoefficients` owns the unchanged exact scaling of EAEP pattern
+  coefficients. It has no provider cache or graph-solver dependency.
+- NativeOrderSnapshot/NativeGraphCalculation/NativePlanSelections and
+  NativePatternCatalog live in native-engine testFixtures. The native entry no
+  longer maintains the unused graph catalog on provider changes. The graph.3
+  startup compatibility fix remains active.
+- The exact-engine graph package and SMTInterpol belong only to graphFixture /
+  graphComparison test configurations. ACO build.gradle packages only the native
+  VM and the solver-free exact library, plus their corresponding source archives.
+
+### Historical graph planner (#218, 2026-10-03)
+
+- The exact-engine `graph` package owns immutable indexed recipe coefficients,
+  BigInteger shared-demand evaluation, integer constraint solving and compressed
+  schedule accounting. It has no Minecraft/AE2 dependencies or live callbacks.
+- The native snapshot adapter owns capture of reachable AE2 pattern/input
+  semantics and exact-key bindings at order start. Only immutable numeric input
+  crosses into the planner. One AE2 worker owns each solve; no nested executor.
+- `VmAccounting` and the existing public API remain the exact stock/result
+  boundary. Saved execution jobs and physical ownership are not redesigned in
+  this calculation change. The replacement is connected in graph.1-local;
+  native CPU/AQE execution and production latency acceptance remain pending.
+- `RecipeGraph` stores indexed constants; `ExactGraphPlanner` owns shared DAG
+  demand and a fixed consumer prefix; `IntegerRecipeSolver` owns coupled integer
+  choices; `PlanSchedule` owns startup supply, ordering and compressed repeats.
+- `NativeOrderSnapshot` owns order-local live reads. `NativeGraphCalculation`
+  translates the immutable result. `NativePlanSelections` attaches selected
+  inputs/order evidence to the plan, without changing physical execution.
+- `NativeVm` submits one callable directly to AE2's pool after capture.
+- `NativePatternCatalog` owns service-local provider definitions and dependency
+  invalidation. Only recognized immutable processing coefficients are shared;
+  stock, emitters and opaque input callbacks remain order-local. Its immutable
+  `Program` compiles `RecipeGraph` lazily on the AE2 worker. Provider handles are
+  result bindings only, never invoked by compilation or arithmetic.
+- `RecipeGraph` memoizes its immutable consumer-first topology; concurrent
+  orders share no mutable demand, inventory or solver state.
+  `NativeVmCalculation`, `NativeVmAccess`, the old compiler and bytecode VM
+  are excluded from the runtime bundle and retained only as test fixtures.
+
+### Ordinary Pattern Dispatch (#161)
+
+- AE2 owns ordinary execution throughput, operation history, provider order,
+  backpressure and energy. The executeCrafting wave redirect is removed.
+- The old throttle config key is accepted but ignored, including saved true
+  values. Adaptive/grid/wave algorithms and Neo ECO budget Mixins are deleted.
+  Legacy public entry points are stateless pass-throughs without timing.
+- CraftingExecutionBudget retains the int overflow boundary and the independent
+  exact-job ownership guard. Transactional V2 and exact receipt budgets remain
+  separate from ordinary native processing and VM planning.
+
+### Historical lifecycle before graph.1-local (#218)
+
+The following describes the superseded implementation, not the graph.1 route.
+
+- `PatternCompiler` (fork): request-local compilation and input classification
+  remain in scoped State. Four unused global collections were removed in dev.19.
+- `SymbolicCraftingPlanner` and `NeoEcoVersionCompatibility`: removed in dev.19
+  after main/resource/API/consumer-reference audit. CompiledRootProgram retains
+  actual arithmetic ownership; Neo ECO execution is still owned by Neo ECO.
+- `NativeVm` (fork): accepts ordinary/wide orders and captures exact accessible
+  stock once before VM scheduling. Queues off-thread creation once, retains cancellation,
+  and submits to AE2's existing pool. No separate worker pool or retry loop.
+- `NativeVmCalculation` (fork): scheduler-only subclass of CraftingCalculation.
+  Uses AE2's pool and TickHandler registration. Its simulateFor delegates only
+  live-access scheduling, never pauses continuous arithmetic.
+  Its null-source placeholder tree is never calculated; real quantities enter
+  the VM as BigInteger. ACO's constructor capture is bypassed for this subclass.
+- `NativeVmAccess` (fork): request-local exclusive-world-access monitor, expiry,
+  interruption and finish notification. Checkpoints release an expired grant
+  without waiting. Only live callbacks await a new grant; nested callbacks keep
+  the grant until the outer callback returns. No executor, snapshot or retry.
+- `NativeVmPlanningContext` (fork): request-local VM bindings and demand-local
+  producer/emitter memoization. It asks AE2 once per demanded output or emitter
+  key, never enumerates unrelated patterns. Unknown MOD-defined input
+  predicates/returns still run during AE2's exclusive time slice. Producer
+  priority, requester grid and null-source semantics remain AE2's. No per-input
+  RPC, observation mirror or adoption/revalidation pass.
+  The existing exact-key/no-return declaration is consumed locally; repeated
+  validity/no-return queries do not reenter live access. Native primary crafting
+  validity is local. Exact vanilla recipe/Ingredient classes may reuse validity
+  by full AEKey within this request; returns additionally require exact Item or
+  BucketItem implementations. Unknown/dynamic inputs keep actual callbacks.
+- `NativeVmRecipeView` / `NativeCraftingRecipeMixin` (fork): expose only the
+  recipe already bound to a native crafting pattern, without registry lookup.
+- `NativeVmCapture` / `NativeVmPatternCatalog`: removed from shipped code.
+  Copies retained in ACO test sources are historical fixtures only, not fallbacks.
+- `VmDemandProgram` / `VmInstructionExecution` (fork): exact shared-demand
+  programs and ordered BigInteger branch execution, including sparse rollback,
+  sub-unit interval guards and proven replay. Cooperative checkpoints check
+  interruption and release world access without tick-throttling arithmetic;
+  no long clipping, order cutoff or ACO calculator.
+- `VmJournalMap` (fork): request-local sparse virtual-stock history for exact
+  rollback/replay. Never a physical reservation or persistent transaction.
+- `VmAccounting` / `VmBigIntegerAccounting`: exact stock/result ownership,
+  null-source and simulated-extraction semantics, and the existing public
+  BigInteger API. CPU capacity is not a global intermediate/order-count limit.
+- `WideCraftingPlan.exactView`: the plan owner supplies exact API quantities;
+  long fields are a compatibility facade, not the arithmetic source.
+- Public API v3 descriptors/constants and saved receipt/job owners are unchanged.
+  Actual CPU submission retains live reservation and execution checks.
+- `ExactVectorGridTickBudget` / `PhysicalCraftingTreeTransaction`: existing
+  physical admission and atomic receipt execution, separate from calculation.
+  This change does not repair generic wide machine/cycle execution.
+- AE2 still waits during its configured calculation slices. Neither zero server
+  cost nor production <10-second acceptance follows from this architecture.
 
 ### Bundled VM profiling and trial state (#217)
 
 - `NativeVmTiming` (VM fork): order-local phase and server-handoff timings;
-  no planning decisions, inventory mutation or world references.
+  fixed handoff categories plus up to 16 captured pattern-type names (120 chars
+  each) and an overflow count. Existing summaries only, no per-call logs,
+  planning decisions, inventory mutation or world references. aggregatedBlocks
+  counts applied shared-demand programs in the existing bounded summaries.
 - `VmBranchMap` (VM fork): worker-local sparse trial writes with explicit commit;
   not a physical inventory transaction, reservation or persistent journal.
+  Ordered snapshots flatten parent layers once, never recursively copy the full
+  base for each layer. entrySet snapshot entries remain immutable and independent.
 - `NativeVmDiagnostics` (VM fork): bounded recent timing summaries; ACO commands
   display these values without acquiring planner or CPU ownership.
 
@@ -111,7 +271,7 @@ mixin + access  ->  integration  ->  optimization
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **323件**
+本版の本番トップレベル型: **325件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -359,7 +519,6 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.RootProgramFailure` | Root Programをコンパイルできなかった正確な理由。 |
 | `com.syaru.ae2craftingoptimizer.engine.SelectedBranchPhysicalPlan` | 選択済み分岐の固定入力、回数、順序と全余剰を既存の物理実行契約へ保持する。実在庫やWorkerの実行は所有しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.StalePlanningSnapshotException` | StalePlanningSnapshotExceptionが示す失敗を呼出側へ型付きで通知する。 |
-| `com.syaru.ae2craftingoptimizer.engine.SymbolicCraftingPlanner` | 決定的なPattern DAGを CompiledRootProgram へ変換し、数式一巡で計画する公開Facade。 |
 | `com.syaru.ae2craftingoptimizer.engine.VmBigIntegerAccounting` | VMへ正確な在庫量を提供し、完成済み計算結果をBigInteger会計と既存の実行契約へ結び付ける。パターン取得や計算をVMへ入力しない。 |
 | `com.syaru.ae2craftingoptimizer.engine.VmCalculatedCraftingPlan` | VMの完了済み数量と元Pattern参照を保持する。CPU実行の準備は計算完了条件にしない。 |
 | `com.syaru.ae2craftingoptimizer.engine.VmPhysicalPlanBinding` | 提出時だけVMの完了済み計画を既存Receipt実行へ結び付ける。数量計算やVMへのグラフ入力は行わない。 |
@@ -375,7 +534,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactCountMap` | 正のBigInteger数量Mapの検証、順序付き複製、包含判定、exact加算を行う副作用なし共通部品。 |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactCraftingEscrow` | 一注文が所有する境界素材、中間素材、最終成果物をBigIntegerのまま原子的に増減する。 |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactMutationReconciler` | 保存済みbefore/afterと現在値を照合し、まだ適用していないキーだけを返す。 |
-| `com.syaru.ae2craftingoptimizer.engine.craftingtable.PhysicalCraftingTreeTransaction` | 作業台ツリーの予約、Worker Receipt、取消、返却、隔離、NBT復元を所有する。実行可能な段のキューと変更世代で重複走査・会計再構築を抑える。 |
+| `com.syaru.ae2craftingoptimizer.engine.craftingtable.PhysicalCraftingTreeTransaction` | 作業台ツリーの予約、Worker Receipt、取消、返却、隔離、NBT復元を所有する。呼出側の時間予算で段間を中断し、未処理Receiptを保持する。 |
 
 ### `com.syaru.ae2craftingoptimizer.engine.vector`
 
@@ -389,7 +548,8 @@ mixin + access  ->  integration  ->  optimization
 
 | クラス | 仕事 |
 |---|---|
-| `com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath` | Provider Intentに一致するGT recipe候補だけを優先し、GTCEu本来の成立判定へ渡す。 |
+| `com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath` | Resolves a unique full input/output signature from the accepted native DB; defers native search until rejection and keeps GT processing checks native. |
+| `com.syaru.ae2craftingoptimizer.gtceu.GTRecipeDbView` | Read-only accepted native recipe identities and registration revision; never registers or removes GT recipes. |
 
 ### `com.syaru.ae2craftingoptimizer.integration`
 
@@ -405,9 +565,9 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.integration.ExactBoundaryRoutePreflight` | Issue #125: exact Jobの排他所有権を取る前に、境界ME操作が成立するかを証明する。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactNetworkStorageBridge` | ME storageへのexact snapshot、reserve、insert、rollbackをAE2権限境界内で行う。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExactSubmissionScope` | ACOが正確なBigInteger台帳で承認済みの提出だけを指す、呼出し一回分の目印。 |
-| `com.syaru.ae2craftingoptimizer.integration.ExactVectorGridTickBudget` | BigInteger親Jobと標準AQE Jobが共有する、Grid単位のExact Vector tick予算。 |
+| `com.syaru.ae2craftingoptimizer.integration.ExactVectorGridTickBudget` | Grid単位の共有時間・段数予算。未使用枠の返却でも初回進行保証を再発行せず、物理実行へ残り時間判定を渡す。 |
 | `com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator` | 有効化された実験Mixinの対象クラス、Accessor、内部契約を起動時に監査する。 |
-| `com.syaru.ae2craftingoptimizer.integration.NeoEcoVersionCompatibility` | Neo ECOの実行API世代を、Mixinが参照する前に文字列だけで判定する。 |
+| `com.syaru.ae2craftingoptimizer.integration.MegaCellsModContext` | Issue #218: resolve the MEGACells-owned Forge extension without changing the loader thread's active context. No planner or stock ownership. |
 | `com.syaru.ae2craftingoptimizer.integration.PlanningExactInventorySnapshot` | server上でmountを一度ずつ読み、ローカル合計からBigInteger Planner専用Snapshotを一度だけ公開する。実insert/extractは行わない。 |
 | `com.syaru.ae2craftingoptimizer.integration.ProgramFingerprintRevalidationCache` | 現在のPattern/recipe世代で再検証済みの数式Program指紋を保持する。 |
 | `com.syaru.ae2craftingoptimizer.integration.TerminalDisplaySnapshotProjection` | ME端末へ送る一時在庫Snapshotだけをmount単位で飽和加算し、long超過キーをLong.MAX_VALUE表示へ投影する。 |
@@ -418,10 +578,11 @@ mixin + access  ->  integration  ->  optimization
 |---|---|
 | `com.syaru.ae2craftingoptimizer.intent.InputIntent` | Providerが機械へ渡した具体的なItem、Fluid、Chemical入力を不変値で表す。 |
 | `com.syaru.ae2craftingoptimizer.intent.IntentLocation` | Intentの送信元Provider、Level、位置、方向を特定する。 |
-| `com.syaru.ae2craftingoptimizer.intent.PatternIntentCapture` | Pattern push直前のrecipe intentをthread-local境界へ短期間保存する。 |
-| `com.syaru.ae2craftingoptimizer.intent.PatternIntentExtractor` | AE2 Patternから機械検索用の入力、出力、recipe種別hintを抽出する。 |
+| `com.syaru.ae2craftingoptimizer.intent.IntentSearchIterator` | Starts native search after hinted candidates fail; identity dedup and fallback order only, no processing ownership. |
+| `com.syaru.ae2craftingoptimizer.intent.PatternIntentCapture` | Records advisory recipe hints after a successful provider push; samples concrete inputs, target sides, execution count and TTL on every capture. |
+| `com.syaru.ae2craftingoptimizer.intent.PatternIntentExtractor` | Freezes advisory pattern descriptions; retains only the last immutable native processing pattern per provider. Custom/subclass metadata and concrete inputs stay live; no stock, dispatch or receipt ownership. |
 | `com.syaru.ae2craftingoptimizer.intent.RecipeIntent` | 一回のPattern pushが作ろうとするrecipeとexact入出力の読取専用表現。 |
-| `com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry` | RecipeIntentRegistryが示す実装またはHostの登録、解除、検索を管理する。 |
+| `com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry` | Owns bounded advisory recipe hints and their spatial index; an earliest-expiry bound skips unnecessary cleanup scans. No inventory or dispatch ownership. |
 | `com.syaru.ae2craftingoptimizer.intent.RecipeIntentSignature` | RecipeIntentSignatureが示す対象を、順序と内容から安定して識別する。 |
 | `com.syaru.ae2craftingoptimizer.intent.StackIntent` | 一つのItem、Fluid、Chemicalと要求量をrecipe intent内で表す。 |
 
@@ -433,6 +594,11 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.lifecycle.ACOStartupReport` | 起動時にACOの現行中核機能と安全上限を一度だけ報告する。 |
 
 ### `com.syaru.ae2craftingoptimizer.mixin`
+
+| Class | Responsibility |
+|---|---|
+| `com.syaru.ae2craftingoptimizer.mixin.MekanismItemLookupIntentMixin` | Redirects native electric-machine input lookup only; preserves recipe monitor, cached recipe creation and processing. |
+| `com.syaru.ae2craftingoptimizer.mekanism.MekanismItemRecipeIntent` | Typed single-item recipe selection using full input/output identity and ratios; native list identity invalidates the output index. Unknown or ambiguous cases keep native lookup. |
 
 | クラス | 仕事 |
 |---|---|
@@ -457,7 +623,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuClusterTransactionAccessMixin` | CraftingCpuClusterTransactionAccessMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuHelperCalculationMemoMixin` | CraftingCpuHelperCalculationMemoMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuLogicBatchSourceReceiptMixin` | CraftingCpuLogicBatchSourceReceiptMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
-| `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuLogicExecutionBudgetMixin` | CraftingCpuLogicExecutionBudgetMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuLogicExecutionBudgetMixin` | Repair the native coprocessor int boundary; do not wrap or throttle ordinary executeCrafting. |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingCpuLogicTransactionalBatchV2Mixin` | CraftingCpuLogicTransactionalBatchV2Mixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingPatternTaggedValidationMixin` | Issue #179: AE2の照合cache境界を計算内Memoへ接続する。通常recipeのNBT付き結果だけを再利用する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.CraftingPlanSummaryWidePlanMixin` | CraftingPlanSummaryWidePlanMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
@@ -479,14 +645,13 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusBigIntegerCellInventoryAccessor` | ExtendedAePlusBigIntegerCellInventoryAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.ExtendedAePlusInfinityDataStorageConsistencyMixin` | ExtendedAePlusInfinityDataStorageConsistencyMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.GTCEuRecipeLogicIntentFastPathMixin` | GTCEuRecipeLogicIntentFastPathMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
+| `com.syaru.ae2craftingoptimizer.mixin.GTRecipeDbIntentViewMixin` | Records successful native DB additions and clears in a per-DB read-only view; excludes rejected recipes. |
 | `com.syaru.ae2craftingoptimizer.mixin.KeyCounterBigIntegerSidecarLifecycleMixin` | KeyCounterBigIntegerSidecarLifecycleMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.KeyCounterCalculationIndexMixin` | Issue #179: 計算中だけ既存索引を再利用し、不要な耐久値判定を省く。初回判定と全数量はAE2が所有する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.ListCraftingInventoryExactCountsMixin` | ListCraftingInventoryExactCountsMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.MEStorageMenuDisplaySaturationMixin` | Issue #148の表示投影をMEStorageMenu#broadcastChangesのSnapshot取得だけへ接続する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.MixinFeatureCatalog` | 全Mixinを監査済みOptimizationFeatureへ対応付け、未登録Mixinをfail-closedにする正本。 |
-| `com.syaru.ae2craftingoptimizer.mixin.NeoEco20_3CraftingCpuExecutionBudgetMixin` | NeoEco20_3CraftingCpuExecutionBudgetMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
-| `com.syaru.ae2craftingoptimizer.mixin.NeoEco20_4CraftingCpuExecutionBudgetMixin` | NeoEco20_4CraftingCpuExecutionBudgetMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
-| `com.syaru.ae2craftingoptimizer.mixin.NeoEcoExecutionBudgetSupport` | Neo ECO 20.3/20.4の記述子差分から独立した、共通の実行予算計算。 |
+| `com.syaru.ae2craftingoptimizer.mixin.MegaCellsForgePlatformContextMixin` | Issue #218: redirect only MEGACells' static context lookup; keep its initializer and event-bus assignment. |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkCraftingSimulationStateAccessor` | NetworkCraftingSimulationStateAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageCraftingPlanGenerationMixin` | NetworkStorageCraftingPlanGenerationMixinが示す最適化またはexact会計を既存処理へ接続する薄いMixin境界。業務ロジックは非Mixin層へ委譲する。 |
 | `com.syaru.ae2craftingoptimizer.mixin.NetworkStorageMountsAccessor` | NetworkStorageMountsAccessorの対象となる非公開状態を型付きAccessorとして公開するMixin。 |
@@ -518,7 +683,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDiagnostics` | CraftingCalculationDiagnosticsが示す診断理由と観測値を集約する。ゲーム結果は変更しない。 |
 | `com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationMemo` | 一回のクラフト計算内で純粋結果を共有し、素材候補間のpauseをそのworkerだけに接続する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationSnapshotContext` | CraftingServiceの同期的なjob生成区間だけ、実際にsnapshotへ使った三つのrevisionを運ぶ。 |
-| `com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget` | 通常実行の演算予算を決め、ACO所有exact Jobは通常Batchへ渡さない。数量会計や外部CPU実行は所有しない。 |
+| `com.syaru.ae2craftingoptimizer.optimization.CraftingExecutionBudget` | Retain native int overflow repair and exact ownership; retired public budget methods are stateless no-ops. |
 | `com.syaru.ae2craftingoptimizer.optimization.ExactBatchInputLimiter` | 一回分のキー別入力合計から、signed-longで安全に所有できる実行回数を求める。 |
 | `com.syaru.ae2craftingoptimizer.optimization.FallbackBoundary` | ACOがAE2標準経路へ安全に戻せる最終地点を、ownership取得の前後で分類する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.MethodHandleInvocationCache` | MethodHandleInvocationCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
@@ -535,7 +700,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker` | AE2のProvider索引更新後に内容世代を確定し、Compiled Graphの再利用境界を管理する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.ReactionChamberRecipeCache` | ReactionChamberRecipeCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.ReflectionLookupCache` | ReflectionLookupCacheが示す既知結果を世代またはrevision付きで再利用し、変化時に失効する。 |
-| `com.syaru.ae2craftingoptimizer.optimization.SequentialInstantDispatcher` | AE2本来のexecuteCraftingを小さな計測波へ分け、同じserver tick内で時間予算まで継続する。 |
+| `com.syaru.ae2craftingoptimizer.optimization.SequentialInstantDispatcher` | Binary-compatible single native call; no wave formula, timers, config reads or per-owner state. |
 | `com.syaru.ae2craftingoptimizer.optimization.ServerPlanningThreadGuard` | liveなAE2/Minecraft状態をPlanner用Snapshotへ固定してよいthread境界。 |
 | `com.syaru.ae2craftingoptimizer.optimization.ServerTickClock` | ServerTickClockが示す世代、進捗、tick時刻を単調に追跡する。 |
 | `com.syaru.ae2craftingoptimizer.optimization.SharedCalculationFuture` | 一つの計算Futureを複数呼出者へ共有し、各待機者の取消を所有Futureの取消と分離する。 |

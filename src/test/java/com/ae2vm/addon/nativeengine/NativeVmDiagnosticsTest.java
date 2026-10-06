@@ -79,6 +79,20 @@ class NativeVmDiagnosticsTest {
         assertEquals(1, events("slow_calculation").size());
     }
 
+    @Test void runningTimingIsEvaluatedOnlyForTheBoundedLogLine() {
+        var calls = new AtomicLong();
+        java.util.function.Supplier<String> timing = () -> {
+            calls.incrementAndGet();
+            return "ae2WorldWaitMs=123 vmCpuMs=456";
+        };
+        diagnostics.running(1, "test", 1, 4_999, timing);
+        assertEquals(0, calls.get());
+        diagnostics.running(1, "test", 2, 5_000, timing);
+        diagnostics.running(1, "test", 3, 6_000, timing);
+        assertEquals(1, calls.get());
+        assertEquals("ae2WorldWaitMs=123 vmCpuMs=456", events("running").get(0)[4]);
+    }
+
     @Test void errorsKeepTheirCausesWhileRoutineCancellationAndRecaptureOnlyAccumulate() {
         diagnostics.cancelled();
         diagnostics.recaptured();
