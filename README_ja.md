@@ -1,7 +1,7 @@
 # AE2 Crafting Optimizer
 
 <p align="center">
-  <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
+  <img src="src/main/resources/logo.png" alt="AE2 Crafting Optimizer icon" width="192">
 </p>
 
 [English](README.md) | 日本語
@@ -9,7 +9,7 @@
 ## 2.0.0 リリース候補版
 
 **2.0.0-rc.3はプレリリースです。** 改善内容・移行時の注意・既知の制限は
-[リリースノート](docs/releases/2.0.0-rc.3.md)を確認してください。
+[リリースノート](https://github.com/syarukasu/ae2-crafting-optimizer/releases)を確認してください。
 今回の候補版の実機での完了・取消返却・再起動復旧には、未確認項目が残っています。
 
 AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのForge
@@ -18,11 +18,6 @@ AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのForge
 
 通常のレシピ、Provider、クラフトJob、ストレージの正本はAE2です。深い経路は、
 入力へ触る前に会計全体を証明できた場合だけ使います。
-
-開発変更は[プロジェクト憲章](docs/PROJECT_CHARTER.md)と
-[Issue先行開発手順](docs/ISSUE_WORKFLOW.md)に従います。実装前に必ず
-[クラス責務一覧](docs/CLASS_RESPONSIBILITIES.md)と
-[`docs/issues`](docs/issues/README.md)の番号付き仕様書を読みます。
 
 ## 対象環境
 
@@ -188,10 +183,6 @@ Issue #164では、旧Pattern Batch V1、外部CPU実行Manager、内蔵GTCEu/Me
 Native Batch、独立Fair Scheduler、端末・ストレージ・Bus・P2P書換えを削除しました。
 これらはlegacy fallbackやno-op設定としても残していません。
 
-詳細は[Configuration](docs/CONFIGURATION.md)、
-[Feature ownership](docs/FEATURE_OWNERSHIP.md)、
-[Implementation](docs/IMPLEMENTATION.md)、
-[Testing](docs/TESTING.md)を参照してください。
 
 ## ビルド
 

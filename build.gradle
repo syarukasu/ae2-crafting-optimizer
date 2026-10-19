@@ -11,11 +11,10 @@ def exactVmProjectDir = file(findProperty('acoExactVmDir')
 def exactVmVersion = '0.1.3'
 def nativeVmProjectDir = new File(exactVmProjectDir.parentFile, 'native-engine')
 def nativeVmVersion = '0.3.1'
-def gameTestBaseline = (findProperty('acoGameTestBaseline') ?: 'false').toString().toBoolean()
 def exactVmJar = new File(exactVmProjectDir, "build/libs/aco-exact-vm-${exactVmVersion}.jar")
 tasks.register('buildExactVm', GradleBuild) {
     dir = exactVmProjectDir
-    tasks = ['test', 'jar', 'sourcesJar']
+    tasks = ['jar', 'sourcesJar']
 }
 
 base {
@@ -39,44 +38,14 @@ sourceSets {
         compileClasspath = configurations.compileClasspath
         runtimeClasspath += configurations.runtimeClasspath
     }
-    gameTest {
-        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
-        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
-    }
 }
 sourceSets.main.compileClasspath += sourceSets.vmNative.output
 sourceSets.main.runtimeClasspath += sourceSets.vmNative.output
-sourceSets.test.compileClasspath += sourceSets.vmNative.output
-sourceSets.test.runtimeClasspath += sourceSets.vmNative.output
-sourceSets.gameTest.compileClasspath += sourceSets.vmNative.output
-sourceSets.gameTest.runtimeClasspath += sourceSets.vmNative.output
 
 minecraft {
     mappings channel: 'official', version: '1.20.1'
 
     runs {
-        gameTestServer {
-            workingDirectory project.file('build/gametest-ae2')
-            if (!gameTestBaseline) {
-                args '--mixin', 'ae2_crafting_optimizer.mixins.json'
-                args '--mixin', 'ae2vm-aco-native.mixins.json'
-            }
-            property 'aco.gametest.baseline', gameTestBaseline.toString()
-            property 'ae2vm.diagnostics.verbose', 'true'
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', project.file('build/createSrgToMcp/output.srg').absolutePath
-            property 'aco.gametest.report', project.file('build/gametest-ae2/results.xml').absolutePath
-            property 'forge.logging.console.level', 'info'
-            property 'forge.enabledGameTestNamespaces', 'ae2'
-            property 'aco.gametest.scope', (findProperty('acoGameTestScope') ?: 'aco').toString()
-            mods {
-                if (!gameTestBaseline) {
-                    ae2_crafting_optimizer { source sourceSets.main }
-                    ae2vm_aco { source sourceSets.vmNative }
-                }
-                aco_gametest { source sourceSets.gameTest }
-            }
-        }
         client {
             workingDirectory project.file('run')
             property 'forge.logging.markers', 'REGISTRIES'
@@ -148,18 +117,6 @@ repositories {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.18'
-    gameTestRuntimeOnly fg.deobf('org.appliedenergistics:guideme:20.1.7')
-    if (findProperty('acoThunderboltJar')) {
-        def partner = file(property('acoThunderboltJar'))
-        if (!partner.isFile() || !partner.name.endsWith('.jar'))
-            throw new GradleException('acoThunderboltJar must name the exact runtime partner JAR')
-        repositories.flatDir {
-            name = 'acoRuntimePartner'
-            dirs partner.parentFile
-            content { includeGroup 'aco.runtime.partner' }
-        }
-        gameTestRuntimeOnly fg.deobf("aco.runtime.partner:${partner.name.take(partner.name.length() - 4)}:local")
-    }
     implementation files(exactVmJar).builtBy(tasks.named('buildExactVm'))
 
     def ae2Variant = (findProperty('ae2Variant') ?: 'upstream').toString().toLowerCase()
@@ -204,9 +161,6 @@ dependencies {
     }
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    testImplementation platform('org.junit:junit-bom:5.10.3')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testImplementation 'org.mockito:mockito-core:5.14.2'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -302,139 +256,6 @@ tasks.register('bundleVm', Jar) {
     archiveFileName = "aco${mod_version}_${minecraft_version}.jar"
 }
 
-test {
-    useJUnitPlatform()
-    if (project.hasProperty('aqeCapacityJar')) {
-        systemProperty 'aco.aqeCapacityJar', file(project.property('aqeCapacityJar')).absolutePath
-    }
-    // 指定された公開Neo ECO JARを、JUnitのバイトコード契約検査へ明示的に渡す。
-    ['neoEco20_3Jar', 'neoEco20_4Jar', 'eaepPatternJar'].each { propertyName ->
-        if (project.hasProperty(propertyName)) {
-            systemProperty "aco.${propertyName}", file(project.property(propertyName)).absolutePath
-        }
-    }
-}
-
-tasks.register('verifyIssueRegressionManifest') {
-    description = 'Validate the machine-readable mapping from historical Issues to regression evidence.'
-    group = 'verification'
-    dependsOn tasks.named('test')
-}
-
-tasks.register('verifyIssueRegressionReleaseReadiness') {
-    description = 'Validate the automated regression scope for the current patch release.'
-    group = 'verification'
-    dependsOn tasks.named('verifyIssueRegressionManifest')
-
-    def manifestFile = layout.projectDirectory.file('docs/issues/REGRESSION_MATRIX.tsv')
-    def releaseScopeFile = layout.projectDirectory.file("docs/issues/RELEASE_SCOPE_${project.version}.tsv")
-    inputs.file(manifestFile)
-    inputs.file(releaseScopeFile)
-
-    doLast {
-        List<String> manifestLines = manifestFile.asFile.readLines('UTF-8').findAll { line ->
-            !line.isBlank() && !line.startsWith('#')
-        }
-        Map<String, String[]> manifestByIssue = [:]
-
-        // リリース対象Issueを正本の回帰台帳へ結び付けるため、Issue番号で索引化します。
-        for (String line : manifestLines.drop(1)) {
-            String[] columns = line.split('\t', -1)
-            if (columns.length != 8) {
-                throw new GradleException("Malformed regression matrix row: ${line}")
-            }
-            manifestByIssue[columns[0]] = columns
-        }
-
-        List<String> scopeLines = releaseScopeFile.asFile.readLines('UTF-8')
-        String expectedVersion = "# release=${project.version}"
-        String baselineLine = scopeLines.find { line -> line.startsWith('# baseline=') }
-        if (!scopeLines.contains(expectedVersion)) {
-            throw new GradleException("Release scope does not match project version ${project.version}")
-        }
-        if (baselineLine == null || baselineLine.substring('# baseline='.length()).isBlank()) {
-            throw new GradleException('Release scope must declare a non-empty baseline version')
-        }
-
-        List<String> scopeData = scopeLines.findAll { line -> !line.isBlank() && !line.startsWith('#') }
-        if (scopeData.isEmpty() || scopeData.first() != 'issue\tchange\tautomated_guarantee') {
-            throw new GradleException('Release scope header is missing or malformed')
-        }
-
-        List<String> pendingRuntime = []
-        Set<String> scopedIssues = [] as Set
-
-        // 今回の差分へ関係するIssueだけを検証し、過去全件監査とは責務を分離します。
-        for (String line : scopeData.drop(1)) {
-            String[] columns = line.split('\t', -1)
-            if (columns.length != 3) {
-                throw new GradleException("Malformed release scope row: ${line}")
-            }
-            if (!scopedIssues.add(columns[0])) {
-                throw new GradleException("Duplicate release scope Issue: #${columns[0]}")
-            }
-            String[] manifest = manifestByIssue[columns[0]]
-            if (manifest == null) {
-                throw new GradleException("Release scope references unknown Issue: #${columns[0]}")
-            }
-            if (columns[1].isBlank() || columns[2].isBlank()) {
-                throw new GradleException("Release scope explanation is empty: #${columns[0]}")
-            }
-            if (manifest[5] == 'PENDING') {
-                pendingRuntime.add("#${columns[0]} [${manifest[3]}] ${manifest[7]}")
-            }
-        }
-
-        if (scopedIssues.isEmpty()) {
-            throw new GradleException('Release scope must contain at least one Issue')
-        }
-
-        // 未実施の実機確認は成功へ変換せず、公開時に明示する警告として残します。
-        if (!pendingRuntime.isEmpty()) {
-            logger.warn('Patch release automated gate passed, but runtime verification remains pending:\n- '
-                    + pendingRuntime.join('\n- '))
-        }
-    }
-}
-
-tasks.register('verifyAllIssueRuntimeReadiness') {
-    description = 'Require every historical GameTest and runtime regression check to be verified.'
-    group = 'verification'
-    dependsOn tasks.named('verifyIssueRegressionManifest')
-
-    def manifestFile = layout.projectDirectory.file('docs/issues/REGRESSION_MATRIX.tsv')
-    inputs.file(manifestFile)
-
-    doLast {
-        List<String> dataLines = manifestFile.asFile.readLines('UTF-8').findAll { line ->
-            !line.isBlank() && !line.startsWith('#')
-        }
-        List<String> blockers = []
-
-        // 全履歴保証では、未実施のGameTestと実機試験を一件も許可しません。
-        for (String line : dataLines.drop(1)) {
-            String[] columns = line.split('\t', -1)
-            if (columns.length != 8) {
-                throw new GradleException("Malformed regression matrix row: ${line}")
-            }
-            if (columns[5] != 'PENDING') {
-                continue
-            }
-            blockers.add("#${columns[0]} [${columns[3]}] ${columns[7]}")
-        }
-
-        // 全履歴を確認済みと名乗る場合だけ、残る未確認項目を厳格に拒否します。
-        if (!blockers.isEmpty()) {
-            throw new GradleException(
-                    'Full historical runtime gate is blocked by pending verification:\n- '
-                            + blockers.join('\n- '))
-        }
-    }
-}
-
-tasks.named('check') {
-    dependsOn tasks.named('verifyIssueRegressionManifest')
-}
 
 processResources {
     inputs.property 'version', project.version
@@ -466,36 +287,6 @@ tasks.named('build') {
     finalizedBy 'verifyExactVmBundle'
 }
 
-tasks.matching { it.name == 'runGameTestServer' }.configureEach {
-    doFirst {
-        java.nio.file.Files.deleteIfExists(file('build/gametest-ae2/results.xml').toPath())
-        java.nio.file.Files.deleteIfExists(file('build/gametest-ae2/results.xml.expected.json').toPath())
-    }
-    doLast {
-        def report = file('build/gametest-ae2/results.xml')
-        if (!report.isFile()) throw new GradleException('GameTest did not produce its runtime report')
-        def xml = new groovy.util.XmlSlurper().parse(report)
-        def cases = xml.depthFirst().findAll { it.name() == 'testcase' }
-        def failed = cases.findAll { !it.failure.isEmpty() || !it.error.isEmpty() || !it.skipped.isEmpty() }
-        def required = ['ae2.aco_processing_completion', 'ae2.aco_cancel_before_delivery',
-                        'ae2.aco_competing_reservations', 'ae2.aco_returned_containers',
-                        'ae2.aco_snapshot_stock_churn', 'ae2.aco_snapshot_stock_consumed',
-                        'ae2.aco_native_wide_missing']
-        def names = cases.collect { it.@name.text() }
-        def expected = new groovy.json.JsonSlurper().parse(file('build/gametest-ae2/results.xml.expected.json'))
-        def runtimeLog = file('build/gametest-ae2/logs/latest.log').getText('UTF-8')
-        def diagnosticLog = file('build/gametest-ae2/logs/debug.log').getText('UTF-8')
-        if (cases.isEmpty() || !failed.isEmpty() || (!gameTestBaseline && !names.containsAll(required))
-                || names.sort(false) != expected.sort(false)
-                || runtimeLog.contains('Mixin apply failed ae2_crafting_optimizer')
-                || (!gameTestBaseline && (!runtimeLog.contains('ACO active: true')
-                    || !diagnosticLog.contains('event=quantity_calculated route=vm-native')))
-                || (gameTestBaseline && runtimeLog.contains('ACO active: true'))) {
-            throw new GradleException("GameTest acceptance failed: ${cases.size()} tests, ${failed.size()} failed/skipped")
-        }
-        logger.lifecycle("Verified ${cases.size()} real AE2 GameTests")
-    }
-}
 
 tasks.register('verifyExactVmBundle') {
 

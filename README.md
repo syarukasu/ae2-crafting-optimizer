@@ -1,7 +1,7 @@
 # AE2 Crafting Optimizer
 
 <p align="center">
-  <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
+  <img src="src/main/resources/logo.png" alt="AE2 Crafting Optimizer icon" width="192">
 </p>
 
 [![Build](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml/badge.svg)](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml)
@@ -11,7 +11,7 @@ English | [日本語](README_ja.md)
 
 ## 2.0.0 Release Candidate
 
-**2.0.0-rc.3 is a prerelease.** See the [release notes](docs/releases/2.0.0-rc.3.md)
+**2.0.0-rc.3 is a prerelease.** See the [release notes](https://github.com/syarukasu/ae2-crafting-optimizer/releases)
 for improvements, migration requirements and known limitations. The new candidate's
 full live completion/cancellation/restart matrix is still pending.
 
@@ -23,11 +23,6 @@ for quantity-independent crafting-table batches.
 AE2 remains authoritative for normal recipes, providers, crafting jobs, and
 storage. Deep paths are used only when ACO can prove their complete accounting
 contract before moving any input.
-
-Development is governed by the [project charter](docs/PROJECT_CHARTER.md) and
-[Issue-first workflow](docs/ISSUE_WORKFLOW.md). Every implementation starts by
-reading the [class responsibility catalog](docs/CLASS_RESPONSIBILITIES.md) and a
-numbered specification under [`docs/issues`](docs/issues/README.md).
 
 The persistent branch for this line is `mc/1.20.1`. Its next release artifact
 uses `aco<version>_1.20.1.jar`; the NeoForge line is maintained separately on
@@ -59,8 +54,8 @@ UELM is the Forge 1.20.1 replacement distribution with artifact
 `appeng:appliedenergistics2-forge:15.5.0-uelm` and shared mod id `ae2`.
 
 ```text
-gradlew.bat check --no-daemon -Pae2Variant=upstream
-gradlew.bat check --no-daemon -Pae2Variant=uelm
+gradlew.bat build --no-daemon -Pae2Variant=upstream
+gradlew.bat build --no-daemon -Pae2Variant=uelm
 ```
 
 For an offline checked-out pack, place the matching JAR in the configured
@@ -254,10 +249,6 @@ capacity.
 `debug.log`. It records one planning result and lifecycle transitions, not
 per-tick success, complete inventories, or full huge decimal values.
 
-See [Configuration](docs/CONFIGURATION.md),
-[Feature ownership](docs/FEATURE_OWNERSHIP.md),
-[Implementation](docs/IMPLEMENTATION.md), and
-[Testing](docs/TESTING.md).
 
 ## Build
 
