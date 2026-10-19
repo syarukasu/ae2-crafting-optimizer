@@ -1,7 +1,6 @@
 # AE2 Crafting Optimizer
 
 <p align="center">
-  <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
 </p>
 
 [![Build](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml/badge.svg)](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml)
@@ -222,10 +221,6 @@ server tick. Trees with at most 64 physical recipe nodes are fully scanned
 within the count limit, and dependency-blocked nodes do not consume active-stage
 capacity.
 
-See [Configuration](docs/CONFIGURATION.md),
-[Feature ownership](docs/FEATURE_OWNERSHIP.md),
-[Implementation](docs/IMPLEMENTATION.md), and
-[Testing](docs/TESTING.md).
 
 ## Build
 

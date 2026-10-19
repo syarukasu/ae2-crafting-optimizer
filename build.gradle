@@ -52,7 +52,6 @@ neoForge {
         }
     }
 
-    addModdingDependenciesTo sourceSets.test
 }
 
 configurations {
@@ -74,7 +73,6 @@ dependencies {
     def advancedAeJar = requiredMod('AdvancedAE-1.6.11-1.21.1.jar')
     compileOnly files(advancedAeJar)
     // Mixin契約テストでも、実際に導入するAdvancedAEの記述子を直接検証する。
-    testImplementation files(advancedAeJar)
     compileOnly files(requiredMod('neoecoae-21.1.1.jar'))
     compileOnly files(requiredMod('ldlib2-neoforge-1.21.1-2.2.32-all.jar'))
 
@@ -110,31 +108,13 @@ dependencies {
 
     annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
 
-    testImplementation platform('org.junit:junit-bom:5.11.4')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-tasks.named('test', Test).configure {
-    useJUnitPlatform()
-}
 
-tasks.register('updateGoldenFixtures', Test) {
-    description = 'Explicitly regenerate canonical crafting Golden fixtures; normal test never overwrites them.'
-    group = 'verification'
-    dependsOn tasks.named('testClasses')
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    useJUnitPlatform()
-    filter {
-        includeTestsMatching '*CanonicalFixtureGoldenTest'
-    }
-    systemProperty 'aco.updateGolden', 'true'
-}
 
 processResources {
     inputs.property 'version', project.version

@@ -7,6 +7,19 @@ out/
 
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
+/*.md
+!/README*.md
+!/LICENSE*.md
+!/NOTICE*.md
+!/COPYING*.md
+!/CREDITS*.md
+!/THIRD_PARTY*.md
+/.github/ISSUE_TEMPLATE*
+/.github/CONTRIBUTING.md
+/.github/pull_request_template.md
+/.github/scripts/update_changes.py
+/.github/workflows/changes-*.yml
+/.github/workflows/update-changes.yml
 
 *.log
 *.hprof
@@ -19,3 +32,25 @@ out/
 
 Thumbs.db
 .DS_Store
+# Local-only development material; public binaries belong in Releases.
+/docs/
+/artwork/
+/evidence/
+/screenshots/
+/benchmarks/
+/diagnostics/
+/tools/
+**/src/test/
+**/src/gameTest/
+**/src/gametest/
+**/src/clientSmoke/
+**/src/guiSmoke/
+/test/
+/tests/
+AGENTS.md
+CONTRIBUTING.md
+CHANGELOG*
+CHANGES.md
+RELEASE*.md
+*.jar
+!gradle/wrapper/gradle-wrapper.jar

@@ -1,7 +1,6 @@
 # AE2 Crafting Optimizer
 
 <p align="center">
-  <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
 </p>
 
 [English](README.md) | 日本語
@@ -173,10 +172,6 @@ logVectorDiagnostics = false
 物理クラフトツリーであり、削除済み直接Vector Executorを再有効化する設定では
 ありません。
 
-詳細は[Configuration](docs/CONFIGURATION.md)、
-[Feature ownership](docs/FEATURE_OWNERSHIP.md)、
-[Implementation](docs/IMPLEMENTATION.md)、
-[Testing](docs/TESTING.md)を参照してください。
 
 ## ビルド
 
