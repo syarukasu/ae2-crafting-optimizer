@@ -1,6 +1,0 @@
-# release=2.0.0-rc.7-dev.16
-# baseline=2.0.0-rc.7-dev.15
-# loader=FORGE_1_20_1
-# acceptance=NOT_APPROVED: Extended AE Plus blocking load and external exact-job runtime acceptance remain pending.
-issue	change	automated_guarantee
-161	Reuse immutable native provider descriptions and freeze advisory lists once per capture	Preserve live custom metadata and concrete input counters; keep native dispatch unthrottled, exact fixture delivery and full/blocked resumption. No production latency or full lifecycle acceptance claim.

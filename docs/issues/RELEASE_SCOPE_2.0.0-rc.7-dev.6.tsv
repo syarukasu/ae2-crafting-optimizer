@@ -1,5 +1,0 @@
-# release=2.0.0-rc.7-dev.6
-# baseline=2.0.0-rc.7-dev.5
-# loader=FORGE_1_20_1
-issue	change	automated_guarantee
-218	Batch ordered input candidates across templates inside the native VM; validate only consulted observations	Exact item/fluid/NBT and wide-stock matrices, speculative failure isolation, per-template units, bounded callbacks and cancellation. Actual AE2 crafting substitutions complete in GameTest. Production industrial latency and wide lifecycle acceptance remain PENDING.

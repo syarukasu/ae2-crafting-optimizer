@@ -18,6 +18,8 @@ import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingPlanSummary;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
 import java.util.Objects;
+import java.math.BigInteger;
+import com.ae2vm.addon.nativeengine.NativeVm;
 import java.util.concurrent.Future;
 import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -58,7 +60,7 @@ public abstract class CraftConfirmMenuLongAmountMixin
 
     /** int互換フィールドとは別に保持する、実際のルート注文量。 */
     @Unique
-    private long aco$longRootAmount;
+    private BigInteger aco$longRootAmount = BigInteger.ZERO;
 
     /** 最後にCraft確認用BigInteger Sidecarを送った計画。 */
     @Unique
@@ -75,7 +77,7 @@ public abstract class CraftConfirmMenuLongAmountMixin
             CalculationStrategy strategy,
             org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
         // 本家int計画が始まる時は、以前のlong値をreplan/backへ持ち越さない。
-        this.aco$longRootAmount = 0L;
+        this.aco$longRootAmount = BigInteger.ZERO;
     }
 
     @Override
@@ -83,12 +85,17 @@ public abstract class CraftConfirmMenuLongAmountMixin
             AEKey what,
             long requestedAmount,
             CalculationStrategy strategy) {
+        return this.aco$planExact(what, BigInteger.valueOf(requestedAmount), strategy);
+    }
+
+    @Override
+    public boolean aco$planExact(AEKey what, BigInteger requestedAmount, CalculationStrategy strategy) {
         Objects.requireNonNull(what, "what");
         Objects.requireNonNull(strategy, "strategy");
         CraftConfirmMenu menu = (CraftConfirmMenu) (Object) this;
         // long専用境界、設定、サーバー側の三条件を満たさない呼出しは計画を作らない。
         if (!ACOConfig.enableLongRootCraftAmounts()
-                || !LongCraftAmountRules.isValidExtendedRequest(requestedAmount)
+                || !LongCraftAmountRules.isValidAmount(requestedAmount)
                 || menu.isClientSide()) {
             return false;
         }
@@ -104,7 +111,7 @@ public abstract class CraftConfirmMenuLongAmountMixin
          * AE2内部で残るintフィールドは表示・互換用sentinelに限定する。
          * 計算、再計算、戻る操作は必ずaco$longRootAmountを参照する。
          */
-        this.amount = Integer.MAX_VALUE;
+        this.amount = requestedAmount.min(BigInteger.valueOf(Integer.MAX_VALUE)).intValueExact();
         this.aco$longRootAmount = requestedAmount;
 
         IGrid grid = aco$findGrid(menu);
@@ -114,11 +121,13 @@ public abstract class CraftConfirmMenuLongAmountMixin
         }
 
         ICraftingSimulationRequester requester = menu::getActionSource;
-        this.job = grid.getCraftingService().beginCraftingCalculation(
+        this.job = requestedAmount.bitLength() >= Long.SIZE
+                ? NativeVm.calculate(grid, menu.getPlayer().level(), requester, what, requestedAmount, strategy)
+                : grid.getCraftingService().beginCraftingCalculation(
                 menu.getPlayer().level(),
                 requester,
                 what,
-                requestedAmount,
+                requestedAmount.longValueExact(),
                 strategy);
         return true;
     }
@@ -127,7 +136,7 @@ public abstract class CraftConfirmMenuLongAmountMixin
     private void aco$replanWithLongRootAmount(CallbackInfo ci) {
         // 通常int計画とクライアントのaction送信はAE2本来のreplan()へ委譲する。
         if (!ACOConfig.enableLongRootCraftAmounts()
-                || !LongCraftAmountRules.isValidExtendedRequest(this.aco$longRootAmount)) {
+                || !LongCraftAmountRules.isValidAmount(this.aco$longRootAmount)) {
             return;
         }
         CraftConfirmMenu menu = (CraftConfirmMenu) (Object) this;
@@ -138,7 +147,7 @@ public abstract class CraftConfirmMenuLongAmountMixin
 
         this.clearError();
         boolean planned = this.whatToCraft != null
-                && this.aco$planLong(
+                && this.aco$planExact(
                         this.whatToCraft,
                         this.aco$longRootAmount,
                         CalculationStrategy.CRAFT_LESS);
@@ -176,12 +185,10 @@ public abstract class CraftConfirmMenuLongAmountMixin
         if (menu.getPlayer() instanceof ServerPlayer serverPlayer
                 && serverPlayer.containerMenu instanceof CraftAmountMenu amountMenu
                 && amountMenu instanceof LongCraftAmountMenuBridge bridge) {
-            bridge.aco$setWhatToCraftLong(this.whatToCraft, this.aco$longRootAmount);
+            bridge.aco$setWhatToCraftExact(this.whatToCraft, this.aco$longRootAmount);
             amountMenu.broadcastChanges();
-            BigCraftingNetwork.sendLongCraftAmountState(
-                    serverPlayer,
-                    amountMenu.containerId,
-                    this.aco$longRootAmount);
+            BigCraftingNetwork.sendExactCraftAmountState(
+                    serverPlayer, amountMenu.containerId, this.aco$longRootAmount);
             ci.cancel();
             return;
         }
@@ -226,7 +233,7 @@ public abstract class CraftConfirmMenuLongAmountMixin
 
     @Override
     public long aco$getLongRootAmount() {
-        return this.aco$longRootAmount;
+        return this.aco$longRootAmount.longValueExact();
     }
 
     @Unique

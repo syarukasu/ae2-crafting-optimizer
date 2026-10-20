@@ -1,7 +1,0 @@
-# release=2.0.0-rc.7-dev.19
-# baseline=2.0.0-rc.7-dev.18
-# loader=FORGE_1_20_1
-# acceptance=NOT_APPROVED: Local dead-code cleanup only; production timing and full industrial acceptance remain pending.
-issue	change	automated_guarantee
-218	Remove unused planner facade and compiler globals	Retired runtime code absent; unchanged public API baseline and quantity regressions retained.
-161	Remove orphaned Neo ECO version selector	Optional dependency ranges, no-throttle dispatch and retained public compatibility entry points unchanged.

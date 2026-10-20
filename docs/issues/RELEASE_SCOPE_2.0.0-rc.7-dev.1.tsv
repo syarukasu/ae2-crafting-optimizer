@@ -1,6 +1,0 @@
-# release=2.0.0-rc.7-dev.1
-# baseline=2.0.0-rc.6-rc4-vm.6
-# loader=FORGE_1_20_1
-issue	change	automated_guarantee
-217	Retain tested bulk/guard/sparse branch improvements and phase diagnostics	Existing differential accounting and bounded diagnostics tests; production improvement PENDING
-218	Demand-driven capture and API-compatible planning boundary redesign	Unused descendants, exact NBT matching, requester topology, exact stock access, API binary surface, legacy/new exact plan views; stable runtime acceptance PENDING

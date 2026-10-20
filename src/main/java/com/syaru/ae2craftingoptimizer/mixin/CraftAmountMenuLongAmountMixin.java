@@ -14,6 +14,9 @@ import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountMenuBridge;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountRules;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftConfirmMenuBridge;
 import java.util.Objects;
+import java.math.BigInteger;
+import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
+import com.syaru.ae2craftingoptimizer.integration.PlanningExactInventorySnapshot;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -43,7 +46,7 @@ public abstract class CraftAmountMenuLongAmountMixin
 
     /** 戻る操作から復元されたlong量。通常の新規int画面では0のまま。 */
     @Unique
-    private long aco$initialAmount;
+    private BigInteger aco$initialAmount = BigInteger.ZERO;
 
     @Inject(method = "setWhatToCraft", at = @At("HEAD"), require = 1)
     private void aco$clearLongInitialAmountForNormalOpen(
@@ -51,7 +54,7 @@ public abstract class CraftAmountMenuLongAmountMixin
             int amount,
             CallbackInfo ci) {
         // 本家open(AEKey, int)が使われた画面へ、前のlong初期値を持ち越さない。
-        this.aco$initialAmount = 0L;
+        this.aco$initialAmount = BigInteger.ZERO;
     }
 
     @Override
@@ -59,6 +62,11 @@ public abstract class CraftAmountMenuLongAmountMixin
             long amount,
             boolean subtractStoredAmount,
             boolean autoStart) {
+        this.aco$confirmExact(BigInteger.valueOf(amount), subtractStoredAmount, autoStart);
+    }
+
+    @Override
+    public void aco$confirmExact(BigInteger amount, boolean subtractStoredAmount, boolean autoStart) {
         CraftAmountMenu menu = (CraftAmountMenu) (Object) this;
         // C2S側の検証に加えてMenu側でも設定・範囲・対象Keyを再検証する。
         if (!ACOConfig.enableLongRootCraftAmounts()
@@ -69,7 +77,7 @@ public abstract class CraftAmountMenuLongAmountMixin
         }
 
         this.aco$initialAmount = amount;
-        long requestedAmount = amount;
+        BigInteger requestedAmount = amount;
         // 「=」入力だけ、AE2本来の意味と同じく現在庫を要求量から差し引く。
         if (subtractStoredAmount) {
             Object target = menu.getTarget();
@@ -81,13 +89,18 @@ public abstract class CraftAmountMenuLongAmountMixin
                     var grid = node.getGrid();
                     // 構造解除と同tickでGridが消えた場合も、在庫差引きを行わない。
                     if (grid != null) {
-                        long available = grid
-                                .getStorageService()
-                                .getCachedInventory()
-                                .get(this.whatToCraft);
-                        requestedAmount = LongCraftAmountRules.subtractAvailable(
-                                requestedAmount,
-                                available);
+                        var inventory = PlanningExactInventorySnapshot.capture(grid);
+                        var snapshot = BigKeyCounterSidecars.snapshot(inventory);
+                        long facade = inventory.get(this.whatToCraft);
+                        if ((snapshot.isPresent() && !snapshot.get().isExact(this.whatToCraft))
+                                || (snapshot.isEmpty() && facade >= Long.MAX_VALUE)) {
+                            menu.getPlayer().sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                                    "Exact inventory quantity unavailable for stored-total crafting."));
+                            return;
+                        }
+                        BigInteger available = snapshot.map(value -> value.amount(this.whatToCraft))
+                                .orElseGet(() -> BigInteger.valueOf(Math.max(0L, facade)));
+                        requestedAmount = requestedAmount.subtract(available).max(BigInteger.ZERO);
                     }
                 }
             }
@@ -96,7 +109,7 @@ public abstract class CraftAmountMenuLongAmountMixin
         var locator = menu.getLocator();
         Player player = menu.getPlayer();
         // 在庫差引き後に要求が0なら、本家と同じく確認画面を開かず元Menuへ戻る。
-        if (requestedAmount <= 0L) {
+        if (requestedAmount.signum() <= 0) {
             // 本家と同様、戻り先Locatorが有効な時だけHostへ復帰を依頼する。
             if (locator != null) {
                 this.host.returnToMainMenu(player, menu);
@@ -113,7 +126,7 @@ public abstract class CraftAmountMenuLongAmountMixin
         if (player.containerMenu instanceof CraftConfirmMenu confirmMenu
                 && confirmMenu instanceof LongCraftConfirmMenuBridge bridge) {
             confirmMenu.setAutoStart(autoStart);
-            boolean planned = bridge.aco$planLong(
+            boolean planned = bridge.aco$planExact(
                     this.whatToCraft,
                     requestedAmount,
                     appeng.api.networking.crafting.CalculationStrategy.REPORT_MISSING_ITEMS);
@@ -131,10 +144,15 @@ public abstract class CraftAmountMenuLongAmountMixin
 
     @Override
     public void aco$setWhatToCraftLong(AEKey what, long amount) {
+        this.aco$setWhatToCraftExact(what, BigInteger.valueOf(amount));
+    }
+
+    @Override
+    public void aco$setWhatToCraftExact(AEKey what, BigInteger amount) {
         Objects.requireNonNull(what, "what");
         // int範囲をこのSidecarへ通す呼出しは実装ミスなので、値を丸めず拒否する。
-        if (!LongCraftAmountRules.isValidExtendedRequest(amount)) {
-            throw new IllegalArgumentException("long craft amount must exceed Integer.MAX_VALUE");
+        if (!LongCraftAmountRules.isValidAmount(amount)) {
+            throw new IllegalArgumentException("positive exact craft amount required");
         }
         this.whatToCraft = what;
         this.aco$initialAmount = amount;
@@ -144,19 +162,29 @@ public abstract class CraftAmountMenuLongAmountMixin
          */
         this.craftingItem.set(GenericStack.wrapInItemStack(
                 what,
-                LongCraftAmountRules.VANILLA_AE2_MAXIMUM));
+                amount.min(BigInteger.valueOf(Integer.MAX_VALUE)).longValueExact()));
     }
 
     @Override
     public void aco$setClientInitialAmount(long amount) {
+        this.aco$setClientInitialExactAmount(BigInteger.valueOf(amount));
+    }
+
+    @Override
+    public void aco$setClientInitialExactAmount(BigInteger amount) {
         // Client側も範囲を再検証し、異常値を入力欄へ反映しない。
-        if (LongCraftAmountRules.isValidExtendedRequest(amount)) {
+        if (LongCraftAmountRules.isValidAmount(amount)) {
             this.aco$initialAmount = amount;
         }
     }
 
     @Override
     public long aco$getInitialAmount() {
+        return this.aco$initialAmount.longValueExact();
+    }
+
+    @Override
+    public BigInteger aco$getInitialExactAmount() {
         return this.aco$initialAmount;
     }
 }

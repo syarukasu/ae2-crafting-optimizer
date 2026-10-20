@@ -2,6 +2,7 @@ package com.syaru.ae2craftingoptimizer.integration;
 
 import java.util.Set;
 import net.minecraftforge.fml.ModList;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 
 /**
  * Evidence-based compatibility boundary for AE2 Unofficial Extended Life Modern.
@@ -12,7 +13,9 @@ import net.minecraftforge.fml.ModList;
  */
 public final class Ae2UelmCompatibility {
     public static final String UPSTREAM_VERSION = "15.4.10";
+    public static final String UPSTREAM_PATCH_VERSION = "15.4.11";
     public static final String UELM_VERSION = "15.5.0-uelm";
+    private static final DefaultArtifactVersion MINIMUM_VERSION = new DefaultArtifactVersion(UPSTREAM_VERSION);
 
     /** Only the three int-based craft amount Mixins overlap with UELM. */
     private static final Set<String> UELM_OWNED_MIXINS = Set.of(
@@ -28,9 +31,10 @@ public final class Ae2UelmCompatibility {
         return UELM_VERSION.equals(version);
     }
 
-    /** Pure supported-version predicate for the upstream and UELM profiles. */
+    /** Issue #225: version admission has a floor, not a whitelist or ceiling. */
     public static boolean isSupportedAe2Version(String version) {
-        return UPSTREAM_VERSION.equals(version) || isUelmVersion(version);
+        return version != null && !version.isBlank()
+                && new DefaultArtifactVersion(version).compareTo(MINIMUM_VERSION) >= 0;
     }
 
     /** Returns the version of the shared {@code ae2} mod id, if it is loaded. */

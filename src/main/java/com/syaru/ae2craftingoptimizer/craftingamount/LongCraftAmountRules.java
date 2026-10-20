@@ -1,7 +1,9 @@
 package com.syaru.ae2craftingoptimizer.craftingamount;
 
 import java.math.BigDecimal;
-import java.math.MathContext;
+import java.math.BigInteger;
+import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
+import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import java.math.RoundingMode;
 import java.util.OptionalLong;
 
@@ -14,6 +16,17 @@ public final class LongCraftAmountRules {
     public static final long VANILLA_AE2_MAXIMUM = Integer.MAX_VALUE;
 
     private LongCraftAmountRules() {
+    }
+
+    public static boolean isValidExtendedRequest(BigInteger amount) {
+        return isValidAmount(amount) && amount.compareTo(BigInteger.valueOf(VANILLA_AE2_MAXIMUM)) > 0;
+    }
+
+    public static boolean isValidAmount(BigInteger amount) {
+        if (amount == null || amount.signum() <= 0) return false;
+        int bits = ACOConfig.enableBigIntegerCraftingBackend()
+                ? ACOConfig.getBigIntegerMaximumBits() : Long.SIZE - 1;
+        return amount.bitLength() <= bits && amount.compareTo(BigCountMath.hardMaximumValue()) <= 0;
     }
 
     public static boolean usesExtendedPath(long amount) {
@@ -54,9 +67,7 @@ public final class LongCraftAmountRules {
             return OptionalLong.empty();
         }
         try {
-            BigDecimal scaled = enteredAmount.multiply(
-                    BigDecimal.valueOf(amountPerUnit),
-                    MathContext.DECIMAL128);
+            BigDecimal scaled = enteredAmount.multiply(BigDecimal.valueOf(amountPerUnit));
             BigDecimal rounded = scaled.setScale(0, RoundingMode.UP);
             long exact = rounded.longValueExact();
             // クラフト量は1以上だけを許可し、0と負数は本家画面と同様に無効扱いにする。

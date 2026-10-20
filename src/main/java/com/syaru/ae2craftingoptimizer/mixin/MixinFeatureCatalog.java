@@ -66,6 +66,7 @@ public final class MixinFeatureCatalog {
             entry("ExtendedAePlusBigIntegerCellConsistencyMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("ExtendedAePlusInfinityDataStorageConsistencyMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("CraftAmountScreenLongAmountMixin", OptimizationFeature.LONG_ROOT_AMOUNTS),
+            entry("NumberEntryWidgetExactCraftAmountMixin", OptimizationFeature.LONG_ROOT_AMOUNTS),
             entry("CraftConfirmScreenBigIntegerMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
             entry("CraftConfirmTableRendererBigIntegerMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
             entry("NumberEntryWidgetAccessor", OptimizationFeature.LONG_ROOT_AMOUNTS));

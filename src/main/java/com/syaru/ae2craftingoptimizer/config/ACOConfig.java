@@ -1,6 +1,7 @@
 package com.syaru.ae2craftingoptimizer.config;
 
 import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
+import com.syaru.ae2craftingoptimizer.diagnostics.ProfilerBridge;
 import com.syaru.ae2craftingoptimizer.integration.Ae2UelmCompatibility;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationDomain;
 import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeature;
@@ -8,6 +9,8 @@ import com.syaru.ae2craftingoptimizer.optimization.OptimizationFeatureGate;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
 /**
  * ACOが現在所有する機能だけを公開するConfig schema。
@@ -146,6 +149,8 @@ public final class ACOConfig {
     private static final ForgeConfigSpec.IntValue SLOW_CRAFT_CALCULATION_MILLIS;
     private static final ForgeConfigSpec.BooleanValue LOG_CACHE_STATISTICS;
     private static final ForgeConfigSpec.BooleanValue LOG_CRAFTING_DECISION_FLOW;
+    private static final ForgeConfigSpec.BooleanValue PROFILER_ENABLED;
+    private static final ForgeConfigSpec.BooleanValue PROFILER_DETAILED_ENABLED;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -474,6 +479,14 @@ public final class ACOConfig {
         builder.pop();
 
         builder.push("diagnostics");
+        builder.push("profiler");
+        PROFILER_ENABLED = builder
+                .comment("Record bounded, read-only VM calculation profiles (not physical execution).")
+                .define("enabled", true);
+        PROFILER_DETAILED_ENABLED = builder
+                .comment("Opt in to detailed VM counters. Disable for representative performance measurements.")
+                .define("detailedEnabled", false);
+        builder.pop();
         LOG_SLOW_CRAFT_CALCULATIONS = builder
                 .comment("Log crafting calculations above the configured duration.")
                 .define("logSlowCraftCalculations", true);
@@ -499,7 +512,19 @@ public final class ACOConfig {
                 ModConfig.Type.COMMON,
                 SPEC,
                 "ae2_crafting_optimizer-common.toml");
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(ACOConfig::onProfilerConfig);
     }
+
+    private static void onProfilerConfig(ModConfigEvent event) {
+        if (event.getConfig().getSpec() == SPEC
+                && (event instanceof ModConfigEvent.Loading || event instanceof ModConfigEvent.Reloading)) {
+            ProfilerBridge.configure();
+        }
+    }
+
+    // Issue #221: observation switches do not change planner/execution feature gates.
+    public static boolean profilerEnabled() { return PROFILER_ENABLED.get(); }
+    public static boolean profilerDetailedEnabled() { return profilerEnabled() && PROFILER_DETAILED_ENABLED.get(); }
 
     public static boolean enableOptimizer() {
         return ENABLE_OPTIMIZER.get();

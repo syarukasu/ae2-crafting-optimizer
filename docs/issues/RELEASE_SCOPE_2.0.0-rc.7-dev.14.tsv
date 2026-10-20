@@ -1,6 +1,0 @@
-# release=2.0.0-rc.7-dev.14
-# baseline=2.0.0-rc.7-dev.13
-# loader=FORGE_1_20_1
-# acceptance=NOT_APPROVED: historical Extended AE Plus load and InsaneAE regression checks pending; requireRuntimeAcceptance must pass before release consideration.
-issue	change	automated_guarantee
-161	Remove ACO throttles from ordinary pattern dispatch	Legacy enabled budgets cannot cap native or Neo ECO dispatch; ordinary executeCrafting has no ACO wave wrapper. Preserve coprocessor overflow repair, exact ownership, VM and BigInteger APIs. Production throughput remains unverified.

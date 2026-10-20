@@ -9,7 +9,8 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountMenuBridge;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountRules;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
-import java.util.OptionalLong;
+import java.math.BigInteger;
+import com.syaru.ae2craftingoptimizer.access.ExactCraftAmountWidgetAccess;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -28,13 +29,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(value = CraftAmountScreen.class, remap = false)
 public abstract class CraftAmountScreenLongAmountMixin {
-    /**
-     * Long最大値19桁、先頭の「=」、Fluid/Chemicalの小数単位、短い数式を収める。
-     * 数値範囲は文字数ではなくBigDecimalの厳密変換で別途検証する。
-     */
-    @Unique
-    private static final int ACO_LONG_INPUT_MAXIMUM_CHARACTERS = 32;
-
     @Shadow
     @Final
     private Button next;
@@ -45,7 +39,9 @@ public abstract class CraftAmountScreenLongAmountMixin {
 
     /** 戻る操作で受け取った初期値を、ユーザー編集中に繰り返し上書きしないための印。 */
     @Unique
-    private long aco$appliedInitialAmount;
+    private BigInteger aco$appliedInitialAmount = BigInteger.ZERO;
+
+    @Shadow private void confirm() { throw new AssertionError(); }
 
     @Inject(method = "<init>", at = @At("RETURN"), require = 1)
     private void aco$enableLongInput(
@@ -59,9 +55,11 @@ public abstract class CraftAmountScreenLongAmountMixin {
             return;
         }
         this.amountToCraft.setMaxValue(Long.MAX_VALUE);
-        ((NumberEntryWidgetAccessor) (Object) this.amountToCraft)
-                .aco$getTextField()
-                .setMaxLength(ACO_LONG_INPUT_MAXIMUM_CHARACTERS);
+        var exact = (ExactCraftAmountWidgetAccess) this.amountToCraft;
+        exact.aco$enableExactCraftAmounts();
+        ((NumberEntryWidgetAccessor) (Object) this.amountToCraft).aco$getTextField().setOnConfirm(() -> {
+            if (exact.aco$getExactCraftAmount().isPresent()) this.confirm();
+        });
     }
 
     @Inject(method = "updateBeforeRender", at = @At("RETURN"), require = 1)
@@ -72,17 +70,17 @@ public abstract class CraftAmountScreenLongAmountMixin {
         }
 
         CraftAmountMenu menu = ((CraftAmountScreen) (Object) this).getMenu();
-        long initialAmount = menu instanceof LongCraftAmountMenuBridge bridge
-                ? bridge.aco$getInitialAmount()
-                : 0L;
+        BigInteger initialAmount = menu instanceof LongCraftAmountMenuBridge bridge
+                ? bridge.aco$getInitialExactAmount()
+                : BigInteger.ZERO;
         // サーバーから新しいlong初期値が届いた時だけ入力欄へ一度反映する。
-        if (LongCraftAmountRules.isValidExtendedRequest(initialAmount)
-                && initialAmount != this.aco$appliedInitialAmount) {
-            this.amountToCraft.setLongValue(initialAmount);
+        if (LongCraftAmountRules.isValidAmount(initialAmount)
+                && !initialAmount.equals(this.aco$appliedInitialAmount)) {
+            ((ExactCraftAmountWidgetAccess) this.amountToCraft).aco$setExactCraftAmount(initialAmount);
             this.aco$appliedInitialAmount = initialAmount;
         }
 
-        OptionalLong exactAmount = LongCraftAmountClientParser.parseExact(this.amountToCraft);
+        var exactAmount = LongCraftAmountClientParser.parseBigInteger(this.amountToCraft);
         // 本家のint判定ではlong入力が無効になるため、厳密long検証結果だけでボタンを復帰する。
         this.next.active = exactAmount.isPresent();
     }
@@ -94,20 +92,20 @@ public abstract class CraftAmountScreenLongAmountMixin {
             return;
         }
 
-        OptionalLong exactAmount = LongCraftAmountClientParser.parseExact(this.amountToCraft);
+        var exactAmount = LongCraftAmountClientParser.parseBigInteger(this.amountToCraft);
         // 範囲外の数式をNumberEntryWidget.longValue()で折り返させず、操作を何も送らず終了する。
         if (exactAmount.isEmpty()) {
             ci.cancel();
             return;
         }
-        long amount = exactAmount.getAsLong();
+        BigInteger amount = exactAmount.get();
         // int以下は既存ConfirmAutoCraftPacketへ通し、追加Packetを一切使わない。
-        if (!LongCraftAmountRules.usesExtendedPath(amount)) {
+        if (amount.compareTo(BigInteger.valueOf(Integer.MAX_VALUE)) <= 0) {
             return;
         }
 
         CraftAmountMenu menu = ((CraftAmountScreen) (Object) this).getMenu();
-        BigCraftingNetwork.sendLongCraftAmount(
+        BigCraftingNetwork.sendExactCraftAmount(
                 menu.containerId,
                 amount,
                 this.amountToCraft.startsWithEquals(),

@@ -1,5 +1,0 @@
-# release=2.0.0-rc.7-dev.13
-# baseline=2.0.0-rc.7-dev.12
-# loader=FORGE_1_20_1
-issue	change	automated_guarantee
-218	Reuse declared exact input semantics without repeated live-access waits	Native exact inputs avoid repeated predicates and no-return callbacks; dynamic/returned inputs retain live access, cancellation and BigInteger quantity/API contracts. Production latency remains PENDING.

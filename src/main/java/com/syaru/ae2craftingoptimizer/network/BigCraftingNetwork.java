@@ -37,8 +37,8 @@ import io.netty.buffer.Unpooled;
  * AE2本来のPacket IDやCodecは変更せず、ACO同士だけがこの別Channelを使用する。
  */
 public final class BigCraftingNetwork {
-    /** Craft確認画面のBigInteger Summaryを追加したため、互換番号を更新する。 */
-    public static final String PROTOCOL = "4";
+    /** Protocol 5 adds canonical BigInteger root request and back-navigation state messages. */
+    public static final String PROTOCOL = "5";
     /** 既存BigInteger Status PageのMessage ID。 */
     private static final int STATUS_PAGE_MESSAGE_ID = 0;
     /** Integer.MAX_VALUE超過量をサーバーへ送るMessage ID。 */
@@ -47,6 +47,8 @@ public final class BigCraftingNetwork {
     private static final int LONG_CRAFT_AMOUNT_STATE_MESSAGE_ID = 2;
     /** Craft確認画面へ正確なBigInteger容量と個別数量を送るMessage ID。 */
     private static final int EXACT_CRAFTING_PLAN_SUMMARY_MESSAGE_ID = 3;
+    private static final int EXACT_CRAFT_AMOUNT_REQUEST_MESSAGE_ID = 4;
+    private static final int EXACT_CRAFT_AMOUNT_STATE_MESSAGE_ID = 5;
     private static final AtomicBoolean REGISTERED = new AtomicBoolean();
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(AE2CraftingOptimizer.MODID, "big_crafting"),
@@ -90,6 +92,14 @@ public final class BigCraftingNetwork {
                 ExactCraftingPlanSummaryMessage::decode,
                 ExactCraftingPlanSummaryMessage::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(EXACT_CRAFT_AMOUNT_REQUEST_MESSAGE_ID,
+                ExactCraftAmountRequestMessage.class, ExactCraftAmountRequestMessage::encode,
+                ExactCraftAmountRequestMessage::decode, ExactCraftAmountRequestMessage::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(EXACT_CRAFT_AMOUNT_STATE_MESSAGE_ID,
+                ExactCraftAmountStateMessage.class, ExactCraftAmountStateMessage::encode,
+                ExactCraftAmountStateMessage::decode, ExactCraftAmountStateMessage::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 
     public static void send(ServerPlayer player, BigCraftingStatusPage<AEKey> page) {
@@ -111,6 +121,28 @@ public final class BigCraftingNetwork {
         } finally {
             probe.release();
         }
+    }
+
+    public static void sendExactCraftAmount(int containerId, BigInteger amount,
+            boolean subtractStoredAmount, boolean autoStart) {
+        if (!ACOConfig.enableLongRootCraftAmounts()
+                || !LongCraftAmountRules.isValidExtendedRequest(amount)) {
+            throw new IllegalArgumentException("invalid extended craft amount");
+        }
+        if (amount.bitLength() < Long.SIZE) {
+            sendLongCraftAmount(containerId, amount.longValueExact(), subtractStoredAmount, autoStart);
+        } else {
+            CHANNEL.sendToServer(new ExactCraftAmountRequestMessage(
+                    containerId, amount, subtractStoredAmount, autoStart));
+        }
+    }
+
+    public static void sendExactCraftAmountState(ServerPlayer player, int containerId, BigInteger amount) {
+        if (!LongCraftAmountRules.isValidAmount(amount)) {
+            throw new IllegalArgumentException("invalid exact craft amount state");
+        }
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                new ExactCraftAmountStateMessage(containerId, amount));
     }
 
     public static void sendLongCraftAmount(
@@ -166,6 +198,61 @@ public final class BigCraftingNetwork {
                                 containerId,
                                 summary.usedBytes(),
                                 entries));
+    }
+
+    private record ExactCraftAmountRequestMessage(int containerId, BigInteger amount,
+            boolean subtractStoredAmount, boolean autoStart) {
+        private static void encode(ExactCraftAmountRequestMessage message, FriendlyByteBuf buffer) {
+            buffer.writeVarInt(message.containerId());
+            BigIntegerBufferCodec.writeNonNegative(buffer, message.amount(),
+                    com.syaru.ae2craftingoptimizer.engine.BigCountMath.HARD_MAXIMUM_BITS);
+            buffer.writeBoolean(message.subtractStoredAmount());
+            buffer.writeBoolean(message.autoStart());
+        }
+
+        private static ExactCraftAmountRequestMessage decode(FriendlyByteBuf buffer) {
+            return new ExactCraftAmountRequestMessage(buffer.readVarInt(),
+                    BigIntegerBufferCodec.readNonNegative(buffer,
+                            com.syaru.ae2craftingoptimizer.engine.BigCountMath.HARD_MAXIMUM_BITS),
+                    buffer.readBoolean(), buffer.readBoolean());
+        }
+
+        private static void handle(ExactCraftAmountRequestMessage message,
+                Supplier<NetworkEvent.Context> contextSupplier) {
+            var context = contextSupplier.get();
+            context.enqueueWork(() -> {
+                var sender = context.getSender();
+                if (sender == null || !ACOConfig.enableLongRootCraftAmounts()
+                        || !LongCraftAmountRules.isValidExtendedRequest(message.amount())
+                        || !(sender.containerMenu instanceof CraftAmountMenu menu)
+                        || menu.containerId != message.containerId() || !menu.stillValid(sender)
+                        || !(menu instanceof LongCraftAmountMenuBridge bridge)) return;
+                bridge.aco$confirmExact(message.amount(), message.subtractStoredAmount(), message.autoStart());
+            });
+            context.setPacketHandled(true);
+        }
+    }
+
+    private record ExactCraftAmountStateMessage(int containerId, BigInteger amount) {
+        private static void encode(ExactCraftAmountStateMessage message, FriendlyByteBuf buffer) {
+            buffer.writeVarInt(message.containerId());
+            BigIntegerBufferCodec.writeNonNegative(buffer, message.amount(),
+                    com.syaru.ae2craftingoptimizer.engine.BigCountMath.HARD_MAXIMUM_BITS);
+        }
+
+        private static ExactCraftAmountStateMessage decode(FriendlyByteBuf buffer) {
+            return new ExactCraftAmountStateMessage(buffer.readVarInt(),
+                    BigIntegerBufferCodec.readNonNegative(buffer,
+                            com.syaru.ae2craftingoptimizer.engine.BigCountMath.HARD_MAXIMUM_BITS));
+        }
+
+        private static void handle(ExactCraftAmountStateMessage message,
+                Supplier<NetworkEvent.Context> contextSupplier) {
+            var context = contextSupplier.get();
+            context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                    () -> () -> LongCraftAmountClientHandler.accept(message.containerId(), message.amount())));
+            context.setPacketHandled(true);
+        }
     }
 
     private record StatusPageMessage(BigCraftingStatusPage<AEKey> page) {
@@ -240,6 +327,7 @@ public final class BigCraftingNetwork {
                  */
                 if (!(sender.containerMenu instanceof CraftAmountMenu menu)
                         || menu.containerId != message.containerId()
+                        || !menu.stillValid(sender)
                         || !(menu instanceof LongCraftAmountMenuBridge bridge)) {
                     return;
                 }

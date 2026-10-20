@@ -63,7 +63,8 @@
     "CraftAmountScreenLongAmountMixin",
     "CraftConfirmScreenBigIntegerMixin",
     "CraftConfirmTableRendererBigIntegerMixin",
-    "NumberEntryWidgetAccessor"
+    "NumberEntryWidgetAccessor",
+    "NumberEntryWidgetExactCraftAmountMixin"
   ],
   "injectors": {
     "defaultRequire": 0

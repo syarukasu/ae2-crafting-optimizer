@@ -79,7 +79,7 @@ public final class ExperimentalCompatibilityValidator {
         if (!failures.isEmpty()) {
             throw new IllegalStateException(
                     "ACO experimental integration audit failed. Disable the affected experimental switch "
-                            + "or install the exact supported dependency versions. Missing transformations: "
+                            + "or install dependencies with the required API structure. Audit failures: "
                             + String.join("; ", failures));
         }
     }
@@ -89,9 +89,8 @@ public final class ExperimentalCompatibilityValidator {
                 .map(container -> container.getModInfo().getVersion().toString())
                 .orElse(null);
         if (!Ae2UelmCompatibility.isSupportedAe2Version(installed)) {
-            failures.add("ae2 version must be "
-                    + Ae2UelmCompatibility.UPSTREAM_VERSION + " or "
-                    + Ae2UelmCompatibility.UELM_VERSION
+            failures.add("ae2 version must be at least "
+                    + Ae2UelmCompatibility.UPSTREAM_VERSION
                     + " for the experimental engine (installed " + installed + ")");
         }
     }
