@@ -1,5 +1,0 @@
-# release=2.0.0-rc.6-rc4-vm.7-dev.3
-# baseline=2.0.0-rc.6-rc4-vm.6
-# loader=FORGE_1_20_1
-issue	change	automated_guarantee
-217	Retain bulk/guard improvements, profile order phases and replace branch-wide copies with sparse trials	Exact differential stock matrices and AE2 oracle tests; nested rollback and returned tools; bounded diagnostics; runtime performance PENDING

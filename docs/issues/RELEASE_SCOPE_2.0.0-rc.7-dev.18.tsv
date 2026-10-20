@@ -1,7 +1,0 @@
-# release=2.0.0-rc.7-dev.18
-# baseline=2.0.0-rc.7-dev.17
-# loader=FORGE_1_20_1
-# acceptance=NOT_APPROVED: Production planning latency and full machine/CPU lifecycle acceptance remain pending.
-issue	change	automated_guarantee
-218	Request-local native crafting input evaluation	Primary validity stays local; known vanilla validation and remainder reuse only; custom callbacks stay live. BigInteger and native scheduling unchanged.
-179	Lazy GT lookup and typed Mekanism item recipe intent	Native machine processing ownership preserved. Full captured AEKey; no batch throughput limit. Runtime coverage is reported separately.

@@ -2,6 +2,10 @@ package com.syaru.ae2craftingoptimizer.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.LongArgumentType;
+import com.syaru.ae2craftingoptimizer.diagnostics.ProfilerBenchmarkCommands;
+import com.syaru.ae2craftingoptimizer.diagnostics.ProfilerBridge;
+import com.syaru.ae2craftingoptimizer.diagnostics.network.ProfilerNetwork;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntent;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
@@ -21,6 +25,29 @@ public final class ACOIntentCommands {
             CommandBuildContext buildContext) {
         dispatcher.register(Commands.literal("aco")
                 .requires(source -> source.hasPermission(2))
+                .then(Commands.literal("profiler")
+                        .executes(context -> ProfilerNetwork.open(context.getSource()))
+                        .then(Commands.literal("capture")
+                                .executes(context -> ProfilerBenchmarkCommands.capture(context.getSource()))
+                                .then(Commands.literal("recent")
+                                        .executes(context -> ProfilerBenchmarkCommands.captures(context.getSource()))))
+                        .then(Commands.literal("benchmark")
+                                .then(Commands.literal("cancel")
+                                        .executes(context -> ProfilerBenchmarkCommands.cancel(context.getSource())))
+                                .then(Commands.argument("order", LongArgumentType.longArg(1))
+                                        .executes(context -> ProfilerBenchmarkCommands.start(context.getSource(),
+                                                LongArgumentType.getLong(context, "order"))))
+                                .then(Commands.literal("recent")
+                                        .executes(context -> ProfilerBenchmarkCommands.recent(context.getSource())))
+                                .then(Commands.literal("report")
+                                        .then(Commands.argument("order", LongArgumentType.longArg(1))
+                                                .executes(context -> ProfilerBenchmarkCommands.report(context.getSource(),
+                                                        LongArgumentType.getLong(context, "order"))))))
+                        .then(Commands.literal("recent")
+                                .executes(context -> recentProfiles(context.getSource(), 10))
+                                .then(Commands.argument("limit", IntegerArgumentType.integer(1, 64))
+                                        .executes(context -> recentProfiles(context.getSource(),
+                                                IntegerArgumentType.getInteger(context, "limit"))))))
                 .then(Commands.literal("vm")
                         .then(Commands.literal("recent")
                                 .executes(context -> recentVm(context.getSource(), 10))
@@ -49,6 +76,21 @@ public final class ACOIntentCommands {
             source.sendSuccess(() -> Component.literal(line), false);
         }
         return lines.size();
+    }
+
+    private static int recentProfiles(CommandSourceStack source, int limit) {
+        // Issue #221: console diagnostics never require a client or submit calculations.
+        var snapshot = ProfilerBridge.snapshot();
+        source.sendSuccess(() -> Component.literal("ACO profiler: " + snapshot.statusText()
+                + " (calculation only; CPU/wait/phase timings overlap, do not sum)"), false);
+        int first = Math.max(0, snapshot.profiles().size() - limit);
+        for (int i = first; i < snapshot.profiles().size(); i++) {
+            var sample = snapshot.profiles().get(i);
+            source.sendSuccess(() -> Component.literal(sample.summary()), false);
+            source.sendSuccess(() -> Component.literal("nanos=" + sample.nanosText()
+                    + " counters=" + sample.countersText()), false);
+        }
+        return snapshot.profiles().size() - first;
     }
 
     private static int recentVm(CommandSourceStack source, int limit) {

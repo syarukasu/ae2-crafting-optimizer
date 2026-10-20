@@ -1,212 +1,33 @@
 # AE2 Crafting Optimizer
 
-<p align="center">
-  <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
-</p>
+Minecraft Forge 1.20.1 / Java 17向けのAE2最適化・正確数量連携MODです。
 
-[English](README.md) | 日本語
+## 2.0.0-rc.7-beta.1
 
-## 2.0.0 スナップショット
+安定版ではなくForge向けベータです。配布JARをサーバーとクライアントの両方に入れてください。内包VMを別途重複導入しないでください。クラフト通信はprotocol 5のため両側のビルドを揃える必要があります。
 
-**このブランチはForge 1.20.1向けvm-refs.8の実験版であり、正式安定版ではありません。**
-[変更点・ビルド手順](docs/releases/2.0.0-snapshot-refs.8.md)を確認してください。
-BigInteger VMは同梱済みです。同じモジュールの別JARは追加しないでください。
-巨大注文の実行、取消返却、再起動復旧、同時注文、最終目標の10秒未満は実機受入未完了です。
-NeoForge 1.21.1は別実装であり、このForge用JARを流用できません。
+- 発注数量で `2^63-1`、`2^63`、`10^1024-1` などの計算式を扱います。
+- BigIntegerの注文数・通信・確認画面から戻る操作・再計算を既存のExact Count制限内で扱います。
+- MOD依存条件は最低版以上を許可します。AE2は15.4.10以上です。Minecraft/Forgeの対象範囲とAPI・Mixin構造検査は維持します。
+- 任意で使える有限の計算プロファイラと、明示操作でのみ実行する読み取り専用のVM/AE2比較を含みます。
+- 入力規則の事前取得、AE2計算ワーカーでの数量演算、正確な分数演算の高速経路を含みます。
 
-AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのForge
-1.20.1最適化・連携MODです。重複するクラフト計算を減らし、通常CPUの本来の
-投入速度を維持し、数量に比例しない作業台クラフト取引を提供します。
+新しい依存版を許可することは、すべての将来版との互換保証ではありません。実クラフト、電力、予約、進捗、キャンセル・返却はAE2や外部CPUの所有です。入力できる数量と、各CPUが実行できる数量は別です。
 
-通常のレシピ、Provider、クラフトJob、ストレージの正本はAE2です。深い経路は、
-入力へ触る前に会計全体を証明できた場合だけ使います。
+AE2 15.4.11でclean build、JUnit 996件（失敗・エラー0、既存の任意skip 8件）、回帰台帳、内包モジュールとライセンス境界、実AE2 GameTest 16件を確認しました。試験とローカル証拠は開発用checkoutに保持し、この公開ソースには含めていません。
 
-開発変更は[プロジェクト憲章](docs/PROJECT_CHARTER.md)と
-[Issue先行開発手順](docs/ISSUE_WORKFLOW.md)に従います。実装前に必ず
-[クラス責務一覧](docs/CLASS_RESPONSIBILITIES.md)と
-[`docs/issues`](docs/issues/README.md)の番号付き仕様書を読みます。
-
-## 対象環境
-
-- Minecraft `1.20.1`
-- Forge `47.4.18+`
-- Java `17`
-- Applied Energistics 2 `15.4.10`
-- Advanced AE `1.3.5-1.20.1`（任意）
-- Neo ECO AE Extension `20.3.x`または`20.4.x`（任意）
-- GTCEu Modern `7.5.3`（任意）
-- 専用サーバー、シングルプレイ、通常Forge MODとしてのArclight
-
-サーバーと全クライアントへ同じJARを導入してください。共通Configは次です。
-
-```text
-config/ae2_crafting_optimizer-common.toml
-```
-
-## 主な最適化
-
-### クラフト計算
-
-- Provider・レシピ世代単位のCompiled Pattern Graph
-- 一計算内の在庫・候補メモ化
-- レシピ選択と会計を証明できる場合だけ使う厳密なCompiled Planner
-- `add`、`multiply`、`ceilDiv`のオーバーフロー検査
-- `long`優先と、overflow時だけの`BigInteger`昇格
-- 世代変更時の古い計算結果破棄
-
-代替素材、循環、動的出力、不明な返却物などを完全に証明できなければ、
-ストレージへ触る前にAE2へ戻します。
-
-### CPU実行
-
-- rc.7-dev.14候補版では通常のPattern投入にACO独自の件数・時間・共有予算制限をかけない
-- 抽出・Provider順序・設備の受入判定・電力・Task・出力会計はAE2本来の処理を維持
-- コプロセッサ数のint桁あふれ修正とexact Jobの二重実行防止を維持
-- 対応Adapter向けの永続Transactional Batch
-
-旧設定の`throttleCraftingExecution=true`も無効です。`enableInstantDispatch`の
-予算はACOが所有するTransactional V2取引だけが対象で、通常の加工投入を制限しません。
-exact物理取引の予算とReceipt会計は維持します。制限解除だけでMSPTの改善を保証するものではありません。
-
-### 機械Recipe Intent
-
-Pattern Providerが指定したレシピ意図を保持し、対応GTCEu機械が毎tick同じレシピを
-総当たりする回数を減らします。電圧、条件、電力、Tank、出力容量などの最終判定は
-GTCEuが行います。Mekanismの`RecipeCacheLookupMonitor`と機械レシピ探索はMekanism自身が
-所有し、ACOは第二のcacheを追加せず`getRecipe`も横取りしません。
-
-## 物理クラフトツリー
-
-旧来の「ツリー全体を直接最終成果物へ変換する経路」は削除しました。現在は、
-厳密な作業台クラフトをレシピ一段ずつ実設備で処理します。
-
-設計は次の長所を組み合わせています。
-
-- [InsaneAE](https://github.com/taikun24/InsaneAE):
-  一回だけ実クラフトし、証明済み式へ正確な係数を掛ける
-- Neo ECO AE Extension:
-  Pattern Bus、Worker、Thread、実進捗、実電力、構造、NBT復旧
-
-### 実行順
-
-1. 現在のProvider・レシピ世代から決定的なPattern DAGを一度だけコンパイル
-2. 境界入力、slot入力、各段の実行係数、最終出力、固定返却物を正確に計算
-3. MEの全境界入力を一括でACO所有Escrowへ予約
-4. Escrowに全入力があるレシピ段だけ実行可能
-5. AACが実NeoECO Workerでエンコード済みレシピを一回assemble
-6. 一回分の実入出力へ`BigInteger`係数を掛ける
-7. Workerの永続Receiptから実出力をEscrowへ追加
-8. その後だけ依存する次段を解禁
-9. 最終成果物もEscrowからMEへ返却
-10. ME挿入完了後だけ親CPU Jobを完了
-
-20段直列レシピは、注文が`1`でも`Long.MAX_VALUE`でも対応範囲の
-`BigInteger`でも20物理段です。独立した枝は複数Workerへ並列配置できます。
-計算量は注文数量ではなく固有レシピ数と境界キー数に比例します。
-
-### 所有権と復旧
-
-- ACO: Plan、Escrow、正確なME変更、親Job会計、取消、復旧判断
-- AAC: NeoECO物理AdapterとWorker Receiptのみ
-- ME変更前にキーごとの正確なbefore/afterを保存
-- 再起動後、after済みキーは再実行せずbeforeのキーだけ再試行
-- WorkerはThread解放より先に終端Receiptを同じBlock Entity NBTへ保存
-- ACOは実出力を一度だけ会計し、後からReceipt削除を明示要求
-- タグ・代替素材はPlannerが選んだ具体キーを保存し、再起動後も同じ選択だけを再検証
-- 解決済み一回分レシピ式はProvider・Recipe世代が変わるまで配列から再利用
-- AACはTransaction UUIDからWorker・Threadを直接引き、再起動後だけ一度索引を再構築
-- before/afterのどちらにも一致しない値は推測せず隔離
-
-Fallbackできるのは入力所有権の移動前だけです。移動後は再開、正確な取消返却、
-または隔離のいずれかになります。
-
-### 対象レシピ
-
-- AE2 Molecular Assembler対応Pattern
-- slotごとの決定済み入力
-- Pattern宣言と一致する一回の実assemble出力
-- 固定返却物
-- 循環がなく世代が一致するProducer Graph
-- 各段を所有する形成済みAAC/NeoECO設備
-
-Processing Patternは境界です。GTCEu、Mekanism、液体、Chemicalは本来の機械で
-処理され、下流作業台クラフトは実際の機械出力が戻るまで待ちます。
-
-## BigInteger境界
-
-ACOは任意連携用の版付きHost APIを提供します。通常AE2 CPUを勝手に
-BigInteger化しません。
-
-- 正確に収まる間は`long`
-- overflowした計算だけ`BigInteger`
-- 実装上限は`10^16384 - 1`
-- NBTは10進文字列ではなく正規byte array
-- `long`しか受け取れないAE2 APIに限り表示・互換Facadeを`Long.MAX_VALUE`へ飽和
-- 在庫、材料不足、Task進捗、Escrow、ReceiptはFacadeから逆算しない
-
-AQEとInsaneAEは、自身のCPU実行を保持したままACOの版付きexact plan APIを
-利用できます。AACは物理Worker契約を登録できます。いずれもACO本体の必須依存
-ではありません。
-
-## 安全規則
-
-ACOは次を行いません。
-
-- Planから最終成果物を直接生成
-- 注文個数ぶんJava処理を反復
-- 正確な在庫・Task会計を暗黙に`long`へクランプ
-- 成否不明な外部変更を再実行
-- 入力受理後に通常経路へFallback
-- GTCEu/Mekanismのレシピ成立条件を書き換え
-- レシピやQuantum Computer構造ルールを変更
-- Bukkit、Paper、Spigot、Arclight APIを使用
-
-## 主な設定
-
-```toml
-[exactVectorCrafting]
-enabled = true
-enablePhysicalExecution = true
-maximumPatternNodes = 1024
-maximumUniqueInputKeys = 128
-maximumUniqueOutputKeys = 128
-maximumStartsPerGridPerTick = 1
-maximumActiveStagesPerGridPerTick = 256
-gridTimeBudgetMillis = 2
-logExecutionStalls = true
-verifyStorageRouteBeforeOwnership = true
-
-[diagnostics]
-logCraftingDecisionFlow = true
-```
-
-`exactVectorCrafting`は本項の物理クラフトツリーです。外部CPUの選択や実行は
-この設定から行いません。
-
-`logCraftingDecisionFlow`は`debug.log`へ、上限付きの
-`ACO-DIAG event=...`行を出します。計画結果と状態遷移だけを記録し、毎tickの正常処理、
-全在庫、巨大値の全10進桁は出力しません。
-
-Issue #164では、旧Pattern Batch V1、外部CPU実行Manager、内蔵GTCEu/Mekanism
-Native Batch、独立Fair Scheduler、端末・ストレージ・Bus・P2P書換えを削除しました。
-これらはlegacy fallbackやno-op設定としても残していません。
-
-詳細は[Configuration](docs/CONFIGURATION.md)、
-[Feature ownership](docs/FEATURE_OWNERSHIP.md)、
-[Implementation](docs/IMPLEMENTATION.md)、
-[Testing](docs/TESTING.md)を参照してください。
+本番GUI操作、工業環境での計算時間・TPS、巨大注文の物理完走、返却・再起動復旧は未検証です。TPS改善率は断定しません。NeoForge版は別系統で、このForgeベータには含みません。
 
 ## ビルド
 
-```powershell
-.\gradlew.bat clean build --no-daemon
+Java 17が必要です。[AE2-VM-ACO](https://github.com/syarukasu/AE2-VM-ACO) の `release/2.0.0-rc.7-beta.1-public` ブランチを隣の `vm` ディレクトリへ配置します。
+
+```shell
+./gradlew clean build -PacoExactVmDir=../vm/exact-engine -PacoAe2Version=15.4.11
 ```
 
-生成JARは`build/libs`へ出力されます。
+既定のコンパイル対象はAE2 15.4.10です。ローカル依存JARのディレクトリは `-PacoLocalModsDir`、Mekanism JARは `-PacoMekanismJar` で指定できます。依存MOD本体は配布物へ含めません。
 
-## ライセンス
+導入するのは `build/distributions/<version>/aco<version>_1.20.1.jar` のみです。`NOT-FOR-INSTALLATION` は中間成果物です。内包VMに対応するソースアーカイブは `sources/` に出力します。
 
-`LGPL-3.0-only`
-
-ACO固有の問題はまず本プロジェクトへ報告してください。ACOなしで再現していない
-問題をAE2や依存MODの作者へ直接報告しないでください。
+LGPL-3.0-only。LICENSEとNOTICE.mdを参照してください。内包VMの原作者はTaoLe-si/AE2-VMで、ライセンスと帰属情報を維持しています。[English](README.md)

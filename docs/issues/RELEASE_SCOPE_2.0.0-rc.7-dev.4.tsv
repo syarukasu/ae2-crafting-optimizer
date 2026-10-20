@@ -1,5 +1,0 @@
-# release=2.0.0-rc.7-dev.4
-# baseline=2.0.0-rc.7-dev.3
-# loader=FORGE_1_20_1
-issue	change	automated_guarantee
-218	Reduce unusable-input observations and one-shot replay copies; classify remaining handoff waits	Exact quantities, replenished byproducts, rollback and wide replay preserved; unknown wrappers revalidated; bounded diagnostics. Production latency and full industrial execution remain PENDING.

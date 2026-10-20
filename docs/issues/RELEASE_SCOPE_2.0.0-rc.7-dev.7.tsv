@@ -1,5 +1,0 @@
-# release=2.0.0-rc.7-dev.7
-# baseline=2.0.0-rc.7-dev.6
-# loader=FORGE_1_20_1
-issue	change	automated_guarantee
-218	Reduce VM replay-state copies and keep unused lookahead candidates out of replay guards	Exact ordered quantities, rollback, returns, bytes and bounded batching; nested snapshots flatten once. Production industrial latency and wide lifecycle acceptance remain PENDING.

@@ -7,6 +7,7 @@ import com.syaru.ae2craftingoptimizer.api.contract.IntegrationCapabilities;
 import com.syaru.ae2craftingoptimizer.api.contract.IntegrationCapabilitiesRegistry;
 import com.syaru.ae2craftingoptimizer.command.ACOIntentCommands;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.diagnostics.network.ProfilerNetwork;
 import com.syaru.ae2craftingoptimizer.lifecycle.ACOServerLifecycle;
 import com.syaru.ae2craftingoptimizer.network.BigCraftingNetwork;
 import com.syaru.ae2craftingoptimizer.optimization.CraftingCalculationDeduplicator;
@@ -34,6 +35,7 @@ public final class AE2CraftingOptimizer {
 
     public AE2CraftingOptimizer() {
         BigCraftingNetwork.register();
+        ProfilerNetwork.register();
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         ACOConfig.register();
         PatternBatchV2Api.registerBuiltIns();

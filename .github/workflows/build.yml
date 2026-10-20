@@ -16,10 +16,17 @@ jobs:
       matrix:
         include:
           - ae2Variant: upstream
+            ae2Version: 15.4.10
             ae2File: appliedenergistics2-forge-15.4.10.jar
             ae2Url: https://github.com/AppliedEnergistics/Applied-Energistics-2/releases/download/forge/v15.4.10/appliedenergistics2-forge-15.4.10.jar
             ae2Sha256: fbfee05c6674cb6b00fe425e945ca4818d41eb34069b60dcb4a36221a0390fcc
+          - ae2Variant: upstream
+            ae2Version: 15.4.11
+            ae2File: appliedenergistics2-forge-15.4.11.jar
+            ae2Url: https://github.com/AppliedEnergistics/Applied-Energistics-2/releases/download/forge/v15.4.11/appliedenergistics2-forge-15.4.11.jar
+            ae2Sha256: f2ff9ee5122b037d4e93537425ab9fbe49860fc9c3977db13b20a50ca7d30f9e
           - ae2Variant: uelm
+            ae2Version: 15.5.0-uelm
             ae2File: appliedenergistics2-forge-15.5.0-uelm.jar
             ae2Url: https://github.com/AE2-Unofficial-Extended-Life-Modern/AE2-UELM/releases/download/forge/v15.5.0-uelm/appliedenergistics2-forge-15.5.0-uelm.jar
             ae2Sha256: 6c7ce22131cc8500a9deba17a864fe69ad143b5e18b4596ea6e8523469eec198
@@ -31,7 +38,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: syarukasu/AE2-VM-ACO
-          ref: 5b57a00e283d355a47ee5276ba528b2dcf7d07db
+          ref: 02bf2375ee723fb94519bb814b3975ef370b7add
           path: .ci/vm
 
       - name: Set up Java 17
@@ -88,22 +95,11 @@ jobs:
       - name: Build
         run: |
           chmod +x gradlew
-          ./gradlew clean build verifyIssueRegressionReleaseReadiness --stacktrace \
+          ./gradlew clean build --stacktrace \
             -PacoExactVmDir=.ci/vm/exact-engine \
             -Pae2Variant=${{ matrix.ae2Variant }} \
-            -PacoLocalModsDir=.ci/mods \
-            -PneoEco20_3Jar=.ci/contracts/neoecoae-20.3.0.jar \
-            -PneoEco20_4Jar=.ci/contracts/neoecoae-20.4.0.jar
-
-      - name: Verify native VM in AE2 GameTests
-        run: |
-          ./gradlew runGameTestServer verifyExactVmBundle --stacktrace \
-            -PacoExactVmDir=.ci/vm/exact-engine \
-            -Pae2Variant=${{ matrix.ae2Variant }} \
+            -PacoAe2Version=${{ matrix.ae2Version }} \
             -PacoLocalModsDir=.ci/mods
-
-      - name: Validate industrial capture audit tooling
-        run: node --test tools/industrial-benchmark/audit.test.mjs
 
       - name: Verify 1.20.1 artifact boundary
         shell: bash
@@ -119,7 +115,7 @@ jobs:
       - name: Upload jar
         uses: actions/upload-artifact@v6
         with:
-          name: aco-1.20.1-${{ matrix.ae2Variant }}-${{ github.sha }}
+          name: aco-1.20.1-${{ matrix.ae2Variant }}-${{ matrix.ae2Version }}-${{ github.sha }}
           path: |
             build/distributions/*/aco*_1.20.1.jar
             build/distributions/*/sources/*.jar

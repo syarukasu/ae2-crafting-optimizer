@@ -1,303 +1,33 @@
 # AE2 Crafting Optimizer
 
-<p align="center">
-  <img src="docs/aco-icon.png" alt="AE2 Crafting Optimizer icon" width="192">
-</p>
+Forge 1.20.1 / Java 17 optimization and exact-count integration for Applied Energistics 2.
 
-[![Build](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml/badge.svg)](https://github.com/syarukasu/ae2-crafting-optimizer/actions/workflows/build.yml)
-[![License: LGPL-3.0-only](https://img.shields.io/badge/License-LGPL--3.0--only-blue.svg)](LICENSE)
+## 2.0.0-rc.7-beta.1
 
-English | [日本語](README_ja.md)
+This is an experimental Forge beta, not stable ACO 2.0.0. Install the bundled `aco2.0.0-rc.7-beta.1_1.20.1.jar` on both client and server. Do not install duplicate copies of its embedded VM modules. The crafting channel uses protocol 5; client and server must match.
 
-## 2.0.0 Snapshot
+- Exact crafting-amount expressions, including `2^63-1`, `2^63`, and `10^1024-1`.
+- BigInteger root amounts, exact packets, confirmation/back/replan state, and existing Exact Count limits.
+- Dependency MOD versions use minimum-only admission: AE2 15.4.10 or newer. Minecraft and Forge platform ranges and structural API/Mixin checks remain.
+- Optional bounded calculation profiler and explicitly armed read-only VM/AE2 replay.
+- Current native VM with captured input rules, AE2-worker arithmetic and exact rational fast paths.
 
-**This branch contains the experimental Forge 1.20.1 vm-refs.8 snapshot, not
-stable ACO 2.0.0.** See the [snapshot notes and build instructions](docs/releases/2.0.0-snapshot-refs.8.md).
-The BigInteger VM is bundled; do not install duplicate copies of its modules.
-Local quantity tests are not live acceptance. Wide execution, cancellation/refund,
-restart recovery, concurrent orders and the final sub-10-second target remain pending.
-NeoForge 1.21.1 is a separate platform line, not a relabeled Forge artifact.
+A newer dependency being admitted does not guarantee binary compatibility. AE2 and external CPUs retain physical execution, energy, reservation, progress, cancellation and refunds. A large amount being accepted does not make every CPU capable of executing it.
 
-AE2 Crafting Optimizer (ACO) is a Forge 1.20.1 optimization and integration
-layer for Applied Energistics 2. It reduces repeated crafting calculations,
-preserves native ordinary CPU throughput, and provides an exact transaction model
-for quantity-independent crafting-table batches.
+Validated against official AE2 15.4.11: clean build, 996 JUnit cases (0 failures/errors, 8 optional skips), regression scope, bundled-module/license boundaries, and 16 real AE2 GameTests. Tests and local evidence are retained in the development checkout, not this source-only publication.
 
-AE2 remains authoritative for normal recipes, providers, crafting jobs, and
-storage. Deep paths are used only when ACO can prove their complete accounting
-contract before moving any input.
-
-Development is governed by the [project charter](docs/PROJECT_CHARTER.md) and
-[Issue-first workflow](docs/ISSUE_WORKFLOW.md). Every implementation starts by
-reading the [class responsibility catalog](docs/CLASS_RESPONSIBILITIES.md) and a
-numbered specification under [`docs/issues`](docs/issues/README.md).
-
-The persistent branch for this line is `mc/1.20.1`. Its next release artifact
-uses `aco<version>_1.20.1.jar`; the NeoForge line is maintained separately on
-`mc/1.21.1` and never shares platform-dependent source or metadata.
-
-## Target Environment
-
-- Minecraft `1.20.1`
-- Forge `47.4.18+`
-- Java `17`
-- Applied Energistics 2 `15.4.10`
-- AE2 Unofficial Extended Life Modern `15.5.0-uelm` (optional replacement
-  profile; keeps the `ae2` mod id)
-- Optional Advanced AE `1.3.x-1.20.1` (Forge)
-- Optional Neo ECO AE Extension `20.3.x` or `20.4.x`
-- Optional GTCEu Modern `7.5.3`
-- Dedicated server, singleplayer, and Arclight as a normal Forge mod
-
-Install the same ACO JAR on the server and every client. The common config is:
-
-```text
-config/ae2_crafting_optimizer-common.toml
-```
-
-### AE2-UELM build profile
-
-The UELM build is selected explicitly; it is not detected by a second mod id.
-UELM is the Forge 1.20.1 replacement distribution with artifact
-`appeng:appliedenergistics2-forge:15.5.0-uelm` and shared mod id `ae2`.
-
-```text
-gradlew.bat check --no-daemon -Pae2Variant=upstream
-gradlew.bat check --no-daemon -Pae2Variant=uelm
-```
-
-For an offline checked-out pack, place the matching JAR in the configured
-`acoLocalModsDir` using the artifact filename. ACO delegates UELM's native
-long craft amount menu/screen and retains its own exact BigInteger storage
-paths because UELM does not replace those storage classes.
-
-## Core Optimizations
-
-The legacy feature descriptions below span multiple development generations.
-For what is actually active in this snapshot, use the
-[refs.8 call-path audit](docs/FEATURE_AUDIT_REFS8.md). In particular, running-plan
-deduplication and long-first arithmetic are not the bundled VM's current policy.
-
-### Crafting Calculation
-
-- Generation-keyed compiled Pattern graphs.
-- Calculation-local inventory and candidate memoization.
-- Strict compiled planning only when recipe choice and accounting are proven.
-- Checked `add`, `multiply`, and `ceilDiv` arithmetic.
-- `long` fast paths and bounded `BigInteger` promotion after overflow.
-- Cancellation and stale-result rejection when provider or recipe generations
-  change.
-- Immediate compiled planning for ordinary `long` requests only after the
-  current AE2 Pattern API, input candidates, inventory, and generation all
-  pass the strict proof. Shadow history remains available as an additional
-  qualification path.
-
-Ambiguous substitutions, cycles, dynamic outputs, unsupported container
-returns, and other unproven behavior return to AE2 before storage mutation.
-
-### CPU Execution
-
-- Since the rc.7-dev.14 candidate, ordinary Pattern pushes retain AE2/add-on
-  throughput without ACO count, adaptive, shared-grid or wave limits.
-- AE2 retains extraction, provider order, backpressure, energy, task progress
-  and output accounting. Native coprocessor overflow repair remains.
-- Optional durable transactional batching for compatible adapters.
-
-The legacy `throttleCraftingExecution` setting is ignored even when true.
-`enableInstantDispatch` and its budget apply only to ACO-owned transactional V2
-work, not ordinary processing. Exact-job receipt ownership and separate physical
-budgets remain intact. Unthrottling native work does not guarantee lower MSPT.
-
-### Machine Intent
-
-ACO can retain the Pattern Provider's recipe intent so compatible GTCEu
-machines do not rediscover the same recipe from all candidates every tick.
-GTCEu still validates its live inputs, voltage, conditions, energy, tanks, and
-outputs. Mekanism keeps its own `RecipeCacheLookupMonitor` and machine recipe
-lookup; ACO does not add a second cache or intercept `getRecipe`.
-
-## Physical Crafting Tree
-
-The former direct whole-tree conversion path has been removed. ACO now uses a
-physical recipe-by-recipe transaction for strictly deterministic crafting-table
-trees.
-
-The design combines two proven ideas:
-
-- [InsaneAE](https://github.com/taikun24/InsaneAE): perform one real assemble,
-  then multiply the verified formula by the exact execution coefficient.
-- Neo ECO AE Extension: Pattern Bus, Worker, Thread, real progress, real power,
-  structure ownership, and NBT recovery remain physical and visible.
-
-### Execution Flow
-
-1. ACO compiles the reachable deterministic Pattern DAG once for the current
-   provider and recipe generation.
-2. It computes exact boundary inputs, selected slot inputs, per-step execution
-   coefficients, final outputs, and fixed remaining outputs.
-3. Every boundary input is atomically reserved from exact ME storage into an
-   ACO-owned escrow.
-4. A recipe step starts only when all of its exact inputs exist in that escrow.
-5. AAC asks a real Neo ECO Worker to assemble the encoded crafting recipe once.
-6. The verified one-craft input/output formula is multiplied by the exact
-   `BigInteger` coefficient without iterating by quantity.
-7. The Worker's durable receipt credits those actual outputs to escrow.
-8. Only then may dependent recipe steps start.
-9. Final output is inserted from escrow. It is never synthesized from the
-   compiled plan.
-10. The parent CPU job is committed only after the final ME insertion is
-    proven complete.
-
-A linear twenty-recipe chain therefore performs twenty physical recipe stages
-for an order of `1`, `Long.MAX_VALUE`, or a supported `BigInteger` amount.
-Independent branches may occupy separate Workers at the same time. Runtime
-cost follows distinct recipe nodes and boundary keys, not requested quantity.
-
-### Ownership and Recovery
-
-- ACO owns the plan, escrow, exact storage mutations, parent-job accounting,
-  cancellation, and recovery decisions.
-- AAC owns only the Neo ECO physical adapter and Worker receipts.
-- A pending ME mutation stores exact before/after amounts.
-- After a shutdown, keys already at `after` are not replayed; only keys still at
-  `before` are retried.
-- A Worker writes its terminal output receipt before releasing its Thread.
-- ACO credits each receipt once, then explicitly asks the Worker to forget it.
-- Tag alternatives persist the concrete key chosen by the planner and
-  revalidate that same choice after restart.
-- Resolved one-craft formulas are reused until the provider or recipe
-  generation changes.
-- AAC indexes transaction UUIDs to Workers and Threads and rebuilds those
-  indexes once after restart.
-- Any value that matches neither saved state is quarantined instead of guessed.
-
-Fallback is allowed only before input ownership moves. After ownership transfer,
-the transaction must resume, cancel with exact return, or quarantine.
-
-### Supported Recipes
-
-The physical path requires:
-
-- an AE2 molecular-assembler-compatible crafting Pattern;
-- deterministic selected inputs for every slot;
-- one real assembled result matching the encoded Pattern output;
-- exact fixed remaining items;
-- an acyclic, generation-stable producer graph;
-- a formed AAC/Neo ECO physical target for every included step.
-
-Processing Patterns are boundaries. GTCEu, Mekanism, fluids, and chemicals keep
-their original machine execution. A downstream crafting island waits for the
-real machine output before it becomes runnable.
-
-## BigInteger Boundary
-
-ACO exposes a versioned optional host API. It does not convert ordinary AE2
-CPUs into BigInteger CPUs.
-
-- Counts use `long` while exact arithmetic fits.
-- Overflow promotes the calculation to `BigInteger`.
-- The implementation limit is `10^16384 - 1`.
-- NBT stores canonical byte arrays, never decimal strings.
-- Standard AE2 APIs receive a saturated `Long.MAX_VALUE` facade only where
-  their signature requires `long`.
-- Exact inventory, missing amounts, task progress, escrow, and receipts are
-  never derived from that facade.
-
-AQE and InsaneAE may consume ACO's versioned exact-plan API while retaining
-their own CPU execution. AAC may register a physical worker contract. ACO
-itself requires none of these mods.
-
-## Long Root Orders
-
-With `enableLongRootCraftAmounts = true`:
-
-- `1..Integer.MAX_VALUE` keeps AE2's original confirmation packet.
-- `Integer.MAX_VALUE + 1..Long.MAX_VALUE` uses ACO's versioned long-order
-  packet and server-side menu validation.
-- Values outside signed `long` use only an explicitly integrated BigInteger
-  host path.
-
-## Safety Rules
-
-ACO intentionally does not:
-
-- generate final output directly from a plan;
-- iterate one Java operation per requested craft;
-- silently clamp exact inventory or task accounting to `long`;
-- replay an uncertain external mutation;
-- fall back after another owner has accepted inputs;
-- replace GTCEu or Mekanism recipe validity;
-- modify recipes or Quantum Computer structure rules;
-- use Bukkit, Paper, Spigot, or Arclight APIs.
-
-## Important Configuration
-
-The generated TOML is authoritative. The principal standard-AE2 exact settings
-are:
-
-```toml
-[exactVectorCrafting]
-enabled = true
-enablePhysicalExecution = true
-maximumPatternNodes = 1024
-maximumUniqueInputKeys = 128
-maximumUniqueOutputKeys = 128
-maximumStartsPerGridPerTick = 1
-maximumActiveStagesPerGridPerTick = 256
-gridTimeBudgetMillis = 2
-logExecutionStalls = true
-verifyStorageRouteBeforeOwnership = true
-
-[diagnostics]
-logCraftingDecisionFlow = true
-```
-
-`exactVectorCrafting` is the physical crafting tree described above. External
-CPU add-ons are not selected or configured by this section.
-
-The soft time budget begins when Exact Vector first runs on a grid during that
-server tick. Trees with at most 64 physical recipe nodes are fully scanned
-within the count limit, and dependency-blocked nodes do not consume active-stage
-capacity.
-
-`logCraftingDecisionFlow` writes bounded `ACO-DIAG event=...` records to
-`debug.log`. It records one planning result and lifecycle transitions, not
-per-tick success, complete inventories, or full huge decimal values.
-
-See [Configuration](docs/CONFIGURATION.md),
-[Feature ownership](docs/FEATURE_OWNERSHIP.md),
-[Implementation](docs/IMPLEMENTATION.md), and
-[Testing](docs/TESTING.md).
+Real production GUI interaction, industrial timing/TPS, huge physical CPU completion and refund/restart recovery remain unverified. No TPS improvement is claimed. NeoForge is a separate platform line and is not included in this Forge beta.
 
 ## Build
 
-```powershell
-.\gradlew.bat clean build --no-daemon
+Requires Java 17. Check out the matching `release/2.0.0-rc.7-beta.1-public` branch of [AE2-VM-ACO](https://github.com/syarukasu/AE2-VM-ACO) beside this checkout as `vm`, then run:
+
+```shell
+./gradlew clean build -PacoExactVmDir=../vm/exact-engine -PacoAe2Version=15.4.11
 ```
 
-The output JAR is written to `build/libs`.
+The default reproducible compile pin is AE2 15.4.10. Compatibility dependencies are compile-only and are not bundled. A local dependency directory may be supplied with `-PacoLocalModsDir=/path/to/mods` and `-PacoMekanismJar=/path/to/Mekanism.jar`.
 
-## Design References
+Install only `build/distributions/<version>/aco<version>_1.20.1.jar`. Files marked `NOT-FOR-INSTALLATION` are build intermediates. Matching VM source archives are emitted beside the distribution under `sources/`.
 
-ACO is not a port of either project. It reuses architectural ideas after
-researching the actual implementation boundaries:
-
-- [AE2-UEL](https://github.com/AE2-UEL/Applied-Energistics-2): generation-based
-  caches and reduced repeated work.
-- [InsaneAE](https://github.com/taikun24/InsaneAE): one real craft plus exact
-  coefficient accounting.
-- Neo ECO AE Extension: persistent physical crafting Workers and Threads.
-
-Issue #164 deliberately removes the former Pattern Batch V1, external-CPU
-execution managers, built-in GTCEu/Mekanism native batching, independent Fair
-Scheduler, and terminal/storage/bus/P2P rewrites. They are not retained as
-legacy fallbacks or no-op configuration keys.
-
-No dependency source code is redistributed.
-
-## License
-
-ACO is licensed under `LGPL-3.0-only`.
-
-Report ACO problems to this project first. Do not report an ACO-only failure to
-AE2 or another dependency until it reproduces without ACO.
+Source: LGPL-3.0-only, see LICENSE and NOTICE.md. The bundled VM is derived from TaoLe-si/AE2-VM and retains its license and attribution. [日本語](README_ja.md)

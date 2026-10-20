@@ -5,6 +5,7 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountMenuBridge;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountRules;
 import net.minecraft.client.Minecraft;
+import java.math.BigInteger;
 
 /**
  * 戻る操作で再作成されたCraftAmountMenuへ、サーバーのlong初期値を同期する。
@@ -14,9 +15,13 @@ public final class LongCraftAmountClientHandler {
     }
 
     public static void accept(int containerId, long amount) {
+        accept(containerId, BigInteger.valueOf(amount));
+    }
+
+    public static void accept(int containerId, BigInteger amount) {
         // 機能OFFまたはint範囲の値は本家Menu同期だけに任せる。
         if (!ACOConfig.enableLongRootCraftAmounts()
-                || !LongCraftAmountRules.isValidExtendedRequest(amount)) {
+                || !LongCraftAmountRules.isValidAmount(amount)) {
             return;
         }
         var player = Minecraft.getInstance().player;
@@ -27,6 +32,6 @@ public final class LongCraftAmountClientHandler {
                 || !(menu instanceof LongCraftAmountMenuBridge bridge)) {
             return;
         }
-        bridge.aco$setClientInitialAmount(amount);
+        bridge.aco$setClientInitialExactAmount(amount);
     }
 }

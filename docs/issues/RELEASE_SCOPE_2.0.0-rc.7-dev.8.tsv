@@ -1,5 +1,0 @@
-# release=2.0.0-rc.7-dev.8
-# baseline=2.0.0-rc.7-dev.7
-# loader=FORGE_1_20_1
-issue	change	automated_guarantee
-218	Restore exact shared-demand aggregation inside the VM without per-path stock copies	Ordinary and wide shared DAG quantities, conceptual AE2 node bytes, stock-only boundaries and ordered state-dependent cases match exact oracles. Production latency and full industrial wide lifecycle acceptance remain PENDING.

@@ -1,5 +1,0 @@
-# release=2.0.0-rc.7-dev.3
-# baseline=2.0.0-rc.7-dev.2
-# loader=FORGE_1_20_1
-issue	change	automated_guarantee
-218	Reuse immutable native pattern metadata without changing VM arithmetic or physical crafting	Exact stock/count matrix and zero in-VM native handoffs; generation invalidation, dynamic callbacks and bounded cache lifecycle. Production latency and full industrial execution remain PENDING.
