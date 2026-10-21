@@ -1,3 +1,5 @@
 {
-  "mod.ae2_crafting_optimizer": "AE2 Crafting Optimizer"
+  "mod.ae2_crafting_optimizer": "AE2 Crafting Optimizer",
+  "aco.tooltip.large_amount": "%s (%s digits)",
+  "aco.tooltip.copy_exact": "Ctrl+C: copy exact counts (raw units)"
 }

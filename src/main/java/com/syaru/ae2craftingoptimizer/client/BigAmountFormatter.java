@@ -16,6 +16,25 @@ public final class BigAmountFormatter {
     private BigAmountFormatter() {
     }
 
+    // Issue #224: FULL decimal text must not expand a tooltip to thousands of lines.
+    public static boolean abbreviatesTooltip(BigInteger amount) {
+        return amount.abs().toString().length() > 24;
+    }
+
+    public static String formatTooltip(AEKey key, BigInteger amount) {
+        if (!abbreviatesTooltip(amount)) return format(key, amount, AmountFormat.FULL);
+        String text = format(key, amount, AmountFormat.SLOT);
+        String unit = key.getUnitSymbol();
+        return unit == null ? text : text + " " + unit;
+    }
+
+    public static String exactCountsForClipboard(String name, BigInteger stored,
+            BigInteger missing, BigInteger craft) {
+        return name + "\nStored (raw units): " + stored
+                + "\nMissing (raw units): " + missing
+                + "\nTo craft (raw units): " + craft;
+    }
+
     public static String format(AEKey key, BigInteger amount, AmountFormat format) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(amount, "amount");
