@@ -8,8 +8,11 @@
 
 ## 2.0.0 リリース候補版
 
-**2.0.0-rc.3はプレリリースです。** 改善内容・移行時の注意・既知の制限は
-[リリースノート](docs/releases/2.0.0-rc.3.md)を確認してください。
+**2.0.0-rc.5-processing.1は開発者向けプレリリースです。**
+加工機向けBigInteger APIを追加しました。既存APIは維持しています。
+[新APIの使い方](docs/PROCESSING_PATTERN_API.md)と
+[リリースノート](docs/releases/processing.1-1.21.1.md)を確認してください。
+加工機側の対応実装が必要です。実機の完了・取消・再起動復旧は未受入です。
 今回の候補版の実機での完了・取消返却・再起動復旧には、未確認項目が残っています。
 
 AE2 Crafting Optimizer（ACO）は、Applied Energistics 2向けのNeoForge

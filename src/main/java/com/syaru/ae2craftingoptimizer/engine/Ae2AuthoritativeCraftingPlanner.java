@@ -949,7 +949,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 }
             }
             try {
-                selectedBranch = SelectedBranchPhysicalPlan.prepare(plan, snapshot.graph().patterns(),
+                selectedBranch = SelectedBranchPhysicalPlan.prepareForPhysicalExecution(plan, snapshot.graph().patterns(),
                         capture.patternGeneration(), capture.recipeGeneration(), ACOConfig.getBigIntegerMaximumBits());
                 com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator.validate(selectedBranch,
                         ACOConfig.getBigIntegerMaximumBits(), ACOConfig.getExactVectorMaximumPatternNodes(),

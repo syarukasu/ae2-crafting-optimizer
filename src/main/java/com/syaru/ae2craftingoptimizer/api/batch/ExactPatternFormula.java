@@ -43,6 +43,15 @@ public final class ExactPatternFormula {
             Level level) {
         Objects.requireNonNull(pattern, "pattern");
         Objects.requireNonNull(level, "level");
+        if (!(pattern instanceof IMolecularAssemblerSupportedPattern)) return Optional.empty();
+        return tryCreateForExecution(pattern, level);
+    }
+
+    /** Exact accounting for receipt-backed workers, including processing patterns. */
+    public static Optional<ExactPatternFormula> tryCreateForExecution(
+            IPatternDetails pattern, Level level) {
+        Objects.requireNonNull(pattern, "pattern");
+        Objects.requireNonNull(level, "level");
         List<ExactCraftingInputSlot> selected =
                 new ArrayList<>();
         // 旧呼出は単一候補slotだけを自動選択し、複数候補を先頭へ縮退させない。
@@ -68,7 +77,7 @@ public final class ExactPatternFormula {
                 return Optional.empty();
             }
         }
-        return tryCreate(
+        return tryCreateForExecution(
                 pattern,
                 level,
                 selected);
@@ -80,18 +89,21 @@ public final class ExactPatternFormula {
             List<ExactCraftingInputSlot> selectedInputs) {
         Objects.requireNonNull(pattern, "pattern");
         Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(selectedInputs, "selectedInputs");
+        if (!(pattern instanceof IMolecularAssemblerSupportedPattern)) return Optional.empty();
+        return tryCreateForExecution(pattern, level, selectedInputs);
+    }
+
+    /** Does not establish machine support; dispatch must also validate the target contract. */
+    public static Optional<ExactPatternFormula> tryCreateForExecution(
+            IPatternDetails pattern, Level level, List<ExactCraftingInputSlot> selectedInputs) {
+        Objects.requireNonNull(pattern, "pattern");
+        Objects.requireNonNull(level, "level");
         List<ExactCraftingInputSlot> selected =
                 List.copyOf(
                         Objects.requireNonNull(
                                 selectedInputs,
                                 "selectedInputs"));
-        /*
-         * AACが自前で一度組み立てられる作業台Patternだけを受理する。
-         * 加工Patternは入出力が固定でも外部機械へ実行を委譲すべきなので除外する。
-         */
-        if (!(pattern instanceof IMolecularAssemblerSupportedPattern)) {
-            return Optional.empty();
-        }
         try {
             IPatternDetails.IInput[] sourceInputs = pattern.getInputs();
             // Plannerが保存したslot数と現在Patternのslot数が違えば、世代変更として拒否する。

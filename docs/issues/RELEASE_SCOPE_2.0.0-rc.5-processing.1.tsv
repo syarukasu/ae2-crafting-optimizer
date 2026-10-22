@@ -1,0 +1,4 @@
+# release=2.0.0-rc.5-processing.1
+# baseline=2.0.0-rc.5 (2c8f919dab0bc5c0ae2adec2523dc685412cd03d)
+issue	change	automated_guarantee
+227	Add opt-in BigInteger processing requests without replacing legacy APIs	Exact request counts, processing/table routing, receipts, cancellation, codec reload and API descriptors; external machine runtime remains PENDING

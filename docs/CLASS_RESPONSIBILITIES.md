@@ -43,9 +43,9 @@ mixin + access  ->  integration  ->  optimization
 
 | クラス | 行数 | 判断 |
 |---|---:|---|
-| `PhysicalCraftingTreeTransaction` | 3806 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
+| `PhysicalCraftingTreeTransaction` | 3824 | 高。state machineと永続Codecが同居。Issue #87では数量Mapだけ分離し、Receipt/Codec分割は専用回帰試験を伴う別Issueにする。 |
 | `Ae2AuthoritativeCraftingPlanner` | 2013 | 中。採用判定と計画生成の境界を維持し、fallback条件を別クラスへ散らさない。 |
-| `CompiledRootProgram` | 1588 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
+| `CompiledRootProgram` | 1600 | 中。計算核として大きいが副作用は限定的。コンパイルと評価の分離候補。 |
 | `BigCraftingJob` | 1266 | 高。永続状態とWindow貸出を所有。NBT Codec分離はschema回帰試験と同時に行う。 |
 | `ExactNetworkStorageBridge` | 1184 | 高。実在庫境界。snapshotとmutationの分離候補だが原子性試験が先。 |
 | `TransactionalCraftingExecutorV2` | 960 | 高。所有権移転後の処理。見た目の短縮目的では分割せず、phase単位の試験を先に増やす。 |
@@ -66,6 +66,7 @@ mixin + access  ->  integration  ->  optimization
 | `com.syaru.ae2craftingoptimizer.api.contract` | 版付きpayload、revision、Receipt、正確在庫の公開連携契約。 |
 | `com.syaru.ae2craftingoptimizer.api.craftingtable` | 作業台物理Batch Workerとの公開契約。 |
 | `com.syaru.ae2craftingoptimizer.api.execution` | Exact Vector実行所有者を宣言する公開契約。 |
+| `com.syaru.ae2craftingoptimizer.api.processing` | Exact processing requests and worker receipts; no machine execution ownership. |
 | `com.syaru.ae2craftingoptimizer.api.vector` | exact数量のVector計画、保存、Storage境界API。 |
 | `com.syaru.ae2craftingoptimizer.batch` | 標準AE2 CPU側のPattern Batch照合、source Receipt、再照合。 |
 | `com.syaru.ae2craftingoptimizer.client` | BigInteger注文入力とexact数量の表示境界。 |
@@ -88,7 +89,7 @@ mixin + access  ->  integration  ->  optimization
 
 ## 全トップレベル型一覧
 
-本版の本番トップレベル型: **329件**
+本版の本番トップレベル型: **332件**
 
 ### `com.syaru.ae2craftingoptimizer`
 
@@ -126,7 +127,7 @@ mixin + access  ->  integration  ->  optimization
 
 | クラス | 仕事 |
 |---|---|
-| `com.syaru.ae2craftingoptimizer.api.batch.ExactPatternFormula` | 一意な作業台Patternを、入力slotと出力係数だけの不変式へ変換する。 |
+| `com.syaru.ae2craftingoptimizer.api.batch.ExactPatternFormula` | Validates fixed input bindings and exact output coefficients; preserves the legacy table-only entry and exposes a separate receipt-backed processing entry. |
 | `com.syaru.ae2craftingoptimizer.api.batch.PatternBatchBudget` | 一回のAdapter commitに対する不変の操作数・実時間境界。 |
 | `com.syaru.ae2craftingoptimizer.api.batch.PatternBatchContext` | PatternBatchContextが示す一回の要求に必要な入力、所有者、実行条件を保持する。 |
 
@@ -215,6 +216,13 @@ mixin + access  ->  integration  ->  optimization
 | クラス | 仕事 |
 |---|---|
 | `com.syaru.ae2craftingoptimizer.api.execution.VectorBatchExecutionOwner` | 外部クラフトエンジンが、大量の論理クラフトを一つの定数時間Batchとして処理できることをACOへ伝える。 |
+
+### `com.syaru.ae2craftingoptimizer.api.processing`
+
+| クラス | 仕事 |
+|---|---|
+| `com.syaru.ae2craftingoptimizer.api.processing.ProcessingPatternBatchRequest` | Immutable processing request; reuses exact accounting validation and preserves BigInteger totals and component keys. |
+| `com.syaru.ae2craftingoptimizer.api.processing.ProcessingPatternBatchTarget` | Opt-in processing worker contract for native recipe validation, durable acceptance and exact terminal receipts. |
 
 ### `com.syaru.ae2craftingoptimizer.api.vector`
 
@@ -346,11 +354,12 @@ mixin + access  ->  integration  ->  optimization
 
 | クラス | 仕事 |
 |---|---|
-| `com.syaru.ae2craftingoptimizer.engine.craftingtable.CraftingTableBatchTargetResolver` | ACOの汎用CraftingTableBatchTargetをAE2 Pattern Providerから解決する正本。 |
+| `com.syaru.ae2craftingoptimizer.engine.craftingtable.CraftingTableBatchTargetResolver` | Resolves provider-owned and adjacent receipt targets by pattern kind; processing opt-in does not expose old table workers to processing recipes. |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactCountMap` | 正のBigInteger数量Mapの検証、順序付き複製、包含判定、exact加算を行う副作用なし共通部品。 |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactCraftingEscrow` | 一注文が所有する境界素材、中間素材、最終成果物をBigIntegerのまま原子的に増減する。 |
 | `com.syaru.ae2craftingoptimizer.engine.craftingtable.ExactMutationReconciler` | 保存済みbefore/afterと現在値を照合し、まだ適用していないキーだけを返す。 |
-| `com.syaru.ae2craftingoptimizer.engine.craftingtable.PhysicalCraftingTreeTransaction` | 作業台ツリーの予約、Worker Receipt、取消、返却、隔離、NBT復元を所有する。実行可能な段のキューと変更世代で重複走査・会計再構築を抑える。 |
+| `com.syaru.ae2craftingoptimizer.engine.craftingtable.PhysicalCraftingTreeTransaction` | Owns exact escrow, receipts, cancellation, returns and persistence for table/processing steps. Native machine execution stays external; uncertain processing outcomes are quarantined. |
+| `com.syaru.ae2craftingoptimizer.engine.craftingtable.ProcessingPatternTargetBridge` | Internal lifecycle adapter from the existing escrow transaction to processing workers; no narrowing or independent accounting. |
 
 ### `com.syaru.ae2craftingoptimizer.engine.vector`
 
