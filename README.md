@@ -5,7 +5,7 @@ Forge 1.20.1 / Java 17 optimization and exact-count integration for Applied Ener
 ## BigInteger Processing API Prerelease
 
 `2.0.0-rc.7-beta.2-processing.1` adds an opt-in processing-worker API while
-preserving existing API signatures. See the [developer guide (Japanese / English)](docs/PROCESSING_PATTERN_API.md)
+preserving existing API signatures. See the [developer guide (Japanese)](docs/PROCESSING_PATTERN_API.md)
 and [release notes](docs/releases/processing.1-1.20.1.md).
 Install only the matching Forge 1.20.1 JAR on server and clients.
 Native machine adapters must implement the new interface. Contract tests are not
