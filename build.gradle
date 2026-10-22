@@ -191,7 +191,16 @@ dependencies {
         mekanismDependency = 'mekanism:Mekanism:1.20.1-10.4.16.80'
     }
     compileOnly fg.deobf(mekanismDependency)
+    testImplementation platform('org.junit:junit-bom:5.10.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-core:5.14.2'
 }
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+sourceSets.test.compileClasspath += sourceSets.vmNative.output
+sourceSets.test.runtimeClasspath += sourceSets.vmNative.output
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'

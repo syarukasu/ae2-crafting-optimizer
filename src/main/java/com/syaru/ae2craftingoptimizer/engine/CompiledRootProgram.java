@@ -662,6 +662,18 @@ public final class CompiledRootProgram<K> {
             BigInteger requestedAmount,
             BigInventorySnapshot<K> inventory,
             int maximumBits) {
+        return tryPlanDeterministicBig(requestedAmount, inventory, maximumBits, true);
+    }
+
+    /** Receipt-backed execution, with machine eligibility checked separately before ownership. */
+    public Optional<DeterministicCraftingBigPlan<K>> tryPlanDeterministicPhysicalBig(
+            BigInteger requestedAmount, BigInventorySnapshot<K> inventory, int maximumBits) {
+        return tryPlanDeterministicBig(requestedAmount, inventory, maximumBits, false);
+    }
+
+    private Optional<DeterministicCraftingBigPlan<K>> tryPlanDeterministicBig(
+            BigInteger requestedAmount, BigInventorySnapshot<K> inventory, int maximumBits,
+            boolean craftingTableOnly) {
         requireSnapshot(inventory);
         BigInteger request = BigCountMath.requireMaximumBits(
                 requestedAmount,
@@ -714,7 +726,7 @@ public final class CompiledRootProgram<K> {
                     missing.put(keys.get(node), deficit);
                 } else {
                     // Processing Patternは機械時間を持つため、作業台一括経路へ混入させない。
-                    if (pattern.externalPush() || pattern.outputs().size() != 1) {
+                    if ((craftingTableOnly && pattern.externalPush()) || pattern.outputs().size() != 1) {
                         return Optional.empty();
                     }
                     BigInteger executions = BigCountMath.requireMaximumBits(
@@ -756,7 +768,7 @@ public final class CompiledRootProgram<K> {
                                 executions,
                                 inventory.amounts,
                                 maximumBits,
-                                true);
+                                craftingTableOnly);
                         selectedInputs.add(new DeterministicInput<>(
                                 keys.get(inputIndices[edge]),
                                 inputAmounts[edge]));

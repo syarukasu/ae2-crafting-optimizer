@@ -491,7 +491,7 @@ public final class Ae2BigCraftingExecutionManager {
                         program.captureBigInventory(
                                 key -> state.plannedInventory().getOrDefault(key, BigInteger.ZERO),
                                 maximumBits);
-                plan = VectorBatchPlanner.prepare(
+                plan = VectorBatchPlanner.prepareForPhysicalExecution(
                         UUID.randomUUID(),
                         jobId,
                         program,
@@ -528,7 +528,7 @@ public final class Ae2BigCraftingExecutionManager {
             for (var step : plan.craftingSteps()) {
                 IPatternDetails pattern = snapshot.pattern(step.patternId());
                 if (pattern == null
-                        || ExactPatternFormula.tryCreate(
+                        || ExactPatternFormula.tryCreateForExecution(
                                         pattern,
                                         cluster.getLevel(),
                                         step.selectedInputs())

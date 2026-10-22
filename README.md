@@ -2,7 +2,16 @@
 
 Forge 1.20.1 / Java 17 optimization and exact-count integration for Applied Energistics 2.
 
-## 2.0.0-rc.7-beta.1
+## BigInteger Processing API Prerelease
+
+`2.0.0-rc.7-beta.2-processing.1` adds an opt-in processing-worker API while
+preserving existing API signatures. See the [developer guide (Japanese / English)](docs/PROCESSING_PATTERN_API.md)
+and [release notes](docs/releases/processing.1-1.20.1.md).
+Install only the matching Forge 1.20.1 JAR on server and clients.
+Native machine adapters must implement the new interface. Contract tests are not
+external machine runtime acceptance; this is not stable ACO 2.0.0.
+
+## Earlier beta.1 baseline
 
 This is an experimental Forge beta, not stable ACO 2.0.0. Install the bundled `aco2.0.0-rc.7-beta.1_1.20.1.jar` on both client and server. Do not install duplicate copies of its embedded VM modules. The crafting channel uses protocol 5; client and server must match.
 
@@ -20,7 +29,7 @@ Real production GUI interaction, industrial timing/TPS, huge physical CPU comple
 
 ## Build
 
-Requires Java 17. Check out the matching `release/2.0.0-rc.7-beta.1-public` branch of [AE2-VM-ACO](https://github.com/syarukasu/AE2-VM-ACO) beside this checkout as `vm`, then run:
+Requires Java 17. Check out commit `02bf2375ee723fb94519bb814b3975ef370b7add` of [AE2-VM-ACO](https://github.com/syarukasu/AE2-VM-ACO) beside this checkout as `vm`, then run:
 
 ```shell
 ./gradlew clean build -PacoExactVmDir=../vm/exact-engine -PacoAe2Version=15.4.11
