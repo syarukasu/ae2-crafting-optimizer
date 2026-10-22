@@ -1,11 +1,13 @@
 package com.syaru.ae2craftingoptimizer.engine.craftingtable;
 
 import appeng.api.crafting.IPatternDetails;
+import appeng.blockentity.crafting.IMolecularAssemblerSupportedPattern;
 import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.access.PatternProviderTargetAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.ProviderOwnedPatternBatchTarget;
 import com.syaru.ae2craftingoptimizer.api.craftingtable.CraftingTableBatchTarget;
+import com.syaru.ae2craftingoptimizer.api.processing.ProcessingPatternBatchTarget;
 import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -46,7 +48,7 @@ public final class CraftingTableBatchTargetResolver {
                 sawUnloadedTarget |= addLoadedOrKnownTarget(
                         targets,
                         target,
-                        level);
+                        level, pattern);
             }
             // 接続方向から解決できないProviderは、別の実装経路を持たないため除外する。
             if (!(provider instanceof PatternProviderTargetAccess access)) {
@@ -68,7 +70,7 @@ public final class CraftingTableBatchTargetResolver {
                 }
                 BlockEntity target = level.getBlockEntity(targetPosition);
                 // ACOの汎用Target契約を実装しない隣接機械は、物理Batch先にしない。
-                if (target instanceof CraftingTableBatchTarget) {
+                if (supports(target, pattern)) {
                     targets.putIfAbsent(targetPosition.asLong(), target);
                 }
             }
@@ -81,8 +83,8 @@ public final class CraftingTableBatchTargetResolver {
     private static boolean addLoadedOrKnownTarget(
             Map<Long, BlockEntity> targets,
             BlockEntity target,
-            Level level) {
-        if (!(target instanceof CraftingTableBatchTarget)) {
+            Level level, IPatternDetails pattern) {
+        if (bind(target, pattern) == null) {
             return false;
         }
         BlockPos position = target.getBlockPos();
@@ -94,8 +96,23 @@ public final class CraftingTableBatchTargetResolver {
         if (!level.isLoaded(position)) {
             return true;
         }
-        targets.putIfAbsent(position.asLong(), target);
+        if (supports(target, pattern)) targets.putIfAbsent(position.asLong(), target);
         return false;
+    }
+
+    /** Bind existing ownership without re-running mutable recipe eligibility checks. */
+    public static CraftingTableBatchTarget bind(BlockEntity target, IPatternDetails pattern) {
+        if (pattern instanceof IMolecularAssemblerSupportedPattern) {
+            return target instanceof CraftingTableBatchTarget table ? table : null;
+        }
+        return target instanceof ProcessingPatternBatchTarget processing
+                ? new ProcessingPatternTargetBridge(processing) : null;
+    }
+
+    private static boolean supports(BlockEntity target, IPatternDetails pattern) {
+        if (pattern instanceof IMolecularAssemblerSupportedPattern) return target instanceof CraftingTableBatchTarget;
+        return target instanceof ProcessingPatternBatchTarget processing
+                && processing.aco$supportsProcessingPattern(pattern);
     }
 
     public record Resolution(
@@ -116,7 +133,7 @@ public final class CraftingTableBatchTargetResolver {
             if (sawUnloadedTarget) {
                 return "waiting for a loaded crafting-table batch target";
             }
-            return "no generic CraftingTableBatchTarget is registered for the pattern";
+            return "no compatible exact batch target is registered for the pattern";
         }
     }
 }

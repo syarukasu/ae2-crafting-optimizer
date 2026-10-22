@@ -2,7 +2,15 @@
 
 Minecraft Forge 1.20.1 / Java 17向けのAE2最適化・正確数量連携MODです。
 
-## 2.0.0-rc.7-beta.1
+## BigInteger加工APIプレリリース
+
+`2.0.0-rc.7-beta.2-processing.1` で加工機向けの追加APIを用意しました。
+既存APIは維持しています。[新APIの使い方](docs/PROCESSING_PATTERN_API.md)と
+[リリースノート](docs/releases/processing.1-1.20.1.md)を確認してください。
+加工機側の対応実装が必要です。実機連携・再起動復旧は未受入で、安定版ではありません。
+導入するのはForge 1.20.1用の配布JARひとつです。内包VMの重複導入は不要です。
+
+## 以前のbeta.1の内容
 
 安定版ではなくForge向けベータです。配布JARをサーバーとクライアントの両方に入れてください。内包VMを別途重複導入しないでください。クラフト通信はprotocol 5のため両側のビルドを揃える必要があります。
 

@@ -54,6 +54,22 @@ public final class VectorBatchPlanner {
             long recipeGeneration,
             int maximumBits,
             FingerprintFactory fingerprintFactory) {
+        return prepare(transactionId, parentJobId, program, inventory, requestedAmount,
+                programFingerprint, patternGeneration, recipeGeneration, maximumBits, fingerprintFactory, false);
+    }
+
+    public static PreparedVectorBatch prepareForPhysicalExecution(UUID transactionId, UUID parentJobId,
+            CompiledRootProgram<AEKey> program, CompiledRootProgram.BigInventorySnapshot<AEKey> inventory,
+            BigInteger requestedAmount, String programFingerprint, long patternGeneration,
+            long recipeGeneration, int maximumBits) {
+        return prepare(transactionId, parentJobId, program, inventory, requestedAmount,
+                programFingerprint, patternGeneration, recipeGeneration, maximumBits, VectorPlanFingerprint::create, true);
+    }
+
+    private static PreparedVectorBatch prepare(UUID transactionId, UUID parentJobId,
+            CompiledRootProgram<AEKey> program, CompiledRootProgram.BigInventorySnapshot<AEKey> inventory,
+            BigInteger requestedAmount, String programFingerprint, long patternGeneration,
+            long recipeGeneration, int maximumBits, FingerprintFactory fingerprintFactory, boolean processing) {
         Objects.requireNonNull(program, "program");
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(requestedAmount, "requestedAmount");
@@ -62,10 +78,8 @@ public final class VectorBatchPlanner {
                 "fingerprintFactory");
 
         CompiledRootProgram.DeterministicCraftingBigPlan<AEKey> deterministic =
-                program.tryPlanDeterministicCraftingBig(
-                                requestedAmount,
-                                inventory,
-                                maximumBits)
+                (processing ? program.tryPlanDeterministicPhysicalBig(requestedAmount, inventory, maximumBits)
+                        : program.tryPlanDeterministicCraftingBig(requestedAmount, inventory, maximumBits))
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "vector plan is not a deterministic crafting DAG"));
         // 不足または実行Patternなしの計画を設備へ渡さない。

@@ -53,7 +53,7 @@ public final class VmPhysicalPlanBinding {
         var plan = new BigCraftingPlan<>(calculated.requestedKey(), calculated.requestedAmount(), executions,
                 calculated.usedInventory(), calculated.emitted(), calculated.missing(),
                 calculated.expandedRequests(), calculated.trace());
-        var physical = SelectedBranchPhysicalPlan.prepare(plan, formulas.values(),
+        var physical = SelectedBranchPhysicalPlan.prepareForPhysicalExecution(plan, formulas.values(),
                 vm.patternGeneration(), vm.recipeGeneration(), bits);
         com.syaru.ae2craftingoptimizer.engine.vector.VectorBatchPlanValidator.validate(physical, bits,
                 ACOConfig.getExactVectorMaximumPatternNodes(), ACOConfig.getExactVectorMaximumInputKeys(),
