@@ -12,7 +12,7 @@
 
 ## 加工機MODの開発者へ
 
-[新APIの使い方（日本語・English summary）](https://github.com/syarukasu/ae2-crafting-optimizer/blob/v2.0.0-rc.5-processing.1-1.21.1/docs/PROCESSING_PATTERN_API.md)
+[新APIの使い方](https://github.com/syarukasu/ae2-crafting-optimizer/blob/release/2.0.0-rc.5-1.21.1/docs/PROCESSING_PATTERN_API.md)
 
 加工機のBlockEntityで新インターフェースを実装してください。
 long用のBatch V2や、作業台用のCraftingTableBatchTargetとは別の追加APIです。

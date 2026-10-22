@@ -13,7 +13,7 @@ English | [日本語](README_ja.md)
 
 **2.0.0-rc.5-processing.1 is a developer prerelease.** It adds opt-in BigInteger
 processing requests without replacing existing APIs. See the
-[developer guide (Japanese / English)](docs/PROCESSING_PATTERN_API.md) and
+[developer guide (Japanese)](docs/PROCESSING_PATTERN_API.md) and
 [release notes](docs/releases/processing.1-1.21.1.md).
 Native machine adapters must implement the new interface. Packaged external-machine
 completion/cancellation/restart acceptance remains pending.

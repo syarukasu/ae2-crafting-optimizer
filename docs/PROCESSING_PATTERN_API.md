@@ -170,28 +170,3 @@ ACO本体の取引・数量検証・Receipt・保存Codecを通す契約テス�
 ワールド・ストレージ・加工機の境界はテスト用実装です。
 **OAE/AQE等を含む実機、同時注文、MOD間のクラッシュ復旧は未受入です。**
 このプレリリースを安定版や、未改造加工機の対応済み証明として扱わないでください。
-
-## 開発者へ送る案内文
-
-> 加工パターン向けのBigInteger依頼APIをプレリリースしました。
-> `ProcessingPatternBatchTarget` を加工機のBlockEntityに実装すると、
-> `ProcessingPatternBatchRequest` でlongを超える回数・入力総量を受け取れます。
-> 従来のBatch V2や作業台用APIとは別の追加インターフェースで、既存APIは維持しています。
-> 入力はACOが予約済みなので二重に取り出さず、加工機側で実処理した出力をReceiptで返してください。
-> 対応する加工機側の実装が必要です。実機連携はこれから一緒に確認する段階です。
-
-## English summary
-
-This is an additive, opt-in BigInteger processing-worker API, not an automatic
-conversion of existing machines or a long Batch V2 extension. Implement
-`api.processing.ProcessingPatternBatchTarget` on a loaded provider-owned or
-adjacent BlockEntity. ACO dispatches an immutable `ProcessingPatternBatchRequest`.
-Keep execution counts and aggregate quantities exact. The native machine owns
-recipe validation, catalysts, energy and real work; ACO owns escrow and output
-accounting. Never debit inputs twice or deliver receipt outputs independently.
-Persist identity and counts, make lifecycle operations idempotent, retain exact
-completed receipts through acknowledgement, and confirm full safe rollback
-before cancellation. Unknown accepted outcomes are quarantined, never refunded
-or redispatched speculatively. Existing APIs and schemas remain unchanged.
-Contract verification is not packaged external-machine or cross-mod crash
-recovery acceptance. Use the platform-specific prerelease and read the bounds above.
