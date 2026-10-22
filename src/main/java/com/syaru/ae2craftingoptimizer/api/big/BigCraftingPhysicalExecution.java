@@ -102,7 +102,7 @@ public final class BigCraftingPhysicalExecution {
             }
             var inventory = program.captureBigInventory(
                     key -> state.plannedInventory().getOrDefault(key, BigInteger.ZERO), bits);
-            prepared = VectorBatchPlanner.prepare(UUID.randomUUID(), jobId,
+            prepared = VectorBatchPlanner.prepareForPhysicalExecution(UUID.randomUUID(), jobId,
                     program, inventory, state.requestedAmount(), state.programFingerprint(),
                     ProviderPatternGenerationTracker.generation(), graph.recipeGeneration(), bits);
         }
@@ -118,7 +118,7 @@ public final class BigCraftingPhysicalExecution {
         for (var step : prepared.craftingSteps()) {
             var pattern = graph.pattern(step.patternId());
             // 未ロードまたは非対応の段階は、素材を移す前に拒否する。
-            if (pattern == null || ExactPatternFormula.tryCreate(pattern, level, step.selectedInputs()).isEmpty()
+            if (pattern == null || ExactPatternFormula.tryCreateForExecution(pattern, level, step.selectedInputs()).isEmpty()
                     || !CraftingTableBatchTargetResolver.resolve(service, pattern, level).ready()) {
                 throw new IllegalArgumentException("no loaded receipt-backed worker for " + step.patternId());
             }

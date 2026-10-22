@@ -13,6 +13,7 @@ import appeng.blockentity.crafting.IMolecularAssemblerSupportedPattern;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.ProviderOwnedPatternBatchTarget;
 import com.syaru.ae2craftingoptimizer.api.craftingtable.*;
+import com.syaru.ae2craftingoptimizer.api.processing.*;
 import com.syaru.ae2craftingoptimizer.api.vector.*;
 import com.syaru.ae2craftingoptimizer.engine.*;
 import com.syaru.ae2craftingoptimizer.engine.craftingtable.PhysicalCraftingTreeTransaction;
@@ -249,6 +250,7 @@ class PhysicalCraftingLifecycleTest {
         final BigInteger amount;
         final Map<AEKey, BigInteger> stock = new LinkedHashMap<>();
         final Map<UUID, CraftingTableBatchRequest> jobs = new LinkedHashMap<>();
+        final List<ProcessingPatternBatchRequest> processingRequests = new ArrayList<>();
         final Set<UUID> acknowledged = new HashSet<>();
         final IGrid grid = mock(IGrid.class);
         final Level level = mock(Level.class);
@@ -256,27 +258,37 @@ class PhysicalCraftingLifecycleTest {
         final Ae2CompiledCraftingGraphCache.Snapshot graph = mock(Ae2CompiledCraftingGraphCache.Snapshot.class);
         final MockedStatic<ExactVectorStorageService> storage = mockStatic(ExactVectorStorageService.class);
         PhysicalCraftingTreeTransaction transaction;
+        BlockEntity block;
+        CraftingService service;
+        boolean supportsProcessing = true;
         boolean loaded = true, ready = true, foreignId, foreignDigest, changedOutputs, staleRunning;
         boolean denyAcknowledgement, corruptOnAcknowledgement;
         int accepts, acknowledgements, mutations, ticks, forgotten;
 
         Fixture(BigInteger amount) {
+            this(amount, false);
+        }
+
+        Fixture(BigInteger amount, boolean processing) {
             this.amount = amount;
             stock.put(RAW, amount);
             stock.put(OTHER, amount);
             var patterns = List.of(pattern("a", Map.of(RAW, 1L), Map.of(PART, 1L, EXTRA, 2L)),
                     pattern("b", Map.of(OTHER, 1L), Map.of(PART, 1L)),
                     pattern("root", Map.of(PART, 2L, EXTRA, 2L), Map.of(OUT, 1L)));
+            if (processing) patterns = patterns.stream().map(p -> new CompiledPattern<>(p.id(), p.inputs(),
+                    p.outputs(), !p.id().equals("root"))).toList();
             var compiled = CompiledCraftingGraph.compile(1, patterns);
             when(graph.graph()).thenReturn(compiled);
             when(graph.recipeGeneration()).thenReturn(1L);
             var exact = new BigCraftingPlan<>(OUT, amount, Map.of("a", amount, "b", amount, "root", amount),
                     Map.copyOf(stock), Map.of(), Map.of(), 3);
-            var plan = SelectedBranchPhysicalPlan.prepare(exact, patterns, 1, 1,
+            var plan = SelectedBranchPhysicalPlan.prepareForPhysicalExecution(exact, patterns, 1, 1,
                     com.syaru.ae2craftingoptimizer.config.ACOConfig.getBigIntegerMaximumBits());
-            var service = mock(CraftingService.class);
+            service = mock(CraftingService.class);
             when(grid.getCraftingService()).thenReturn(service);
-            var block = mock(BlockEntity.class, withSettings().extraInterfaces(CraftingTableBatchTarget.class));
+            block = mock(BlockEntity.class, withSettings().extraInterfaces(CraftingTableBatchTarget.class,
+                    ProcessingPatternBatchTarget.class));
             var worker = (CraftingTableBatchTarget) block;
             when(block.getLevel()).thenReturn(level);
             when(block.getBlockPos()).thenReturn(BlockPos.ZERO);
@@ -285,7 +297,8 @@ class PhysicalCraftingLifecycleTest {
             var provider = mock(ICraftingProvider.class, withSettings().extraInterfaces(ProviderOwnedPatternBatchTarget.class));
             when(((ProviderOwnedPatternBatchTarget) provider).aco$getProviderOwnedBatchTarget()).thenReturn(block);
             for (var p : patterns) {
-                var detail = mock(IMolecularAssemblerSupportedPattern.class);
+                IPatternDetails detail = p.externalPush() ? mock(IPatternDetails.class)
+                        : mock(IMolecularAssemblerSupportedPattern.class);
                 when(detail.getDefinition()).thenReturn(AEItemKey.of(switch (p.id()) {
                     case "a" -> Items.PAPER;
                     case "b" -> Items.BOOK;
@@ -343,6 +356,26 @@ class PhysicalCraftingLifecycleTest {
                 jobs.remove(i.getArgument(0));
                 return true;
             });
+            var processor = (ProcessingPatternBatchTarget) block;
+            when(processor.aco$supportsProcessingPattern(any())).thenAnswer(i -> supportsProcessing);
+            when(processor.aco$acceptProcessingPatternBatch(any())).thenAnswer(i -> {
+                ProcessingPatternBatchRequest r = i.getArgument(0);
+                processingRequests.add(r);
+                return worker.aco$acceptCraftingTableBatch(new CraftingTableBatchRequest(r.transactionId(),
+                        r.ownerTransactionId(), r.craftingJobId(), r.payloadDigest(), r.stageIndex(),
+                        CraftingTableBatchMode.BIG_INTEGER_JOB, r.pattern(), r.executions(), r.inputsPerExecution(),
+                        r.aggregateSlotInputs(), r.outputsPerExecution(), r.remainingPerExecution(), r.aggregateExpectedOutputs()));
+            });
+            when(processor.aco$ownsProcessingPatternBatch(any(), anyString())).thenAnswer(i ->
+                    worker.aco$ownsCraftingTableBatch(i.getArgument(0), i.getArgument(1)));
+            when(processor.aco$processingPatternBatchSnapshot(any(), anyString())).thenAnswer(i ->
+                    worker.aco$craftingTableBatchSnapshot(i.getArgument(0), i.getArgument(1)));
+            when(processor.aco$acknowledgeProcessingPatternBatch(any(), anyString())).thenAnswer(i ->
+                    worker.aco$acknowledgeCraftingTableBatch(i.getArgument(0), i.getArgument(1)));
+            when(processor.aco$forgetProcessingPatternBatch(any(), anyString())).thenAnswer(i ->
+                    worker.aco$forgetCraftingTableBatch(i.getArgument(0), i.getArgument(1)));
+            when(processor.aco$cancelProcessingPatternBatch(any(), anyString())).thenAnswer(i ->
+                    worker.aco$cancelCraftingTableBatch(i.getArgument(0), i.getArgument(1)));
             storage.when(() -> ExactVectorStorageService.exactStoredAmounts(eq(grid), anySet())).thenAnswer(i -> {
                 Map<AEKey, BigInteger> result = new LinkedHashMap<>();
                 for (AEKey k : i.<Set<AEKey>>getArgument(1)) result.put(k, stock.getOrDefault(k, BigInteger.ZERO));

@@ -25,6 +25,13 @@
 
 ## 2.0.0開発版の再発記録
 
+- [Issue #227](issues/ISSUE-227.md) / BigInteger processing requests:
+  Table-only formula, plan-building and routing gates rejected processing work.
+  Keep legacy entry points table-only; opt-in processing targets use a separate
+  request boundary and the existing exact escrow. Never narrow aggregate counts
+  or refund/redispatch an accepted processing job merely because its receipt is
+  missing. Local candidate only; external machine runtime acceptance is pending.
+
 - [Issue #207](issues/ISSUE-207.md), 2026-09-21 / ordinary repeat planning:
   Remove quantity-only barriers to proven repeat batching for both craftable and
   missing plans. A failed nested non-transactional block must propagate its read

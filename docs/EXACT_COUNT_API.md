@@ -3,6 +3,11 @@
 ACO exposes the `com.syaru.ae2craftingoptimizer.api.contract` package as the only boundary that
 future AQE and AAC integrations should use for exact-count data.
 
+For machine execution of processing patterns, see
+[Processing Pattern API](PROCESSING_PATTERN_API.md). That additive worker API
+reuses the existing exact escrow/receipt lifecycle; it does not replace these
+quantity codecs, the CPU API, or the crafting-table API.
+
 ## One finite contract
 
 `ExactCountLimits.defaults()` is the shared boundary:

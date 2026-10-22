@@ -35,6 +35,19 @@ public final class SelectedBranchPhysicalPlan {
     public static PreparedVectorBatch prepare(BigCraftingPlan<AEKey> exact,
             Collection<CompiledPattern<AEKey>> candidates, long patternGeneration,
             long recipeGeneration, int maximumBits) {
+        return prepare(exact, candidates, patternGeneration, recipeGeneration, maximumBits, false);
+    }
+
+    /** Processing is admitted only after live receipt-target preflight, before any stock ownership. */
+    public static PreparedVectorBatch prepareForPhysicalExecution(BigCraftingPlan<AEKey> exact,
+            Collection<CompiledPattern<AEKey>> candidates, long patternGeneration,
+            long recipeGeneration, int maximumBits) {
+        return prepare(exact, candidates, patternGeneration, recipeGeneration, maximumBits, true);
+    }
+
+    private static PreparedVectorBatch prepare(BigCraftingPlan<AEKey> exact,
+            Collection<CompiledPattern<AEKey>> candidates, long patternGeneration,
+            long recipeGeneration, int maximumBits, boolean processing) {
         if (!exact.craftable() || !exact.emitted().isEmpty() || exact.requestedAmount().signum() <= 0) {
             throw new IllegalArgumentException("selected physical branch is missing or relies on emitted stock");
         }
@@ -53,8 +66,9 @@ public final class SelectedBranchPhysicalPlan {
         Map<String, Set<String>> successors = new HashMap<>();
         Map<String, Integer> indegree = new HashMap<>();
         for (var pattern : selected.values()) {
-            if (pattern.externalPush() || pattern.inputs().isEmpty() || pattern.inputs().size() > 9) {
-                throw new IllegalArgumentException("selected branch requires a receipt-backed crafting-table pattern");
+            if ((!processing && pattern.externalPush()) || pattern.inputs().isEmpty()
+                    || pattern.inputs().size() > 9) {
+                throw new IllegalArgumentException("selected branch requires a supported receipt-backed pattern with 1..9 inputs");
             }
             List<ExactCraftingInputSlot> inputs = new ArrayList<>();
             for (var slot : pattern.inputs()) {
@@ -172,7 +186,7 @@ public final class SelectedBranchPhysicalPlan {
         for (var step : plan.craftingSteps()) {
             var pattern = patterns.apply(step.patternId());
             if (pattern == null) throw new IllegalArgumentException("selected pattern is no longer available: " + step.patternId());
-            var formula = ExactPatternFormula.tryCreate(pattern, level, step.selectedInputs()).orElseThrow(
+            var formula = ExactPatternFormula.tryCreateForExecution(pattern, level, step.selectedInputs()).orElseThrow(
                     () -> new IllegalArgumentException("selected pattern has no exact physical formula: " + step.patternId()));
             for (var input : formula.exactInputTotals(step.executions()).entrySet()) {
                 stock.put(input.getKey(), checked(stock.getOrDefault(input.getKey(), BigInteger.ZERO)

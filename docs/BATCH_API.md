@@ -1,6 +1,8 @@
 # Transactional Pattern Batch V2
 
-ACO exposes one machine-batch contract: `api.batch.v2`.
+This document describes the signed-`long` machine-batch contract: `api.batch.v2`.
+For BigInteger processing requests use [PROCESSING_PATTERN_API.md](PROCESSING_PATTERN_API.md).
+The contracts are separate; V2 is not a fallback for an owned BigInteger request.
 
 Issue #164 removed Pattern Batch V1, its sequential adapter, and ACO's built-in
 GTCEu/Mekanism adapters. A removed V1 symbol or configuration key is not a

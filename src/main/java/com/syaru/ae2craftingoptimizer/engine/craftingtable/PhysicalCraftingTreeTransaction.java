@@ -1014,8 +1014,10 @@ public final class PhysicalCraftingTreeTransaction {
             return StepAdvance.waiting();
         }
         // AAC設備が撤去・置換された場合は、正確な保存状態から数量非依存で復旧する。
-        if (!(targetEntity
-                instanceof CraftingTableBatchTarget target)) {
+        CraftingTableBatchTarget target = CraftingTableBatchTargetResolver.bind(targetEntity, resolved.pattern());
+        if (target == null) {
+            // Issue #227: disappearance is not proof that a processing machine did no work.
+            if (isProcessing(resolved)) return StepAdvance.quarantined("processing target disappeared; outcome is unknown");
             return recoverRemovedTarget(
                     resolved,
                     receipt);
@@ -1068,6 +1070,7 @@ public final class PhysicalCraftingTreeTransaction {
                             "waiting for a crafting-table batch snapshot";
                     return StepAdvance.waiting();
                 }
+                if (isProcessing(resolved)) return StepAdvance.quarantined("processing target lost its accepted receipt");
                 receipt.retryAnotherTarget();
                 detail =
                         "crafting-table batch target was released before output";
@@ -1384,8 +1387,12 @@ public final class PhysicalCraftingTreeTransaction {
                 continue;
             }
             // 物理Target消失時は、代表仕事が外部へ実アイテムを出していない契約で復旧する。
-            if (!(targetEntity
-                    instanceof CraftingTableBatchTarget target)) {
+            CraftingTableBatchTarget target = CraftingTableBatchTargetResolver.bind(targetEntity, resolved.pattern());
+            if (target == null) {
+                if (isProcessing(resolved)) {
+                    quarantine("processing target disappeared during cancellation; outcome is unknown");
+                    return TickOutcome.quarantined(detail);
+                }
                 StepAdvance recovery =
                         recoverRemovedTargetForCancellation(
                                 resolved,
@@ -1446,6 +1453,10 @@ public final class PhysicalCraftingTreeTransaction {
                 }
                 // 所有を失った未完成仕事は、予約入力だけを正確に戻す。
                 if (physical.isEmpty()) {
+                    if (isProcessing(resolved)) {
+                        quarantine("processing target lost its accepted receipt during cancellation");
+                        return TickOutcome.quarantined(detail);
+                    }
                     restoreReservedInputsAndCancel(
                             receipt);
                     changed++;
@@ -1547,10 +1558,13 @@ public final class PhysicalCraftingTreeTransaction {
                             receipt.payloadDigest());
             // 取消成功または既に所有消失なら、未完成出力を捨てて予約入力だけを戻す。
             if (cancelled
-                    || !stillOwned) {
+                    || (!stillOwned && !isProcessing(resolved))) {
                 restoreReservedInputsAndCancel(
                         receipt);
                 changed++;
+            } else if (!stillOwned && isProcessing(resolved)) {
+                quarantine("processing cancellation lost ownership without a confirmed rollback");
+                return TickOutcome.quarantined(detail);
             }
             } catch (PatternUnavailableException unavailable) {
                 // Keep other polled steps reachable when one provider is unloaded.
@@ -2096,7 +2110,7 @@ public final class PhysicalCraftingTreeTransaction {
                             + step.patternId());
         }
         ExactPatternFormula formula =
-                ExactPatternFormula.tryCreate(
+                ExactPatternFormula.tryCreateForExecution(
                                 pattern,
                                 level,
                                 step.selectedInputs())
@@ -2278,7 +2292,7 @@ public final class PhysicalCraftingTreeTransaction {
                     ordered.get(
                             index);
             // Target契約はtargets作成時に検査済みなので、安全に所有権を照会できる。
-            if (((CraftingTableBatchTarget) candidate)
+            if (CraftingTableBatchTargetResolver.bind(candidate, pattern)
                     .aco$ownsCraftingTableBatch(
                             transactionId,
                             payloadDigest)) {
@@ -2595,7 +2609,7 @@ public final class PhysicalCraftingTreeTransaction {
                 throw new PatternUnavailableException(
                         "physical crafting pattern is temporarily unavailable: " + step.patternId());
             }
-            ExactPatternFormula formula = ExactPatternFormula.tryCreate(
+            ExactPatternFormula formula = ExactPatternFormula.tryCreateForExecution(
                             pattern,
                             level,
                             step.selectedInputs())
@@ -3600,6 +3614,10 @@ public final class PhysicalCraftingTreeTransaction {
         private PatternIdentityConflictException(String message) {
             super(message);
         }
+    }
+
+    private static boolean isProcessing(ResolvedStep resolved) {
+        return !(resolved.pattern() instanceof appeng.blockentity.crafting.IMolecularAssemblerSupportedPattern);
     }
 
     private record ResolvedStep(
