@@ -85,11 +85,9 @@ public final class ExactPatternFormula {
                         Objects.requireNonNull(
                                 selectedInputs,
                                 "selectedInputs"));
-        /*
-         * AACが自前で一度組み立てられる作業台Patternだけを受理する。
-         * 加工Patternは入出力が固定でも外部機械へ実行を委譲すべきなので除外する。
-         */
-        if (!(pattern instanceof IMolecularAssemblerSupportedPattern)) {
+        // #227: formula description is not permission to execute; target eligibility is checked separately.
+        if (!(pattern instanceof IMolecularAssemblerSupportedPattern)
+                && pattern.getClass() != appeng.crafting.pattern.AEProcessingPattern.class) {
             return Optional.empty();
         }
         try {

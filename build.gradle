@@ -57,6 +57,8 @@ neoForge {
     addModdingDependenciesTo sourceSets.test
     addModdingDependenciesTo sourceSets.vmNative
     addModdingDependenciesTo sourceSets.vmLegacyFixture
+    addModdingDependenciesTo sourceSets.vmNative
+    addModdingDependenciesTo sourceSets.vmLegacyFixture
 }
 
 configurations {

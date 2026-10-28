@@ -33,8 +33,9 @@
     "TaskProgressTransactionAccessMixin"
   ],
   "client": [
+    "AEBaseScreenCraftingTitleMixin",
+    "NumberEntryWidgetCraftAmountTooltipMixin",
     "CraftAmountScreenLongAmountMixin",
-    "CraftConfirmScreenBigIntegerMixin",
     "CraftConfirmTableRendererBigIntegerMixin",
     "NumberEntryWidgetAccessor"
   ],

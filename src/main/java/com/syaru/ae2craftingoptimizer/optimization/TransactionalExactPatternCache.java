@@ -4,12 +4,13 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import appeng.blockentity.crafting.IMolecularAssemblerSupportedPattern;
+import appeng.crafting.pattern.AEProcessingPattern;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * V2作業台Batchで注文間に共有できる、Patternの静的metadataだけを世代管理する。
+ * V2 Batchで注文間に共有できる、Patternの静的metadataだけを世代管理する。
  * 在庫、候補の有効性、返却物、Provider状態は動的なので、このCacheへ入れない。
  */
 public final class TransactionalExactPatternCache {
@@ -77,8 +78,9 @@ public final class TransactionalExactPatternCache {
     }
 
     private static Compilation compile(IPatternDetails details) {
-        // 現行V2 Executorが所有するのは作業台Patternだけであり、加工PatternはAE2へ残す。
-        if (!(details instanceof IMolecularAssemblerSupportedPattern)) {
+        // Issue #227: known processing metadata is eligible; only an opt-in adapter can own work.
+        if (!(details instanceof IMolecularAssemblerSupportedPattern)
+                && (details == null || details.getClass() != AEProcessingPattern.class)) {
             return Compilation.unsupported();
         }
 

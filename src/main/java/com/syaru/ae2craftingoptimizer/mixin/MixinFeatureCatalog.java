@@ -65,7 +65,8 @@ public final class MixinFeatureCatalog {
             entry("StorageServiceCraftingPlanGenerationMixin", OptimizationFeature.PLANNING_REVISION_TRACKING),
             entry("TaskProgressTransactionAccessMixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
             entry("CraftAmountScreenLongAmountMixin", OptimizationFeature.LONG_ROOT_AMOUNTS),
-            entry("CraftConfirmScreenBigIntegerMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
+            entry("AEBaseScreenCraftingTitleMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
+            entry("NumberEntryWidgetCraftAmountTooltipMixin", OptimizationFeature.LONG_ROOT_AMOUNTS),
             entry("CraftConfirmTableRendererBigIntegerMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
             entry("NumberEntryWidgetAccessor", OptimizationFeature.LONG_ROOT_AMOUNTS));
 

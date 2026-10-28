@@ -1,10 +1,25 @@
 // #218: compile the pinned refs.8 calculation sources against this platform.
 def fork = file(findProperty('acoVmForkDir') ?: '../../references/AE2-VM-aco-exact')
+// #236: platform host stays pinned; explicit development builds share the Forge arithmetic core.
+def core = findProperty('acoVmCoreDir') ? file(property('acoVmCoreDir')) : fork
 def exactDir = new File(fork, 'exact-engine')
 def exactVersion = '0.1.6'
-def nativeVersion = '0.3.12-vm-refs.8-neoforge'
+def nativeVersion = findProperty('acoNativeVmVersion') ?: '0.3.46'
 def exactJar = new File(exactDir, "build/libs/aco-exact-vm-${exactVersion}.jar")
 def vmCommit = '5b57a00e283d355a47ee5276ba528b2dcf7d07db'
+
+def coreSourceFiles = files(fileTree(new File(core, 'src/main/java')) {
+    include 'com/ae2vm/addon/compiler/*.java', 'com/ae2vm/addon/vm/*.java'
+})
+def coreSourceManifest = {
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    def lines = coreSourceFiles.files.sort { it.path }.collect { source ->
+        def hash = digest.digest(source.getText('UTF-8').replace('\r\n', '\n')
+                .getBytes('UTF-8')).encodeHex().toString()
+        "${hash}  ${core.toPath().relativize(source.toPath()).toString().replace('\\', '/')}"
+    }
+    "host=${vmCommit}\n" + lines.join('\n') + '\n'
+}
 tasks.register('verifyVmSource') {
     doLast {
         def out = new ByteArrayOutputStream()
@@ -13,6 +28,14 @@ tasks.register('verifyVmSource') {
         out.reset()
         exec { workingDir fork; commandLine 'git', 'status', '--porcelain', '--untracked-files=no'; standardOutput = out }
         if (!out.toString('UTF-8').isBlank()) throw new GradleException('VM tracked sources are dirty')
+        if (core != fork && (!project.version.toString().contains('local') || !nativeVersion.toString().contains('local'))) {
+            // #218: a release uses an approved source pin, never a bypass or older math.
+            def pin = file("gradle/release-vm-core/${project.version}.sha256")
+            def actual = java.security.MessageDigest.getInstance('SHA-256')
+                    .digest(coreSourceManifest().getBytes('UTF-8')).encodeHex().toString()
+            if (!pin.isFile() || pin.getText('UTF-8').trim() != actual)
+                throw new GradleException('A non-local VM core requires a matching version-specific release source pin')
+        }
     }
 }
 tasks.register('buildExactVm', GradleBuild) {
@@ -25,7 +48,7 @@ def generatedVm = layout.buildDirectory.dir('generated/sources/refs8Vm')
 tasks.register('prepareVmSources', Sync) {
     inputs.file 'gradle/vm-bundle.gradle'
     from(new File(fork, 'native-engine/src/main/java'))
-    from(new File(fork, 'src/main/java'))
+    from(new File(core, 'src/main/java'))
     include 'com/ae2vm/addon/nativeengine/**', 'com/ae2vm/addon/compiler/PatternCompiler.java',
         'com/ae2vm/addon/compiler/IFiniteUseInput.java', 'com/ae2vm/addon/vm/CraftingBytecode.java',
         'com/ae2vm/addon/vm/Opcode.java', 'com/ae2vm/addon/vm/CraftingVM.java', 'com/ae2vm/addon/vm/Vm*.java'
@@ -33,6 +56,79 @@ tasks.register('prepareVmSources', Sync) {
     into generatedVm
     // AE2 19 uses lists for output/sparse slots; preserve the VM's private arrays.
     filter { String line ->
+        // #236: opt in only after native capture; leave lazy callbacks and pinned release builds ordered.
+        if (line.contains('private boolean catalogPrepared;'))
+            line += '\n    private boolean orderAllocation = true;\n    void setOrderAllocation(boolean enabled) { orderAllocation = enabled; }'
+        if (core != fork && line.contains('vm.setAllPatternsResolver(this::candidates);'))
+            line += '\n                vm.setOrderAllocation(orderAllocation && catalogPrepared && preparationFailures.isEmpty());'
+        if (core != fork && line.contains('vm.setAllPatternsResolver(key -> List.copyOf(snapshot.producers.getOrDefault(key, List.of())));'))
+            line += '\n            vm.setOrderAllocation(true);'
+        if (core != fork && line.contains('public boolean mayConsumeOutput(AEKey key) {'))
+            line = '''        public AEKey[] returnFamilyUpperBound() {
+            prepare();
+            if (exact != null) return new AEKey[0];
+            // #236: retain the pinned host, exposing only its certified closed-domain data.
+            if (!catalogPrepared || !preparationFailures.isEmpty() || !failures.isEmpty()) return null;
+            if (!returnBoundResolved) {
+                immutableReturnBound = immutableReturnFamilyBound(); returnBoundResolved = true;
+            }
+            if (immutableReturnBound != null) return immutableReturnBound;
+            if (!candidateDomainClosed) return null;
+            return remainders.values().stream().filter(java.util.Objects::nonNull).toArray(AEKey[]::new);
+        }
+        private boolean returnBoundResolved;
+        private AEKey[] immutableReturnBound;
+        private AEKey[] immutableReturnFamilyBound() {
+            if (metadata.rule() == null) return null;
+            var bound = new java.util.LinkedHashSet<AEKey>();
+            var keys = new java.util.LinkedHashSet<AEKey>(); keys.add(crafted);
+            for (var template : templates) keys.add(template.what());
+            for (var key : keys) {
+                var returned = metadata.rule().returnFamilyUpperBound(key);
+                if (returned == null) return null;
+                java.util.Collections.addAll(bound, returned);
+            }
+            return bound.toArray(AEKey[]::new);
+        }
+''' + line
+        if (core != fork && line.contains('boolean covers(AEKey key) {'))
+            line = '''    AEKey[] returnFamilyUpperBound(AEKey key) {
+        var decision = evaluate(key);
+        if (decision == null) return null;
+        return !decision.accepted() || decision.remainder() == null
+                ? new AEKey[0] : new AEKey[]{decision.remainder()};
+    }
+''' + line
+        if (core != fork && line.contains('vm.setProgressListener(progress);'))
+            line = '''            vm.setProgressListener(work -> {
+                timing.planningPath(vm.planningStatus());
+                timing.executionProgress(vm.stateCopies(), vm.branchTrials(), vm.branchEntries(), vm.aggregatedBlocks());
+                progress.accept(work);
+            });'''
+        if (core != fork && line.contains('timing.execution(vm.stateCopies(), vm.branchTrials(), vm.branchEntries(), vm.aggregatedBlocks());'))
+            line = '                    timing.planningPath(vm.planningStatus());\n' + line
+        if (core != fork && line.contains('private long copies, branchTrials, branchEntries, aggregatedBlocks;'))
+            line += '''
+    private long liveCopies, liveTrials, liveEntries, liveBlocks;
+    private boolean progressMeasured, executionMeasured;
+    private String planningPath = "not-started";
+    synchronized void planningPath(String path) {
+        planningPath = path.replace('\\n', '_').replace('\\r', '_').replace(' ', '_');
+        if (planningPath.length() > 240) planningPath = planningPath.substring(0, 240);
+    }
+    synchronized void executionProgress(long copies, long trials, long entries, long blocks) {
+        liveCopies = copies; liveTrials = trials; liveEntries = entries; liveBlocks = blocks;
+        progressMeasured = true;
+    }
+'''
+        if (core != fork && line.contains('this.aggregatedBlocks += aggregatedBlocks;'))
+            line += '\n        liveCopies = liveTrials = liveEntries = liveBlocks = 0;\n        executionMeasured = true; progressMeasured = false;'
+        if (core != fork && line.contains('return "stockMs="')) line += '\n                + " plannerPath=" + planningPath'
+        if (core != fork) line = line
+            .replace('" stateCopies=" + copies + " branchTrials=" + branchTrials',
+                    '" stateCopies=" + (executionMeasured || progressMeasured ? copies + liveCopies : -1) + " branchTrials=" + (executionMeasured || progressMeasured ? branchTrials + liveTrials : -1)')
+            .replace('" branchEntries=" + branchEntries + " aggregatedBlocks=" + aggregatedBlocks',
+                    '" branchEntries=" + (executionMeasured || progressMeasured ? branchEntries + liveEntries : -1) + " aggregatedBlocks=" + (executionMeasured || progressMeasured ? aggregatedBlocks + liveBlocks : -1)')
         line.replace('pattern.getSparseInputs();', 'pattern.getSparseInputs().toArray(GenericStack[]::new);')
             .replace('ingredient.getClass() != Ingredient.class', 'ingredient.getClass() != Ingredient.class || ingredient.isCustom()')
             .replace('GenericStack[]::new);', 'appeng.api.stacks.GenericStack[]::new);')
@@ -41,12 +137,56 @@ tasks.register('prepareVmSources', Sync) {
                      'public java.util.List<GenericStack> getOutputs() { return java.util.List.of(skeleton.outputs()); }')
             .replace('GenericStack[] outputs = pattern.getOutputs();', 'GenericStack[] outputs = pattern.getOutputs().toArray(GenericStack[]::new);')
             .replace('pattern.getOutputs().length', 'pattern.getOutputs().size()')
+            .replace('first.getOutputs().length', 'first.getOutputs().size()')
+            .replace('source.getOutputs().length', 'source.getOutputs().size()')
+            .replace('outputs.length == 0 || scale', 'outputs.isEmpty() || scale')
             .replace('if (source == null) return new VmAccounting.Stock(Map.of(), true, java.util.Set.of());', '')
             .replace('return owner.requestStock(grid, source, config != null && config.isCraftingSimulatedExtraction());',
                      'return source == null ? owner.exactStock(grid) : owner.requestStock(grid, source, false);')
             // AE2 19 NetworkCraftingSimulationState uses the cached inventory directly.
             .replace('config != null && config.isCraftingSimulatedExtraction()', 'false')
     }
+}
+
+tasks.register('vmSourceFingerprint') {
+    dependsOn 'verifyVmSource'
+    inputs.files coreSourceFiles
+    def target = layout.buildDirectory.file('vm-fingerprint/META-INF/aco-vm-core.sha256')
+    outputs.file target
+    doLast {
+        target.get().asFile.parentFile.mkdirs()
+        target.get().asFile.setText(coreSourceManifest(), 'UTF-8')
+    }
+}
+
+if (findProperty('acoVmTestDir')) {
+    tasks.register('prepareSharedVmTests', Sync) {
+        inputs.file 'gradle/vm-bundle.gradle'
+        from(file(project.property('acoVmTestDir')))
+        include 'com/ae2vm/addon/vm/VmBatchProgramTest.java', 'com/ae2vm/addon/vm/VmFormulaProgramTest.java'
+        include 'com/ae2vm/addon/vm/VmSavedPatternGraphTest.java'
+        include 'com/ae2vm/addon/vm/VmRegisteredCatalogReplayTest.java'
+        include 'com/ae2vm/addon/vm/VmMissingProgramTest.java'
+        include 'com/ae2vm/addon/vm/VmOrderAllocationTest.java'
+        include 'com/ae2vm/addon/vm/VmInputFactsTest.java'
+        include 'com/ae2vm/addon/vm/VmSupplyCutTest.java'
+        include 'com/ae2vm/addon/vm/VmSupplyUpperBoundTest.java'
+        include 'com/ae2vm/addon/vm/VmSupplyPotentialTest.java'
+        include 'com/ae2vm/addon/vm/VmSharedDemandTest.java'
+        include 'com/ae2vm/addon/vm/VmByteCostTest.java'
+        into layout.buildDirectory.dir('generated/sources/sharedVmTests')
+        filter { String line -> line.replace('.getOutputs()).thenReturn(outputs);',
+                '.getOutputs()).thenReturn(java.util.List.of(outputs));')
+                .replace('public GenericStack[] getOutputs() { return outputs; }',
+                        'public java.util.List<GenericStack> getOutputs() { return java.util.List.of(outputs); }')
+                .replace('public net.minecraft.nbt.CompoundTag toTag()',
+                        'public net.minecraft.nbt.CompoundTag toTag(net.minecraft.core.HolderLookup.Provider registries)')
+                .replace('writeToPacket(net.minecraft.network.FriendlyByteBuf buffer)',
+                        'writeToPacket(net.minecraft.network.RegistryFriendlyByteBuf buffer)')
+                .replace('.setHoverName(', '.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, ') }
+    }
+    sourceSets.test.java.srcDir layout.buildDirectory.dir('generated/sources/sharedVmTests')
+    tasks.named('compileTestJava') { dependsOn 'prepareSharedVmTests' }
 }
 sourceSets {
     vmNative {
@@ -81,11 +221,20 @@ dependencies {
 }
 tasks.named('compileVmNativeJava') { dependsOn 'buildExactVm', 'prepareVmSources' }
 tasks.register('vmNativeJar', Jar) {
+    dependsOn 'vmSourceFingerprint'
     from sourceSets.vmNative.output
+    from layout.buildDirectory.dir('vm-fingerprint')
     from(fork) { include 'LICENSE'; into 'META-INF' }
     archiveFileName = "aco-vm-native-${nativeVersion}.jar"
     destinationDirectory = layout.buildDirectory.dir('vm-libs')
     manifest { attributes 'MixinConfigs': 'ae2vm-aco-native.mixins.json' }
+}
+
+tasks.named('processVmNativeResources') {
+    inputs.property 'nativeVersion', nativeVersion
+    filesMatching('META-INF/neoforge.mods.toml') {
+        filter { String line -> line.replace('0.3.12-vm-refs.8-neoforge', nativeVersion.toString()) }
+    }
 }
 tasks.register('vmNativeSourcesJar', Jar) {
     dependsOn 'prepareVmSources'
