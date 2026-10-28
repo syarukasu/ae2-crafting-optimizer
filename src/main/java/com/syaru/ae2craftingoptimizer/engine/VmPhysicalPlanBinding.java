@@ -47,7 +47,14 @@ public final class VmPhysicalPlanBinding {
             String id = captured.fingerprint();
             executions.merge(id, entry.getValue(), BigInteger::add);
             bindings.putIfAbsent(id, entry.getKey());
-            formulas.putIfAbsent(id, captured.compile(id));
+            var formula = captured.compile(id);
+            if (entry.getKey().getClass() == appeng.crafting.pattern.AEProcessingPattern.class) {
+                // #227: only native fixed processing formulas enter the receipt-backed physical tree.
+                if (com.syaru.ae2craftingoptimizer.api.batch.ExactPatternFormula.tryCreate(entry.getKey(), level).isEmpty())
+                    throw new IllegalArgumentException("native processing formula is not fixed");
+                formula = new CompiledPattern<>(formula.id(), formula.inputs(), formula.outputs(), false);
+            }
+            formulas.putIfAbsent(id, formula);
         }
         var calculated = vm.exactPlan();
         var plan = new BigCraftingPlan<>(calculated.requestedKey(), calculated.requestedAmount(), executions,

@@ -68,6 +68,7 @@ public final class MixinFeatureCatalog {
             entry("CraftAmountScreenLongAmountMixin", OptimizationFeature.LONG_ROOT_AMOUNTS),
             entry("NumberEntryWidgetExactCraftAmountMixin", OptimizationFeature.LONG_ROOT_AMOUNTS),
             entry("CraftConfirmScreenBigIntegerMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
+            entry("AEBaseScreenCraftingTitleMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
             entry("CraftConfirmTableRendererBigIntegerMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
             entry("NumberEntryWidgetAccessor", OptimizationFeature.LONG_ROOT_AMOUNTS));
 

@@ -5,6 +5,7 @@ import appeng.client.gui.widgets.ConfirmableTextField;
 import appeng.client.gui.widgets.NumberEntryWidget;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftAmountWidgetAccess;
 import com.syaru.ae2craftingoptimizer.client.LongCraftAmountClientParser;
+import com.syaru.ae2craftingoptimizer.client.BigAmountFormatter;
 import com.syaru.ae2craftingoptimizer.craftingamount.CraftAmountExpression;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -87,8 +88,9 @@ public abstract class NumberEntryWidgetExactCraftAmountMixin implements ExactCra
         var amount = this.aco$getExactCraftAmount();
         this.textField.setTextColor(amount.isPresent() ? this.normalTextColor : this.errorTextColor);
         this.textField.setTooltipMessage(java.util.List.of(amount.<Component>map(value ->
-                Component.literal("= " + this.decimalFormat.format(
-                        new BigDecimal(value).divide(BigDecimal.valueOf(this.type.amountPerUnit())))))
+                BigAmountFormatter.formatAmountTooltip(
+                        new BigDecimal(value).divide(BigDecimal.valueOf(this.type.amountPerUnit())),
+                        this.decimalFormat))
                 .orElseGet(() -> appeng.core.localization.GuiText.InvalidNumber.text())));
         ci.cancel();
     }

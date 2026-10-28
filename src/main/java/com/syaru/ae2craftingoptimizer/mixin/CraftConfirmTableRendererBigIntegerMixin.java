@@ -37,6 +37,8 @@ public abstract class CraftConfirmTableRendererBigIntegerMixin {
         BigCraftingPlanClientStore.entry(key).ifPresent(entry -> {
             List<Component> tooltip = new ArrayList<>(AEKeyRendering.getTooltip(key));
             tooltip.addAll(aco$description(key, entry, AmountFormat.FULL));
+            tooltip.add(Component.translatable("aco.tooltip.copy_exact")
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
             cir.setReturnValue(tooltip);
         });
     }
@@ -67,7 +69,16 @@ public abstract class CraftConfirmTableRendererBigIntegerMixin {
             BigInteger amount,
             AmountFormat format) {
         if (amount.signum() > 0) {
-            target.add(label.text(BigAmountFormatter.format(key, amount, format)));
+            if (format == AmountFormat.FULL) {
+                Component value = Component.literal(BigAmountFormatter.formatTooltip(key, amount));
+                if (BigAmountFormatter.abbreviatesTooltip(amount)) {
+                    value = Component.translatable("aco.tooltip.large_amount", value,
+                            amount.toString().length());
+                }
+                target.add(label.text(value));
+            } else {
+                target.add(label.text(BigAmountFormatter.format(key, amount, format)));
+            }
         }
     }
 }

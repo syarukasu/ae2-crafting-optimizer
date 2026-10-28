@@ -60,6 +60,7 @@
     "ExtendedAePlusInfinityDataStorageConsistencyMixin"
   ],
   "client": [
+    "AEBaseScreenCraftingTitleMixin",
     "CraftAmountScreenLongAmountMixin",
     "CraftConfirmScreenBigIntegerMixin",
     "CraftConfirmTableRendererBigIntegerMixin",

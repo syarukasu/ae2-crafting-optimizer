@@ -9,6 +9,10 @@ import java.util.UUID;
  * <p>ACOはレシピ計画と数量会計だけを行い、電力・物理進捗・Worker選択はTargetへ委譲する。</p>
  */
 public interface CraftingTableBatchTarget {
+    /** #227: native processing targets opt in; existing workers remain assembler-only. */
+    default boolean aco$supportsExactPattern(appeng.api.crafting.IPatternDetails pattern) {
+        return pattern instanceof appeng.blockentity.crafting.IMolecularAssemblerSupportedPattern;
+    }
     /** Requestを永続Receipt付きの物理仕事として受理する。 */
     boolean aco$acceptCraftingTableBatch(
             CraftingTableBatchRequest request);

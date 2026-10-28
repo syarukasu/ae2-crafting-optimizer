@@ -207,7 +207,7 @@ public final class TransactionalCraftingExecutorV2 {
                         || !compiledLookup.isCurrent()) {
                     compiledLookup = TransactionalExactPatternCache.compileUncached(details);
                 }
-                // 加工Patternなど静的にV2対象外のTaskは、fingerprint生成前にAE2へ残す。
+                // Unknown Pattern metadata stays outside V2 before fingerprint generation.
                 if (compiledLookup.state() != TransactionalExactPatternCache.State.SUPPORTED) {
                     continue;
                 }
