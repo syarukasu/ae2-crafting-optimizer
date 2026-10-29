@@ -30,7 +30,8 @@ public enum OptimizationFeature {
     RECIPE_INTENT_BRIDGE("recipe-intent-bridge", OptimizationDomain.OPTIONAL_INTEGRATION, OptimizationRisk.MEDIUM, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_MUTATION, Set.of(51, 74)),
     CIRCUIT_CUTTER_RECIPE_CACHE("circuit-cutter-recipe-cache", OptimizationDomain.OPTIONAL_INTEGRATION, OptimizationRisk.MEDIUM, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_MUTATION, Set.of(51, 74)),
     ADDON_MACHINE_CACHE("addon-machine-cache", OptimizationDomain.OPTIONAL_INTEGRATION, OptimizationRisk.MEDIUM, StateOwnership.ACO_CACHE, FallbackBoundary.BEFORE_MUTATION, Set.of(51, 74)),
-    APPLIED_E_COMPATIBILITY("applied-e-compatibility", OptimizationDomain.OPTIONAL_INTEGRATION, OptimizationRisk.MEDIUM, StateOwnership.EXTERNAL_ADDON, FallbackBoundary.BEFORE_OWNERSHIP, Set.of(51, 103));
+    APPLIED_E_COMPATIBILITY("applied-e-compatibility", OptimizationDomain.OPTIONAL_INTEGRATION, OptimizationRisk.MEDIUM, StateOwnership.EXTERNAL_ADDON, FallbackBoundary.BEFORE_OWNERSHIP, Set.of(51, 103)),
+    COUNTED_PROCESSING_TRANSFER("counted-processing-transfer", OptimizationDomain.CRAFTING_EXECUTION, OptimizationRisk.HIGH, StateOwnership.EXTERNAL_ADDON, FallbackBoundary.NEVER_AFTER_OWNERSHIP, Set.of(161, 242));
 
     private final String id;
     private final OptimizationDomain domain;
