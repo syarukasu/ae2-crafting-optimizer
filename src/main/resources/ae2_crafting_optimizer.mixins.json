@@ -5,6 +5,10 @@
   "plugin": "com.syaru.ae2craftingoptimizer.mixin.CoreMixinConfigPlugin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "PatternProviderLogicCountedTargetMixin",
+    "CraftingCpuLogicCountedTransferMixin",
+    "GTBufferCountedTargetMixin",
+    "GTBufferCountedSlotMixin",
     "AbstractMonitorPartDisplaySaturationMixin",
     "Ae2BigCapacityPlanSubmissionMixin",
     "Ae2ExactCraftingLogicMixin",
