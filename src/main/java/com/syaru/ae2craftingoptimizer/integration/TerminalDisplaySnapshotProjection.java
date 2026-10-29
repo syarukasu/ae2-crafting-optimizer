@@ -5,6 +5,7 @@ import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.MEStorage;
 import com.syaru.ae2craftingoptimizer.access.NetworkStorageMountsAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.engine.BigKeyCounterSidecars;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -61,6 +62,8 @@ public final class TerminalDisplaySnapshotProjection {
         }
 
         KeyCounter displaySnapshot = new KeyCounter();
+        BigKeyCounterSidecars.Accumulator exact = new BigKeyCounterSidecars.Accumulator();
+        boolean collected = false;
         NavigableMap<Integer, List<MEStorage>> priorityInventory =
                 mountsAccess.aco$getPriorityInventory();
         // NetworkStorage本来の優先順に全mountを一度だけ列挙し、キーごとに飽和加算する。
@@ -70,9 +73,14 @@ public final class TerminalDisplaySnapshotProjection {
                 BigIntegerStorageSnapshotBridge.collect(
                         mountedStorage,
                         displaySnapshot,
-                        true);
+                        exact);
+                collected = true;
             }
         }
-        return displaySnapshot;
+        if (!collected) {
+            return displaySnapshot;
+        }
+        // Issue #239: freeze once onto the captured facade; do not copy or add it again.
+        return exact.publishTo(displaySnapshot);
     }
 }
