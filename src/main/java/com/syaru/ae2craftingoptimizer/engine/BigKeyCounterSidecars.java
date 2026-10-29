@@ -212,6 +212,21 @@ public final class BigKeyCounterSidecars {
         public Snapshot snapshot() {
             return new Snapshot(amounts, complete, exactKeys);
         }
+
+        /** Freeze one capture onto its existing facade without copying or re-adding its counts. */
+        public KeyCounter publishTo(KeyCounter facade) {
+            Objects.requireNonNull(facade, "facade");
+            Snapshot frozen = snapshot();
+            synchronized (SIDECARS) {
+                removeCollectedCounters();
+                // Issue #239: publication is not a merge and must never replace another capture.
+                if (SIDECARS.containsKey(new IdentityWeakReference(facade))) {
+                    throw new IllegalStateException("snapshot facade already has an exact sidecar");
+                }
+                SIDECARS.put(new IdentityWeakReference(facade, COLLECTED_COUNTERS), frozen);
+            }
+            return facade;
+        }
     }
 
     /** 一回の在庫集計に対応する不変BigInteger Map。 */
