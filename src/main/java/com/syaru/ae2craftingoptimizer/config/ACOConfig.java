@@ -526,6 +526,10 @@ public final class ACOConfig {
     public static boolean profilerEnabled() { return PROFILER_ENABLED.get(); }
     public static boolean profilerDetailedEnabled() { return profilerEnabled() && PROFILER_DETAILED_ENABLED.get(); }
 
+    public static boolean enableCountedProcessingTransfers() {
+        return OptimizationFeatureGate.allows(OptimizationFeature.COUNTED_PROCESSING_TRANSFER, true);
+    }
+
     public static boolean enableOptimizer() {
         return ENABLE_OPTIMIZER.get();
     }
