@@ -500,6 +500,10 @@ public final class ACOConfig {
                 "ae2_crafting_optimizer-common.toml");
     }
 
+    public static boolean enableCountedProcessingTransfers() {
+        return OptimizationFeatureGate.allows(OptimizationFeature.COUNTED_PROCESSING_TRANSFER, true);
+    }
+
     public static boolean enableOptimizer() {
         return ENABLE_OPTIMIZER.get();
     }
