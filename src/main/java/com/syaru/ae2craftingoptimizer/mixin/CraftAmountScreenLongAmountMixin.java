@@ -60,6 +60,8 @@ public abstract class CraftAmountScreenLongAmountMixin {
             return;
         }
         this.amountToCraft.setMaxValue(Long.MAX_VALUE);
+        ((com.syaru.ae2craftingoptimizer.client.CraftAmountTooltipAccess) this.amountToCraft)
+                .aco$enableCompactCraftTooltip();
         ((NumberEntryWidgetAccess) (Object) this.amountToCraft)
                 .aco$getTextField()
                 .setMaxLength(ACO_LONG_INPUT_MAXIMUM_CHARACTERS);

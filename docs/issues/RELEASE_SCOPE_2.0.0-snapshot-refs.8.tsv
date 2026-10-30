@@ -1,6 +1,0 @@
-# release=2.0.0-snapshot-refs.8
-# baseline=NeoForge rc.5 / Forge f93adc1 refs.8
-issue	change	automated_guarantee
-218	Port authoritative Forge refs.8 to NeoForge 1.21.1	VM arithmetic, AE2 19 stock rules, public ABI and bundled artifact checks; live acceptance PENDING
-179	Port Recipe Intent targets to current Mekanism and GTCEu signatures	Hint matching retains native fallback and no processing-time bypass
-209	Use native VM planning diagnostics	Legacy diagnostic mixins excluded; live console acceptance PENDING

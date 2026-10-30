@@ -1,3 +1,4 @@
 {
-  "mod.ae2_crafting_optimizer": "AE2クラフト軽量化"
+  "mod.ae2_crafting_optimizer": "AE2クラフト軽量化",
+  "aco.tooltip.large_amount": "%s（%s桁）"
 }

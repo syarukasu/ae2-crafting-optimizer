@@ -59,10 +59,7 @@ public final class PlanningExactInventorySnapshot {
         if (visited.isEmpty()) {
             return facade;
         }
-        // Issue #156: 空Counterへ正本を一度だけ付けてから表示値を移す。二重加算しない。
-        KeyCounter result = new KeyCounter();
-        BigKeyCounterSidecars.merge(result, exact.snapshot());
-        result.addAll(facade);
-        return result;
+        // Issue #239: retain the captured facade and publish its exact snapshot once.
+        return exact.publishTo(facade);
     }
 }

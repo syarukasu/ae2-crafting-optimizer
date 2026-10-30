@@ -1,60 +1,44 @@
-# AE2 Crafting Optimizer
+# AE2 Crafting Optimizer 2.0.2
 
-English | [日本語](README_ja.md)
+2.0.2 fixes counted GT pattern-buffer delivery for sparse and repeated input
+slots. Material withdrawn from the CPU now reaches the buffer in full.
+Repeated capability queries, shared-buffer totals and grid-owner list
+construction are reduced without changing native CPU grants, receiver limits,
+energy consumption or BigInteger accounting.
 
-## 2.0.0 Snapshot refs.8
+Updating prevents further loss; it does not reconstruct inputs missing from
+previously affected orders. Existing affected orders need separate recovery.
 
-**Alpha snapshot, not a stable release.** This NeoForge 1.21.1 branch ports the
-Forge 1.20.1 refs.8 behavior at `f93adc1`. [Release notes and reproduction instructions](docs/releases/2.0.0-snapshot-refs.8.md).
+NeoForge 1.21.1 / Java 21. Install the matching platform JAR on both sides.
+This branch uses the updated shared BigInteger planning core with AE2 19 adapters.
+AE2 and external CPUs retain execution, power, inventory and recovery ownership.
 
-ACO is a crafting-planning and integration mod for AE2 industrial networks.
+- Prepared whole-order/shared-material allocation and finite-tool arithmetic.
+- Exact plan capacity headings, preserving optional-mod decorations and styles.
+- Bounded evaluated-amount tooltips without changing native input validation.
+- Version-specific source verification for the shared arithmetic core.
 
-- The bundled VM fork calculates plans with BigInteger quantities throughout.
-- Plans use order-local inventory and pattern observations. Supported shared demands are aggregated.
-- Public BigInteger API and exact accounting remain compatible with supported consumers.
-- AE2 19 stock acquisition is preserved: player requests refresh storage; requester orders use cached stock.
-- Ordinary AE2 and Pattern Provider dispatch have no ACO throughput throttle. External CPUs retain their capacity and execution ownership.
-- Recipe Intent supports selected GTCEu and Mekanism item-machine lookups without bypassing machine processing time, power or validation.
-- Optional Advanced AE, ExtendedAE and AE2 Overclock caches remain version-dependent.
-- VM diagnostics include `/aco vm recent`.
+The GUI fix does not newly port Forge's exact-expression request protocol.
+Shared arithmetic alone does not establish complete feature parity. Fifteen
+focused presentation/contract checks and the bundle audit pass. No new NeoForge
+client/server was launched; physical giant-order completion and runtime tool
+parity remain unverified. Forge timings are not NeoForge benchmarks.
 
-## Installation
+## Build
 
-Minecraft 1.21.1, NeoForge 21.1.247+, Java 21 and AE2 19.2.17 (19.x).
-Install the same bundled ACO build on server and clients. The VM is included;
-do not install a second upstream VM. Back up worlds before testing snapshots.
+Check out [AE2-VM-ACO](https://github.com/syarukasu/AE2-VM-ACO) twice: its
+`release/aco-2.0.0` branch as `vm-core`, and commit
+`5b57a00e283d355a47ee5276ba528b2dcf7d07db` as `vm-host`. Keep the host checkout clean.
+Supply the compile-only dependency directory described in `build.gradle`, then
+run with Java 21:
 
-Only install `build/distributions/2.0.0-snapshot-refs.8/aco2.0.0-snapshot-refs.8_1.21.1.jar`.
-The `NOT-FOR-INSTALLATION` intermediate lacks the bundled VM. Forge 1.20.1 artifacts
-cannot be used on NeoForge.
+```shell
+./gradlew bundleVm verifyVmBundle -PacoVmForkDir=../vm-host -PacoVmCoreDir=../vm-core -PacoLocalModsDir=/path/to/mods
+```
 
-Config: `config/ae2_crafting_optimizer-common.toml`.
+Install only `build/distributions/2.0.2/aco2.0.2_1.21.1.jar`, not intermediates
+or duplicate embedded VM modules. This branch publishes source/assets, build
+settings, README and licenses only. Binaries/checksums belong in Releases;
+tests, logs, profiles and worlds stay out of the source publication.
 
-## Acceptance Boundary
-
-Compilation, headless quantity tests and binary compatibility are not live acceptance.
-Client/server startup, industrial false-shortage reproduction, wide physical completion,
-cancellation/refunds, restart recovery, simultaneous orders and sub-10-second planning
-remain unverified on this port. No production deployment or restart was performed.
-
-The source Forge branch's CI run [37429047093](https://github.com/syarukasu/ae2-crafting-optimizer/actions/runs/37429047093)
-failed `ae2.aco_vm_ae2_lifecycle` and `ae2.aco_vm_substitution_queries`.
-This port does not claim those failures are resolved.
-
-BigInteger planning does not automatically enlarge normal AE2 CPUs. Physical execution
-requires a compatible consumer; planning never manufactures outputs or bypasses receipts.
-
-## Development
-
-- [Project charter](docs/PROJECT_CHARTER.md)
-- [Class responsibilities](docs/CLASS_RESPONSIBILITIES.md)
-- [Issue #218 port scope](docs/issues/ISSUE-218.md)
-- [Regression matrix](docs/issues/REGRESSION_MATRIX.tsv)
-- [Current public description](docs/CURSEFORGE_DESCRIPTION.md)
-- [Pinned build workflow](.github/workflows/build.yml)
-
-VM source: [syarukasu/AE2-VM-ACO](https://github.com/syarukasu/AE2-VM-ACO),
-commit `5b57a00e283d355a47ee5276ba528b2dcf7d07db`. Build only its `exact-engine`
-subproject; this repository compiles the native VM with NeoForge adapters.
-
-License: [LGPL-3.0-only](LICENSE). Both bundled VM source archives accompany the distribution.
+LGPL-3.0-only; see LICENSE and NOTICE.md. [日本語](README_ja.md)
