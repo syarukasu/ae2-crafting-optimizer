@@ -1,4 +1,13 @@
-# AE2 Crafting Optimizer 2.0.0
+# AE2 Crafting Optimizer 2.0.2
+
+2.0.2 fixes counted GT pattern-buffer delivery for sparse and repeated input
+slots. Material withdrawn from the CPU now reaches the buffer in full.
+Repeated capability queries, shared-buffer totals and grid-owner list
+construction are reduced without changing native CPU grants, receiver limits,
+energy consumption or BigInteger accounting.
+
+Updating prevents further loss; it does not reconstruct inputs missing from
+previously affected orders. Existing affected orders need separate recovery.
 
 NeoForge 1.21.1 / Java 21. Install the matching platform JAR on both sides.
 This branch uses the updated shared BigInteger planning core with AE2 19 adapters.
@@ -27,7 +36,7 @@ run with Java 21:
 ./gradlew bundleVm verifyVmBundle -PacoVmForkDir=../vm-host -PacoVmCoreDir=../vm-core -PacoLocalModsDir=/path/to/mods
 ```
 
-Install only `build/distributions/2.0.0/aco2.0.0_1.21.1.jar`, not intermediates
+Install only `build/distributions/2.0.2/aco2.0.2_1.21.1.jar`, not intermediates
 or duplicate embedded VM modules. This branch publishes source/assets, build
 settings, README and licenses only. Binaries/checksums belong in Releases;
 tests, logs, profiles and worlds stay out of the source publication.
