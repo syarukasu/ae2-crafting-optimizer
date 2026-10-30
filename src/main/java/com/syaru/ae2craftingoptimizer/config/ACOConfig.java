@@ -500,6 +500,11 @@ public final class ACOConfig {
                 "ae2_crafting_optimizer-common.toml");
     }
 
+    public static boolean enableNativeExecutionQueries() {
+        return SPEC.isLoaded()
+                && OptimizationFeatureGate.allows(OptimizationFeature.NATIVE_EXECUTION_QUERIES, true);
+    }
+
     public static boolean enableCountedProcessingTransfers() {
         return SPEC.isLoaded()
                 && OptimizationFeatureGate.allows(OptimizationFeature.COUNTED_PROCESSING_TRANSFER, true);
