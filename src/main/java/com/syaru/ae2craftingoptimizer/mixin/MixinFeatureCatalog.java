@@ -12,6 +12,8 @@ import java.util.Optional;
  */
 public final class MixinFeatureCatalog {
     private static final Map<String, OptimizationFeature> FEATURES = Map.ofEntries(
+            entry("CraftingPatternExecutionRemainderMixin", OptimizationFeature.NATIVE_EXECUTION_QUERIES),
+            entry("CraftingCpuHelperExecutionMixin", OptimizationFeature.NATIVE_EXECUTION_QUERIES),
             entry("PatternProviderLogicCountedTargetMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
             entry("PatternProviderTargetQueryMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
             entry("PatternProviderTargetQueryCacheMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
