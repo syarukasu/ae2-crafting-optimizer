@@ -12,6 +12,18 @@ import java.util.Optional;
  */
 public final class MixinFeatureCatalog {
     private static final Map<String, OptimizationFeature> FEATURES = Map.ofEntries(
+            entry("CraftingPatternExecutionRemainderMixin", OptimizationFeature.NATIVE_EXECUTION_QUERIES),
+            entry("CraftingCpuHelperExecutionMixin", OptimizationFeature.NATIVE_EXECUTION_QUERIES),
+            entry("PatternProviderLogicCountedTargetMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("PatternProviderTargetQueryMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("PatternProviderTargetQueryCacheMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("KeyCounterExecutionIndexMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("GridMachineLookupMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("GTBufferItemTotalMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("GTBufferFluidTotalMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("CraftingCpuLogicCountedTransferMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("GTBufferCountedTargetMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("GTBufferCountedSlotMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
             entry("AbstractMonitorPartDisplaySaturationMixin", OptimizationFeature.EXACT_INVENTORY_SNAPSHOT),
             entry("AdvancedAePatternProviderIntentCaptureMixin", OptimizationFeature.RECIPE_INTENT_BRIDGE),
             entry("AdvancedAePatternProviderLogicTargetAccessMixin", OptimizationFeature.TRANSACTIONAL_BATCHING),
@@ -68,6 +80,7 @@ public final class MixinFeatureCatalog {
             entry("CraftAmountScreenLongAmountMixin", OptimizationFeature.LONG_ROOT_AMOUNTS),
             entry("NumberEntryWidgetExactCraftAmountMixin", OptimizationFeature.LONG_ROOT_AMOUNTS),
             entry("CraftConfirmScreenBigIntegerMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
+            entry("AEBaseScreenCraftingTitleMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
             entry("CraftConfirmTableRendererBigIntegerMixin", OptimizationFeature.BIG_INTEGER_BACKEND),
             entry("NumberEntryWidgetAccessor", OptimizationFeature.LONG_ROOT_AMOUNTS));
 

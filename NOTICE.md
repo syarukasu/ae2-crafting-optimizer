@@ -1,5 +1,16 @@
 # Notices and Design References
 
+## Applied Enhancements (#232)
+
+Exact division identity paths and, in the Forge VM bundle, validated ordered
+output grouping are adapted from Applied Enhancements by HibikiShino.
+Source: https://github.com/AyaYumi/AppliedEnhancements
+Reference commit: d33c5f3e5573e10048bb82c8021403151d2d62bf.
+Referenced classes: AelisBigIntegerMath and AelisPatternOutputs.
+Adaptations keep ACO's BigInteger quantities and existing execution ownership;
+Applied Enhancements is not a runtime dependency. The original MIT terms are
+included in META-INF/LICENSE-AppliedEnhancements.txt.
+
 AE2 Crafting Optimizer (ACO)
 
 Copyright (c) 2026 syaru

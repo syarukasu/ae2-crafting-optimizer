@@ -15,6 +15,8 @@ import com.syaru.ae2craftingoptimizer.access.CraftingLogicTransactionAccess;
 import com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.integration.ExactSubmissionScope;
+import com.syaru.ae2craftingoptimizer.integration.CapacityOnlySubmission;
+import com.syaru.ae2craftingoptimizer.engine.BigCapacityCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingPlanSidecars;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerCraftingPlan;
 import com.syaru.ae2craftingoptimizer.engine.ExactPlanPatternRevalidator;
@@ -148,6 +150,31 @@ public abstract class Ae2BigCapacityPlanSubmissionMixin {
             ICraftingPlan plan,
             IActionSource source,
             ICraftingRequester requester) {
+        if (Ae2CraftingPlanSidecars.metadata(plan).orElse(null) instanceof BigCapacityCraftingPlan capacityPlan) {
+            ICraftingPlan facade;
+            try {
+                var validation = capacityPlan.validateForSubmission(grid);
+                if (!validation.valid()) {
+                    AE2CraftingOptimizer.LOGGER.warn("Capacity-only plan is stale: {}", validation.detail());
+                    return CraftingSubmitResult.INCOMPLETE_PLAN;
+                }
+                var cluster = (CraftingCPUCluster) (Object) this;
+                var capacity = CapacityOnlySubmission.availableCapacity(cluster, cluster.getAvailableStorage());
+                if (capacityPlan.exactBytes().compareTo(capacity) > 0) {
+                    return CraftingSubmitResult.CPU_TOO_SMALL;
+                }
+                facade = CapacityOnlySubmission.executionPlan(capacityPlan, capacity);
+            } catch (IllegalArgumentException | IllegalStateException failure) {
+                AE2CraftingOptimizer.LOGGER.warn("Capacity-only plan rejected before input transfer: {}", failure.getMessage());
+                return CraftingSubmitResult.INCOMPLETE_PLAN;
+            }
+            try {
+                ExactSubmissionScope.enter(facade);
+                return logic.trySubmitJob(grid, facade, source, requester);
+            } finally {
+                ExactSubmissionScope.exit();
+            }
+        }
         SubmissionAttempt attempt = ACO_SUBMISSION.get();
         if (attempt == null
                 || attempt.cluster() != this

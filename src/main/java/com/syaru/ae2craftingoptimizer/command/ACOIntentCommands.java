@@ -3,6 +3,10 @@ package com.syaru.ae2craftingoptimizer.command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
+import com.syaru.ae2craftingoptimizer.diagnostics.RuntimePlanCommands;
 import com.syaru.ae2craftingoptimizer.diagnostics.ProfilerBenchmarkCommands;
 import com.syaru.ae2craftingoptimizer.diagnostics.ProfilerBridge;
 import com.syaru.ae2craftingoptimizer.diagnostics.network.ProfilerNetwork;
@@ -27,6 +31,16 @@ public final class ACOIntentCommands {
                 .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("profiler")
                         .executes(context -> ProfilerNetwork.open(context.getSource()))
+                        .then(Commands.literal("runtime")
+                                .then(Commands.literal("status").executes(context -> RuntimePlanCommands.status(context.getSource())))
+                                .then(Commands.literal("cancel").executes(context -> RuntimePlanCommands.cancel(context.getSource())))
+                                .then(Commands.literal("near")
+                                        .then(Commands.argument("origin", BlockPosArgument.blockPos())
+                                                .then(Commands.argument("item", ResourceLocationArgument.id())
+                                                        .then(Commands.argument("amount", StringArgumentType.word())
+                                                                .executes(context -> RuntimePlanCommands.start(context.getSource(),
+                                                                        BlockPosArgument.getBlockPos(context, "origin"),
+                                                                        ResourceLocationArgument.getId(context, "item"), StringArgumentType.getString(context, "amount"))))))))
                         .then(Commands.literal("capture")
                                 .executes(context -> ProfilerBenchmarkCommands.capture(context.getSource()))
                                 .then(Commands.literal("recent")

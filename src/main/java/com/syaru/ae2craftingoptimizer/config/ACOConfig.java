@@ -526,6 +526,16 @@ public final class ACOConfig {
     public static boolean profilerEnabled() { return PROFILER_ENABLED.get(); }
     public static boolean profilerDetailedEnabled() { return profilerEnabled() && PROFILER_DETAILED_ENABLED.get(); }
 
+    public static boolean enableNativeExecutionQueries() {
+        return SPEC.isLoaded()
+                && OptimizationFeatureGate.allows(OptimizationFeature.NATIVE_EXECUTION_QUERIES, true);
+    }
+
+    public static boolean enableCountedProcessingTransfers() {
+        return SPEC.isLoaded()
+                && OptimizationFeatureGate.allows(OptimizationFeature.COUNTED_PROCESSING_TRANSFER, true);
+    }
+
     public static boolean enableOptimizer() {
         return ENABLE_OPTIMIZER.get();
     }

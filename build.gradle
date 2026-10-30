@@ -10,7 +10,7 @@ def exactVmProjectDir = file(findProperty('acoExactVmDir')
         ?: '../vm/exact-engine')
 def exactVmVersion = '0.1.6'
 def nativeVmProjectDir = new File(exactVmProjectDir.parentFile, 'native-engine')
-def nativeVmVersion = '0.3.13-profiler.1'
+def nativeVmVersion = '0.3.46-logpaths.1-local'
 def exactVmJar = new File(exactVmProjectDir, "build/libs/aco-exact-vm-${exactVmVersion}.jar")
 def exactVmSourcesJar = new File(exactVmProjectDir, "build/libs/aco-exact-vm-${exactVmVersion}-sources.jar")
 tasks.register('buildExactVm', GradleBuild) {

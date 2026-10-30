@@ -95,6 +95,7 @@ public final class ACOServerLifecycle {
     }
 
     private static void onServerStopping(ServerStoppingEvent event) {
+        com.syaru.ae2craftingoptimizer.diagnostics.RuntimePlanCommands.clear(event.getServer());
         // Issue #179: Serverが処理しなくなる保留taskを取消し、workerを待たせたまま残さない。
         com.syaru.ae2craftingoptimizer.engine.PlanningServerTasks.stop(event.getServer());
         // 診断を要求された時だけ停止直前の集計値を出力する。

@@ -5,6 +5,18 @@
   "package": "com.syaru.ae2craftingoptimizer.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
+    "CraftingPatternExecutionRemainderMixin",
+    "CraftingCpuHelperExecutionMixin",
+    "PatternProviderLogicCountedTargetMixin",
+    "PatternProviderTargetQueryMixin",
+    "PatternProviderTargetQueryCacheMixin",
+    "KeyCounterExecutionIndexMixin",
+    "GridMachineLookupMixin",
+    "GTBufferItemTotalMixin",
+    "GTBufferFluidTotalMixin",
+    "CraftingCpuLogicCountedTransferMixin",
+    "GTBufferCountedTargetMixin",
+    "GTBufferCountedSlotMixin",
     "AbstractMonitorPartDisplaySaturationMixin",
     "AdvancedAePatternProviderIntentCaptureMixin",
     "AdvancedAePatternProviderLogicTargetAccessMixin",
@@ -60,6 +72,7 @@
     "ExtendedAePlusInfinityDataStorageConsistencyMixin"
   ],
   "client": [
+    "AEBaseScreenCraftingTitleMixin",
     "CraftAmountScreenLongAmountMixin",
     "CraftConfirmScreenBigIntegerMixin",
     "CraftConfirmTableRendererBigIntegerMixin",

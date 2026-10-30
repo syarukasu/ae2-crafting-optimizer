@@ -46,7 +46,7 @@ public final class CraftingTableBatchTargetResolver {
                 sawUnloadedTarget |= addLoadedOrKnownTarget(
                         targets,
                         target,
-                        level);
+                        level, pattern);
             }
             // 接続方向から解決できないProviderは、別の実装経路を持たないため除外する。
             if (!(provider instanceof PatternProviderTargetAccess access)) {
@@ -68,7 +68,7 @@ public final class CraftingTableBatchTargetResolver {
                 }
                 BlockEntity target = level.getBlockEntity(targetPosition);
                 // ACOの汎用Target契約を実装しない隣接機械は、物理Batch先にしない。
-                if (target instanceof CraftingTableBatchTarget) {
+                if (target instanceof CraftingTableBatchTarget exact && exact.aco$supportsExactPattern(pattern)) {
                     targets.putIfAbsent(targetPosition.asLong(), target);
                 }
             }
@@ -81,8 +81,8 @@ public final class CraftingTableBatchTargetResolver {
     private static boolean addLoadedOrKnownTarget(
             Map<Long, BlockEntity> targets,
             BlockEntity target,
-            Level level) {
-        if (!(target instanceof CraftingTableBatchTarget)) {
+            Level level, IPatternDetails pattern) {
+        if (!(target instanceof CraftingTableBatchTarget exact) || !exact.aco$supportsExactPattern(pattern)) {
             return false;
         }
         BlockPos position = target.getBlockPos();

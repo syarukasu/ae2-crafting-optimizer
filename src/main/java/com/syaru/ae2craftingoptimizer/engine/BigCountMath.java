@@ -84,6 +84,9 @@ public final class BigCountMath {
         if (divisor.signum() <= 0) {
             throw new IllegalArgumentException("divisor must be positive at " + context);
         }
+        // #232: Applied Enhancements-inspired exact identity paths; no long projection.
+        if (dividend.signum() == 0 || divisor.equals(BigInteger.ONE)) return dividend;
+        if (dividend.compareTo(divisor) <= 0) return BigInteger.ONE;
         BigInteger[] division = dividend.divideAndRemainder(divisor);
         return division[1].signum() == 0 ? division[0] : division[0].add(BigInteger.ONE);
     }
