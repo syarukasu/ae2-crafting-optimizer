@@ -6,6 +6,12 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "PatternProviderLogicCountedTargetMixin",
+    "PatternProviderTargetQueryMixin",
+    "PatternProviderTargetQueryCacheMixin",
+    "KeyCounterExecutionIndexMixin",
+    "GridMachineLookupMixin",
+    "GTBufferItemTotalMixin",
+    "GTBufferFluidTotalMixin",
     "CraftingCpuLogicCountedTransferMixin",
     "GTBufferCountedTargetMixin",
     "GTBufferCountedSlotMixin",

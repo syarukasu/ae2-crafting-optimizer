@@ -12,6 +12,7 @@ import appeng.crafting.inv.ICraftingInventory;
 import net.minecraft.world.level.Level;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.optimization.CountedInputPreview;
+import com.syaru.ae2craftingoptimizer.optimization.GTCountedInputPush;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.Collections;
@@ -147,7 +148,7 @@ public final class CountedProcessingTransfers {
             return EMPTY;
         }
         // Issue #161: the real provider still performs formed/active/pattern/input acceptance.
-        if (!provider.pushPattern(pattern, extracted)) {
+        if (!GTCountedInputPush.push(provider, pattern, extracted)) {
             CraftingCpuHelper.reinjectPatternInputs(source, extracted);
             return EMPTY;
         }
