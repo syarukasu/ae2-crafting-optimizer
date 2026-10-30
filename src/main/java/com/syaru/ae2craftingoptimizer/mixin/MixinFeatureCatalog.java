@@ -13,6 +13,12 @@ import java.util.Optional;
 public final class MixinFeatureCatalog {
     private static final Map<String, OptimizationFeature> FEATURES = Map.ofEntries(
             entry("PatternProviderLogicCountedTargetMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("PatternProviderTargetQueryMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("PatternProviderTargetQueryCacheMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("KeyCounterExecutionIndexMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("GridMachineLookupMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("GTBufferItemTotalMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
+            entry("GTBufferFluidTotalMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
             entry("CraftingCpuLogicCountedTransferMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
             entry("GTBufferCountedTargetMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
             entry("GTBufferCountedSlotMixin", OptimizationFeature.COUNTED_PROCESSING_TRANSFER),
