@@ -14,7 +14,7 @@ import java.util.WeakHashMap;
 /** Reuses structural provider routes while still checking each provider's live busy/backpressure state. */
 public final class PatternProviderRoutingCache {
     private static final Map<CraftingService, ServiceRoutes> ROUTES =
-            Collections.synchronizedMap(new WeakHashMap<>());
+            new WeakHashMap<>();
 
     private PatternProviderRoutingCache() {
     }

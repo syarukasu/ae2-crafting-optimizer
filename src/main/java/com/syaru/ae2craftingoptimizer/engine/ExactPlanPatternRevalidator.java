@@ -86,9 +86,7 @@ public final class ExactPlanPatternRevalidator {
             if (indexed == null || indexed.isEmpty()) {
                 return Result.REFERENCED_PATTERN_CHANGED;
             }
-            Set<IPatternDetails> missing = java.util.Collections.newSetFromMap(
-                    new IdentityHashMap<>());
-            missing.addAll(entry.getValue());
+            Set<IPatternDetails> missing = entry.getValue();
             // equalsではなく同一参照を照合し、同内容に見える差し替えを誤採用しない。
             for (IPatternDetails current : indexed) {
                 missing.remove(current);

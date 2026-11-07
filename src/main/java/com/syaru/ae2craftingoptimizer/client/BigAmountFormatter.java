@@ -17,13 +17,15 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 /** AE2のlong表示範囲を越える数量を、丸めによる上限張り付きなしで表示する。 */
 public final class BigAmountFormatter {
     private static final BigInteger THOUSAND = BigInteger.valueOf(1_000L);
+    private static final BigInteger TEN_POW_24 = BigInteger.TEN.pow(24);
+    private static final BigDecimal ONE_MILLI = new BigDecimal("0.001");
 
     private BigAmountFormatter() {
     }
 
     // Issue #224: FULL decimal text must not expand a tooltip to thousands of lines.
     public static boolean abbreviatesTooltip(BigInteger amount) {
-        return amount.abs().toString().length() > 24;
+        return amount.abs().compareTo(TEN_POW_24) >= 0;
     }
 
     public static String formatTooltip(AEKey key, BigInteger amount) {
@@ -119,8 +121,15 @@ public final class BigAmountFormatter {
 
     private static String formatCompact(BigDecimal units) {
         BigInteger wholeUnits = units.toBigInteger();
-        if (units.scale() <= 0 && wholeUnits.compareTo(THOUSAND) < 0) {
-            return wholeUnits.toString();
+        if (wholeUnits.compareTo(THOUSAND) < 0) {
+            if (units.scale() <= 0) {
+                return wholeUnits.toString();
+            }
+            if (units.signum() == 0 || units.compareTo(ONE_MILLI) >= 0) {
+                return units.setScale(Math.min(3, units.scale()), RoundingMode.DOWN)
+                        .stripTrailingZeros()
+                        .toPlainString();
+            }
         }
 
         int exponent = units.precision() - units.scale() - 1;

@@ -62,6 +62,7 @@ public final class PhysicalCraftingTreeTransaction {
     private static final int MAXIMUM_DETAIL_LENGTH = 2_048;
 
     private final PreparedVectorBatch plan;
+    private final Map<AEKey, BigInteger> expectedFinalOutputs;
     /** 物理所有開始前に固定し、live graph消失後も会計へ使うPattern正本。 */
     private final Map<String, PatternAccountingIdentity> patternIdentities;
     private final ExactCraftingEscrow<AEKey> escrow;
@@ -119,6 +120,8 @@ public final class PhysicalCraftingTreeTransaction {
                 Objects.requireNonNull(
                         plan,
                         "plan");
+        this.expectedFinalOutputs =
+                computeExpectedFinalOutputs(this.plan);
         this.patternIdentities =
                 checkedPatternIdentities(
                         plan,
@@ -2140,7 +2143,7 @@ public final class PhysicalCraftingTreeTransaction {
                         (AEItemKey) pattern.getDefinition(),
                         inputTotals,
                         expectedOutputs);
-        rememberOrVerifyPatternIdentity(current);
+        rememberOrVerifyPatternIdentity(current, step);
         return new ResolvedStep(
                 step,
                 pattern,
@@ -2328,6 +2331,10 @@ public final class PhysicalCraftingTreeTransaction {
     }
 
     private Map<AEKey, BigInteger> expectedFinalOutputs() {
+        return expectedFinalOutputs;
+    }
+
+    private static Map<AEKey, BigInteger> computeExpectedFinalOutputs(PreparedVectorBatch plan) {
         Map<AEKey, BigInteger> result =
                 new LinkedHashMap<>();
         // 要求成果物を先に置き、余剰と返却物を同一キーへ正確に合算する。
@@ -2567,6 +2574,13 @@ public final class PhysicalCraftingTreeTransaction {
                 break;
             }
         }
+        rememberOrVerifyPatternIdentity(current, matchingStep);
+    }
+
+    private void rememberOrVerifyPatternIdentity(
+            PatternAccountingIdentity current,
+            ExactCraftingStep matchingStep) {
+        Objects.requireNonNull(current, "current");
         if (matchingStep == null || !current.matchesStep(matchingStep)) {
             throw new PatternIdentityConflictException(
                     "live crafting-table pattern does not belong to this physical plan");

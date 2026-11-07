@@ -29,7 +29,7 @@ public final class BatchPayloadFingerprint {
         if (record == null) {
             throw new NullPointerException("record");
         }
-        return record.toPublicView().payloadDigest();
+        return of(record.offeredExecutions(), record.extractedInputs(), record.expectedOutputs());
     }
 
     private static String of(

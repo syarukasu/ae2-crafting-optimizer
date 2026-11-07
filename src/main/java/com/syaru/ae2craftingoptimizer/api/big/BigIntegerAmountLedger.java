@@ -135,11 +135,18 @@ public final class BigIntegerAmountLedger<K> {
         if (entries.size() > MAX_ENTRIES) {
             throw new IllegalArgumentException("BigInteger amount ledger contains too many entries");
         }
+        int maximumBytes = (maximumBits + 8) / 8;
         Map<K, BigInteger> loaded = new LinkedHashMap<>();
         for (int index = 0; index < entries.size(); index++) {
             CompoundTag value = entries.getCompound(index);
             K key = keyCodec.decode(value.getCompound(NBT_KEY));
             byte[] encoded = value.getByteArray(NBT_AMOUNT);
+            if (encoded.length == 0) {
+                throw new IllegalArgumentException("BigInteger amount ledger contains an empty amount");
+            }
+            if (encoded.length > maximumBytes) {
+                throw new ArithmeticException("saved ledger amount exceeds the configured BigInteger bit limit");
+            }
             BigInteger amount = new BigInteger(encoded);
             if (amount.signum() <= 0) {
                 throw new IllegalArgumentException("BigInteger amount ledger contains a non-positive amount");
