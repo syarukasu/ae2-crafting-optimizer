@@ -11,6 +11,8 @@ import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
 import com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager;
+import com.syaru.ae2craftingoptimizer.integration.ExactBigIntegerCellConsistency;
+import com.syaru.ae2craftingoptimizer.integration.ExactVectorGridTickBudget;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
 import com.syaru.ae2craftingoptimizer.optimization.Ae2OverclockUpgradeCountCache;
 import com.syaru.ae2craftingoptimizer.optimization.AssemblerMatrixBusyCountCache;
@@ -131,6 +133,8 @@ public final class ACOServerLifecycle {
     }
 
     private static void onServerStopped(ServerStoppedEvent event) {
+        ExactBigIntegerCellConsistency.clear();
+        ExactVectorGridTickBudget.clearAll();
         /*
          * Issue #119: ServerStoppingではBlock Entityの最終NBT保存がまだ走り得る。
          * 全停止完了後だけグローバルRegistry参照を破棄する。

@@ -69,12 +69,19 @@ public final class NativePatternBatchSupport {
     public static long safeExecutionLimit(PatternBatchContext context, long offered) {
         long safe = offered;
         for (KeyCounter counter : context.copyInputsPerExecution()) {
-            for (var entry : counter) {
-                safe = Math.min(safe, Long.MAX_VALUE / entry.getLongValue());
-            }
+            safe = limitScaledCounter(counter, safe);
         }
-        for (var entry : context.copyOutputsPerExecution()) {
-            safe = Math.min(safe, Long.MAX_VALUE / entry.getLongValue());
+        safe = limitScaledCounter(context.copyOutputsPerExecution(), safe);
+        return limitScaledCounter(context.copyRemainingOutputsPerExecution(), safe);
+    }
+
+    private static long limitScaledCounter(KeyCounter counter, long offered) {
+        long safe = offered;
+        for (var entry : counter) {
+            long amount = entry.getLongValue();
+            if (amount < 0) return 0;
+            // AE2 can retain zero-valued entries in a reused KeyCounter.
+            if (amount > 0) safe = Math.min(safe, Long.MAX_VALUE / amount);
         }
         return safe;
     }
