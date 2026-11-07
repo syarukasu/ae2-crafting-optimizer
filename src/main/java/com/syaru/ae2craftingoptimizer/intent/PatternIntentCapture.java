@@ -105,25 +105,24 @@ public final class PatternIntentCapture {
         long expires = now + ACOConfig.getRecipeIntentTtlTicks();
         var description = descriptions == null ? PatternIntentExtractor.describeUncached(pattern)
                 : descriptions.describe(pattern);
-        List<StackIntent> concreteInputs = PatternIntentExtractor.concreteInputs(inputHolder);
+        List<StackIntent> concreteInputs = descriptions == null
+                ? PatternIntentExtractor.concreteInputs(inputHolder) : descriptions.describeConcreteInputs(inputHolder);
         long patternExecutions = PatternPushContext.patternExecutions();
 
         for (Direction providerSide : targets) {
             BlockPos targetPos = providerPos.relative(providerSide);
             Direction targetSide = providerSide.getOpposite();
-            RecipeIntentRegistry.record(new RecipeIntent(
-                    dimension,
+            RecipeIntentRegistry.recordCaptured(
+                    new IntentLocation(dimension, targetPos, targetSide),
                     providerPos,
                     providerSide,
-                    targetPos,
-                    targetSide,
                     description.definitionId(),
                     description.inputs(),
                     concreteInputs,
                     description.outputs(),
                     patternExecutions,
                     now,
-                    expires));
+                    expires);
         }
     }
 
