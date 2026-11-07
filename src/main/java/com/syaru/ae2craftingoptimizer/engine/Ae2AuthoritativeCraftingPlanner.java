@@ -1062,7 +1062,7 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 delegate.checkpoint(expanded);
                 if ((expanded & 1023) != 0 && expanded != Integer.MAX_VALUE) return;
                 long now = System.nanoTime();
-                if (now < nextLog) return;
+                if (now - nextLog < 0L) return;
                 nextLog = now + 5_000_000_000L;
                 AE2CraftingOptimizer.LOGGER.info(
                         "ACO-DIAG event=planning_running route=ordered-branching output={} requested={} work={} elapsedMs={}",

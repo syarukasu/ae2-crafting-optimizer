@@ -24,7 +24,7 @@ public final class VmCalculatedCraftingPlan implements WideCraftingPlan {
     private final long patterns;
     private final long recipes;
     private final boolean multiplePaths;
-    private BigIntegerCraftingPlan prepared;
+    private volatile BigIntegerCraftingPlan prepared;
 
     public VmCalculatedCraftingPlan(BigCraftingPlan<AEKey> exactPlan,
             Map<IPatternDetails, BigInteger> times, BigInteger bytes,
@@ -58,7 +58,7 @@ public final class VmCalculatedCraftingPlan implements WideCraftingPlan {
     // Only the server-thread submission adapter prepares this. Aliased facades
     // share the same claim, so they cannot turn one order into two physical jobs.
     BigIntegerCraftingPlan prepared() { return prepared; }
-    void rememberPrepared(BigIntegerCraftingPlan plan) {
+    synchronized void rememberPrepared(BigIntegerCraftingPlan plan) {
         if (prepared != null) throw new IllegalStateException("VM physical result is already prepared");
         prepared = Objects.requireNonNull(plan);
     }

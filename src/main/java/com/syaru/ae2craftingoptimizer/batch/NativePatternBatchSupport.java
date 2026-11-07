@@ -60,9 +60,17 @@ public final class NativePatternBatchSupport {
     public static List<GenericStack> scaleAllExpectedOutputs(
             PatternBatchContext context,
             long executions) {
-        List<GenericStack> result = new ArrayList<>();
-        result.addAll(scaleOutputs(context, executions));
-        result.addAll(scaleRemainingOutputs(context, executions));
+        KeyCounter outputs = context.copyOutputsPerExecution();
+        KeyCounter remaining = context.copyRemainingOutputsPerExecution();
+        List<GenericStack> result = new ArrayList<>(outputs.size() + remaining.size());
+        for (var entry : outputs) {
+            result.add(new GenericStack(
+                    entry.getKey(), Math.multiplyExact(entry.getLongValue(), executions)));
+        }
+        for (var entry : remaining) {
+            result.add(new GenericStack(
+                    entry.getKey(), Math.multiplyExact(entry.getLongValue(), executions)));
+        }
         return List.copyOf(result);
     }
 

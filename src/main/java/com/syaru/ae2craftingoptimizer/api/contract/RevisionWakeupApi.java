@@ -16,19 +16,24 @@ public final class RevisionWakeupApi {
 
     public static RevisionWakeupRegistration register(RevisionWakeupListener listener) {
         ListenerReference reference = new ListenerReference(listener);
+        LISTENERS.removeIf(existing -> existing.listener.get() == null);
         LISTENERS.add(reference);
         return new RevisionWakeupRegistration(() -> LISTENERS.remove(reference));
     }
 
     public static void publish(BatchTargetRevision revision) {
         Objects.requireNonNull(revision, "revision");
+        boolean hasExpired = false;
         for (ListenerReference reference : LISTENERS) {
             RevisionWakeupListener listener = reference.listener.get();
             if (listener == null) {
-                LISTENERS.remove(reference);
+                hasExpired = true;
                 continue;
             }
             listener.onRevision(revision);
+        }
+        if (hasExpired) {
+            LISTENERS.removeIf(reference -> reference.listener.get() == null);
         }
     }
 

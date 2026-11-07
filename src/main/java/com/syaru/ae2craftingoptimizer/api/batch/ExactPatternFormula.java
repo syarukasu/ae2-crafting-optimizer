@@ -26,6 +26,8 @@ public final class ExactPatternFormula {
     private final KeyCounter[] inputsPerExecution;
     private final List<GenericStack> outputsPerExecution;
     private final List<GenericStack> remainingPerExecution;
+    private final Map<AEKey, BigInteger> inputTotalsPerExecution;
+    private final Map<AEKey, BigInteger> expectedOutputTotalsPerExecution;
 
     private ExactPatternFormula(
             IPatternDetails pattern,
@@ -36,6 +38,20 @@ public final class ExactPatternFormula {
         this.inputsPerExecution = copyCounters(inputsPerExecution);
         this.outputsPerExecution = List.copyOf(outputsPerExecution);
         this.remainingPerExecution = List.copyOf(remainingPerExecution);
+        Map<AEKey, BigInteger> inputTotals = new LinkedHashMap<>();
+        for (KeyCounter counter : this.inputsPerExecution) {
+            for (var entry : counter) {
+                inputTotals.merge(
+                        entry.getKey(),
+                        BigInteger.valueOf(entry.getLongValue()),
+                        BigInteger::add);
+            }
+        }
+        this.inputTotalsPerExecution = java.util.Collections.unmodifiableMap(inputTotals);
+        Map<AEKey, BigInteger> outputTotals = new LinkedHashMap<>();
+        mergePerExecution(outputTotals, this.outputsPerExecution);
+        mergePerExecution(outputTotals, this.remainingPerExecution);
+        this.expectedOutputTotalsPerExecution = java.util.Collections.unmodifiableMap(outputTotals);
     }
 
     public static Optional<ExactPatternFormula> tryCreate(
@@ -212,35 +228,37 @@ public final class ExactPatternFormula {
     /** 親CPU内部在庫から引くキー別合計。 */
     public Map<AEKey, BigInteger> exactInputTotals(
             BigInteger executions) {
-        Map<AEKey, BigInteger> result = new LinkedHashMap<>();
-        for (ExactStack stack : exactSlotInputs(executions)) {
-            result.merge(
-                    stack.key(),
-                    stack.amount(),
-                    BigInteger::add);
-        }
-        return Map.copyOf(result);
+        BigInteger checked = requirePositive(executions);
+        return scaleTotals(inputTotalsPerExecution, checked);
     }
 
     /** 実組立で検証した一回分出力へ係数を掛けたキー別合計。 */
     public Map<AEKey, BigInteger> exactExpectedOutputTotals(
             BigInteger executions) {
         BigInteger checked = requirePositive(executions);
-        Map<AEKey, BigInteger> result = new LinkedHashMap<>();
-        mergeScaled(result, outputsPerExecution, checked);
-        mergeScaled(result, remainingPerExecution, checked);
+        return scaleTotals(expectedOutputTotalsPerExecution, checked);
+    }
+
+    private static Map<AEKey, BigInteger> scaleTotals(
+            Map<AEKey, BigInteger> perExecutionTotals,
+            BigInteger executions) {
+        if (BigInteger.ONE.equals(executions)) {
+            return Map.copyOf(perExecutionTotals);
+        }
+        Map<AEKey, BigInteger> result = new LinkedHashMap<>(perExecutionTotals.size());
+        for (Map.Entry<AEKey, BigInteger> entry : perExecutionTotals.entrySet()) {
+            result.put(entry.getKey(), entry.getValue().multiply(executions));
+        }
         return Map.copyOf(result);
     }
 
-    private static void mergeScaled(
+    private static void mergePerExecution(
             Map<AEKey, BigInteger> target,
-            List<GenericStack> source,
-            BigInteger executions) {
+            List<GenericStack> source) {
         for (GenericStack stack : source) {
             target.merge(
                     stack.what(),
-                    BigInteger.valueOf(stack.amount())
-                            .multiply(executions),
+                    BigInteger.valueOf(stack.amount()),
                     BigInteger::add);
         }
     }

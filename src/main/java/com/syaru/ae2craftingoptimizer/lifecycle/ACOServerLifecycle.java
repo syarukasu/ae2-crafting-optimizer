@@ -72,6 +72,7 @@ public final class ACOServerLifecycle {
         OptimizationFeatureGate.resetDiagnostics();
         ExperimentalCompatibilityValidator.validateEnabledFeatures();
         ServerTickClock.reset();
+        ExactVectorGridTickBudget.clearAll();
         Ae2OverclockUpgradeCountCache.clear();
         AssemblerMatrixBusyCountCache.clear();
         MethodHandleInvocationCache.clear();
@@ -133,6 +134,7 @@ public final class ACOServerLifecycle {
     }
 
     private static void onServerStopped(ServerStoppedEvent event) {
+        // The exact cell total is still required by the final SavedData serialization.
         ExactBigIntegerCellConsistency.clear();
         ExactVectorGridTickBudget.clearAll();
         /*

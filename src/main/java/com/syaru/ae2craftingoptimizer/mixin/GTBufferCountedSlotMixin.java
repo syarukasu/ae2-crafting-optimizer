@@ -39,7 +39,7 @@ public abstract class GTBufferCountedSlotMixin implements CountedPatternBufferSl
     @Unique private double aco$itemTotal;
     @Unique private double aco$fluidTotal;
 
-    @Inject(method = "onContentsChanged", at = @At("HEAD"), require = 1)
+    @Inject(method = "onContentsChanged", at = {@At("HEAD"), @At("RETURN")}, require = 1)
     private void aco$invalidateSharedTotals(CallbackInfo ci) {
         aco$itemTotalValid = false;
         aco$fluidTotalValid = false;
@@ -81,14 +81,16 @@ public abstract class GTBufferCountedSlotMixin implements CountedPatternBufferSl
     @Shadow @Final private Object2LongOpenCustomHashMap<FluidStack> fluidInventory;
 
     @Override public long aco$countedHeadroom(Map<AEKey, BigInteger> inputs, long offered) {
+        if (offered < 0) return 0;
         for (var entry : inputs.entrySet()) {
             long stored;
             if (entry.getKey() instanceof AEItemKey item) stored = itemInventory.getLong(item.toStack());
             else if (entry.getKey() instanceof AEFluidKey fluid) stored = fluidInventory.getLong(fluid.toStack(1));
             else return 0;
-            if (stored < 0 || entry.getValue().signum() <= 0) return 0;
-            var available = BigInteger.valueOf(Long.MAX_VALUE).subtract(BigInteger.valueOf(stored));
-            offered = BigInteger.valueOf(offered).min(available.divide(entry.getValue())).longValueExact();
+            BigInteger required = entry.getValue();
+            if (stored < 0 || required.signum() <= 0 || required.bitLength() > 63) return 0;
+            long available = Long.MAX_VALUE - stored;
+            offered = Math.min(offered, available / required.longValue());
         }
         return offered;
     }

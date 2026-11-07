@@ -3,17 +3,18 @@ package com.syaru.ae2craftingoptimizer.optimization;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** Caches AE2 Overclock reflective invocation handles while preserving Method.invoke semantics. */
 public final class MethodHandleInvocationCache {
-    private static final Map<Method, Optional<MethodHandle>> HANDLES = new ConcurrentHashMap<>();
+    private static final Object[] EMPTY_ARGUMENTS = new Object[0];
+    private static final Map<Method, Optional<CachedHandle>> HANDLES = new ConcurrentHashMap<>();
 
     private MethodHandleInvocationCache() {
     }
@@ -24,22 +25,22 @@ public final class MethodHandleInvocationCache {
             return method.invoke(receiver, arguments);
         }
 
-        Optional<MethodHandle> cached = HANDLES.computeIfAbsent(method, MethodHandleInvocationCache::unreflect);
+        Optional<CachedHandle> cached = HANDLES.computeIfAbsent(method, MethodHandleInvocationCache::unreflect);
         if (cached.isEmpty()) {
             return method.invoke(receiver, arguments);
         }
 
-        var invocationArguments = new ArrayList<Object>(
-                (arguments == null ? 0 : arguments.length) + (Modifier.isStatic(method.getModifiers()) ? 0 : 1));
-        if (!Modifier.isStatic(method.getModifiers())) {
-            invocationArguments.add(receiver);
-        }
-        if (arguments != null) {
-            java.util.Collections.addAll(invocationArguments, arguments);
-        }
-
+        CachedHandle target = cached.get();
         try {
-            return cached.get().invokeWithArguments(invocationArguments);
+            if (target.parameterCount == 0 && (arguments == null || arguments.length == 0)) {
+                return target.isStatic
+                        ? target.handle.invokeExact()
+                        : target.handle.invokeExact(receiver);
+            }
+            Object[] actualArguments = arguments == null ? EMPTY_ARGUMENTS : arguments;
+            return target.isStatic
+                    ? target.handle.invokeExact(actualArguments)
+                    : target.handle.invokeExact(receiver, actualArguments);
         } catch (Throwable throwable) {
             throw new InvocationTargetException(throwable);
         }
@@ -49,12 +50,30 @@ public final class MethodHandleInvocationCache {
         HANDLES.clear();
     }
 
-    private static Optional<MethodHandle> unreflect(Method method) {
+    private static Optional<CachedHandle> unreflect(Method method) {
         try {
             method.trySetAccessible();
-            return Optional.of(MethodHandles.lookup().unreflect(method).asFixedArity());
+            boolean isStatic = Modifier.isStatic(method.getModifiers());
+            int parameterCount = method.getParameterCount();
+            MethodHandle raw = MethodHandles.lookup().unreflect(method).asFixedArity();
+            MethodHandle adapted;
+            if (parameterCount == 0) {
+                adapted = isStatic
+                        ? raw.asType(MethodType.methodType(Object.class))
+                        : raw.asType(MethodType.methodType(Object.class, Object.class));
+            } else {
+                adapted = isStatic
+                        ? raw.asSpreader(Object[].class, parameterCount)
+                                .asType(MethodType.methodType(Object.class, Object[].class))
+                        : raw.asSpreader(Object[].class, parameterCount)
+                                .asType(MethodType.methodType(Object.class, Object.class, Object[].class));
+            }
+            return Optional.of(new CachedHandle(adapted, isStatic, parameterCount));
         } catch (IllegalAccessException | RuntimeException ignored) {
             return Optional.empty();
         }
+    }
+
+    private record CachedHandle(MethodHandle handle, boolean isStatic, int parameterCount) {
     }
 }

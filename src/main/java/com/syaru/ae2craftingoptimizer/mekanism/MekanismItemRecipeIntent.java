@@ -37,11 +37,14 @@ public final class MekanismItemRecipeIntent {
         if (hints.isEmpty()) return original.get();
         var type = machine.getRecipeType();
         var recipes = type.getRecipes(level);
-        var index = INDEXES.get(type.getRecipeType());
-        // Mekanism replaces its own list on recipe reload; never retain an old recipe across it.
-        if (index == null || index.recipes != recipes) {
-            index = new Index(recipes);
-            INDEXES.put(type.getRecipeType(), index);
+        Index index;
+        synchronized (INDEXES) {
+            index = INDEXES.get(type.getRecipeType());
+            // Mekanism replaces its own list on recipe reload; never retain an old recipe across it.
+            if (index == null || index.recipes != recipes) {
+                index = new Index(recipes);
+                INDEXES.put(type.getRecipeType(), index);
+            }
         }
         ItemStackToItemStackRecipe selected = null;
         for (var hint : hints) {
@@ -84,5 +87,9 @@ public final class MekanismItemRecipeIntent {
         }
     }
 
-    public static void clear() { INDEXES.clear(); }
+    public static void clear() {
+        synchronized (INDEXES) {
+            INDEXES.clear();
+        }
+    }
 }
