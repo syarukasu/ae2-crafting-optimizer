@@ -4,6 +4,7 @@ import com.syaru.ae2craftingoptimizer.api.big.BigCraftingHostRegistry;
 import com.syaru.ae2craftingoptimizer.api.big.BigCraftingStatusInbox;
 import com.syaru.ae2craftingoptimizer.batch.PatternTaskFingerprint;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
+import com.syaru.ae2craftingoptimizer.diagnostics.ProfilerBenchmarkCommands;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CompiledCraftingGraphCache;
 import com.syaru.ae2craftingoptimizer.engine.Ae2ImmutablePlanningGraphCache;
 import com.syaru.ae2craftingoptimizer.engine.Ae2CraftingShadowValidator;
@@ -11,6 +12,8 @@ import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
 import com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager;
+import com.syaru.ae2craftingoptimizer.integration.ExactBigIntegerCellConsistency;
+import com.syaru.ae2craftingoptimizer.integration.ExactVectorGridTickBudget;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
 import com.syaru.ae2craftingoptimizer.optimization.Ae2OverclockUpgradeCountCache;
 import com.syaru.ae2craftingoptimizer.optimization.AssemblerMatrixBusyCountCache;
@@ -30,6 +33,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.OnDatapackSyncEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 
@@ -51,6 +55,8 @@ public final class ACOServerLifecycle {
         MinecraftForge.EVENT_BUS.addListener(
                 EventPriority.HIGHEST,
                 ACOServerLifecycle::onServerStopping);
+        MinecraftForge.EVENT_BUS.addListener(
+                ACOServerLifecycle::onServerStopped);
     }
 
     private static void onServerStarted(ServerStartedEvent event) {
@@ -119,6 +125,13 @@ public final class ACOServerLifecycle {
         BigCraftingStatusInbox.clear();
         Ae2BigCraftingExecutionManager.clear();
         BigCraftingHostRegistry.clear();
+    }
+
+    private static void onServerStopped(ServerStoppedEvent event) {
+        // The exact cell total is still required by the final SavedData serialization.
+        ExactBigIntegerCellConsistency.clear();
+        ExactVectorGridTickBudget.clearAll();
+        ProfilerBenchmarkCommands.clear();
     }
 
     private static void clearReloadSensitiveState(String reason) {

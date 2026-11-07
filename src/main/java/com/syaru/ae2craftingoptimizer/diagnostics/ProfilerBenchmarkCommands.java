@@ -23,6 +23,10 @@ public final class ProfilerBenchmarkCommands {
     private ProfilerBenchmarkCommands() {
     }
 
+    public static void clear() {
+        REQUESTS.clear();
+    }
+
     public static int capture(CommandSourceStack source) {
         return guarded(source, () -> {
             boolean armed = NativeVmBenchmark.armNextCapture();
