@@ -33,7 +33,7 @@ public final class ExactVectorGridTickBudget {
         return budget;
     }
 
-    static synchronized void clearAll() {
+    public static synchronized void clearAll() {
         BUDGETS.clear();
     }
 

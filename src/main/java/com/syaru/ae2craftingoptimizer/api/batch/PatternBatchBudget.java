@@ -18,7 +18,7 @@ public record PatternBatchBudget(long maximumExecutions, long deadlineNanos) {
     }
 
     public boolean hasTimeRemaining() {
-        return deadlineNanos == Long.MAX_VALUE || System.nanoTime() < deadlineNanos;
+        return deadlineNanos == Long.MAX_VALUE || (deadlineNanos - System.nanoTime()) > 0L;
     }
 
     public boolean canStartAnother(long acceptedExecutions) {

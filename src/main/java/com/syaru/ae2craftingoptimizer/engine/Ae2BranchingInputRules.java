@@ -51,7 +51,7 @@ final class Ae2BranchingInputRules implements BranchingInputRules<AEKey> {
         if (inputs.size() >= MAX_OBSERVATIONS) throw new IllegalStateException("input snapshot limit exceeded");
         var compiledSlot = pattern.inputs().get(slot);
         if (snapshot.hasExactInputDomain(pattern.id())
-                && pattern.inputs().stream().allMatch(input -> input.alternatives().size() == 1)) {
+                && hasSingleAlternativePerSlot(pattern)) {
             AEKey key = compiledSlot.alternatives().get(0).key();
             Input<AEKey> fixed = new Input<>(
                     List.of(new Template<>(key, compiledSlot.templateAmount())), key,
@@ -169,6 +169,15 @@ final class Ae2BranchingInputRules implements BranchingInputRules<AEKey> {
 
     private static IllegalStateException changed() {
         return new IllegalStateException("ACO input semantics changed during planning; request a fresh plan");
+    }
+
+    private static boolean hasSingleAlternativePerSlot(CompiledPattern<AEKey> pattern) {
+        for (var input : pattern.inputs()) {
+            if (input.alternatives().size() != 1) {
+                return false;
+            }
+        }
+        return true;
     }
 
     static boolean sameShape(CompiledPattern<AEKey> expected, CompiledPattern<AEKey> actual) {

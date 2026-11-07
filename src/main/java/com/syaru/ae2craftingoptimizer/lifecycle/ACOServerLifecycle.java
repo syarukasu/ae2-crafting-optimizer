@@ -11,6 +11,8 @@ import com.syaru.ae2craftingoptimizer.engine.RecipeGenerationTracker;
 import com.syaru.ae2craftingoptimizer.gtceu.GTCEuRecipeIntentFastPath;
 import com.syaru.ae2craftingoptimizer.integration.ExperimentalCompatibilityValidator;
 import com.syaru.ae2craftingoptimizer.integration.Ae2BigCraftingExecutionManager;
+import com.syaru.ae2craftingoptimizer.integration.ExactBigIntegerCellConsistency;
+import com.syaru.ae2craftingoptimizer.integration.ExactVectorGridTickBudget;
 import com.syaru.ae2craftingoptimizer.intent.RecipeIntentRegistry;
 import com.syaru.ae2craftingoptimizer.optimization.Ae2OverclockUpgradeCountCache;
 import com.syaru.ae2craftingoptimizer.optimization.AssemblerMatrixBusyCountCache;
@@ -57,6 +59,8 @@ public final class ACOServerLifecycle {
         OptimizationFeatureGate.resetDiagnostics();
         ExperimentalCompatibilityValidator.validateEnabledFeatures();
         ServerTickClock.reset();
+        ExactVectorGridTickBudget.clearAll();
+        ExactBigIntegerCellConsistency.clear();
         Ae2OverclockUpgradeCountCache.clear();
         AssemblerMatrixBusyCountCache.clear();
         MethodHandleInvocationCache.clear();
@@ -96,6 +100,7 @@ public final class ACOServerLifecycle {
 
     private static void onServerStopping(ServerStoppingEvent event) {
         com.syaru.ae2craftingoptimizer.diagnostics.RuntimePlanCommands.clear(event.getServer());
+        com.syaru.ae2craftingoptimizer.diagnostics.ProfilerBenchmarkCommands.clear();
         // Issue #179: Serverが処理しなくなる保留taskを取消し、workerを待たせたまま残さない。
         com.syaru.ae2craftingoptimizer.engine.PlanningServerTasks.stop(event.getServer());
         // 診断を要求された時だけ停止直前の集計値を出力する。
@@ -112,6 +117,8 @@ public final class ACOServerLifecycle {
         Ae2OverclockUpgradeCountCache.clear();
         AssemblerMatrixBusyCountCache.clear();
         MethodHandleInvocationCache.clear();
+        ExactVectorGridTickBudget.clearAll();
+        ExactBigIntegerCellConsistency.clear();
         ServerTickClock.reset();
         OptimizationMetrics.reset();
         OptimizationFeatureGate.resetDiagnostics();

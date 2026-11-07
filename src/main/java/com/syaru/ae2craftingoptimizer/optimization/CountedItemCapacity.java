@@ -3,6 +3,7 @@ package com.syaru.ae2craftingoptimizer.optimization;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Map;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
@@ -16,19 +17,29 @@ public final class CountedItemCapacity {
         if (offered <= 0) return 0;
         int slots = handler.getSlots();
         AEItemKey[] original = new AEItemKey[slots];
-        for (int slot = 0; slot < slots; slot++) original[slot] = AEItemKey.of(handler.getStackInSlot(slot));
+        int[] storedCounts = new int[slots];
+        int[] slotLimits = new int[slots];
+        for (int slot = 0; slot < slots; slot++) {
+            ItemStack stored = handler.getStackInSlot(slot);
+            original[slot] = AEItemKey.of(stored);
+            storedCounts[slot] = stored.getCount();
+            slotLimits[slot] = handler.getSlotLimit(slot);
+        }
         AEItemKey[] keys = new AEItemKey[inputs.size()];
-        BigInteger[] amounts = new BigInteger[keys.length];
+        long[] amounts = new long[keys.length];
         long[][] space = new long[keys.length][slots];
+        long high = offered;
         int k = 0;
         for (var entry : inputs.entrySet()) {
             if (!(entry.getKey() instanceof AEItemKey key) || entry.getValue().signum() <= 0) return -1;
             keys[k] = key;
-            amounts[k] = entry.getValue();
+            BigInteger rawAmount = entry.getValue();
+            long perExecution = rawAmount.bitLength() <= 63 ? rawAmount.longValue() : 0L;
+            amounts[k] = perExecution;
+            long keyTotalSpace = 0L;
             for (int slot = 0; slot < slots; slot++) {
                 if (original[slot] != null && !original[slot].equals(key)) continue;
-                ItemStack stored = handler.getStackInSlot(slot);
-                long room = Math.max(0L, (long) handler.getSlotLimit(slot) - stored.getCount());
+                long room = Math.max(0L, (long) slotLimits[slot] - storedCounts[slot]);
                 int request = (int) Math.min(Integer.MAX_VALUE, room);
                 if (request == 0) continue;
                 ItemStack remainder = handler.insertItem(slot, key.toStack(request), true);
@@ -36,39 +47,49 @@ public final class CountedItemCapacity {
                 long accepted = (long) request - remainder.getCount();
                 if (accepted < 0 || accepted > request) return -1;
                 space[k][slot] = accepted;
+                long nextTotal = keyTotalSpace + accepted;
+                keyTotalSpace = nextTotal < 0L ? Long.MAX_VALUE : nextTotal;
+            }
+            if (perExecution <= 0L) {
+                high = 0L;
+            } else {
+                high = Math.min(high, keyTotalSpace / perExecution);
             }
             k++;
         }
-        long low = 0, high = offered;
+        if (high <= 0L) return 0L;
+        AEItemKey[] reserved = new AEItemKey[slots];
+        long[] used = new long[slots];
+        long low = 0;
         while (low < high) {
             long middle = low + (high - low) / 2 + 1;
-            if (fits(keys, amounts, space, original, middle)) low = middle;
+            if (fits(keys, amounts, space, original, reserved, used, middle)) low = middle;
             else high = middle - 1;
         }
         return low;
     }
 
-    private static boolean fits(AEItemKey[] keys, BigInteger[] amounts, long[][] space,
-            AEItemKey[] original, long count) {
-        AEItemKey[] reserved = original.clone();
-        long[] used = new long[original.length];
+    private static boolean fits(AEItemKey[] keys, long[] amounts, long[][] space,
+            AEItemKey[] original, AEItemKey[] reserved, long[] used, long count) {
+        System.arraycopy(original, 0, reserved, 0, original.length);
+        Arrays.fill(used, 0L);
         for (int k = 0; k < keys.length; k++) {
-            BigInteger wanted = amounts[k].multiply(BigInteger.valueOf(count));
+            long wanted = amounts[k] * count;
             // Match native item insertion: occupied matching slots before empty ones.
             for (int pass = 0; pass < 2; pass++) {
-                for (int slot = 0; slot < original.length && wanted.signum() > 0; slot++) {
+                for (int slot = 0; slot < original.length && wanted > 0; slot++) {
                     if ((original[slot] == null) != (pass == 1)) continue;
                     if (reserved[slot] != null && !reserved[slot].equals(keys[k])) continue;
                     long room = Math.max(0, space[k][slot] - used[slot]);
-                    long take = wanted.min(BigInteger.valueOf(room)).longValueExact();
+                    long take = Math.min(wanted, room);
                     if (take > 0) {
                         reserved[slot] = keys[k];
                         used[slot] += take;
-                        wanted = wanted.subtract(BigInteger.valueOf(take));
+                        wanted -= take;
                     }
                 }
             }
-            if (wanted.signum() != 0) return false;
+            if (wanted != 0) return false;
         }
         return true;
     }

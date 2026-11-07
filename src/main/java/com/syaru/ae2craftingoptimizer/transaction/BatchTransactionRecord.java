@@ -173,8 +173,9 @@ public final class BatchTransactionRecord {
                 receipt);
     }
 
+    @SuppressWarnings("deprecation")
     public String payloadDigest() {
-        return toPublicView().payloadDigest();
+        return com.syaru.ae2craftingoptimizer.api.batch.v2.BatchPayloadFingerprint.of(this);
     }
 
     public BatchTransactionRecord transition(

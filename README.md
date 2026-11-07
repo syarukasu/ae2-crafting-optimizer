@@ -1,9 +1,10 @@
-# AE2 Crafting Optimizer 2.0.2
+# AE2 Crafting Optimizer 2.0.4
 
-2.0.2 fixes counted GT pattern-buffer delivery for sparse and repeated input
-slots. Material withdrawn from the CPU now reaches the buffer in full.
-Repeated capability queries, shared-buffer totals and grid-owner list
-construction are reduced without changing native CPU grants, receiver limits,
+2.0.4 fixes native crafting-remainder fast-path validation, batch execution
+limit clamping for remaining outputs, compact formatting of fractional unit
+amounts, power rounding edge cases in counted processing transfers, and session
+state cleanup across server restarts, while reducing hot-path allocations and
+reflective lookup overhead without changing native CPU grants, receiver limits,
 energy consumption or BigInteger accounting.
 
 Updating prevents further loss; it does not reconstruct inputs missing from
@@ -37,7 +38,7 @@ With Java 17:
 ./gradlew bundleVm verifyExactVmBundle -PacoExactVmDir=../vm/exact-engine -PacoAe2Version=15.4.11
 ```
 
-Install only `build/distributions/2.0.2/aco2.0.2_1.20.1.jar`, not intermediates
+Install only `build/distributions/2.0.4/aco2.0.4_1.20.1.jar`, not intermediates
 marked NOT-FOR-INSTALLATION. Do not install duplicate embedded VM modules.
 Optional compatibility dependencies are compile-only, not bundled.
 
