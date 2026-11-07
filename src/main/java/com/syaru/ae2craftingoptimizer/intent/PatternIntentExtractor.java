@@ -1,6 +1,8 @@
 package com.syaru.ae2craftingoptimizer.intent;
 
 import appeng.api.crafting.IPatternDetails;
+import appeng.api.stacks.AEFluidKey;
+import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
@@ -12,6 +14,7 @@ import java.util.List;
 public final class PatternIntentExtractor {
     private IPatternDetails lastPattern;
     private Description lastDescription;
+    private List<StackIntent> lastConcreteInputs = List.of();
 
     public PatternIntentExtractor() {
     }
@@ -90,5 +93,39 @@ public final class PatternIntentExtractor {
             }
         }
         return List.copyOf(inputs);
+    }
+
+    List<StackIntent> describeConcreteInputs(KeyCounter[] inputHolder) {
+        if (!matchesConcreteInputs(inputHolder, lastConcreteInputs)) {
+            lastConcreteInputs = concreteInputs(inputHolder);
+        }
+        return lastConcreteInputs;
+    }
+
+    private static boolean matchesConcreteInputs(KeyCounter[] inputHolder, List<StackIntent> previous) {
+        int index = 0;
+        if (inputHolder != null) {
+            for (KeyCounter counter : inputHolder) {
+                if (counter == null || counter.isEmpty()) {
+                    continue;
+                }
+                for (Object2LongMap.Entry<AEKey> entry : counter) {
+                    if (index == previous.size()) {
+                        return false;
+                    }
+                    StackIntent expected = previous.get(index++);
+                    AEKey key = entry.getKey();
+                    AEKey previousKey = expected.exactKey();
+                    // Reuse only immutable native keys, checking the live amount and exact stack identity.
+                    if (key == null || (key.getClass() != AEItemKey.class && key.getClass() != AEFluidKey.class)
+                            || previousKey == null || key.getClass() != previousKey.getClass()
+                            || entry.getLongValue() != expected.amount()
+                            || (key != previousKey && !key.equals(previousKey))) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return index == previous.size();
     }
 }

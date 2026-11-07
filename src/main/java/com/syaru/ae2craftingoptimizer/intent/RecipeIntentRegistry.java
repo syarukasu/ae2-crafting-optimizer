@@ -5,7 +5,6 @@ import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -18,7 +17,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 
 public final class RecipeIntentRegistry {
-    private static final Map<IntentLocation, ArrayDeque<RecipeIntent>> INTENTS = new LinkedHashMap<>();
+    private static final Map<IntentLocation, ArrayDeque<StoredIntent>> INTENTS = new LinkedHashMap<>();
     private static final Map<SpatialBucket, Set<IntentLocation>> SPATIAL_INDEX = new LinkedHashMap<>();
     private static int entryCount;
     private static long nextExpirationTick = Long.MAX_VALUE;
@@ -27,36 +26,41 @@ public final class RecipeIntentRegistry {
     }
 
     public static synchronized void record(RecipeIntent intent) {
-        cleanupExpired(intent.createdTick());
-        IntentLocation location = intent.location();
-        ArrayDeque<RecipeIntent> entries = INTENTS.get(location);
+        recordCaptured(intent.location(), intent.providerPos(), intent.providerSide(), intent.patternDefinitionId(),
+                intent.inputs(), intent.concreteInputs(), intent.outputs(), intent.patternExecutions(),
+                intent.createdTick(), intent.expiresTick());
+    }
+
+    static synchronized void recordCaptured(
+            IntentLocation location, BlockPos providerPos, Direction providerSide, String definitionId,
+            List<InputIntent> inputs, List<StackIntent> concreteInputs, List<StackIntent> outputs,
+            long executions, long now, long expires) {
+        cleanupExpired(now);
+        ArrayDeque<StoredIntent> entries = INTENTS.get(location);
         if (entries == null) {
             entries = new ArrayDeque<>();
             INTENTS.put(location, entries);
             addSpatialLocation(location);
         }
 
-        RecipeIntent latest = entries.peekLast();
-        if (latest != null && canCoalesce(latest, intent)) {
-            entries.removeLast();
-            entries.addLast(latest.withPatternExecutions(
-                    saturatingAdd(latest.patternExecutions(), intent.patternExecutions()),
-                    intent.expiresTick()));
+        executions = Math.max(1L, executions);
+        StoredIntent latest = entries.peekLast();
+        if (latest != null && canCoalesce(latest.snapshot, providerPos, providerSide, definitionId,
+                inputs, concreteInputs, outputs, now)) {
+            latest.add(executions, expires);
         } else {
-            entries.addLast(intent);
+            entries.addLast(new StoredIntent(new RecipeIntent(location.dimension(), providerPos, providerSide,
+                    location.targetPos(), location.targetSide(), definitionId, inputs, concreteInputs, outputs,
+                    executions, now, expires)));
             entryCount++;
         }
-        nextExpirationTick = Math.min(nextExpirationTick, intent.expiresTick());
+        nextExpirationTick = Math.min(nextExpirationTick, expires);
         enforceMaximumEntries();
         if (ACOConfig.logCapturedRecipeIntents()) {
             AE2CraftingOptimizer.LOGGER.info(
                     "Captured ACO recipe intent: pattern={}, executions={}, target={} {} {}, outputs={}",
-                    intent.patternDefinitionId(),
-                    intent.patternExecutions(),
-                    intent.dimension(),
-                    intent.targetPos(),
-                    intent.targetSide(),
-                    intent.outputs());
+                    definitionId, executions, location.dimension(), location.targetPos(), location.targetSide(),
+                    outputs);
         }
     }
 
@@ -66,11 +70,16 @@ public final class RecipeIntentRegistry {
             Direction targetSide,
             long now) {
         cleanupExpired(now);
-        ArrayDeque<RecipeIntent> entries = INTENTS.get(new IntentLocation(dimension, targetPos, targetSide));
+        var entries = INTENTS.get(new IntentLocation(dimension, targetPos, targetSide));
         if (entries == null || entries.isEmpty()) {
             return List.of();
         }
-        return List.copyOf(entries);
+        if (entries.size() == 1) {
+            return List.of(entries.getFirst().snapshot());
+        }
+        List<RecipeIntent> matches = new ArrayList<>(entries.size());
+        appendSnapshots(entries, matches);
+        return List.copyOf(matches);
     }
 
     public static synchronized List<RecipeIntent> findForTarget(
@@ -85,7 +94,7 @@ public final class RecipeIntentRegistry {
         // #179: exact target lookup must not walk every machine's hints.
         for (Direction side : Direction.values()) {
             var entries = INTENTS.get(new IntentLocation(dimension, targetPos, side));
-            if (entries != null) matches.addAll(entries);
+            if (entries != null) appendSnapshots(entries, matches);
         }
         return matches;
     }
@@ -119,11 +128,11 @@ public final class RecipeIntentRegistry {
                     if (distanceSquared > radiusSquared) {
                         continue;
                     }
-                    ArrayDeque<RecipeIntent> entries = INTENTS.get(location);
+                    var entries = INTENTS.get(location);
                     if (entries == null) {
                         continue;
                     }
-                    for (RecipeIntent intent : entries) {
+                    for (StoredIntent intent : entries) {
                         nearby.add(new NearbyIntent(distanceSquared, intent));
                     }
                 }
@@ -133,11 +142,11 @@ public final class RecipeIntentRegistry {
         nearby.sort(Comparator
                 .comparingLong(NearbyIntent::distanceSquared)
                 .thenComparing(Comparator.comparingLong(
-                        (NearbyIntent entry) -> entry.intent().createdTick()).reversed()));
+                        (NearbyIntent entry) -> entry.intent().snapshot.createdTick()).reversed()));
         int resultSize = Math.min(limit, nearby.size());
         List<RecipeIntent> result = new ArrayList<>(resultSize);
         for (int index = 0; index < resultSize; index++) {
-            result.add(nearby.get(index).intent());
+            result.add(nearby.get(index).intent().snapshot());
         }
         return List.copyOf(result);
     }
@@ -158,8 +167,8 @@ public final class RecipeIntentRegistry {
 
     public static synchronized List<RecipeIntent> snapshot() {
         List<RecipeIntent> snapshot = new ArrayList<>(entryCount);
-        for (ArrayDeque<RecipeIntent> entries : INTENTS.values()) {
-            snapshot.addAll(entries);
+        for (var entries : INTENTS.values()) {
+            appendSnapshots(entries, snapshot);
         }
         return snapshot;
     }
@@ -175,16 +184,16 @@ public final class RecipeIntentRegistry {
         }
         int removed = 0;
         long nextExpiration = Long.MAX_VALUE;
-        Iterator<Map.Entry<IntentLocation, ArrayDeque<RecipeIntent>>> mapIterator = INTENTS.entrySet().iterator();
+        var mapIterator = INTENTS.entrySet().iterator();
         while (mapIterator.hasNext()) {
-            Map.Entry<IntentLocation, ArrayDeque<RecipeIntent>> mapEntry = mapIterator.next();
-            ArrayDeque<RecipeIntent> entries = mapEntry.getValue();
+            var mapEntry = mapIterator.next();
+            var entries = mapEntry.getValue();
             // A changed TTL may expire a later entry before the queue head.
             int previousSize = entries.size();
-            entries.removeIf(intent -> intent.isExpired(now));
+            entries.removeIf(intent -> now >= intent.expires);
             removed += previousSize - entries.size();
-            for (RecipeIntent intent : entries) {
-                nextExpiration = Math.min(nextExpiration, intent.expiresTick());
+            for (StoredIntent intent : entries) {
+                nextExpiration = Math.min(nextExpiration, intent.expires);
             }
             if (entries.isEmpty()) {
                 mapIterator.remove();
@@ -214,21 +223,30 @@ public final class RecipeIntentRegistry {
         }
     }
 
-    private static boolean canCoalesce(RecipeIntent left, RecipeIntent right) {
-        return left.createdTick() == right.createdTick()
-                && left.providerPos().equals(right.providerPos())
-                && left.providerSide() == right.providerSide()
-                && left.patternDefinitionId().equals(right.patternDefinitionId())
-                && left.inputs().equals(right.inputs())
-                && left.concreteInputs().equals(right.concreteInputs())
-                && left.outputs().equals(right.outputs());
+    private static boolean canCoalesce(RecipeIntent left, BlockPos providerPos, Direction providerSide,
+            String definitionId, List<InputIntent> inputs, List<StackIntent> concreteInputs,
+            List<StackIntent> outputs, long now) {
+        return left.createdTick() == now
+                && left.providerPos().equals(providerPos)
+                && left.providerSide() == providerSide
+                && left.patternDefinitionId().equals(definitionId)
+                && (left.inputs() == inputs || left.inputs().equals(inputs))
+                && sameStacks(left.concreteInputs(), concreteInputs)
+                && sameStacks(left.outputs(), outputs);
     }
 
-    private static long saturatingAdd(long left, long right) {
-        try {
-            return Math.addExact(left, right);
-        } catch (ArithmeticException ignored) {
-            return Long.MAX_VALUE;
+    private static boolean sameStacks(List<StackIntent> left, List<StackIntent> right) {
+        if (left == right) return true;
+        if (left.size() != right.size()) return false;
+        for (int i = 0; i < left.size(); i++) {
+            if (!left.get(i).equals(right.get(i))) return false;
+        }
+        return true;
+    }
+
+    private static void appendSnapshots(ArrayDeque<StoredIntent> entries, List<RecipeIntent> result) {
+        for (StoredIntent entry : entries) {
+            result.add(entry.snapshot());
         }
     }
 
@@ -242,9 +260,9 @@ public final class RecipeIntentRegistry {
     private static void enforceMaximumEntries() {
         int maximum = ACOConfig.getMaximumRecipeIntentEntries();
         while (entryCount > maximum && !INTENTS.isEmpty()) {
-            Iterator<Map.Entry<IntentLocation, ArrayDeque<RecipeIntent>>> iterator = INTENTS.entrySet().iterator();
-            Map.Entry<IntentLocation, ArrayDeque<RecipeIntent>> eldest = iterator.next();
-            ArrayDeque<RecipeIntent> entries = eldest.getValue();
+            var iterator = INTENTS.entrySet().iterator();
+            var eldest = iterator.next();
+            var entries = eldest.getValue();
             if (!entries.isEmpty()) {
                 entries.removeFirst();
                 entryCount--;
@@ -272,6 +290,31 @@ public final class RecipeIntentRegistry {
         }
     }
 
+    // Same-tick pushes update counts in place; readers still receive immutable snapshots.
+    private static final class StoredIntent {
+        private RecipeIntent snapshot;
+        private long executions;
+        private long expires;
+
+        private StoredIntent(RecipeIntent snapshot) {
+            this.snapshot = snapshot;
+            this.executions = snapshot.patternExecutions();
+            this.expires = snapshot.expiresTick();
+        }
+
+        private void add(long count, long expiration) {
+            executions += Math.min(count, Long.MAX_VALUE - executions);
+            expires = Math.max(expires, expiration);
+        }
+
+        private RecipeIntent snapshot() {
+            if (snapshot.patternExecutions() != executions || snapshot.expiresTick() != expires) {
+                snapshot = snapshot.withPatternExecutions(executions, expires);
+            }
+            return snapshot;
+        }
+    }
+
     private record SpatialBucket(ResourceLocation dimension, int chunkX, int chunkZ) {
         static SpatialBucket of(IntentLocation location) {
             return new SpatialBucket(
@@ -281,6 +324,6 @@ public final class RecipeIntentRegistry {
         }
     }
 
-    private record NearbyIntent(long distanceSquared, RecipeIntent intent) {
+    private record NearbyIntent(long distanceSquared, StoredIntent intent) {
     }
 }
