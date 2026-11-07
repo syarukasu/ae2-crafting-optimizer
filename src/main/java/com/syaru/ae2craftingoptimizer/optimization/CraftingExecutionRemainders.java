@@ -15,6 +15,7 @@ public final class CraftingExecutionRemainders {
     private CraftingExecutionRemainders() {}
 
     private static final String NATIVE_REMAINDER_PREDICATE = remainderPredicateName();
+    private static final String NATIVE_REMAINDER_GETTER = remainderGetterName();
 
     private static final ClassValue<Boolean> NATIVE_ITEM = new ClassValue<>() {
         @Override protected Boolean computeValue(Class<?> type) {
@@ -26,7 +27,9 @@ public final class CraftingExecutionRemainders {
                     return false;
                 }
                 return NATIVE_REMAINDER_PREDICATE != null
-                        && type.getMethod(NATIVE_REMAINDER_PREDICATE).getDeclaringClass() == Item.class;
+                        && NATIVE_REMAINDER_GETTER != null
+                        && type.getMethod(NATIVE_REMAINDER_PREDICATE).getDeclaringClass() == Item.class
+                        && type.getMethod(NATIVE_REMAINDER_GETTER).getDeclaringClass() == Item.class;
             } catch (NoSuchMethodException absent) {
                 return false;
             }
@@ -38,6 +41,15 @@ public final class CraftingExecutionRemainders {
         for (String name : new String[]{"hasCraftingRemainingItem", "m_41470_"}) {
             try {
                 if (Item.class.getMethod(name).getReturnType() == boolean.class) return name;
+            } catch (NoSuchMethodException absent) { }
+        }
+        return null;
+    }
+
+    private static String remainderGetterName() {
+        for (String name : new String[]{"getCraftingRemainingItem", "m_41469_"}) {
+            try {
+                if (Item.class.getMethod(name).getReturnType() == Item.class) return name;
             } catch (NoSuchMethodException absent) { }
         }
         return null;
@@ -66,7 +78,9 @@ public final class CraftingExecutionRemainders {
     }
 
     public static ItemStack remainder(AEItemKey selected) {
-        Item remainder = selected.getItem().getCraftingRemainingItem();
+        Item item = selected.getItem();
+        if (!item.hasCraftingRemainingItem()) return ItemStack.EMPTY;
+        Item remainder = item.getCraftingRemainingItem();
         return remainder == null ? ItemStack.EMPTY : new ItemStack(remainder);
     }
 }

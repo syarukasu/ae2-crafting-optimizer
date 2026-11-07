@@ -181,8 +181,8 @@ public final class ExactCraftingJobLedger<T, K> {
 
     public synchronized boolean completeAndBalanced() {
         return remainingOutput.signum() == 0
-                && waitingFor().isEmpty()
-                && dispatchedTasks.equals(taskTotals);
+                && dispatchedTasks.equals(taskTotals)
+                && waitingFor().isEmpty();
     }
 
     public static long saturatedLong(BigInteger value) {
@@ -259,8 +259,6 @@ public final class ExactCraftingJobLedger<T, K> {
             Map<K, BigInteger> available,
             Map<K, BigInteger> consumed,
             String name) {
-        Map<K, BigInteger> remaining =
-                new LinkedHashMap<>(available);
         // 受領量は、その時点までにwaitingForへ登録済みの量を一件も超えてはならない。
         for (var entry : consumed.entrySet()) {
             BigInteger total = available.get(entry.getKey());
@@ -274,14 +272,14 @@ public final class ExactCraftingJobLedger<T, K> {
                     total.subtract(entry.getValue());
             // 全量受領したキーは待機Mapから削除し、残量があるキーだけ保持する。
             if (rest.signum() == 0) {
-                remaining.remove(entry.getKey());
+                available.remove(entry.getKey());
             } else {
-                remaining.put(
+                available.put(
                         entry.getKey(),
                         rest);
             }
         }
-        return Map.copyOf(remaining);
+        return Map.copyOf(available);
     }
 
     private static BigInteger positive(BigInteger value, String name) {

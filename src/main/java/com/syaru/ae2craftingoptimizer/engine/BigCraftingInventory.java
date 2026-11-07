@@ -228,7 +228,7 @@ public final class BigCraftingInventory<K> {
         public synchronized void commit() {
             ensureOpen();
             owner.finishTransaction(
-                    this, new LinkedHashMap<>(working), workingTotal, workingEncodedBytes);
+                    this, working, workingTotal, workingEncodedBytes);
             closed = true;
         }
 

@@ -104,13 +104,22 @@ public final class CountedProcessingTransfers {
         double availablePower = energy.extractAEPower(power, Actionable.SIMULATE, PowerMultiplier.CONFIG);
         if (Double.isNaN(availablePower) || availablePower < 0) return EMPTY;
         if (availablePower < power - 0.01) {
-            double perExecution = CraftingCpuHelper.calculatePatternPower(scale(perSlot, 1));
+            double perExecution = CraftingCpuHelper.calculatePatternPower(perSlot);
+            if (!Double.isFinite(perExecution) || perExecution <= 0) return null;
             long powered = (long) Math.floor(Math.max(0, availablePower) / perExecution);
             offered = Math.min(offered, powered);
-            if (offered == 0) return EMPTY;
+            if (offered <= 0) return EMPTY;
             payload = scale(perSlot, offered);
             power = CraftingCpuHelper.calculatePatternPower(payload);
-            if (energy.extractAEPower(power, Actionable.SIMULATE, PowerMultiplier.CONFIG) < power - 0.01) return EMPTY;
+            double simulated = energy.extractAEPower(power, Actionable.SIMULATE, PowerMultiplier.CONFIG);
+            if (Double.isNaN(simulated) || simulated < 0) return EMPTY;
+            if (simulated < power - 0.01) {
+                if (offered <= 1) return EMPTY;
+                offered--;
+                payload = scale(perSlot, offered);
+                power = CraftingCpuHelper.calculatePatternPower(payload);
+                if (!(energy.extractAEPower(power, Actionable.SIMULATE, PowerMultiplier.CONFIG) >= power - 0.01)) return EMPTY;
+            }
         }
         var extracted = new KeyCounter[payload.length];
         for (int i = 0; i < payload.length; i++) {
@@ -169,8 +178,7 @@ public final class CountedProcessingTransfers {
         for (int i = 0; i < inputs.length; i++) {
             result[i] = new KeyCounter();
             for (var entry : inputs[i]) {
-                result[i].add(entry.getKey(), BigInteger.valueOf(entry.getLongValue())
-                        .multiply(BigInteger.valueOf(count)).longValueExact());
+                result[i].add(entry.getKey(), Math.multiplyExact(entry.getLongValue(), count));
             }
         }
         return result;

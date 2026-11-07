@@ -1,9 +1,8 @@
-# AE2 Crafting Optimizer 2.0.4
+# AE2 Crafting Optimizer 2.0.5
 
-2.0.4 reduces repeated recipe-hint work after successful Pattern Provider
-deliveries. It also fixes fractional amount display and hardens batch count
-bounds for returned items. Exact cell totals remain available
-until the final world save completes.
+2.0.5 includes the changes from PR #252 alongside the 2.0.4 recipe-hint
+optimization. It reduces work in planning, counted delivery and recipe lookup,
+while preserving receiver limits and exact accounting. See [Changes](CHANGELOG.md).
 
 Forge 1.20.1 / Java 17. Install the same version on server and clients.
 AE2 15.4.10+ is admitted without an upper bound, not guaranteed compatible forever.
@@ -33,10 +32,10 @@ With Java 17:
 ./gradlew bundleVm verifyExactVmBundle -PacoExactVmDir=../vm/exact-engine -PacoAe2Version=15.4.11
 ```
 
-Install only `build/distributions/2.0.4/aco2.0.4_1.20.1.jar`, not intermediates
+Install only `build/distributions/2.0.5/aco2.0.5_1.20.1.jar`, not intermediates
 marked NOT-FOR-INSTALLATION. Do not install duplicate embedded VM modules.
 Optional compatibility dependencies are compile-only, not bundled.
 
-Only runtime code/assets, build settings, README and licenses are published here.
+Only runtime code/assets, build settings, documentation and licenses are published here.
 JARs/checksums belong in Releases. Tests, logs, profiles and worlds stay private.
 LGPL-3.0-only; see LICENSE and NOTICE.md. [日本語](README_ja.md)

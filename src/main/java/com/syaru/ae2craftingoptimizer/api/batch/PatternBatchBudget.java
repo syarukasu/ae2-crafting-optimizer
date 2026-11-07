@@ -12,13 +12,11 @@ public record PatternBatchBudget(long maximumExecutions, long deadlineNanos) {
         if (maximumExecutions <= 0L) {
             throw new IllegalArgumentException("maximumExecutions must be positive");
         }
-        if (deadlineNanos <= 0L) {
-            throw new IllegalArgumentException("deadlineNanos must be positive");
-        }
     }
 
     public boolean hasTimeRemaining() {
-        return deadlineNanos == Long.MAX_VALUE || System.nanoTime() < deadlineNanos;
+        // nanoTime deadlines can be negative. Long.MAX_VALUE is the explicit unbounded budget.
+        return deadlineNanos == Long.MAX_VALUE || (deadlineNanos - System.nanoTime()) > 0L;
     }
 
     public boolean canStartAnother(long acceptedExecutions) {

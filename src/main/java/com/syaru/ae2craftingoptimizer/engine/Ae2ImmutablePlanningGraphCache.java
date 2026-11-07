@@ -623,9 +623,7 @@ public final class Ae2ImmutablePlanningGraphCache {
             this.emittableKeys = Set.copyOf(emittableKeys);
             this.exactInputDomains = Set.copyOf(exactInputDomains);
             this.recipeGeneration = recipeGeneration;
-            Map<AEKey, List<CompiledPattern<AEKey>>> frozenOrder = new LinkedHashMap<>();
-            orderedCandidates.forEach((key, patterns) -> frozenOrder.put(key, List.copyOf(patterns)));
-            this.orderedCandidates = Map.copyOf(frozenOrder);
+            this.orderedCandidates = Map.copyOf(orderedCandidates);
         }
 
         private static Snapshot compile(

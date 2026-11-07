@@ -22,7 +22,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -34,8 +36,10 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 public final class GTCEuRecipeIntentFastPath {
     private static final Object LOCK = new Object();
-    private static final Map<Object, OutputRecipeIndex> INDEXES = Collections.synchronizedMap(new IdentityHashMap<>());
+    private static final Map<Object, OutputRecipeIndex> INDEXES = new IdentityHashMap<>();
     private static final Map<TargetKey, CachedCandidates> RESOLVED_CANDIDATES = new LinkedHashMap<>();
+    private static final Map<MemberKey, Optional<Method>> METHOD_CACHE = new ConcurrentHashMap<>();
+    private static final Map<MemberKey, Optional<Field>> FIELD_CACHE = new ConcurrentHashMap<>();
     private static final Set<String> REFLECTION_FAILURES_LOGGED = Collections.synchronizedSet(new LinkedHashSet<>());
     private static long lastResolvedCleanupTick = Long.MIN_VALUE;
 
@@ -94,11 +98,19 @@ public final class GTCEuRecipeIntentFastPath {
             }
 
             // #179: ID-only candidates are advisory, never a proof of the intended NBT output.
-            var capturedIntents = intents;
-            candidates = candidates.stream().filter(recipe -> matchesIntent(recipe, capturedIntents)).toList();
-            if (candidates.size() != 1) {
+            List<Object> matchedCandidates = new ArrayList<>(1);
+            for (Object candidate : candidates) {
+                if (matchesIntent(candidate, intents)) {
+                    matchedCandidates.add(candidate);
+                    if (matchedCandidates.size() > 1) {
+                        return List.of();
+                    }
+                }
+            }
+            if (matchedCandidates.size() != 1) {
                 return List.of();
             }
+            candidates = List.copyOf(matchedCandidates);
 
             if (ACOConfig.logGtceuRecipeIntentFastPath()) {
                 AE2CraftingOptimizer.LOGGER.info(
@@ -116,6 +128,8 @@ public final class GTCEuRecipeIntentFastPath {
             RESOLVED_CANDIDATES.clear();
             lastResolvedCleanupTick = Long.MIN_VALUE;
         }
+        METHOD_CACHE.clear();
+        FIELD_CACHE.clear();
         if (ACOConfig.logGtceuRecipeIntentFastPath()) {
             AE2CraftingOptimizer.LOGGER.info("Cleared GTCEu recipe intent indexes: {}", reason);
         }
@@ -144,10 +158,12 @@ public final class GTCEuRecipeIntentFastPath {
                 if (actual == null || consumed == null || !actual.keySet().equals(expected.keySet())
                         || !consumed.keySet().equals(inputs.keySet())) continue;
                 var first = actual.keySet().iterator().next();
-                if (actual.entrySet().stream().allMatch(e -> e.getValue().multiply(expected.get(first))
-                        .equals(expected.get(e.getKey()).multiply(actual.get(first))))
-                        && consumed.entrySet().stream().allMatch(e -> e.getValue().multiply(expected.get(first))
-                        .equals(inputs.get(e.getKey()).multiply(actual.get(first))))) return true;
+                BigInteger expectedFirst = expected.get(first);
+                BigInteger actualFirst = actual.get(first);
+                if (ratiosMatch(actual, expected, expectedFirst, actualFirst)
+                        && ratiosMatch(consumed, inputs, expectedFirst, actualFirst)) {
+                    return true;
+                }
             }
         } catch (ReflectiveOperationException | RuntimeException | LinkageError unsupported) {
             logReflectionFailure("exactOutputs", unsupported);
@@ -182,12 +198,31 @@ public final class GTCEuRecipeIntentFastPath {
                         choices.add(StackIntent.of(AEFluidKey.of(fluid), fluid.getAmount()));
                 }
                 if (field.equals("outputs") && choices.size() != 1) return null;
-                var matching = choices.stream().filter(s -> expected.contains(s.exactKey())).distinct().toList();
-                if (matching.size() != 1) return null;
-                result.merge(matching.get(0).exactKey(), BigInteger.valueOf(matching.get(0).amount()), BigInteger::add);
+                StackIntent matched = null;
+                for (StackIntent choice : choices) {
+                    if (!expected.contains(choice.exactKey())) continue;
+                    if (matched != null && !matched.equals(choice)) return null;
+                    matched = choice;
+                }
+                if (matched == null) return null;
+                result.merge(matched.exactKey(), BigInteger.valueOf(matched.amount()), BigInteger::add);
             }
         }
         return result;
+    }
+
+    private static boolean ratiosMatch(
+            Map<AEKey, BigInteger> actual,
+            Map<AEKey, BigInteger> target,
+            BigInteger expectedFirst,
+            BigInteger actualFirst) {
+        for (var entry : actual.entrySet()) {
+            if (!entry.getValue().multiply(expectedFirst)
+                    .equals(target.get(entry.getKey()).multiply(actualFirst))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static List<Object> collectCandidates(
@@ -393,36 +428,63 @@ public final class GTCEuRecipeIntentFastPath {
         }
     }
 
+    private record MemberKey(Class<?> owner, String name) {
+    }
+
     private static Object invoke(Object target, String methodName) throws ReflectiveOperationException {
         Method method = findMethod(target.getClass(), methodName);
-        method.setAccessible(true);
         return method.invoke(target);
     }
 
     private static Method findMethod(Class<?> type, String methodName) throws NoSuchMethodException {
+        Optional<Method> cached = METHOD_CACHE.computeIfAbsent(
+                new MemberKey(type, methodName),
+                key -> resolveMethod(key.owner(), key.name()));
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+        throw new NoSuchMethodException(type.getName() + "." + methodName + "()");
+    }
+
+    private static Optional<Method> resolveMethod(Class<?> type, String methodName) {
         Class<?> current = type;
         while (current != null) {
             try {
-                return current.getDeclaredMethod(methodName);
+                Method method = current.getDeclaredMethod(methodName);
+                method.setAccessible(true);
+                return Optional.of(method);
             } catch (NoSuchMethodException ignored) {
                 current = current.getSuperclass();
             }
         }
-        return type.getMethod(methodName);
+        try {
+            Method method = type.getMethod(methodName);
+            method.setAccessible(true);
+            return Optional.of(method);
+        } catch (NoSuchMethodException ignored) {
+            return Optional.empty();
+        }
     }
 
     private static Object getField(Object target, String fieldName) throws ReflectiveOperationException {
-        Class<?> current = target.getClass();
+        Optional<Field> cached = FIELD_CACHE.computeIfAbsent(
+                new MemberKey(target.getClass(), fieldName),
+                key -> resolveField(key.owner(), key.name()));
+        return cached.isPresent() ? cached.get().get(target) : null;
+    }
+
+    private static Optional<Field> resolveField(Class<?> type, String fieldName) {
+        Class<?> current = type;
         while (current != null) {
             try {
                 Field field = current.getDeclaredField(fieldName);
                 field.setAccessible(true);
-                return field.get(target);
+                return Optional.of(field);
             } catch (NoSuchFieldException ignored) {
                 current = current.getSuperclass();
             }
         }
-        return null;
+        return Optional.empty();
     }
 
     private static final class OutputRecipeIndex {
@@ -525,7 +587,6 @@ public final class GTCEuRecipeIntentFastPath {
             } catch (NoSuchMethodException ignored) {
                 return;
             }
-            getStacks.setAccessible(true);
             Object stacks = getStacks.invoke(value);
             if (!(stacks instanceof FluidStack[] fluidStacks)) {
                 return;

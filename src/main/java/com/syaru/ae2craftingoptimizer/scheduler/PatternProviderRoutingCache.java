@@ -5,7 +5,6 @@ import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.me.service.CraftingService;
 import com.syaru.ae2craftingoptimizer.optimization.ProviderPatternGenerationTracker;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +13,7 @@ import java.util.WeakHashMap;
 /** Reuses structural provider routes while still checking each provider's live busy/backpressure state. */
 public final class PatternProviderRoutingCache {
     private static final Map<CraftingService, ServiceRoutes> ROUTES =
-            Collections.synchronizedMap(new WeakHashMap<>());
+            new WeakHashMap<>();
 
     private PatternProviderRoutingCache() {
     }

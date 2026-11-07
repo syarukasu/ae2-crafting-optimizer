@@ -121,14 +121,16 @@ public final class BigAmountFormatter {
 
     private static String formatCompact(BigDecimal units) {
         BigInteger wholeUnits = units.toBigInteger();
-        if (units.scale() <= 0 && wholeUnits.compareTo(THOUSAND) < 0) {
-            return wholeUnits.toString();
+        if (wholeUnits.compareTo(THOUSAND) < 0) {
+            if (units.scale() <= 0) {
+                return wholeUnits.toString();
+            }
+            if (units.signum() == 0 || units.compareTo(ONE_MILLI) >= 0) {
+                return units.setScale(Math.min(3, units.scale()), RoundingMode.DOWN)
+                        .stripTrailingZeros()
+                        .toPlainString();
+            }
         }
-        if (wholeUnits.compareTo(THOUSAND) < 0 && units.compareTo(ONE_MILLI) >= 0) {
-            return units.setScale(Math.min(3, units.scale()), RoundingMode.DOWN)
-                    .stripTrailingZeros().toPlainString();
-        }
-
         int exponent = units.precision() - units.scale() - 1;
         BigDecimal mantissa = units.movePointLeft(exponent)
                 .setScale(2, RoundingMode.DOWN)

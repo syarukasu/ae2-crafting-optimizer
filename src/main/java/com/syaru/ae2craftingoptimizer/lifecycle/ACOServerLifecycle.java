@@ -63,6 +63,7 @@ public final class ACOServerLifecycle {
         OptimizationFeatureGate.resetDiagnostics();
         ExperimentalCompatibilityValidator.validateEnabledFeatures();
         ServerTickClock.reset();
+        ExactVectorGridTickBudget.clearAll();
         Ae2OverclockUpgradeCountCache.clear();
         AssemblerMatrixBusyCountCache.clear();
         MethodHandleInvocationCache.clear();
