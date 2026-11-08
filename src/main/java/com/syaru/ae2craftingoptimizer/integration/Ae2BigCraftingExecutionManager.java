@@ -126,6 +126,7 @@ public final class Ae2BigCraftingExecutionManager {
         private UUID stallJobId;
         /** restoreOrStartが開始を見送った直近の具体的な理由。 */
         private String startDeferralReason = "";
+        private String cachedStableKey;
 
         private Controller(CraftingCPUCluster cluster) {
             this.cluster = cluster;
@@ -138,9 +139,14 @@ public final class Ae2BigCraftingExecutionManager {
         }
 
         private String stableKey() {
-            return cluster.getLevel().dimension().location()
-                    + ":"
-                    + cluster.getBoundsMin().asLong();
+            String key = cachedStableKey;
+            if (key == null) {
+                key = cluster.getLevel().dimension().location()
+                        + ":"
+                        + cluster.getBoundsMin().asLong();
+                cachedStableKey = key;
+            }
+            return key;
         }
 
         /** @return 同じクラスタを次tickも追跡する場合true。 */

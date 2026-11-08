@@ -195,6 +195,10 @@ public final class BigKeyCounterSidecars {
 
         public void add(Snapshot contribution) {
             Objects.requireNonNull(contribution, "contribution");
+            // 不完全なmountの寄与に存在しないキーは、そのmount側でoverflow除外された可能性があるためexact証明から外す。
+            if (!contribution.complete()) {
+                exactKeys.retainAll(contribution.exactKeys());
+            }
             // 既存mergeと同じ順序で、各mountの同一キー寄与を正確に加算する。
             for (Map.Entry<AEKey, BigInteger> entry : contribution.amounts().entrySet()) {
                 AEKey key = entry.getKey();

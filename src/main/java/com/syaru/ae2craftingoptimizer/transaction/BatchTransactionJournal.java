@@ -75,12 +75,26 @@ public final class BatchTransactionJournal extends SavedData {
     }
 
     public synchronized List<BatchTransactionRecord> pending(int maximum) {
+        if (maximum <= 0 || records.isEmpty()) {
+            return List.of();
+        }
         List<BatchTransactionRecord> result = new ArrayList<>(Math.min(maximum, records.size()));
-        for (BatchTransactionRecord record : records.values()) {
+        var iterator = records.entrySet().iterator();
+        while (iterator.hasNext()) {
+            BatchTransactionRecord record = iterator.next().getValue();
             if (!record.phase().terminal()) {
                 result.add(record);
                 if (result.size() >= maximum) {
                     break;
+                }
+            }
+        }
+        // 未ロードチャンク等でRETRYになった先頭N件が後続の未完了取引を永久に塞がないよう、調査対象を末尾へ回す。
+        if (!result.isEmpty() && result.size() < records.size()) {
+            for (BatchTransactionRecord rotated : result) {
+                BatchTransactionRecord current = records.remove(rotated.id());
+                if (current != null) {
+                    records.put(current.id(), current);
                 }
             }
         }

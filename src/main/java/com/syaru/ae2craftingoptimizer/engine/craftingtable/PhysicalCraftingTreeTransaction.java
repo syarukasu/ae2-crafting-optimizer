@@ -938,9 +938,7 @@ public final class PhysicalCraftingTreeTransaction {
             Map<AEKey, BigInteger> expected =
                     expectedFinalOutputs();
             // 最終Escrowが数式上の結果と完全一致しなければ、直接補正せず隔離する。
-            if (!escrow.snapshot()
-                    .equals(
-                            expected)) {
+            if (!escrow.matchesSnapshot(expected)) {
                 quarantine(
                         "physical recipe outputs do not equal the planned final inventory");
                 return TickOutcome.quarantined(
@@ -1316,9 +1314,7 @@ public final class PhysicalCraftingTreeTransaction {
             return TickOutcome.complete();
         }
         // Escrowに実在しない成果物を、計画値から直接生成してはならない。
-        if (!escrow.snapshot()
-                .equals(
-                        outputs)) {
+        if (!escrow.matchesSnapshot(outputs)) {
             quarantine(
                     "final output is absent from the physical crafting escrow");
             return TickOutcome.quarantined(
@@ -1862,9 +1858,7 @@ public final class PhysicalCraftingTreeTransaction {
                 // 取消返却は現在Escrowに残る全キー・数量だけを一括減算する。
                 if (state
                                 != State.RETURNING_CANCELLED_ESCROW
-                        || !escrow.snapshot()
-                                .equals(
-                                        amounts)) {
+                        || !escrow.matchesSnapshot(amounts)) {
                     throw new IllegalStateException(
                         "pending cancellation output is in another state");
                 }

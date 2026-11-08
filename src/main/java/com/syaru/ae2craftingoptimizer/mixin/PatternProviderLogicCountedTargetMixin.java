@@ -36,6 +36,11 @@ public abstract class PatternProviderLogicCountedTargetMixin implements CountedP
     @Shadow private PatternProviderTarget findAdapter(Direction side) { throw new AssertionError(); }
 
     @Override
+    public boolean aco$supportsCountedPattern(IPatternDetails pattern) {
+        return CountedNativeContracts.nativeProvider(this) && CountedNativeContracts.usesDefaultInputPush(pattern);
+    }
+
+    @Override
     public long aco$countedExecutionLimit(IPatternDetails pattern, Map<AEKey, BigInteger> inputs, long offered) {
         if (!CountedNativeContracts.nativeProvider(this)
                 || !CountedNativeContracts.defaultExternalPush(pattern)) return -1;

@@ -1,8 +1,8 @@
-# AE2 Crafting Optimizer 2.0.5
+# AE2 Crafting Optimizer 2.0.6
 
-2.0.5 ports the applicable changes from PR #252 alongside the 2.0.4 recipe-hint
-optimization. It reduces work in planning, counted delivery and recipe lookup,
-while preserving receiver limits and exact accounting. See [Changes](CHANGELOG.md).
+2.0.6 ports the applicable changes from PR #253 and reduces repeated input
+checks before native crafting delivery. It preserves receiver limits, AE2
+routing, power accounting and exact amounts. See [Changes](CHANGELOG.md).
 
 NeoForge 1.21.1 / Java 21. Install the matching platform JAR on both sides.
 This branch uses the updated shared BigInteger planning core with AE2 19 adapters.
@@ -31,7 +31,7 @@ run with Java 21:
 ./gradlew bundleVm verifyVmBundle -PacoVmForkDir=../vm-host -PacoVmCoreDir=../vm-core -PacoLocalModsDir=/path/to/mods
 ```
 
-Install only `build/distributions/2.0.5/aco2.0.5_1.21.1.jar`, not intermediates
+Install only `build/distributions/2.0.6/aco2.0.6_1.21.1.jar`, not intermediates
 or duplicate embedded VM modules. This branch publishes source/assets, build
 settings, documentation and licenses only. Binaries/checksums belong in Releases;
 tests, logs, profiles and worlds stay out of the source publication.

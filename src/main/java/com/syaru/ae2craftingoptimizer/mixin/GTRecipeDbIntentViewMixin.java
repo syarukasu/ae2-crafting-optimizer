@@ -19,6 +19,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class GTRecipeDbIntentViewMixin implements GTRecipeDbView {
     @Unique private final Set<GTRecipe> aco$recipes = Collections.newSetFromMap(new IdentityHashMap<>());
     @Unique private long aco$revision;
+    @Unique private long aco$snapshotRevision = -1L;
+    @Unique private List<?> aco$snapshot = List.of();
 
     @Inject(method = "addRecipe", at = @At("RETURN"), require = 1)
     private void aco$accepted(GTRecipe recipe, CallbackInfoReturnable<Boolean> cir) {
@@ -32,5 +34,11 @@ public abstract class GTRecipeDbIntentViewMixin implements GTRecipeDbView {
     }
 
     @Override public long aco$recipeRevision() { return aco$revision; }
-    @Override public List<?> aco$acceptedRecipes() { return List.copyOf(aco$recipes); }
+    @Override public List<?> aco$acceptedRecipes() {
+        if (aco$snapshotRevision != aco$revision) {
+            aco$snapshot = List.copyOf(aco$recipes);
+            aco$snapshotRevision = aco$revision;
+        }
+        return aco$snapshot;
+    }
 }

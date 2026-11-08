@@ -644,8 +644,9 @@ public final class Ae2ImmutablePlanningGraphCache {
                 CompiledPattern<AEKey> compiled = pattern.compile(id);
                 idByPattern.put(pattern.details(), id);
                 compiledByPattern.put(pattern.details(), compiled);
-                patternById.putIfAbsent(id, pattern.details());
-                compiledPatterns.add(compiled);
+                if (patternById.putIfAbsent(id, pattern.details()) == null) {
+                    compiledPatterns.add(compiled);
+                }
                 if (pattern.exactInputDomain()) {
                     exactInputDomains.add(id);
                 }

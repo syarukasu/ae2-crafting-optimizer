@@ -2,9 +2,11 @@ package com.syaru.ae2craftingoptimizer.engine;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
@@ -80,6 +82,7 @@ final class OrderedBranchingPlanner<K> {
         if (inputRules != null) {
             state.cacheFuzzy(root.key);
             state.modifiedKeys.add(root.key);
+            state.modifiedSet.add(root.key);
         }
         try {
             request(root, state, amount, null);
@@ -224,8 +227,7 @@ final class OrderedBranchingPlanner<K> {
                 boolean recursive = false;
                 for (Node ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
                     K ancestorKey = ancestor.key;
-                    if (pattern.outputs().containsKey(ancestor.key) || pattern.inputs().stream()
-                            .anyMatch(slot -> slot.alternatives().get(0).key().equals(ancestorKey))) {
+                    if (pattern.outputs().containsKey(ancestorKey) || hasInput(pattern, ancestorKey)) {
                         recursive = true;
                         break;
                     }
@@ -233,6 +235,15 @@ final class OrderedBranchingPlanner<K> {
                 if (!recursive) processes.add(new Process(pattern, this));
             }
             if (processes.size() > 1) multiplePaths = true;
+        }
+
+        private boolean hasInput(CompiledPattern<K> pattern, K target) {
+            for (CompiledPattern.InputSlot<K> slot : pattern.inputs()) {
+                if (slot.alternatives().get(0).key().equals(target)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -291,6 +302,8 @@ final class OrderedBranchingPlanner<K> {
         private final Function<K, List<K>> sourceFuzzy;
         private final BranchingInputRules.KeyIndex<K> originalKeys;
         private final BranchingInputRules.KeyIndex<K> modifiedKeys;
+        private final Set<K> fuzzyCached;
+        private final Set<K> modifiedSet;
         private boolean membershipChanged;
         private final Map<K, BigInteger> initial = new LinkedHashMap<>();
         private final Map<K, BigInteger> stock = new LinkedHashMap<>();
@@ -315,10 +328,13 @@ final class OrderedBranchingPlanner<K> {
             this.sourceFuzzy = sourceFuzzy;
             originalKeys = inputRules == null ? null : inputRules.newIndex();
             modifiedKeys = inputRules == null ? null : inputRules.newIndex();
+            fuzzyCached = inputRules == null ? null : new HashSet<>();
+            modifiedSet = inputRules == null ? null : new HashSet<>();
         }
 
         private void cacheFuzzy(K key) {
-            if (inputRules == null || !originalKeys.fuzzy(key).isEmpty()) return;
+            if (inputRules == null || !fuzzyCached.add(key)) return;
+            if (!originalKeys.fuzzy(key).isEmpty()) return;
             boolean any = false;
             for (K candidate : sourceFuzzy.apply(key)) {
                 BigInteger amount = check(source.apply(candidate));
@@ -326,7 +342,9 @@ final class OrderedBranchingPlanner<K> {
                 initial.put(candidate, amount);
                 stock.put(candidate, amount);
                 originalKeys.add(candidate);
+                fuzzyCached.add(candidate);
                 modifiedKeys.add(candidate);
+                modifiedSet.add(candidate);
             }
             if (!any) originalKeys.add(key);
         }
@@ -351,12 +369,15 @@ final class OrderedBranchingPlanner<K> {
 
         private BigInteger extract(K key, BigInteger amount, long template) {
             BigInteger quantum = BigInteger.valueOf(template);
-            BigInteger before = available(key);
+            BigInteger init = initial(key);
+            BigInteger before = stock.getOrDefault(key, init);
+            BigInteger currentDelta = before.subtract(init);
             BigInteger taken = before.min(amount).divide(quantum).multiply(quantum);
             BigInteger upper = taken.equals(amount) ? null : taken.add(quantum).subtract(ONE);
-            constrain(key, taken.subtract(delta(key)), upper == null ? null : upper.subtract(delta(key)));
-            stock.put(key, before.subtract(taken));
-            BigInteger needed = initial(key).subtract(available(key));
+            constrain(key, taken.subtract(currentDelta), upper == null ? null : upper.subtract(currentDelta));
+            BigInteger after = before.subtract(taken);
+            stock.put(key, after);
+            BigInteger needed = init.subtract(after);
             if (needed.signum() > 0) required.merge(key, needed, BigInteger::max);
             return taken;
         }
@@ -364,8 +385,10 @@ final class OrderedBranchingPlanner<K> {
         private void insert(K key, BigInteger amount) {
             BigInteger before = available(key);
             if (modifiedKeys != null) {
-                if (!modifiedKeys.fuzzy(key).contains(key)) membershipChanged = true;
-                modifiedKeys.add(key);
+                if (modifiedSet.add(key)) {
+                    if (!modifiedKeys.fuzzy(key).contains(key)) membershipChanged = true;
+                    modifiedKeys.add(key);
+                }
             }
             stock.put(key, check(before.add(amount)));
         }
@@ -398,12 +421,19 @@ final class OrderedBranchingPlanner<K> {
         }
 
         private void inheritReads(State child, BigInteger times) {
+            BigInteger extraTimes = times.subtract(ONE);
+            boolean single = extraTimes.signum() == 0;
             child.reads.forEach((key, interval) -> {
-                BigInteger drift = child.delta(key).multiply(times.subtract(ONE));
                 BigInteger offset = delta(key);
-                constrain(key, interval.lower.subtract(offset).subtract(drift.min(ZERO)),
-                        interval.upper == null ? null
-                                : interval.upper.subtract(offset).subtract(drift.max(ZERO)));
+                if (single) {
+                    constrain(key, interval.lower.subtract(offset),
+                            interval.upper == null ? null : interval.upper.subtract(offset));
+                } else {
+                    BigInteger drift = child.delta(key).multiply(extraTimes);
+                    constrain(key, interval.lower.subtract(offset).subtract(drift.min(ZERO)),
+                            interval.upper == null ? null
+                                    : interval.upper.subtract(offset).subtract(drift.max(ZERO)));
+                }
             });
         }
 
@@ -417,8 +447,10 @@ final class OrderedBranchingPlanner<K> {
 
         private void apply(State child, BigInteger times, boolean inlineBytes) {
             inheritReads(child, times);
+            BigInteger extraTimes = times.subtract(ONE);
+            boolean single = extraTimes.signum() == 0;
             child.required.forEach((key, needed) -> {
-                BigInteger drift = child.delta(key).multiply(times.subtract(ONE));
+                BigInteger drift = single ? ZERO : child.delta(key).multiply(extraTimes);
                 BigInteger peak = initial(key).subtract(available(key)).add(needed).subtract(drift.min(ZERO));
                 if (peak.signum() > 0) required.merge(key, check(peak), BigInteger::max);
             });

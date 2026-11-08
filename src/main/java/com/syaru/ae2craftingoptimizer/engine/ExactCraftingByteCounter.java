@@ -15,8 +15,8 @@ public final class ExactCraftingByteCounter<K> {
             Map<K, CompiledPattern<K>> patterns,
             Map<String, Long> executions,
             ToLongFunction<K> amountPerByte) {
-        this.patterns = Map.copyOf(Objects.requireNonNull(patterns, "patterns"));
-        this.executions = Map.copyOf(Objects.requireNonNull(executions, "executions"));
+        this.patterns = Objects.requireNonNull(patterns, "patterns");
+        this.executions = Objects.requireNonNull(executions, "executions");
         this.amountPerByte = Objects.requireNonNull(amountPerByte, "amountPerByte");
     }
 

@@ -38,6 +38,7 @@ public final class CountedCraftingDispatch {
             BigInteger remaining = progress.aco$getExactTaskProgress();
             if (remaining.signum() <= 0) continue;
             var providers = new ArrayList<ICraftingProvider>();
+            // The native iterable carries a live round-robin cursor, not just topology.
             for (var provider : service.getProviders(entry.getKey())) {
                 // Preserve opaque callbacks and routing before any source ownership changes.
                 if (!(provider instanceof CountedPatternBatchTarget)) return NOT_HANDLED;

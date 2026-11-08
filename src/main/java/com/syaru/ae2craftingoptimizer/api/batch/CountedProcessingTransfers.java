@@ -5,11 +5,16 @@ import appeng.api.config.PowerMultiplier;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.energy.IEnergyService;
+import appeng.api.stacks.AEFluidKey;
+import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import appeng.crafting.execution.CraftingCpuHelper;
 import appeng.crafting.inv.ICraftingInventory;
+import appeng.crafting.inv.ListCraftingInventory;
+import appeng.crafting.pattern.AEProcessingPattern;
 import net.minecraft.world.level.Level;
+import com.syaru.ae2craftingoptimizer.access.ExactCraftingInventoryAccess;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.optimization.CountedInputPreview;
 import com.syaru.ae2craftingoptimizer.optimization.GTCountedInputPush;
@@ -49,43 +54,61 @@ public final class CountedProcessingTransfers {
         if (!enabled() || pattern == null
                 || !(provider instanceof CountedPatternBatchTarget target)) return null;
         if (logicalBudget <= 0 || remaining.signum() <= 0 || provider.isBusy()) return EMPTY;
+        boolean supported = target.aco$supportsCountedPattern(pattern);
+        boolean nativePreview = pattern.getClass() == AEProcessingPattern.class
+                && source.getClass() == ListCraftingInventory.class
+                && (!(source instanceof ExactCraftingInventoryAccess access) || !access.aco$hasExactCounts());
+        if (!supported && !nativePreview) return null;
         var inputs = pattern.getInputs();
         if (inputs.length == 0) return null;
-        Map<AEKey, BigInteger> required = new LinkedHashMap<>();
+        long offered = remaining.min(BigInteger.valueOf(logicalBudget)).longValueExact();
+        var exact = nativePreview ? previewNativeInputs(inputs, source, offered, supported) : null;
+        if (exact == NativePreview.BLOCKED) return EMPTY;
+        if (!supported) return null;
+        Map<AEKey, BigInteger> required;
+        KeyCounter[] perSlot;
+        if (exact != null) {
+            offered = exact.limit();
+            required = exact.required();
+            perSlot = exact.slots();
+        } else {
+            for (var input : inputs) {
+                var alternatives = input.getPossibleInputs();
+                long multiplier = input.getMultiplier();
+                if (alternatives.length == 0 || multiplier <= 0) return null;
+                for (var alternative : alternatives) {
+                    if (alternative == null || alternative.amount() <= 0
+                            || input.getRemainingKey(alternative.what()) != null
+                            || alternative.amount() > Long.MAX_VALUE / multiplier) return null;
+                }
+            }
+            var containers = new KeyCounter();
+            perSlot = CraftingCpuHelper.extractPatternInputs(pattern, new CountedInputPreview(source),
+                    level, new KeyCounter(), containers);
+            if (perSlot == null) return EMPTY;
+            if (!containers.isEmpty()) return null;
+            required = new LinkedHashMap<>();
+            for (var slot : perSlot) {
+                for (var input : slot) {
+                    if (input.getLongValue() < 0) return null;
+                    if (input.getLongValue() > 0)
+                        required.merge(input.getKey(), BigInteger.valueOf(input.getLongValue()), BigInteger::add);
+                }
+            }
+            if (required.isEmpty()) return null;
+        }
         Map<AEKey, BigInteger> produced = new LinkedHashMap<>();
-        for (int i = 0; i < inputs.length; i++) {
-            var alternatives = inputs[i].getPossibleInputs();
-            if (alternatives.length == 0 || inputs[i].getMultiplier() <= 0) return null;
-            for (var input : alternatives) {
-                if (input == null || input.amount() <= 0
-                        || inputs[i].getRemainingKey(input.what()) != null) return null;
-                if (BigInteger.valueOf(input.amount()).multiply(BigInteger.valueOf(inputs[i].getMultiplier()))
-                        .compareTo(LONG_MAX) > 0) return null;
-            }
-        }
-        var containers = new KeyCounter();
-        var perSlot = CraftingCpuHelper.extractPatternInputs(pattern, new CountedInputPreview(source),
-                level, new KeyCounter(), containers);
-        if (perSlot == null) return EMPTY;
-        if (!containers.isEmpty()) return null;
-        for (var slot : perSlot) {
-            for (var input : slot) {
-                if (input.getLongValue() < 0) return null;
-                if (input.getLongValue() > 0)
-                    required.merge(input.getKey(), BigInteger.valueOf(input.getLongValue()), BigInteger::add);
-            }
-        }
-        if (required.isEmpty()) return null;
         for (var output : pattern.getOutputs()) {
             if (output == null || output.amount() <= 0) return null;
             produced.merge(output.what(), BigInteger.valueOf(output.amount()), BigInteger::add);
         }
         if (produced.isEmpty()) return null;
-        long offered = remaining.min(BigInteger.valueOf(logicalBudget)).longValueExact();
-        for (var entry : required.entrySet()) {
-            long available = source.extract(entry.getKey(), Long.MAX_VALUE, Actionable.SIMULATE);
-            if (available < 0) throw new IllegalStateException("negative native CPU stock");
-            offered = bounded(offered, BigInteger.valueOf(available).divide(entry.getValue()));
+        if (exact == null) {
+            for (var entry : required.entrySet()) {
+                long available = source.extract(entry.getKey(), Long.MAX_VALUE, Actionable.SIMULATE);
+                if (available < 0) throw new IllegalStateException("negative native CPU stock");
+                offered = bounded(offered, BigInteger.valueOf(available).divide(entry.getValue()));
+            }
         }
         for (var entry : produced.entrySet()) {
             long pending = waiting.extract(entry.getKey(), Long.MAX_VALUE, Actionable.SIMULATE);
@@ -167,6 +190,42 @@ public final class CountedProcessingTransfers {
         var count = BigInteger.valueOf(offered);
         produced.forEach((key, amount) -> outputs.put(key, amount.multiply(count)));
         return new Result(Math.toIntExact(offered), outputs);
+    }
+
+    private static NativePreview previewNativeInputs(IPatternDetails.IInput[] inputs, ICraftingInventory source,
+            long offered, boolean buildPayload) {
+        // AE2's native processing slots use equality, have no remainders, and are already condensed.
+        Map<AEKey, BigInteger> required = new LinkedHashMap<>();
+        for (var input : inputs) {
+            var alternatives = input.getPossibleInputs();
+            long multiplier = input.getMultiplier();
+            if (alternatives.length != 1 || multiplier <= 0) return null;
+            var stack = alternatives[0];
+            if (stack == null || stack.amount() != 1) return null;
+            var key = stack.what();
+            if (key.getClass() != AEItemKey.class && key.getClass() != AEFluidKey.class) return null;
+            if (required.putIfAbsent(key, BigInteger.valueOf(multiplier)) != null) return null;
+        }
+        for (var entry : required.entrySet()) {
+            long available = source.extract(entry.getKey(), Long.MAX_VALUE, Actionable.SIMULATE);
+            if (available < 0) throw new IllegalStateException("negative native CPU stock");
+            offered = Math.min(offered, available / entry.getValue().longValueExact());
+            if (offered == 0) return NativePreview.BLOCKED;
+        }
+        // A native-only route uses the stock proof to skip blocked work, never a second payload.
+        if (!buildPayload) return null;
+        var slots = new KeyCounter[inputs.length];
+        int slot = 0;
+        for (var entry : required.entrySet()) {
+            var counter = new KeyCounter();
+            counter.add(entry.getKey(), entry.getValue().longValueExact());
+            slots[slot++] = counter;
+        }
+        return new NativePreview(slots, required, offered);
+    }
+
+    private record NativePreview(KeyCounter[] slots, Map<AEKey, BigInteger> required, long limit) {
+        private static final NativePreview BLOCKED = new NativePreview(null, Map.of(), 0);
     }
 
     private static long bounded(long offered, BigInteger maximum) {
