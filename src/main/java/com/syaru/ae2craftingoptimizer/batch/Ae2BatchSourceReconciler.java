@@ -312,7 +312,14 @@ public final class Ae2BatchSourceReconciler implements BatchSourceReconciler {
     @Nullable
     private static LocatedSource locate(ServerLevel level, CompoundTag data) {
         try {
-            var blockEntity = level.getBlockEntity(net.minecraft.core.BlockPos.of(data.getLong("clusterPos")));
+            if (!data.contains("clusterPos", Tag.TAG_LONG)) {
+                return null;
+            }
+            var clusterPos = net.minecraft.core.BlockPos.of(data.getLong("clusterPos"));
+            if (!level.isLoaded(clusterPos)) {
+                return null;
+            }
+            var blockEntity = level.getBlockEntity(clusterPos);
             if (!(blockEntity instanceof CraftingClusterHostTransactionAccess host)) {
                 return null;
             }

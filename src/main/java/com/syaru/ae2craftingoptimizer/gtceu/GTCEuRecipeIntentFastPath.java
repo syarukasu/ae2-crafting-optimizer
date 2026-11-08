@@ -98,9 +98,13 @@ public final class GTCEuRecipeIntentFastPath {
             }
 
             // #179: ID-only candidates are advisory, never a proof of the intended NBT output.
+            List<ParsedHint> parsedHints = parseHints(intents);
+            if (parsedHints.isEmpty()) {
+                return List.of();
+            }
             List<Object> matchedCandidates = new ArrayList<>(1);
             for (Object candidate : candidates) {
-                if (matchesIntent(candidate, intents)) {
+                if (matchesParsedHints(candidate, parsedHints)) {
                     matchedCandidates.add(candidate);
                     if (matchedCandidates.size() > 1) {
                         return List.of();
@@ -136,23 +140,39 @@ public final class GTCEuRecipeIntentFastPath {
     }
 
     static boolean matchesIntent(Object recipe, List<RecipeIntent> hints) {
+        List<ParsedHint> parsed = parseHints(hints);
+        return !parsed.isEmpty() && matchesParsedHints(recipe, parsed);
+    }
+
+    private static List<ParsedHint> parseHints(List<RecipeIntent> hints) {
+        List<ParsedHint> parsed = new ArrayList<>(hints.size());
+        for (var hint : hints) {
+            Map<AEKey, BigInteger> expected = new LinkedHashMap<>();
+            Map<AEKey, BigInteger> inputs = new LinkedHashMap<>();
+            boolean exact = true;
+            for (var output : hint.outputs()) {
+                if (output.exactKey() == null || output.amount() <= 0) { exact = false; break; }
+                expected.merge(output.exactKey(), BigInteger.valueOf(output.amount()), BigInteger::add);
+            }
+            if (!exact || expected.isEmpty()) continue;
+            for (var slot : hint.inputs()) {
+                if (slot.possibleInputs().size() != 1 || slot.multiplier() <= 0) { exact = false; break; }
+                var input = slot.possibleInputs().get(0);
+                if (input.exactKey() == null || input.amount() <= 0) { exact = false; break; }
+                inputs.merge(input.exactKey(), BigInteger.valueOf(input.amount())
+                        .multiply(BigInteger.valueOf(slot.multiplier())), BigInteger::add);
+            }
+            if (!exact) continue;
+            parsed.add(new ParsedHint(expected, inputs));
+        }
+        return parsed;
+    }
+
+    private static boolean matchesParsedHints(Object recipe, List<ParsedHint> parsedHints) {
         try {
-            for (var hint : hints) {
-                Map<AEKey, BigInteger> expected = new LinkedHashMap<>();
-                Map<AEKey, BigInteger> inputs = new LinkedHashMap<>();
-                boolean exact = true;
-                for (var output : hint.outputs()) {
-                    if (output.exactKey() == null || output.amount() <= 0) { exact = false; break; }
-                    expected.merge(output.exactKey(), BigInteger.valueOf(output.amount()), BigInteger::add);
-                }
-                for (var slot : hint.inputs()) {
-                    if (slot.possibleInputs().size() != 1 || slot.multiplier() <= 0) { exact = false; break; }
-                    var input = slot.possibleInputs().get(0);
-                    if (input.exactKey() == null || input.amount() <= 0) { exact = false; break; }
-                    inputs.merge(input.exactKey(), BigInteger.valueOf(input.amount())
-                            .multiply(BigInteger.valueOf(slot.multiplier())), BigInteger::add);
-                }
-                if (!exact || expected.isEmpty()) continue;
+            for (ParsedHint hint : parsedHints) {
+                Map<AEKey, BigInteger> expected = hint.expected();
+                Map<AEKey, BigInteger> inputs = hint.inputs();
                 var actual = exactContents(recipe, "outputs", expected.keySet());
                 var consumed = exactContents(recipe, "inputs", inputs.keySet());
                 if (actual == null || consumed == null || !actual.keySet().equals(expected.keySet())
@@ -171,6 +191,9 @@ public final class GTCEuRecipeIntentFastPath {
         return false;
     }
 
+    private record ParsedHint(Map<AEKey, BigInteger> expected, Map<AEKey, BigInteger> inputs) {
+    }
+
     private static Map<AEKey, BigInteger> exactContents(Object recipe, String field, Set<AEKey> expected)
             throws ReflectiveOperationException {
         if (!(getField(recipe, field) instanceof Map<?, ?> map)) return null;
@@ -179,7 +202,10 @@ public final class GTCEuRecipeIntentFastPath {
             if (!(contents instanceof List<?> list)) return null;
             for (var content : list) {
                 Object chance = getField(content, "chance"), maximum = getField(content, "maxChance");
-                if (!(chance instanceof Number c) || !(maximum instanceof Number m) || c.intValue() != m.intValue())
+                if (!(chance instanceof Number c)
+                        || !(maximum instanceof Number m)
+                        || c.intValue() <= 0
+                        || c.intValue() != m.intValue())
                     return null;
                 Object value = invoke(content, "getContent");
                 List<StackIntent> choices = new ArrayList<>();
@@ -286,18 +312,21 @@ public final class GTCEuRecipeIntentFastPath {
         if (!ACOConfig.cacheResolvedRecipeIntents() || candidates.isEmpty()) {
             return;
         }
+        TargetKey targetKey = new TargetKey(context.dimension(), context.machinePos());
         synchronized (LOCK) {
             cleanupResolvedCandidates(context.gameTime());
-            while (RESOLVED_CANDIDATES.size() >= ACOConfig.getResolvedRecipeIntentCacheSize()) {
-                Iterator<TargetKey> iterator = RESOLVED_CANDIDATES.keySet().iterator();
-                if (!iterator.hasNext()) {
-                    break;
+            if (!RESOLVED_CANDIDATES.containsKey(targetKey)) {
+                while (RESOLVED_CANDIDATES.size() >= ACOConfig.getResolvedRecipeIntentCacheSize()) {
+                    Iterator<TargetKey> iterator = RESOLVED_CANDIDATES.keySet().iterator();
+                    if (!iterator.hasNext()) {
+                        break;
+                    }
+                    iterator.next();
+                    iterator.remove();
                 }
-                iterator.next();
-                iterator.remove();
             }
             RESOLVED_CANDIDATES.put(
-                    new TargetKey(context.dimension(), context.machinePos()),
+                    targetKey,
                     new CachedCandidates(
                             context.recipeType(),
                             outputKeys,
@@ -359,7 +388,8 @@ public final class GTCEuRecipeIntentFastPath {
                 return existing;
             }
             OutputRecipeIndex created = OutputRecipeIndex.build(recipeType, view);
-            if (INDEXES.size() >= ACOConfig.getGtceuRecipeIntentIndexCacheSize()) {
+            if (!INDEXES.containsKey(recipeType)
+                    && INDEXES.size() >= ACOConfig.getGtceuRecipeIntentIndexCacheSize()) {
                 Iterator<Object> iterator = INDEXES.keySet().iterator();
                 if (iterator.hasNext()) {
                     iterator.next();

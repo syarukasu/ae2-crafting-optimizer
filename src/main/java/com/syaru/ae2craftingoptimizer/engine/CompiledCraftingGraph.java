@@ -18,6 +18,7 @@ import java.util.Set;
 public final class CompiledCraftingGraph<K> {
     private final long generation;
     private final List<CompiledPattern<K>> patterns;
+    private final Map<String, CompiledPattern<K>> byId;
     private final Map<K, List<CompiledPattern<K>>> byOutput;
     private final Map<K, Integer> componentByKey;
     private final Set<Integer> cyclicComponents;
@@ -31,12 +32,14 @@ public final class CompiledCraftingGraph<K> {
         }
         this.generation = generation;
         this.patterns = List.copyOf(Objects.requireNonNull(source, "source"));
+        Map<String, CompiledPattern<K>> mutableById = new LinkedHashMap<>();
         Map<K, List<CompiledPattern<K>>> mutableIndex = new LinkedHashMap<>();
         Map<K, Set<K>> edges = new LinkedHashMap<>();
         int indexedPatterns = 0;
         for (CompiledPattern<K> pattern : patterns) {
             guard.checkpoint(++indexedPatterns);
             Objects.requireNonNull(pattern, "pattern");
+            mutableById.putIfAbsent(pattern.id(), pattern);
             for (K output : pattern.outputs().keySet()) {
                 mutableIndex.computeIfAbsent(output, ignored -> new ArrayList<>()).add(pattern);
                 Set<K> dependencies = edges.computeIfAbsent(output, ignored -> new LinkedHashSet<>());
@@ -48,6 +51,7 @@ public final class CompiledCraftingGraph<K> {
                 }
             }
         }
+        this.byId = Collections.unmodifiableMap(mutableById);
         Map<K, List<CompiledPattern<K>>> frozenIndex = new LinkedHashMap<>();
         mutableIndex.forEach((key, value) -> frozenIndex.put(key, List.copyOf(value)));
         this.byOutput = Collections.unmodifiableMap(frozenIndex);
@@ -75,6 +79,10 @@ public final class CompiledCraftingGraph<K> {
 
     public List<CompiledPattern<K>> patterns() {
         return patterns;
+    }
+
+    public CompiledPattern<K> patternById(String id) {
+        return byId.get(id);
     }
 
     public List<CompiledPattern<K>> patternsFor(K output) {

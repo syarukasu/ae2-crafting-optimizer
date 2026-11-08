@@ -12,6 +12,7 @@ import com.syaru.ae2craftingoptimizer.client.LongCraftAmountClientHandler;
 import com.syaru.ae2craftingoptimizer.config.ACOConfig;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountMenuBridge;
 import com.syaru.ae2craftingoptimizer.craftingamount.LongCraftAmountRules;
+import com.syaru.ae2craftingoptimizer.engine.BigCountMath;
 import com.syaru.ae2craftingoptimizer.engine.BigCraftingPlanSummary;
 import com.syaru.ae2craftingoptimizer.engine.BigIntegerBufferCodec;
 import java.math.BigInteger;
@@ -267,8 +268,8 @@ public final class BigCraftingNetwork {
 
         private static StatusPageMessage decode(FriendlyByteBuf buffer) {
             return new StatusPageMessage(codec(
-                    ACOConfig.getBigIntegerMaximumBits(),
-                    ACOConfig.getBigIntegerStatusPageEntries()).read(buffer));
+                    BigCountMath.HARD_MAXIMUM_BITS,
+                    BigCraftingStatusPageCodec.HARD_MAXIMUM_PAGE_ENTRIES).read(buffer));
         }
 
         private static void handle(
@@ -313,8 +314,8 @@ public final class BigCraftingNetwork {
                 LongCraftAmountRequestMessage message,
                 Supplier<NetworkEvent.Context> contextSupplier) {
             NetworkEvent.Context context = contextSupplier.get();
-            ServerPlayer sender = context.getSender();
             context.enqueueWork(() -> {
+                ServerPlayer sender = context.getSender();
                 // ログアウト済み送信者、無効設定、int範囲または負数はMenuへ渡さない。
                 if (sender == null
                         || !ACOConfig.enableLongRootCraftAmounts()
@@ -442,11 +443,11 @@ public final class BigCraftingNetwork {
                 return clear(containerId);
             }
 
-            int maximumBits = ACOConfig.getBigIntegerMaximumBits();
+            int maximumBits = BigCountMath.HARD_MAXIMUM_BITS;
             BigInteger usedBytes =
                     BigIntegerBufferCodec.readNonNegative(buffer, maximumBits);
             int entryCount = buffer.readVarInt();
-            int maximumEntries = ACOConfig.getBigIntegerStatusPageEntries();
+            int maximumEntries = BigCraftingStatusPageCodec.HARD_MAXIMUM_PAGE_ENTRIES;
             if (entryCount < 0 || entryCount > maximumEntries) {
                 throw new IllegalArgumentException(
                         "invalid exact craft summary entry count " + entryCount);

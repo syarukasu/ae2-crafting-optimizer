@@ -9,13 +9,15 @@ import java.util.Map;
 /** One native ingredient selection without transferring ownership from live stock. */
 public final class CountedInputPreview implements ICraftingInventory {
     private final ICraftingInventory source;
+    private final Map<AEKey, Long> simulatedStock = new HashMap<>();
     private final Map<AEKey, Long> reserved = new HashMap<>();
 
     public CountedInputPreview(ICraftingInventory source) { this.source = source; }
 
     @Override public long extract(AEKey key, long amount, Actionable mode) {
         if (amount < 0) throw new IllegalArgumentException("negative preview extraction");
-        long actual = source.extract(key, Long.MAX_VALUE, Actionable.SIMULATE);
+        long actual = simulatedStock.computeIfAbsent(
+                key, k -> source.extract(k, Long.MAX_VALUE, Actionable.SIMULATE));
         if (actual < 0) throw new IllegalStateException("negative preview stock");
         long used = reserved.getOrDefault(key, 0L);
         long accepted = Math.min(amount, Math.max(0, actual - used));

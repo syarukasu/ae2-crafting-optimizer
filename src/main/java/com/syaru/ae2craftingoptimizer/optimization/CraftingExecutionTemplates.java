@@ -6,6 +6,7 @@ import appeng.crafting.execution.InputTemplate;
 import appeng.crafting.inv.ICraftingInventory;
 import com.google.common.collect.AbstractIterator;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import net.minecraft.world.level.Level;
@@ -18,20 +19,31 @@ public final class CraftingExecutionTemplates {
         var possible = input.getPossibleInputs();
         if (possible.length == 1) {
             var definition = possible[0];
-            var keys = new ArrayList<AEKey>(1);
-            // Issue #249: finish native fuzzy enumeration before any isValid callback.
-            for (AEKey key : inventory.findFuzzyTemplates(definition.what())) keys.add(key);
+            var keys = snapshot(inventory.findFuzzyTemplates(definition.what()));
             return keys.isEmpty() ? List.of() : new Candidates(input, level, keys, definition.amount());
         }
-        var groups = new ArrayList<Group>(possible.length);
+        List<Group> groups = null;
         for (var definition : possible) {
-            var keys = new ArrayList<AEKey>(1);
-            for (AEKey key : inventory.findFuzzyTemplates(definition.what())) {
-                keys.add(key);
-            }
-            if (!keys.isEmpty()) groups.add(new Group(keys, definition.amount()));
+            var keys = snapshot(inventory.findFuzzyTemplates(definition.what()));
+            if (keys.isEmpty()) continue;
+            if (groups == null) groups = new ArrayList<>(1);
+            groups.add(new Group(keys, definition.amount()));
         }
-        return groups.isEmpty() ? List.of() : new GroupedCandidates(input, level, groups);
+        return groups == null ? List.of() : new GroupedCandidates(input, level, groups);
+    }
+
+    private static List<AEKey> snapshot(Iterable<AEKey> candidates) {
+        // Complete enumeration before isValid, even if no candidate is accepted later.
+        var iterator = candidates.iterator();
+        if (!iterator.hasNext()) return List.of();
+        AEKey first = iterator.next();
+        if (!iterator.hasNext()) return Collections.singletonList(first);
+        var keys = new ArrayList<AEKey>();
+        keys.add(first);
+        do {
+            keys.add(iterator.next());
+        } while (iterator.hasNext());
+        return keys;
     }
 
     private record Group(List<AEKey> keys, long amount) {}

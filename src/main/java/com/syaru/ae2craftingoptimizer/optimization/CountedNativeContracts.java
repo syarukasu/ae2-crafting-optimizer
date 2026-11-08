@@ -24,7 +24,8 @@ public final class CountedNativeContracts {
         }
     };
     public static boolean nativeProvider(Object provider) { return PROVIDER.get(provider.getClass()); }
+    public static boolean usesDefaultInputPush(IPatternDetails pattern) { return INPUT_PUSH.get(pattern.getClass()); }
     public static boolean defaultExternalPush(IPatternDetails pattern) {
-        return pattern.supportsPushInputsToExternalInventory() && INPUT_PUSH.get(pattern.getClass());
+        return pattern.supportsPushInputsToExternalInventory() && usesDefaultInputPush(pattern);
     }
 }

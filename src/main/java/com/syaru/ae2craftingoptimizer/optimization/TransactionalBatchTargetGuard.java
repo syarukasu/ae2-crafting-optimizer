@@ -51,6 +51,22 @@ public final class TransactionalBatchTargetGuard {
         }
     }
 
+    public static void release(Level level, BlockPos target) {
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(target, "target");
+        release(level, target.asLong(), level.getGameTime());
+    }
+
+    static void release(Object scope, long target, long gameTick) {
+        Objects.requireNonNull(scope, "scope");
+        synchronized (CLAIMS) {
+            TickClaims claims = CLAIMS.get(scope);
+            if (claims != null && claims.gameTick == gameTick) {
+                claims.targets.remove(target);
+            }
+        }
+    }
+
     public static void clear() {
         synchronized (CLAIMS) {
             CLAIMS.clear();

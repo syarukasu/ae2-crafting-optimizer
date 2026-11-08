@@ -122,8 +122,10 @@ public final class ProviderPatternGenerationTracker {
         for (IPatternDetails pattern : provider.getAvailablePatterns()) {
             patterns.add(PatternSnapshot.of(pattern));
         }
-        Set<AEKey> emitables = new HashSet<>(provider.getEmitableItems());
-        return new Snapshot(provider.getPatternPriority(), List.copyOf(patterns), Set.copyOf(emitables));
+        return new Snapshot(
+                provider.getPatternPriority(),
+                List.copyOf(patterns),
+                Set.copyOf(provider.getEmitableItems()));
     }
 
     private record Snapshot(int priority, List<PatternSnapshot> patterns, Set<AEKey> emitables) {
@@ -142,12 +144,12 @@ public final class ProviderPatternGenerationTracker {
             for (IPatternDetails.IInput input : pattern.getInputs()) {
                 inputs.add(new InputSnapshot(
                         input.getMultiplier(),
-                        List.of(input.getPossibleInputs().clone())));
+                        List.of(input.getPossibleInputs())));
             }
             return new PatternSnapshot(
                     pattern.getClass().getName(),
                     pattern.getDefinition(),
-                    List.of(pattern.getOutputs().clone()),
+                    List.of(pattern.getOutputs()),
                     List.copyOf(inputs),
                     pattern.supportsPushInputsToExternalInventory());
         }

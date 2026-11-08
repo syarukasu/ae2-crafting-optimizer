@@ -10,6 +10,8 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
@@ -17,6 +19,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 public final class PatternIntentCapture {
+    private static final Map<Class<?>, Field> LOGIC_HOST_FIELDS = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, HostAccessor> HOST_ACCESSORS = new ConcurrentHashMap<>();
+
     private PatternIntentCapture() {
     }
 
@@ -54,18 +59,38 @@ public final class PatternIntentCapture {
             return;
         }
         try {
-            Field hostField = findField(providerLogic.getClass(), "host");
-            hostField.setAccessible(true);
+            Field hostField = LOGIC_HOST_FIELDS.computeIfAbsent(providerLogic.getClass(), type -> {
+                try {
+                    Field f = findField(type, "host");
+                    f.setAccessible(true);
+                    return f;
+                } catch (ReflectiveOperationException ignored) {
+                    return null;
+                }
+            });
+            if (hostField == null) {
+                return;
+            }
             Object host = hostField.get(providerLogic);
             if (host == null) {
                 return;
             }
-            Method getBlockEntity = host.getClass().getMethod("getBlockEntity");
-            Method getTargets = host.getClass().getMethod("getTargets");
-            getBlockEntity.setAccessible(true);
-            getTargets.setAccessible(true);
-            Object provider = getBlockEntity.invoke(host);
-            Object targets = getTargets.invoke(host);
+            HostAccessor accessor = HOST_ACCESSORS.computeIfAbsent(host.getClass(), type -> {
+                try {
+                    Method getBlockEntity = type.getMethod("getBlockEntity");
+                    Method getTargets = type.getMethod("getTargets");
+                    getBlockEntity.setAccessible(true);
+                    getTargets.setAccessible(true);
+                    return new HostAccessor(getBlockEntity, getTargets);
+                } catch (ReflectiveOperationException ignored) {
+                    return HostAccessor.UNSUPPORTED;
+                }
+            });
+            if (accessor == HostAccessor.UNSUPPORTED) {
+                return;
+            }
+            Object provider = accessor.getBlockEntity.invoke(host);
+            Object targets = accessor.getTargets.invoke(host);
             if (provider instanceof BlockEntity providerBlockEntity && targets instanceof Collection<?> collection) {
                 captureSuccessfulPush(providerBlockEntity, collection, pattern, inputHolder, descriptions);
             }
@@ -136,5 +161,9 @@ public final class PatternIntentCapture {
             }
         }
         throw new NoSuchFieldException(type.getName() + "." + name);
+    }
+
+    private record HostAccessor(Method getBlockEntity, Method getTargets) {
+        private static final HostAccessor UNSUPPORTED = new HostAccessor(null, null);
     }
 }

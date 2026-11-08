@@ -25,6 +25,9 @@ public record ProfilerSnapshot(boolean enabled, boolean detailed, boolean availa
     public static final int MAX_MAP_ENTRIES = 128;
     public static final int MAX_KEY_TEXT = 160;
     private static final Gson JSON = new Gson();
+    private static final String[] MEASURED_INTERVAL_KEYS = {
+        "initializationQueue", "workerQueue", "stock", "prepare", "vm", "finalize"
+    };
     public static final String UNKNOWN = "\u4e0d\u660e";
 
     public ProfilerSnapshot {
@@ -186,14 +189,16 @@ public record ProfilerSnapshot(boolean enabled, boolean detailed, boolean availa
 
         /** Largest observed interval, not a disjoint breakdown or an inferred root cause. */
         public Map.Entry<String, Long> largestMeasuredInterval() {
-            Map.Entry<String, Long> largest = null;
-            for (String key : List.of("initializationQueue", "workerQueue", "stock", "prepare", "vm", "finalize")) {
+            String largestKey = null;
+            long largestValue = -1L;
+            for (String key : MEASURED_INTERVAL_KEYS) {
                 Long value = nanos.get(key);
-                if (value != null && value >= 0 && (largest == null || value > largest.getValue())) {
-                    largest = Map.entry(key, value);
+                if (value != null && value >= 0L && (largestKey == null || value > largestValue)) {
+                    largestKey = key;
+                    largestValue = value;
                 }
             }
-            return largest;
+            return largestKey == null ? null : Map.entry(largestKey, largestValue);
         }
 
         public String cacheEfficiency(String prefix) {
