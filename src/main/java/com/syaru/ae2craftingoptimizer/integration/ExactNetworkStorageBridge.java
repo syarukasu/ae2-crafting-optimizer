@@ -565,18 +565,18 @@ public final class ExactNetworkStorageBridge {
             AEKey key,
             IActionSource source) {
         List<MEStorage> result = new ArrayList<>();
+        List<MEStorage> nonPreferred = new ArrayList<>();
         // 各priorityでpreferred storageを先にし、その後に同priorityの通常mountを並べる。
         for (List<MEStorage> priority : mounts.values()) {
+            nonPreferred.clear();
             for (MEStorage mount : priority) {
                 if (mount.isPreferredStorageFor(key, source)) {
                     result.add(mount);
+                } else {
+                    nonPreferred.add(mount);
                 }
             }
-            for (MEStorage mount : priority) {
-                if (!mount.isPreferredStorageFor(key, source)) {
-                    result.add(mount);
-                }
-            }
+            result.addAll(nonPreferred);
         }
         return result;
     }

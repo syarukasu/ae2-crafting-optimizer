@@ -45,7 +45,7 @@ public final class CircuitCutterRecipeCache {
             return Lookup.MISS;
         }
         if (cached.recipe == null) {
-            return ACOConfig.cacheCircuitCutterNegativeResults() ? new Lookup(true, null) : Lookup.MISS;
+            return ACOConfig.cacheCircuitCutterNegativeResults() ? Lookup.HIT_NULL : Lookup.MISS;
         }
 
         if (validator.test(cached.recipe)) {
@@ -68,8 +68,9 @@ public final class CircuitCutterRecipeCache {
             return;
         }
 
+        CachedResult result = recipe == null ? CachedResult.NULL_RESULT : new CachedResult(recipe);
         synchronized (RECIPES) {
-            RECIPES.put(signature, new CachedResult(recipe));
+            RECIPES.put(signature, result);
             int maximum = ACOConfig.getCircuitCutterRecipeCacheSize();
             while (RECIPES.size() > maximum) {
                 var iterator = RECIPES.entrySet().iterator();
@@ -139,10 +140,12 @@ public final class CircuitCutterRecipeCache {
     }
 
     private record CachedResult(Recipe<?> recipe) {
+        private static final CachedResult NULL_RESULT = new CachedResult(null);
     }
 
     public record Lookup(boolean hit, Recipe<?> recipe) {
         private static final Lookup MISS = new Lookup(false, null);
+        private static final Lookup HIT_NULL = new Lookup(true, null);
     }
 
     private record Accessor(Field hostField, Method getInput, Method getTank) {

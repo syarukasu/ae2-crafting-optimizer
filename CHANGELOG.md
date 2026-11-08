@@ -1,5 +1,30 @@
 # Changelog / 変更履歴
 
+## 2.0.6
+
+### Fixes
+
+- Guard unconditional diagnostic INFO logs on planning hot paths with `ACOConfig.logCraftingDecisionFlow()` and synchronize snapshot fallback log deduplication.
+- Retain completed crafting plans in the deduplicator cache even when fast calculations finish before `remember()` returns, and cap completed-plan TTL to the original start time.
+- Roll back prepared V2 pattern batches and release target guards on all early-exit paths before transaction commit.
+- Prevent unloaded-chunk synchronous loading during batch source reconciliation and rotate non-terminal journal entries during recovery to avoid head-of-line starvation.
+- Remove unverified keys from `BigKeyCounterSidecars.Accumulator` when merging an incomplete storage mount snapshot.
+- Guard `BigDecimal.divide` in `NumberEntryWidgetExactCraftAmountMixin` against non-terminating decimal expansions and use hard protocol bounds when decoding S2C status/summary packets.
+
+### Reduced work
+
+- Avoid unnecessary `BigCraftingPlan` map widening and `BigExactCraftingByteCounter` traversal on normal `LongResult` plans.
+- Eliminate repeated `KeyCounter.findFuzzy` stream allocations in `OrderedBranchingPlanner`, deduplicate compiled patterns in `Ae2ImmutablePlanningGraphCache`, and index patterns by ID in `CompiledCraftingGraph`.
+- Add a full-offer fast path to `CountedItemCapacity`, cache simulated stock per key in `CountedInputPreview`, and reuse `PatternProviderRoutingCache` in `CountedCraftingDispatch`.
+- Avoid NBT tag serialization in V2 batch verification, add zero-arg method fast paths to `ReflectionLookupCache`, and pre-parse GTCEu recipe intent hints once per candidate search.
+
+### 日本語
+
+- クラフト計画ホットパス上の無条件INFOログ出力を設定ガード配下へ修正し、高速完了した計算結果のキャッシュ漏れを修正しました。
+- V2バッチ準備後の早期中断パスにおけるロールバック・ターゲット解放漏れ、未ロードチャンクの同期読込、および復旧キューのHead-of-Lineブロッキングを修正しました。
+- 不完全なストレージマウント統合時の正確性フラグ管理、数量入力ウィジェットの非終端小数除算例外、およびS2Cパケットデコード時の上限設定参照バグを修正しました。
+- 通常long計画での不要な`BigInteger`昇格・バイト数再計算、分岐プランナーのFuzzy検索アロケーション、容量二分探索、リフレクション検索、GTCEuレシピヒント照合などのCPU負荷とメモリアロケーションを大幅に削減しました。
+
 ## 2.0.5
 
 ### Fixes

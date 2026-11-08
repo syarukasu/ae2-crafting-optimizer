@@ -77,22 +77,26 @@ public final class BigCraftingCpuLedger<K> {
                 || jobs.isEmpty()) {
             return List.of();
         }
-        List<BigCraftingJob<K>> runnable = jobs.values().stream()
-                .filter(job -> !job.terminal()
-                        && !job.hasPreparedExecution()
-                        && job.hasRemainingTasks())
-                .toList();
+        List<BigCraftingJob<K>> runnable = new ArrayList<>(jobs.size());
+        for (BigCraftingJob<K> job : jobs.values()) {
+            if (!job.terminal()
+                    && !job.hasPreparedExecution()
+                    && job.hasRemainingTasks()) {
+                runnable.add(job);
+            }
+        }
         if (runnable.isEmpty()) {
             return List.of();
         }
         int start = Math.floorMod(roundRobinCursor, runnable.size());
         List<ScheduledWindow<K>> result = new ArrayList<>();
         long remainingBudget = operationBudget;
-        int jobsToVisit = (int) Math.min(
+        int targetWindows = (int) Math.min(
                 (long) maximumWindows,
                 Math.min((long) runnable.size(), remainingBudget));
         int visited = 0;
-        while (remainingBudget > 0L && visited < jobsToVisit) {
+        int scheduled = 0;
+        while (remainingBudget > 0L && scheduled < targetWindows && visited < runnable.size()) {
             int index = (start + visited) % runnable.size();
             BigCraftingJob<K> job = runnable.get(index);
             String patternId = job.nextRunnableTaskId();
@@ -100,7 +104,7 @@ public final class BigCraftingCpuLedger<K> {
                 visited++;
                 continue;
             }
-            long remainingJobs = jobsToVisit - visited;
+            long remainingJobs = Math.min(targetWindows - scheduled, runnable.size() - visited);
             long fairShare = Math.floorDiv(remainingBudget, remainingJobs);
             if (remainingBudget % remainingJobs != 0L) {
                 fairShare++;
@@ -111,9 +115,10 @@ public final class BigCraftingCpuLedger<K> {
             BigCraftingJob.PreparedExecution prepared = job.prepareWindow(patternId, granted);
             result.add(new ScheduledWindow<>(job, prepared));
             remainingBudget -= prepared.window().executions();
+            scheduled++;
             visited++;
         }
-        roundRobinCursor = (start + Math.max(1, jobsToVisit)) % runnable.size();
+        roundRobinCursor = (start + Math.max(1, visited)) % runnable.size();
         return List.copyOf(result);
     }
 
@@ -135,7 +140,7 @@ public final class BigCraftingCpuLedger<K> {
         if (jobs.isEmpty()) {
             roundRobinCursor = 0;
         } else {
-            roundRobinCursor %= jobs.size();
+            roundRobinCursor = Math.floorMod(roundRobinCursor, jobs.size());
         }
     }
 

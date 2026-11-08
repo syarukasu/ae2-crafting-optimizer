@@ -513,9 +513,11 @@ public final class Ae2AuthoritativeCraftingPlanner {
             if (!preparation.ready()) {
                 // Issue #190: a branching graph is not an ambiguous plan. Preserve AE2's trial order.
                 if (ACOConfig.enableProofQualifiedLongPlans()) {
-                    AE2CraftingOptimizer.LOGGER.info(
-                            "ACO-DIAG event=planning_route route=ordered-branching output={} requested={} reason={} detail={}",
-                            output.getId(), requestedAmount, preparation.rootFailure(), preparation.detail());
+                    if (ACOConfig.logCraftingDecisionFlow()) {
+                        AE2CraftingOptimizer.LOGGER.info(
+                                "ACO-DIAG event=planning_route route=ordered-branching output={} requested={} reason={} detail={}",
+                                output.getId(), requestedAmount, preparation.rootFailure(), preparation.detail());
+                    }
                     ICraftingPlan branching = tryBranchingPlan(capture, immutableCapture.compile(guard),
                             output, requestedAmount, strategy, workerYield, guard);
                     if (branching != null) return branching;
@@ -621,9 +623,11 @@ public final class Ae2AuthoritativeCraftingPlanner {
                                     BigInteger.valueOf(requestedAmount),
                                     longInventorySnapshot,
                                     guard);
-            AE2CraftingOptimizer.LOGGER.info(
-                    "ACO-DIAG event=quantity_calculated route={} output={} requested={} bigint={}",
-                    "aco-fixed", output.getId(), requestedAmount, promoted.usesBigInteger());
+            if (ACOConfig.logCraftingDecisionFlow()) {
+                AE2CraftingOptimizer.LOGGER.info(
+                        "ACO-DIAG event=quantity_calculated route={} output={} requested={} bigint={}",
+                        "aco-fixed", output.getId(), requestedAmount, promoted.usesBigInteger());
+            }
             capture.requireCurrentGenerations();
             // 実際にlong計算からBigへ昇格した場合、exact在庫なしの結果は正本にならない。
             if (promoted.usesBigInteger() && exactPlanningInventory == null) {
@@ -647,18 +651,19 @@ public final class Ae2AuthoritativeCraftingPlanner {
             }
             NormalizedPlan symbolic = normalize(promoted, program, guard);
             ICraftingPlan result;
-            BigCraftingPlan<AEKey> exactPlan = exactPlan(promoted);
+            boolean craftable = promoted.craftable();
             boolean widePlan = wideArithmeticRequired
                     || promoted.usesBigInteger()
                     || symbolic == null;
-            if (program.usesOrderedAccounting() && !exactPlan.craftable()
+            if (program.usesOrderedAccounting() && !craftable
                     && strategy == CalculationStrategy.CRAFT_LESS) {
                 return declineOrThrow(capture, output, requestedAmount, widePlan,
                         BigIntegerPlanDeclineReason.UNSUPPORTED_TOPOLOGY,
                         "partial byproduct search requires AE2 retained-tree accounting");
             }
             // wide不足はAE2のlong計算へ戻さず、正確なsimulationまたは部分探索へ進める。
-            if (!exactPlan.craftable() && widePlan) {
+            if (!craftable && widePlan) {
+                BigCraftingPlan<AEKey> exactPlan = exactPlan(promoted);
                 if (strategy == CalculationStrategy.CRAFT_LESS) {
                     BigInteger partialAmount = largestCraftableAmount(
                             BigInteger.valueOf(requestedAmount),
@@ -1112,15 +1117,16 @@ public final class Ae2AuthoritativeCraftingPlanner {
     }
 
     private static boolean branchingRequiresWide(BigCraftingPlan<AEKey> plan, Ae2PlanningGraphSnapshot snapshot) {
-        for (Map<?, BigInteger> values : List.of(plan.patternExecutions(), plan.usedInventory(),
-                plan.emitted(), plan.missing())) {
-            if (values.values().stream().anyMatch(value -> value.bitLength() > 63)) return true;
+        if (hasValueAboveLong(plan.patternExecutions())
+                || hasValueAboveLong(plan.usedInventory())
+                || hasValueAboveLong(plan.emitted())
+                || hasValueAboveLong(plan.missing())) {
+            return true;
         }
         Map<AEKey, BigInteger> totals = new LinkedHashMap<>();
-        Map<String, CompiledPattern<AEKey>> patterns = new LinkedHashMap<>();
-        snapshot.graph().patterns().forEach(pattern -> patterns.put(pattern.id(), pattern));
+        CompiledCraftingGraph<AEKey> graph = snapshot.graph();
         for (var entry : plan.patternExecutions().entrySet()) {
-            CompiledPattern<AEKey> pattern = patterns.get(entry.getKey());
+            CompiledPattern<AEKey> pattern = graph.patternById(entry.getKey());
             if (pattern == null) throw new IllegalStateException("branching pattern disappeared");
             for (var slot : pattern.inputs()) {
                 BigInteger amount = entry.getValue().multiply(BigInteger.valueOf(slot.alternatives().get(0).amount()));
@@ -1130,6 +1136,15 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 BigInteger total = totals.merge(produced.getKey(),
                         entry.getValue().multiply(BigInteger.valueOf(produced.getValue())), BigInteger::add);
                 if (total.bitLength() > 63) return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasValueAboveLong(Map<?, BigInteger> map) {
+        for (BigInteger value : map.values()) {
+            if (value.bitLength() > 63) {
+                return true;
             }
         }
         return false;
@@ -1369,11 +1384,13 @@ public final class Ae2AuthoritativeCraftingPlanner {
                 + ":" + capture.recipeGeneration()
                 + ":" + capture.configurationRevision();
         // 世代が進み続けても常駐量が増え続けないよう、固定上限で表を再利用する。
-        if (LOGGED_SNAPSHOT_FALLBACKS.size() >= MAXIMUM_LOGGED_SNAPSHOT_FALLBACKS) {
-            LOGGED_SNAPSHOT_FALLBACKS.clear();
-        }
-        if (!LOGGED_SNAPSHOT_FALLBACKS.add(key)) {
-            return;
+        synchronized (LOGGED_SNAPSHOT_FALLBACKS) {
+            if (LOGGED_SNAPSHOT_FALLBACKS.size() >= MAXIMUM_LOGGED_SNAPSHOT_FALLBACKS) {
+                LOGGED_SNAPSHOT_FALLBACKS.clear();
+            }
+            if (!LOGGED_SNAPSHOT_FALLBACKS.add(key)) {
+                return;
+            }
         }
         AE2CraftingOptimizer.LOGGER.warn(
                 "ACO could not compile {} because the immutable crafting graph capture was incomplete"
@@ -1438,20 +1455,41 @@ public final class Ae2AuthoritativeCraftingPlanner {
         }
 
         boolean wideInputAggregate = symbolic.hasAggregatePastLong();
-        BigInteger exactBytes = plannedExactBytes != null
-                ? plannedExactBytes
-                : topology.calculateBigExactBytes(
+        BigInteger exactBytes;
+        boolean bigCapacity;
+        long facadeBytes;
+        if (plannedExactBytes == null && !fullExpansionRequiresWideArithmetic && !wideInputAggregate) {
+            long normalBytes = topology.calculateAe2LongBytes(
+                    output, requestedAmount, symbolic.patternExecutions(), symbolic.trace());
+            if (normalBytes < Long.MAX_VALUE) {
+                exactBytes = BigInteger.valueOf(normalBytes);
+                bigCapacity = false;
+                facadeBytes = normalBytes;
+            } else {
+                exactBytes = topology.calculateBigExactBytes(
                         output,
                         BigInteger.valueOf(requestedAmount),
                         symbolic.bigPatternExecutions(),
                         ACOConfig.getBigIntegerMaximumBits(), symbolic.trace());
-        // bytesのtree走査はbinding確定より前にworker上で完了させる。
-        boolean bigCapacity = exactBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0;
-        long facadeBytes = bigCapacity ? 0L
-                : fullExpansionRequiresWideArithmetic || wideInputAggregate
-                        ? exactBytes.longValueExact()
-                        : topology.calculateAe2LongBytes(output, requestedAmount, symbolic.patternExecutions(),
-                                symbolic.trace());
+                bigCapacity = exactBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0;
+                facadeBytes = bigCapacity ? 0L : normalBytes;
+            }
+        } else {
+            exactBytes = plannedExactBytes != null
+                    ? plannedExactBytes
+                    : topology.calculateBigExactBytes(
+                            output,
+                            BigInteger.valueOf(requestedAmount),
+                            symbolic.bigPatternExecutions(),
+                            ACOConfig.getBigIntegerMaximumBits(), symbolic.trace());
+            // bytesのtree走査はbinding確定より前にworker上で完了させる。
+            bigCapacity = exactBytes.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0;
+            facadeBytes = bigCapacity ? 0L
+                    : fullExpansionRequiresWideArithmetic || wideInputAggregate
+                            ? exactBytes.longValueExact()
+                            : topology.calculateAe2LongBytes(output, requestedAmount, symbolic.patternExecutions(),
+                                    symbolic.trace());
+        }
         return materialize(capture, workerYield, () -> {
             Map<IPatternDetails, Long> patternTimes = new LinkedHashMap<>();
             // fingerprint IDを同じ世代Snapshotの実IPatternDetailsへ戻す。
@@ -1603,12 +1641,12 @@ public final class Ae2AuthoritativeCraftingPlanner {
             CompiledRootProgram<AEKey> program,
             PlanningGuard guard) {
         try {
-            // long高速経路は容量式用のPattern回数だけBigIntegerへ無損失変換する。
+            // long高速経路は容量式用のPattern回数だけ必要時にBigIntegerへ無損失変換する。
             if (promoted instanceof OverflowPromotingCraftingPlanner.LongResult<AEKey> result) {
                 LongCraftingPlan<AEKey> plan = result.plan();
                 return new NormalizedPlan(
                         plan.patternExecutions(),
-                        bigPatternCounter(plan.patternExecutions()),
+                        null,
                         plan.usedInventory(),
                         plan.emitted(),
                         plan.missing(), plan.trace());
@@ -2014,17 +2052,24 @@ public final class Ae2AuthoritativeCraftingPlanner {
 
     private record NormalizedPlan(
             Map<String, Long> patternExecutions,
-            Map<String, BigInteger> bigPatternExecutions,
+            @Nullable Map<String, BigInteger> bigPatternExecutions,
             Map<AEKey, Long> usedInventory,
             Map<AEKey, Long> emitted,
             Map<AEKey, Long> missing,
             CraftingPlanTrace<AEKey> trace) {
         private NormalizedPlan {
             patternExecutions = Map.copyOf(patternExecutions);
-            bigPatternExecutions = Map.copyOf(bigPatternExecutions);
+            bigPatternExecutions = bigPatternExecutions == null ? null : Map.copyOf(bigPatternExecutions);
             usedInventory = Map.copyOf(usedInventory);
             emitted = Map.copyOf(emitted);
             missing = Map.copyOf(missing);
+        }
+
+        @Override
+        public Map<String, BigInteger> bigPatternExecutions() {
+            return bigPatternExecutions != null
+                    ? bigPatternExecutions
+                    : bigPatternCounter(patternExecutions);
         }
 
         private boolean craftable() {

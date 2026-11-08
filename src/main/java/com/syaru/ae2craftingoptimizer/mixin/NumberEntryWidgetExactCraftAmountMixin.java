@@ -9,6 +9,7 @@ import com.syaru.ae2craftingoptimizer.client.BigAmountFormatter;
 import com.syaru.ae2craftingoptimizer.craftingamount.CraftAmountExpression;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -61,10 +62,21 @@ public abstract class NumberEntryWidgetExactCraftAmountMixin implements ExactCra
 
     @Override
     public void aco$setExactCraftAmount(BigInteger amount) {
-        var displayed = new BigDecimal(amount).divide(BigDecimal.valueOf(this.type.amountPerUnit()));
+        var displayed = this.aco$toUnitDecimal(amount);
         this.textField.setValue(this.decimalFormat.format(displayed));
         this.textField.moveCursorToEnd();
         this.textField.setHighlightPos(0);
+    }
+
+    @Unique
+    private BigDecimal aco$toUnitDecimal(BigInteger amount) {
+        int unit = Math.max(1, this.type.amountPerUnit());
+        if (unit == 1) {
+            return new BigDecimal(amount);
+        }
+        return new BigDecimal(amount)
+                .divide(BigDecimal.valueOf(unit), 6, RoundingMode.DOWN)
+                .stripTrailingZeros();
     }
 
     @Inject(method = "getLongValue", at = @At("HEAD"), cancellable = true, require = 1)
@@ -78,8 +90,7 @@ public abstract class NumberEntryWidgetExactCraftAmountMixin implements ExactCra
     @Inject(method = "getValueInternal", at = @At("HEAD"), cancellable = true, require = 1)
     private void aco$exactInternalValue(CallbackInfoReturnable<Optional<BigDecimal>> cir) {
         if (!this.aco$exactCraftAmounts) return;
-        cir.setReturnValue(this.aco$getExactCraftAmount().map(value ->
-                new BigDecimal(value).divide(BigDecimal.valueOf(this.type.amountPerUnit()))));
+        cir.setReturnValue(this.aco$getExactCraftAmount().map(this::aco$toUnitDecimal));
     }
 
     @Inject(method = "validate", at = @At("HEAD"), cancellable = true, require = 1)
@@ -89,7 +100,7 @@ public abstract class NumberEntryWidgetExactCraftAmountMixin implements ExactCra
         this.textField.setTextColor(amount.isPresent() ? this.normalTextColor : this.errorTextColor);
         this.textField.setTooltipMessage(java.util.List.of(amount.<Component>map(value ->
                 BigAmountFormatter.formatAmountTooltip(
-                        new BigDecimal(value).divide(BigDecimal.valueOf(this.type.amountPerUnit())),
+                        this.aco$toUnitDecimal(value),
                         this.decimalFormat))
                 .orElseGet(() -> appeng.core.localization.GuiText.InvalidNumber.text())));
         ci.cancel();
@@ -106,8 +117,14 @@ public abstract class NumberEntryWidgetExactCraftAmountMixin implements ExactCra
         next = next.max(BigInteger.ONE);
         if (next.bitLength() <= LongCraftAmountClientParser.maximumBits()
                 && next.compareTo(com.syaru.ae2craftingoptimizer.engine.BigCountMath.hardMaximumValue()) <= 0) {
-            this.aco$setExactCraftAmount(next);
-            if (targetTotal) this.textField.setValue("=" + this.textField.getValue());
+            if (targetTotal) {
+                var displayed = this.aco$toUnitDecimal(next);
+                this.textField.setValue("=" + this.decimalFormat.format(displayed));
+                this.textField.moveCursorToEnd();
+                this.textField.setHighlightPos(0);
+            } else {
+                this.aco$setExactCraftAmount(next);
+            }
         }
         ci.cancel();
     }

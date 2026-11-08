@@ -1,8 +1,9 @@
-# AE2 Crafting Optimizer 2.0.5
+# AE2 Crafting Optimizer 2.0.6
 
-2.0.5 includes the changes from PR #252 alongside the 2.0.4 recipe-hint
-optimization. It reduces work in planning, counted delivery and recipe lookup,
-while preserving receiver limits and exact accounting. See [Changes](CHANGELOG.md).
+2.0.6 further reduces CPU load and allocations across planning, branching trials,
+counted delivery, V2 batch verification, and GTCEu recipe-intent matching, while
+fixing edge-case bugs in plan caching, batch rollback, recovery scheduling, and
+client packet/widget handling. See [Changes](CHANGELOG.md).
 
 Forge 1.20.1 / Java 17. Install the same version on server and clients.
 AE2 15.4.10+ is admitted without an upper bound, not guaranteed compatible forever.
@@ -32,7 +33,7 @@ With Java 17:
 ./gradlew bundleVm verifyExactVmBundle -PacoExactVmDir=../vm/exact-engine -PacoAe2Version=15.4.11
 ```
 
-Install only `build/distributions/2.0.5/aco2.0.5_1.20.1.jar`, not intermediates
+Install only `build/distributions/2.0.6/aco2.0.6_1.20.1.jar`, not intermediates
 marked NOT-FOR-INSTALLATION. Do not install duplicate embedded VM modules.
 Optional compatibility dependencies are compile-only, not bundled.
 

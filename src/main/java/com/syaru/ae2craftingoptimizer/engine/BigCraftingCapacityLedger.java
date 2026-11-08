@@ -21,11 +21,12 @@ public final class BigCraftingCapacityLedger {
         if (reservations.containsKey(jobId)) {
             throw new IllegalStateException("job already has a capacity reservation: " + jobId);
         }
-        if (reserved.add(amount).compareTo(capacity) > 0) {
+        BigInteger nextReserved = reserved.add(amount);
+        if (nextReserved.compareTo(capacity) > 0) {
             return false;
         }
         reservations.put(jobId, amount);
-        reserved = reserved.add(amount);
+        reserved = nextReserved;
         return true;
     }
 

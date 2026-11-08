@@ -32,6 +32,22 @@ public final class CraftingCalculationMemo {
             "appeng.crafting.pattern.AESmithingTablePattern$Input");
     private static final String PURE_PROCESSING_INPUT_TYPE =
             "appeng.crafting.pattern.AEProcessingPattern$Input";
+    private static final byte INPUT_FLAG_MEMOIZABLE = 1;
+    private static final byte INPUT_FLAG_PURE_PROCESSING = 2;
+    private static final ClassValue<Byte> INPUT_TYPE_FLAGS = new ClassValue<>() {
+        @Override
+        protected Byte computeValue(Class<?> type) {
+            String name = type.getName();
+            byte flags = 0;
+            if (isMemoizableInputType(name)) {
+                flags |= INPUT_FLAG_MEMOIZABLE;
+            }
+            if (isPureValidationInputType(name)) {
+                flags |= INPUT_FLAG_PURE_PROCESSING;
+            }
+            return flags;
+        }
+    };
     private static final ThreadLocal<State> CURRENT = new ThreadLocal<>();
 
     private CraftingCalculationMemo() {
@@ -145,8 +161,7 @@ public final class CraftingCalculationMemo {
         if (state == null || !isPureProcessingInput(input)) {
             return lookup.getAsBoolean();
         }
-        var byLevel = state.validInputs.computeIfAbsent(input, ignored -> new IdentityHashMap<>());
-        var byCandidate = byLevel.computeIfAbsent(level, ignored -> new HashMap<>());
+        var byCandidate = state.validInputs.computeIfAbsent(input, ignored -> new HashMap<>());
         return byCandidate.computeIfAbsent(candidate, ignored -> lookup.getAsBoolean());
     }
 
@@ -180,8 +195,15 @@ public final class CraftingCalculationMemo {
         boolean eligible = state.vanillaValidation.computeIfAbsent(recipe, candidate -> {
             // Subclasses may copy energy/NBT or consult mutable world state (Issue #179).
             Class<?> type = candidate.getClass();
-            return (type == ShapedRecipe.class || type == ShapelessRecipe.class)
-                    && candidate.getIngredients().stream().allMatch(i -> i.getClass() == Ingredient.class);
+            if (type != ShapedRecipe.class && type != ShapelessRecipe.class) {
+                return false;
+            }
+            for (Ingredient ingredient : candidate.getIngredients()) {
+                if (ingredient.getClass() != Ingredient.class) {
+                    return false;
+                }
+            }
+            return true;
         });
         return eligible ? state : null;
     }
@@ -221,11 +243,11 @@ public final class CraftingCalculationMemo {
     }
 
     private static boolean isImmutableAe2Input(IPatternDetails.IInput input) {
-        return input != null && isMemoizableInputType(input.getClass().getName());
+        return input != null && (INPUT_TYPE_FLAGS.get(input.getClass()) & INPUT_FLAG_MEMOIZABLE) != 0;
     }
 
     private static boolean isPureProcessingInput(IPatternDetails.IInput input) {
-        return input != null && isPureValidationInputType(input.getClass().getName());
+        return input != null && (INPUT_TYPE_FLAGS.get(input.getClass()) & INPUT_FLAG_PURE_PROCESSING) != 0;
     }
 
     private static final class State {
@@ -236,7 +258,7 @@ public final class CraftingCalculationMemo {
                 new IdentityHashMap<>();
         private final Map<IPatternDetails.IInput, Map<AEKey, Optional<AEKey>>> fuzzy = new IdentityHashMap<>();
         private final Map<IPatternDetails.IInput, Map<AEKey, Optional<AEKey>>> remaining = new IdentityHashMap<>();
-        private final Map<IPatternDetails.IInput, Map<Level, Map<AEKey, Boolean>>> validInputs =
+        private final Map<IPatternDetails.IInput, Map<AEKey, Boolean>> validInputs =
                 new IdentityHashMap<>();
         private final Map<CraftingRecipe, Boolean> vanillaValidation = new IdentityHashMap<>();
         private final Map<Object, Map<CraftingSlotKey, Boolean>> taggedCrafting = new IdentityHashMap<>();

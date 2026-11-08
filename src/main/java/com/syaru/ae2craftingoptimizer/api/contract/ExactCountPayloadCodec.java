@@ -100,11 +100,7 @@ public final class ExactCountPayloadCodec {
             if (input.available() != 0) {
                 throw new IllegalArgumentException("trailing bytes in exact-count payload");
             }
-            ExactCountPayload payload = ExactCountPayload.of(kind, identifier, counts, digest, limits);
-            if (!Arrays.equals(encoded, encode(payload, limits))) {
-                throw new IllegalArgumentException("non-canonical exact-count payload");
-            }
-            return payload;
+            return ExactCountPayload.of(kind, identifier, counts, digest, limits);
         } catch (EOFException exception) {
             throw new IllegalArgumentException("truncated exact-count payload", exception);
         } catch (IOException exception) {

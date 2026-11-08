@@ -29,6 +29,7 @@ public final class ProfilerScreen extends Screen {
     private int top;
     private int bottom;
     private int divider;
+    private List<FormattedCharSequence> noteLines = List.of();
     private List<FormattedCharSequence> details = List.of();
     private Button refresh;
     private long lastRefresh;
@@ -60,7 +61,8 @@ public final class ProfilerScreen extends Screen {
     @Override
     protected void init() {
         divider = Math.max(110, width / 3);
-        top = 48 + font.split(Component.literal(NOTE), Math.max(1, width - 24)).size() * LINE_HEIGHT;
+        noteLines = List.copyOf(font.split(Component.literal(NOTE), Math.max(1, width - 24)));
+        top = 48 + noteLines.size() * LINE_HEIGHT;
         bottom = height - 34;
         refresh = addRenderableWidget(Button.builder(Component.literal("\u21bb"), button -> refresh())
                 .bounds(12, height - 26, 24, 20)
@@ -175,7 +177,7 @@ public final class ProfilerScreen extends Screen {
                 + (snapshot.truncated() ? "  \u7701\u7565\u3042\u308a" : "");
         graphics.drawString(font, font.plainSubstrByWidth(status, width - 24), 12, 24, 0xB7D6C5);
         int noteY = 37;
-        for (var line : font.split(Component.literal(NOTE), Math.max(1, width - 24))) {
+        for (var line : noteLines) {
             graphics.drawString(font, line, 12, noteY, 0xD3C69B);
             noteY += LINE_HEIGHT;
         }

@@ -124,6 +124,7 @@ public final class Ae2BigCraftingExecutionManager {
         private UUID lastReportedWaitingJobId;
         /** 直前にログへ出した待機理由。状態変化の境界だけを診断ログへ出す。 */
         private String lastReportedWaitingReason;
+        private String cachedStableKey;
 
         private Controller(CraftingCPUCluster cluster) {
             this.cluster = cluster;
@@ -136,9 +137,14 @@ public final class Ae2BigCraftingExecutionManager {
         }
 
         private String stableKey() {
-            return cluster.getLevel().dimension().location()
-                    + ":"
-                    + cluster.getBoundsMin().asLong();
+            String key = cachedStableKey;
+            if (key == null) {
+                key = cluster.getLevel().dimension().location()
+                        + ":"
+                        + cluster.getBoundsMin().asLong();
+                cachedStableKey = key;
+            }
+            return key;
         }
 
         /** @return 同じクラスタを次tickも追跡する場合true。 */

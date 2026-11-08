@@ -62,14 +62,13 @@ public final class PatternProviderBatchEligibility {
                 return null;
             }
 
-            List<Direction> targets = new ArrayList<>(rawTargets);
             // V2取引は一つのTargetだけを所有し、曖昧な配送先へは介入しない。
-            if (targets.size() != 1) {
+            if (rawTargets.size() != 1) {
                 return null;
             }
 
             BlockPos providerPos = providerBlockEntity.getBlockPos();
-            Direction providerSide = targets.get(0);
+            Direction providerSide = rawTargets.iterator().next();
             BlockPos targetPos = providerPos.relative(providerSide);
             // Provider ReceiptとTargetを同じChunk保存単位へ閉じ込める。
             if ((providerPos.getX() >> 4) != (targetPos.getX() >> 4)
