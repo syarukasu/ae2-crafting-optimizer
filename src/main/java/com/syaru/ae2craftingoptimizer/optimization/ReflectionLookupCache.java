@@ -53,9 +53,20 @@ public final class ReflectionLookupCache {
         if (!ACOConfig.cacheAe2OverclockReflection()) {
             return owner.getDeclaredMethod(name, parameterTypes);
         }
+        LookupTables tables = CACHE.get(owner);
+        if (parameterTypes == null || parameterTypes.length == 0) {
+            LookupResult<Method> result = lookup(
+                    tables.zeroArgDeclaredMethods,
+                    name,
+                    () -> declaredMethod(owner, name, parameterTypes));
+            if (result.member != null) {
+                return result.member;
+            }
+            throw new NoSuchMethodException(owner.getName() + "." + name + "()");
+        }
         MethodKey key = MethodKey.of(name, parameterTypes);
         LookupResult<Method> result = lookup(
-                CACHE.get(owner).declaredMethods,
+                tables.declaredMethods,
                 key,
                 () -> declaredMethod(owner, name, parameterTypes));
         if (result.member != null) {
@@ -69,9 +80,20 @@ public final class ReflectionLookupCache {
         if (!ACOConfig.cacheAe2OverclockReflection()) {
             return owner.getMethod(name, parameterTypes);
         }
+        LookupTables tables = CACHE.get(owner);
+        if (parameterTypes == null || parameterTypes.length == 0) {
+            LookupResult<Method> result = lookup(
+                    tables.zeroArgPublicMethods,
+                    name,
+                    () -> publicMethod(owner, name, parameterTypes));
+            if (result.member != null) {
+                return result.member;
+            }
+            throw new NoSuchMethodException(owner.getName() + "." + name + "()");
+        }
         MethodKey key = MethodKey.of(name, parameterTypes);
         LookupResult<Method> result = lookup(
-                CACHE.get(owner).publicMethods,
+                tables.publicMethods,
                 key,
                 () -> publicMethod(owner, name, parameterTypes));
         if (result.member != null) {
@@ -118,6 +140,8 @@ public final class ReflectionLookupCache {
 
     private static final class LookupTables {
         private final ConcurrentMap<String, LookupResult<Field>> declaredFields = new ConcurrentHashMap<>();
+        private final ConcurrentMap<String, LookupResult<Method>> zeroArgDeclaredMethods = new ConcurrentHashMap<>();
+        private final ConcurrentMap<String, LookupResult<Method>> zeroArgPublicMethods = new ConcurrentHashMap<>();
         private final ConcurrentMap<MethodKey, LookupResult<Method>> declaredMethods = new ConcurrentHashMap<>();
         private final ConcurrentMap<MethodKey, LookupResult<Method>> publicMethods = new ConcurrentHashMap<>();
     }

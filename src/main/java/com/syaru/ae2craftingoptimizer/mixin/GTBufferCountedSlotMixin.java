@@ -8,9 +8,11 @@ import appeng.api.stacks.KeyCounter;
 import com.syaru.ae2craftingoptimizer.optimization.GTCountedInputPush;
 import com.syaru.ae2craftingoptimizer.access.CountedPatternBufferSlot;
 import com.syaru.ae2craftingoptimizer.access.SharedPatternBufferAmounts;
+import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenCustomHashMap;
 import java.math.BigInteger;
 import java.util.Map;
+import java.util.function.Predicate;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.fluids.FluidStack;
 import org.spongepowered.asm.mixin.Final;
@@ -56,11 +58,7 @@ public abstract class GTBufferCountedSlotMixin implements CountedPatternBufferSl
     @Override public double aco$totalItemAmount() {
         // #245: Neo GT saturates each recipe-view entry; raw long storage is not capped.
         if (!aco$itemTotalValid) {
-            var total = BigInteger.ZERO;
-            for (var entry : itemInventory.object2LongEntrySet())
-                if (!entry.getKey().isEmpty() && entry.getLongValue() > 0)
-                    total = total.add(BigInteger.valueOf(Math.min(entry.getLongValue(), Integer.MAX_VALUE)));
-            aco$itemTotal = total.doubleValue();
+            aco$itemTotal = aco$sumPositiveCounts(itemInventory, ItemStack::isEmpty);
             aco$itemTotalValid = true;
         }
         return aco$itemTotal;
@@ -68,15 +66,24 @@ public abstract class GTBufferCountedSlotMixin implements CountedPatternBufferSl
 
     @Override public double aco$totalFluidAmount() {
         if (!aco$fluidTotalValid) {
-            var total = BigInteger.ZERO;
-            for (var entry : fluidInventory.object2LongEntrySet())
-                if (!entry.getKey().isEmpty() && entry.getLongValue() > 0)
-                    total = total.add(BigInteger.valueOf(Math.min(entry.getLongValue(), Integer.MAX_VALUE)));
-            aco$fluidTotal = total.doubleValue();
+            aco$fluidTotal = aco$sumPositiveCounts(fluidInventory, FluidStack::isEmpty);
             aco$fluidTotalValid = true;
         }
         return aco$fluidTotal;
     }
+
+    @Unique
+    private static <K> double aco$sumPositiveCounts(Object2LongMap<K> inventory, Predicate<K> isEmpty) {
+        // Both the Neo GT view's per-entry cap and the number of entries fit in int.
+        long total = 0;
+        for (var entry : inventory.object2LongEntrySet()) {
+            long count = entry.getLongValue();
+            if (count <= 0 || isEmpty.test(entry.getKey())) continue;
+            total += Math.min(count, Integer.MAX_VALUE);
+        }
+        return (double) total;
+    }
+
     @Shadow @Final private Object2LongOpenCustomHashMap<ItemStack> itemInventory;
     @Shadow @Final private Object2LongOpenCustomHashMap<FluidStack> fluidInventory;
 

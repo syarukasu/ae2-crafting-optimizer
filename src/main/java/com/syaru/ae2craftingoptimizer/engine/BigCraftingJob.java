@@ -24,7 +24,7 @@ public final class BigCraftingJob<K> {
     public static final String ROOT_WINDOW_TASK_ID = "aco:root-window-v1";
     private static final int MAX_ENTRIES = 1_048_576;
     /** SHA-256と将来の接頭辞を十分収めつつ、不正NBTによる巨大文字列を拒否する。 */
-    private static final int MAX_PLANNING_METADATA_LENGTH = 128;
+    private static final int MAX_PLANNING_METADATA_LENGTH = 256;
 
     private final UUID id;
     private final K requestedKey;

@@ -126,7 +126,9 @@ public final class Ae2CompiledCraftingGraphCache {
             for (IPatternDetails details : registered) {
                 if (!seen.add(details)) {
                     String existingId = idByPattern.get(details);
-                    if (existingId == null || !compiledById.containsKey(existingId)) {
+                    if (existingId == null
+                            || !compiledById.containsKey(existingId)
+                            || compiledById.get(existingId).outputAmount(key) <= 0L) {
                         incompletelyCompiledOutputs.add(key);
                     }
                     continue;

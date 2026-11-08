@@ -152,7 +152,6 @@ public final class CraftingCalculationDeduplicator {
         // 重複排除OFFまたは再利用不能な戻り値は、所有権を変更せずそのまま返す。
         if (!ACOConfig.deduplicateActiveCraftingCalculations()
                 || future == null
-                || future.isDone()
                 || future.isCancelled()) {
             return future;
         }
@@ -170,6 +169,11 @@ public final class CraftingCalculationDeduplicator {
         synchronized (state.lock) {
             Map<RequestKey, Entry> serviceEntries = state.active;
             cleanupActive(state, serviceEntries, now);
+            if (future.isDone()) {
+                SharedCalculationFuture<ICraftingPlan> completedShared = new SharedCalculationFuture<>(future);
+                rememberCompleted(state, requestKey, new Entry(completedShared, now), now);
+                return future;
+            }
             Entry existing = serviceEntries.get(requestKey);
             if (existing != null && existing.isReusable(now)) {
                 // HEAD注入ですでに取得した購読者は、RETURN注入で再取得・cancelしない。
@@ -246,7 +250,8 @@ public final class CraftingCalculationDeduplicator {
             Map.Entry<RequestKey, Entry> mapEntry = iterator.next();
             Entry entry = mapEntry.getValue();
             if (entry.future.isDone() && !entry.future.isCancelled()) {
-                rememberCompleted(state, mapEntry.getKey(), entry, now);
+                long completedAt = Math.min(now, entry.createdAtNanos + maximumAgeNanos());
+                rememberCompleted(state, mapEntry.getKey(), entry, completedAt);
             }
             if (!entry.isReusable(now)) {
                 iterator.remove();
