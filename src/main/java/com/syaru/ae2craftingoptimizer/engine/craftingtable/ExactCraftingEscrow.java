@@ -99,6 +99,10 @@ public final class ExactCraftingEscrow<K> {
         return amounts.isEmpty();
     }
 
+    public boolean matchesSnapshot(Map<K, BigInteger> expected) {
+        return amounts.equals(Objects.requireNonNull(expected, "expected"));
+    }
+
     public Map<K, BigInteger> snapshot() {
         return ExactCountMap.immutableOrderedCopy(amounts);
     }

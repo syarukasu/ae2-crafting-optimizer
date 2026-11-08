@@ -55,11 +55,13 @@ public abstract class GTBufferCountedSlotMixin implements CountedPatternBufferSl
 
     @Override public double aco$totalItemAmount() {
         if (!aco$itemTotalValid) {
-            var total = BigInteger.ZERO;
-            for (var entry : itemInventory.object2LongEntrySet())
-                if (!entry.getKey().isEmpty() && entry.getLongValue() > 0)
-                    total = total.add(BigInteger.valueOf(entry.getLongValue()));
-            aco$itemTotal = total.doubleValue();
+            double total = 0.0D;
+            for (var entry : itemInventory.object2LongEntrySet()) {
+                if (!entry.getKey().isEmpty() && entry.getLongValue() > 0L) {
+                    total += (double) entry.getLongValue();
+                }
+            }
+            aco$itemTotal = total;
             aco$itemTotalValid = true;
         }
         return aco$itemTotal;
@@ -67,11 +69,13 @@ public abstract class GTBufferCountedSlotMixin implements CountedPatternBufferSl
 
     @Override public double aco$totalFluidAmount() {
         if (!aco$fluidTotalValid) {
-            var total = BigInteger.ZERO;
-            for (var entry : fluidInventory.object2LongEntrySet())
-                if (!entry.getKey().isEmpty() && entry.getLongValue() > 0)
-                    total = total.add(BigInteger.valueOf(entry.getLongValue()));
-            aco$fluidTotal = total.doubleValue();
+            double total = 0.0D;
+            for (var entry : fluidInventory.object2LongEntrySet()) {
+                if (!entry.getKey().isEmpty() && entry.getLongValue() > 0L) {
+                    total += (double) entry.getLongValue();
+                }
+            }
+            aco$fluidTotal = total;
             aco$fluidTotalValid = true;
         }
         return aco$fluidTotal;

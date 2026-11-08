@@ -35,6 +35,9 @@ public final class PatternProviderRoutingCache {
     }
 
     private static List<ICraftingProvider> copyProviders(Iterable<ICraftingProvider> providers) {
+        if (providers instanceof java.util.Collection<ICraftingProvider> collection) {
+            return List.copyOf(collection);
+        }
         List<ICraftingProvider> result = new ArrayList<>();
         providers.forEach(result::add);
         return List.copyOf(result);

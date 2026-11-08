@@ -14,6 +14,7 @@ import java.util.function.ToLongFunction;
  * 共有DAGを渡した場合は近似値を返さず、明示的に失敗する。
  */
 public final class BigExactCraftingByteCounter<K> {
+    private static final BigInteger EIGHT = BigInteger.valueOf(8L);
     private final Map<K, CompiledPattern<K>> patterns;
     private final Map<String, BigInteger> executions;
     private final ToLongFunction<K> amountPerByte;
@@ -28,8 +29,8 @@ public final class BigExactCraftingByteCounter<K> {
             Map<String, BigInteger> executions,
             ToLongFunction<K> amountPerByte,
             int maximumBits) {
-        this.patterns = Map.copyOf(Objects.requireNonNull(patterns, "patterns"));
-        this.executions = Map.copyOf(Objects.requireNonNull(executions, "executions"));
+        this.patterns = Objects.requireNonNull(patterns, "patterns");
+        this.executions = Objects.requireNonNull(executions, "executions");
         this.amountPerByte = Objects.requireNonNull(amountPerByte, "amountPerByte");
         this.maximumBits = maximumBits;
     }
@@ -47,7 +48,7 @@ public final class BigExactCraftingByteCounter<K> {
                 patterns, executions, amountPerByte, maximumBits);
         BigInteger nodes = counter.visit(root, requestedAmount);
         counter.addInteger(BigCountMath.multiply(
-                nodes, BigInteger.valueOf(8L), "bytes/nodeOverhead", maximumBits));
+                nodes, EIGHT, "bytes/nodeOverhead", maximumBits));
         return counter.roundedBytes();
     }
 
@@ -117,9 +118,9 @@ public final class BigExactCraftingByteCounter<K> {
         BigInteger unit = BigInteger.valueOf(divisor);
         BigInteger[] parts = amount.divideAndRemainder(unit);
         // Issue #190: only the converted byte cost, not amount * 8, consumes CPU capacity.
-        addInteger(BigCountMath.multiply(parts[0], BigInteger.valueOf(8), "bytes/wholeStack", maximumBits));
+        addInteger(BigCountMath.multiply(parts[0], EIGHT, "bytes/wholeStack", maximumBits));
         // The remainder is below a positive long unit; scaling it needs at most 66 bits.
-        addFraction(parts[1].multiply(BigInteger.valueOf(8)), unit);
+        addFraction(parts[1].multiply(EIGHT), unit);
     }
 
     private void addFraction(BigInteger addNumerator, BigInteger addDenominator) {

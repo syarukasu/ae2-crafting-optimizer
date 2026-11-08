@@ -24,6 +24,10 @@ public final class TransactionalExactPatternCache {
 
     static Lookup lookup(IPatternDetails details) {
         long generation = ProviderPatternGenerationTracker.generation();
+        if (!(details instanceof IMolecularAssemblerSupportedPattern)
+                && (details == null || details.getClass() != AEProcessingPattern.class)) {
+            return Compilation.UNSUPPORTED.lookup(generation);
+        }
         synchronized (CACHE) {
             // Provider Pattern世代が変わった場合、異なるPattern集合のmetadataを混在させない。
             if (cachedGeneration != generation) {
@@ -172,12 +176,14 @@ public final class TransactionalExactPatternCache {
     }
 
     private record Compilation(State state, @Nullable CompiledPattern pattern) {
+        private static final Compilation UNSUPPORTED = new Compilation(State.UNSUPPORTED, null);
+
         private static Compilation supported(CompiledPattern pattern) {
             return new Compilation(State.SUPPORTED, pattern);
         }
 
         private static Compilation unsupported() {
-            return new Compilation(State.UNSUPPORTED, null);
+            return UNSUPPORTED;
         }
 
         private Lookup lookup(long generation) {

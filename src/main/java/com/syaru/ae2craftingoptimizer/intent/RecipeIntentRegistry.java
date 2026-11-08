@@ -17,6 +17,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 
 public final class RecipeIntentRegistry {
+    private static final Direction[] DIRECTIONS = Direction.values();
     private static final Map<IntentLocation, ArrayDeque<StoredIntent>> INTENTS = new LinkedHashMap<>();
     private static final Map<SpatialBucket, Set<IntentLocation>> SPATIAL_INDEX = new LinkedHashMap<>();
     private static int entryCount;
@@ -90,13 +91,23 @@ public final class RecipeIntentRegistry {
         if (INTENTS.isEmpty()) {
             return List.of();
         }
-        List<RecipeIntent> matches = new ArrayList<>();
-        // #179: exact target lookup must not walk every machine's hints.
-        for (Direction side : Direction.values()) {
-            var entries = INTENTS.get(new IntentLocation(dimension, targetPos, side));
-            if (entries != null) appendSnapshots(entries, matches);
+        Set<IntentLocation> chunkLocations = SPATIAL_INDEX.get(
+                new SpatialBucket(dimension, targetPos.getX() >> 4, targetPos.getZ() >> 4));
+        if (chunkLocations == null || chunkLocations.isEmpty()) {
+            return List.of();
         }
-        return matches;
+        List<RecipeIntent> matches = null;
+        // #179: exact target lookup must not walk every machine's hints.
+        for (Direction side : DIRECTIONS) {
+            var entries = INTENTS.get(new IntentLocation(dimension, targetPos, side));
+            if (entries != null && !entries.isEmpty()) {
+                if (matches == null) {
+                    matches = new ArrayList<>(entries.size());
+                }
+                appendSnapshots(entries, matches);
+            }
+        }
+        return matches == null ? List.of() : matches;
     }
 
     public static synchronized List<RecipeIntent> findNearby(
@@ -270,6 +281,10 @@ public final class RecipeIntentRegistry {
             if (entries.isEmpty()) {
                 iterator.remove();
                 removeSpatialLocation(eldest.getKey());
+            } else {
+                IntentLocation key = eldest.getKey();
+                iterator.remove();
+                INTENTS.put(key, entries);
             }
         }
     }

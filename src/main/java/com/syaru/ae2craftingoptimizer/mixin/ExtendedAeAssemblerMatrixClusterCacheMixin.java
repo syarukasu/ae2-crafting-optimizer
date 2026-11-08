@@ -21,6 +21,8 @@ import java.lang.reflect.Method;
         remap = false)
 public abstract class ExtendedAeAssemblerMatrixClusterCacheMixin {
     @Unique
+    private static final Class<?>[] ACO$EMPTY_CLASSES = new Class<?>[0];
+    @Unique
     private long aco$statusTick = Long.MIN_VALUE;
     @Unique
     private boolean aco$statusValue;
@@ -36,7 +38,7 @@ public abstract class ExtendedAeAssemblerMatrixClusterCacheMixin {
         }
         try {
             Method usedThread = ReflectionLookupCache.getMethod(
-                    aco$lastAvailableCrafter.getClass(), "usedThread", new Class<?>[0]);
+                    aco$lastAvailableCrafter.getClass(), "usedThread", ACO$EMPTY_CLASSES);
             if (((Number) usedThread.invoke(aco$lastAvailableCrafter)).intValue() < 8) {
                 cir.setReturnValue(aco$lastAvailableCrafter);
             } else {

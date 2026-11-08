@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
@@ -290,14 +291,17 @@ public final class TransactionalCraftingExecutorV2 {
                         selection.context(), budget, transactionId);
                 if (!transactionId.equals(prepared.transactionId())
                         || prepared.offeredExecutions() > preparedLimit) {
+                    safeRollbackPrepared(selection, prepared);
                     throw new IllegalStateException(
                             "V2 adapter returned a mismatched transaction id or exceeded its execution budget");
                 }
                 requested = prepared.offeredExecutions();
                 if (requested < 1L) {
+                    safeRollbackPrepared(selection, prepared);
                     continue;
                 }
                 if (!matchesPreparedBatch(prepared, plan, requested)) {
+                    safeRollbackPrepared(selection, prepared);
                     throw new IllegalStateException(
                             "V2 adapter prepared inputs or outputs that do not match the exact AE2 pattern plan");
                 }
@@ -309,10 +313,12 @@ public final class TransactionalCraftingExecutorV2 {
                                         plan.inputsPerExecution(),
                                         requested));
                 if (!Double.isFinite(power) || power < 0.0D) {
+                    safeRollbackPrepared(selection, prepared);
                     continue;
                 }
-                if (!TransactionalBatchTargetGuard.tryClaim(
-                        level, selection.context().target().getBlockPos())) {
+                BlockPos targetPos = selection.context().target().getBlockPos();
+                if (!TransactionalBatchTargetGuard.tryClaim(level, targetPos)) {
+                    safeRollbackPrepared(selection, prepared);
                     continue;
                 }
                 var sourceData = Ae2BatchSourceReconciler.createSourceData(
@@ -324,11 +330,13 @@ public final class TransactionalCraftingExecutorV2 {
                         Ae2BatchSourceReconciler.ID,
                         prepared,
                         level.dimension().location(),
-                        selection.context().target().getBlockPos(),
+                        targetPos,
                         patternFingerprint,
                         sourceData,
                         level.getGameTime());
                 if (transaction == null) {
+                    safeRollbackPrepared(selection, prepared);
+                    TransactionalBatchTargetGuard.release(level, targetPos);
                     return NOT_HANDLED;
                 }
 
@@ -340,6 +348,8 @@ public final class TransactionalCraftingExecutorV2 {
                         0,
                         level.getGameTime());
                 if (!sourceReceipts.aco$stageBatchSourceReceipt(staged)) {
+                    safeRollbackPrepared(selection, prepared);
+                    TransactionalBatchTargetGuard.release(level, targetPos);
                     transaction.rolledBack(level.getGameTime());
                     return NOT_HANDLED;
                 }
@@ -690,10 +700,65 @@ public final class TransactionalCraftingExecutorV2 {
             PreparedPatternBatch prepared,
             ExactPlan plan,
             long executions) {
-        return normalizedStacks(prepared.aggregateInputs()).equals(normalizedStacks(
-                        flattenCounters(scaleCounters(plan.inputsPerExecution(), executions))))
-                && normalizedStacks(prepared.expectedOutputs()).equals(normalizedStacks(
-                        plan.scaleExpectedOutputs(executions)));
+        return sameMultiset(
+                        prepared.aggregateInputs(),
+                        flattenCounters(scaleCounters(plan.inputsPerExecution(), executions)))
+                && sameMultiset(
+                        prepared.expectedOutputs(),
+                        plan.scaleExpectedOutputs(executions));
+    }
+
+    private static boolean sameMultiset(List<GenericStack> left, List<GenericStack> right) {
+        if (left.size() != right.size()) {
+            return false;
+        }
+        for (GenericStack stack : left) {
+            if (stack == null || stack.amount() <= 0L) {
+                throw new IllegalArgumentException(
+                        "prepared batch contains a null or non-positive stack");
+            }
+        }
+        for (GenericStack stack : right) {
+            if (stack == null || stack.amount() <= 0L) {
+                throw new IllegalArgumentException(
+                        "prepared batch contains a null or non-positive stack");
+            }
+        }
+        int size = left.size();
+        if (size == 0) {
+            return true;
+        }
+        if (size == 1) {
+            GenericStack l = left.get(0);
+            GenericStack r = right.get(0);
+            return l.amount() == r.amount() && l.what().equals(r.what());
+        }
+        boolean[] matched = new boolean[size];
+        for (int i = 0; i < size; i++) {
+            GenericStack l = left.get(i);
+            boolean found = false;
+            for (int j = 0; j < size; j++) {
+                if (!matched[j]) {
+                    GenericStack r = right.get(j);
+                    if (l.amount() == r.amount() && l.what().equals(r.what())) {
+                        matched[j] = true;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void safeRollbackPrepared(V2Selection selection, PreparedPatternBatch prepared) {
+        try {
+            selection.adapter().rollback(selection.context(), prepared);
+        } catch (RuntimeException | LinkageError ignored) {
+        }
     }
 
     private static List<GenericStack> flattenCounters(KeyCounter[] counters) {
@@ -703,22 +768,6 @@ public final class TransactionalCraftingExecutorV2 {
                 result.add(new GenericStack(entry.getKey(), entry.getLongValue()));
             }
         }
-        return List.copyOf(result);
-    }
-
-    private static List<ComparableStack> normalizedStacks(List<GenericStack> stacks) {
-        List<ComparableStack> result = new ArrayList<>(stacks.size());
-        for (GenericStack stack : stacks) {
-            if (stack == null || stack.amount() <= 0L) {
-                throw new IllegalArgumentException(
-                        "prepared batch contains a null or non-positive stack");
-            }
-            result.add(new ComparableStack(
-                    stack.what().toTagGeneric().toString(),
-                    stack.amount()));
-        }
-        result.sort(Comparator.comparing(ComparableStack::key)
-                .thenComparingLong(ComparableStack::amount));
         return List.copyOf(result);
     }
 
@@ -869,11 +918,23 @@ public final class TransactionalCraftingExecutorV2 {
                 TransactionalExactPatternCache.CompiledInput input,
                 ICraftingInventory inventory,
                 Level level) {
+            TransactionalExactPatternCache.Candidate[] candidates = input.candidates();
+            if (candidates.length == 1) {
+                TransactionalExactPatternCache.Candidate only = candidates[0];
+                GenericStack stack = only.stack();
+                if (stack == null
+                        || stack.amount() <= 0L
+                        || !input.input().isValid(stack.what(), level)
+                        || only.amountPerExecution() <= 0L) {
+                    return null;
+                }
+                return new SelectedInput(stack.what(), only.amountPerExecution());
+            }
             TransactionalExactPatternCache.Candidate selected = null;
             // -1は在庫0の最初の有効候補も選択対象にするための初期値。
             long selectedCrafts = -1L;
             // AE2の候補順を維持し、同数なら先に現れた候補を選ぶ。
-            for (TransactionalExactPatternCache.Candidate candidate : input.candidates()) {
+            for (TransactionalExactPatternCache.Candidate candidate : candidates) {
                 GenericStack stack = candidate.stack();
                 // null・非正量・現在worldで無効な候補を従来と同じ順序で除外する。
                 if (stack == null
@@ -889,6 +950,9 @@ public final class TransactionalCraftingExecutorV2 {
                         stack.what(),
                         Long.MAX_VALUE,
                         Actionable.SIMULATE);
+                if (available < 0L) {
+                    continue;
+                }
                 long crafts = available / candidate.amountPerExecution();
                 // 在庫が最も多い一種類だけを選び、同じBatch内で代替素材を混在させない。
                 if (crafts > selectedCrafts) {

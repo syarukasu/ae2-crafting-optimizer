@@ -28,7 +28,9 @@ public final class AssemblerMatrixBusyCountCache {
         if (!ACOConfig.cacheAssemblerMatrixBusyCount() || cluster == null || tick == 0L) {
             return;
         }
-        CACHE.put(cluster, new Entry(tick, value));
+        Entry entry = CACHE.computeIfAbsent(cluster, ignored -> new Entry());
+        entry.tick = tick;
+        entry.value = value;
     }
 
     public static synchronized void invalidate(Object cluster) {
@@ -39,6 +41,8 @@ public final class AssemblerMatrixBusyCountCache {
         CACHE.clear();
     }
 
-    private record Entry(long tick, int value) {
+    private static final class Entry {
+        private long tick;
+        private int value;
     }
 }

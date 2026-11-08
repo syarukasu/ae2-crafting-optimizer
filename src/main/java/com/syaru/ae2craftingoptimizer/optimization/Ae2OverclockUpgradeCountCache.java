@@ -24,11 +24,18 @@ public final class Ae2OverclockUpgradeCountCache {
         if (entry == null || entry.tick != tick) {
             return null;
         }
-        Integer value = kind == Kind.OVERCLOCK ? entry.overclock : entry.parallel;
-        if (value != null) {
+        if (kind == Kind.OVERCLOCK) {
+            if (!entry.hasOverclock) {
+                return null;
+            }
             OptimizationMetrics.recordAe2OverclockUpgradeCount(true);
+            return entry.overclock;
         }
-        return value;
+        if (!entry.hasParallel) {
+            return null;
+        }
+        OptimizationMetrics.recordAe2OverclockUpgradeCount(true);
+        return entry.parallel;
     }
 
     public static synchronized void put(Object host, Kind kind, int value) {
@@ -39,19 +46,21 @@ public final class Ae2OverclockUpgradeCountCache {
         Entry entry = CACHE.computeIfAbsent(host, ignored -> new Entry());
         if (entry.tick != tick) {
             entry.tick = tick;
-            entry.overclock = null;
-            entry.parallel = null;
+            entry.hasOverclock = false;
+            entry.hasParallel = false;
         }
         if (kind == Kind.OVERCLOCK) {
-            if (entry.overclock != null) {
+            if (entry.hasOverclock) {
                 return;
             }
             entry.overclock = value;
+            entry.hasOverclock = true;
         } else {
-            if (entry.parallel != null) {
+            if (entry.hasParallel) {
                 return;
             }
             entry.parallel = value;
+            entry.hasParallel = true;
         }
         OptimizationMetrics.recordAe2OverclockUpgradeCount(false);
     }
@@ -62,7 +71,9 @@ public final class Ae2OverclockUpgradeCountCache {
 
     private static final class Entry {
         private long tick;
-        private Integer overclock;
-        private Integer parallel;
+        private int overclock;
+        private int parallel;
+        private boolean hasOverclock;
+        private boolean hasParallel;
     }
 }

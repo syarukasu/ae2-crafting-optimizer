@@ -64,6 +64,10 @@ public final class CountedItemCapacity {
         if (high <= 0L) return 0L;
         AEItemKey[] reserved = new AEItemKey[slots];
         long[] used = new long[slots];
+        if (fits(keys, amounts, space, original, reserved, used, high)) {
+            return high;
+        }
+        high--;
         long low = 0;
         while (low < high) {
             long middle = low + (high - low) / 2 + 1;

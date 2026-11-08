@@ -11,8 +11,9 @@ import com.syaru.ae2craftingoptimizer.access.ExactCraftingJobAccess;
 import com.syaru.ae2craftingoptimizer.api.batch.CountedPatternBatchTarget;
 import com.syaru.ae2craftingoptimizer.api.batch.CountedProcessingTransfers;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.BatchSourceReceiptStore;
+import com.syaru.ae2craftingoptimizer.scheduler.PatternProviderRoutingCache;
 import java.math.BigInteger;
-import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.world.level.Level;
 
 /** Native AE2 accounting only; the original CPU grant is not enlarged. */
@@ -37,13 +38,12 @@ public final class CountedCraftingDispatch {
             if (!(entry.getValue() instanceof CraftingTaskProgressAccess progress)) return NOT_HANDLED;
             BigInteger remaining = progress.aco$getExactTaskProgress();
             if (remaining.signum() <= 0) continue;
-            var providers = new ArrayList<ICraftingProvider>();
-            for (var provider : service.getProviders(entry.getKey())) {
-                // Preserve opaque callbacks and routing before any source ownership changes.
-                if (!(provider instanceof CountedPatternBatchTarget)) return NOT_HANDLED;
-                providers.add(provider);
-            }
+            List<ICraftingProvider> providers = PatternProviderRoutingCache.candidates(service, entry.getKey());
             if (providers.isEmpty()) continue;
+            for (int i = 0; i < providers.size(); i++) {
+                // Preserve opaque callbacks and routing before any source ownership changes.
+                if (!(providers.get(i) instanceof CountedPatternBatchTarget)) return NOT_HANDLED;
+            }
             if (grant <= providers.size()) return NOT_HANDLED;
             inspected = true;
             int accepted = 0;

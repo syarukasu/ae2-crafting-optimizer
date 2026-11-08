@@ -6,6 +6,10 @@ import com.syaru.ae2craftingoptimizer.api.batch.v2.SourceRecoveryResult;
 import com.syaru.ae2craftingoptimizer.api.batch.v2.TransactionalPatternBatchAdapter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import net.minecraft.server.level.ServerLevel;
 
 /**
@@ -13,6 +17,8 @@ import net.minecraft.server.level.ServerLevel;
  * record from any public API type.
  */
 final class BatchRecoveryCompatibilityBridge {
+    private static final ConcurrentMap<MethodLookupKey, Method> METHOD_CACHE = new ConcurrentHashMap<>();
+
     private BatchRecoveryCompatibilityBridge() {
     }
 
@@ -110,7 +116,7 @@ final class BatchRecoveryCompatibilityBridge {
 
     private static Method publicMethod(Object target, String name, Class<?>... parameterTypes) {
         try {
-            return target.getClass().getMethod(name, parameterTypes);
+            return cachedMethod(target.getClass(), name, parameterTypes);
         } catch (NoSuchMethodException missing) {
             throw new IllegalStateException("recovery implementation has no " + name, missing);
         }
@@ -124,7 +130,8 @@ final class BatchRecoveryCompatibilityBridge {
             ServerLevel level,
             BatchTransactionRecord record) {
         try {
-            Method method = target.getClass().getMethod(
+            Method method = cachedMethod(
+                    target.getClass(),
                     name,
                     ServerLevel.class,
                     BatchTransactionRecord.class);
@@ -140,7 +147,8 @@ final class BatchRecoveryCompatibilityBridge {
             ServerLevel level,
             BatchTransactionRecord record) {
         try {
-            Method method = target.getClass().getMethod(
+            Method method = cachedMethod(
+                    target.getClass(),
                     name,
                     ServerLevel.class,
                     BatchTransactionRecord.class);
@@ -148,6 +156,21 @@ final class BatchRecoveryCompatibilityBridge {
         } catch (ReflectiveOperationException failure) {
             throw unwrap(name, failure);
         }
+    }
+
+    private static Method cachedMethod(Class<?> owner, String name, Class<?>... parameterTypes)
+            throws NoSuchMethodException {
+        MethodLookupKey key = new MethodLookupKey(owner, name, List.copyOf(Arrays.asList(parameterTypes)));
+        Method cached = METHOD_CACHE.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        Method resolved = owner.getMethod(name, parameterTypes);
+        Method existing = METHOD_CACHE.putIfAbsent(key, resolved);
+        return existing != null ? existing : resolved;
+    }
+
+    private record MethodLookupKey(Class<?> owner, String name, List<Class<?>> parameterTypes) {
     }
 
     private static RuntimeException unwrap(String name, ReflectiveOperationException failure) {
