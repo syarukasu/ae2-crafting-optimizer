@@ -35,10 +35,11 @@ public final class BigCountMath {
             BigInteger value,
             String context,
             int maximumBits) {
-        return requireMaximumBits(value, context, null, maximumBits);
+        checkedBitLength(value, context, null, maximumBits);
+        return value;
     }
 
-    private static BigInteger requireMaximumBits(
+    private static int checkedBitLength(
             BigInteger value,
             String context,
             String suffix,
@@ -54,9 +55,9 @@ public final class BigCountMath {
                     "maximumBits must be between 1 and " + HARD_MAXIMUM_BITS);
         }
         // 管理者設定のbit上限を越える値は、NBTやpacketを割り当てる前に拒否する。
-        if (value.bitLength() > maximumBits) {
-            throw new IllegalArgumentException(
-                    formatContext(context, suffix) + " exceeds " + maximumBits + " bits");
+        int bits = value.bitLength();
+        if (bits > maximumBits) {
+            throw new IllegalArgumentException(bitLimitMessage(context, suffix, maximumBits));
         }
         // 最大bit長の一部は16,385桁へ届くため、厳密な10進16,384桁上限も比較する。
         if (value.compareTo(HARD_MAXIMUM_VALUE) > 0) {
@@ -66,11 +67,15 @@ public final class BigCountMath {
                             + HARD_MAXIMUM_DECIMAL_DIGITS
                             + " decimal-digit limit");
         }
-        return value;
+        return bits;
     }
 
     private static String formatContext(String context, String suffix) {
         return suffix == null ? context : context + suffix;
+    }
+
+    private static String bitLimitMessage(String context, String suffix, int maximumBits) {
+        return formatContext(context, suffix) + " exceeds " + maximumBits + " bits";
     }
 
     public static BigInteger hardMaximumValue() {
@@ -82,9 +87,9 @@ public final class BigCountMath {
             BigInteger right,
             String context,
             int maximumBits) {
-        requireMaximumBits(left, context, "/left", maximumBits);
-        requireMaximumBits(right, context, "/right", maximumBits);
-        return requireMaximumBits(left.add(right), context, null, maximumBits);
+        checkedBitLength(left, context, "/left", maximumBits);
+        checkedBitLength(right, context, "/right", maximumBits);
+        return requireMaximumBits(left.add(right), context, maximumBits);
     }
 
     public static BigInteger multiply(
@@ -92,9 +97,15 @@ public final class BigCountMath {
             BigInteger right,
             String context,
             int maximumBits) {
-        requireMaximumBits(left, context, "/left", maximumBits);
-        requireMaximumBits(right, context, "/right", maximumBits);
-        return requireMaximumBits(left.multiply(right), context, null, maximumBits);
+        int leftBits = checkedBitLength(left, context, "/left", maximumBits);
+        int rightBits = checkedBitLength(right, context, "/right", maximumBits);
+        // 正の整数の積は、両辺のビット長の和 - 1 以上のビット長を持つ。
+        // 片方がゼロなら、もう片方は検証済みなのでこの条件を満たさない。
+        if (leftBits + rightBits - 1 > maximumBits
+                && left.getClass() == BigInteger.class && right.getClass() == BigInteger.class) {
+            throw new IllegalArgumentException(bitLimitMessage(context, null, maximumBits));
+        }
+        return requireMaximumBits(left.multiply(right), context, maximumBits);
     }
 
     public static BigInteger ceilDiv(BigInteger dividend, BigInteger divisor, String context) {
@@ -130,7 +141,7 @@ public final class BigCountMath {
             int maximumBits) {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(key, "key");
-        requireMaximumBits(amount, context, "/amount", maximumBits);
+        checkedBitLength(amount, context, "/amount", maximumBits);
         // 0量はMapを増やさず、そのまま無視する。
         if (amount.signum() != 0) {
             BigInteger current = target.getOrDefault(key, BigInteger.ZERO);
