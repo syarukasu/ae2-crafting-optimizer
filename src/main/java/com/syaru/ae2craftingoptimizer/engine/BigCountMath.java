@@ -55,8 +55,7 @@ public final class BigCountMath {
         }
         // 管理者設定のbit上限を越える値は、NBTやpacketを割り当てる前に拒否する。
         if (value.bitLength() > maximumBits) {
-            throw new IllegalArgumentException(
-                    formatContext(context, suffix) + " exceeds " + maximumBits + " bits");
+            throw aboveBitLimit(context, suffix, maximumBits);
         }
         // 最大bit長の一部は16,385桁へ届くため、厳密な10進16,384桁上限も比較する。
         if (value.compareTo(HARD_MAXIMUM_VALUE) > 0) {
@@ -71,6 +70,10 @@ public final class BigCountMath {
 
     private static String formatContext(String context, String suffix) {
         return suffix == null ? context : context + suffix;
+    }
+
+    private static IllegalArgumentException aboveBitLimit(String context, String suffix, int maximumBits) {
+        return new IllegalArgumentException(formatContext(context, suffix) + " exceeds " + maximumBits + " bits");
     }
 
     public static BigInteger hardMaximumValue() {
@@ -94,6 +97,12 @@ public final class BigCountMath {
             int maximumBits) {
         requireMaximumBits(left, context, "/left", maximumBits);
         requireMaximumBits(right, context, "/right", maximumBits);
+        // For positive integers, the sum of the operand bit lengths minus one bounds the product
+        // from below. A zero operand cannot meet this condition after validating the other operand.
+        if (left.getClass() == BigInteger.class && right.getClass() == BigInteger.class
+                && left.bitLength() + right.bitLength() - 1 > maximumBits) {
+            throw aboveBitLimit(context, null, maximumBits);
+        }
         return requireMaximumBits(left.multiply(right), context, null, maximumBits);
     }
 
